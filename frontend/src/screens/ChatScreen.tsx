@@ -290,6 +290,12 @@ type ChatMessage = {
   editedAt?: number; // epoch ms
   deletedAt?: number; // epoch ms
   deletedBySub?: string;
+  // Channels (plaintext) metadata
+  mentions?: string[];
+  replyToCreatedAt?: number;
+  replyToMessageId?: string;
+  replyToUserSub?: string;
+  replyToPreview?: string;
   reactions?: Record<string, { count: number; userSubs: string[] }>;
   // Backward-compat: historically we supported only a single attachment per message.
   // New messages can include multiple attachments; use `mediaList` when present.
@@ -817,6 +823,13 @@ export default function ChatScreen({
   const inputRef = React.useRef<string>('');
   const textInputRef = React.useRef<TextInput | null>(null);
   const [inputEpoch, setInputEpoch] = React.useState<number>(0);
+  const [replyTarget, setReplyTarget] = React.useState<null | {
+    id: string;
+    createdAt: number;
+    user?: string;
+    userSub?: string;
+    preview: string;
+  }>(null);
   const sendTimeoutRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [typingByUserExpiresAt, setTypingByUserExpiresAt] = React.useState<Record<string, number>>(
     {}
@@ -1131,7 +1144,102 @@ export default function ChatScreen({
   );
   const isDm = React.useMemo(() => activeConversationId.startsWith('dm#'), [activeConversationId]);
   const isGroup = React.useMemo(() => activeConversationId.startsWith('gdm#'), [activeConversationId]);
+  const isChannel = React.useMemo(() => activeConversationId.startsWith('ch#'), [activeConversationId]);
   const isEncryptedChat = isDm || isGroup;
+  const [channelMeta, setChannelMeta] = React.useState<null | { channelId: string; name: string; me?: { isAdmin?: boolean } }>(null);
+
+  // Basic @mention autocomplete for plaintext chats (global/channels).
+  // Uses recent senders (no extra network calls) and inserts "@usernameLower ".
+  const mentionQuery = React.useMemo(() => {
+    if (isEncryptedChat) return null;
+    const s = String(input || '');
+    const at = s.lastIndexOf('@');
+    if (at < 0) return null;
+    // Only autocomplete the trailing token.
+    const tail = s.slice(at + 1);
+    if (tail.includes(' ') || tail.includes('\n') || tail.includes('\t')) return null;
+    // Require the '@' to be at start or preceded by whitespace/punctuation.
+    if (at > 0 && /[a-zA-Z0-9_.-]/.test(s[at - 1])) return null;
+    const q = tail.trim().toLowerCase();
+    if (q.length > 32) return null;
+    return { at, q };
+  }, [input, isEncryptedChat]);
+
+  const mentionSuggestions = React.useMemo(() => {
+    if (!mentionQuery) return [];
+    const q = mentionQuery.q;
+    const seen = new Set<string>();
+    const candidates: string[] = [];
+    for (const m of messages.slice(0, 200)) {
+      const u = typeof m.userLower === 'string' ? m.userLower : '';
+      if (!u || u === 'system') continue;
+      if (q && !u.startsWith(q)) continue;
+      if (seen.has(u)) continue;
+      seen.add(u);
+      candidates.push(u);
+      if (candidates.length >= 6) break;
+    }
+    return candidates;
+  }, [mentionQuery, messages]);
+
+  const insertMention = React.useCallback(
+    (usernameLower: string) => {
+      const mq = mentionQuery;
+      if (!mq) return;
+      const s = String(inputRef.current || input || '');
+      const before = s.slice(0, mq.at);
+      const next = `${before}@${String(usernameLower).toLowerCase()} `;
+      setInput(next);
+      inputRef.current = next;
+      try {
+        textInputRef.current?.focus?.();
+      } catch {
+        // ignore
+      }
+    },
+    [mentionQuery, input]
+  );
+
+  // Fetch channel metadata (title, admin flag) when entering a channel.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!API_URL || !isChannel) {
+        setChannelMeta(null);
+        return;
+      }
+      const channelId = String(activeConversationId).slice('ch#'.length).trim();
+      if (!channelId) {
+        setChannelMeta(null);
+        return;
+      }
+      try {
+        const { tokens } = await fetchAuthSession();
+        const idToken = tokens?.idToken?.toString();
+        if (!idToken) return;
+        const base = API_URL.replace(/\/$/, '');
+        const resp = await fetch(`${base}/channels/members?channelId=${encodeURIComponent(channelId)}`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!resp.ok) {
+          setChannelMeta(null);
+          return;
+        }
+        const data = await resp.json().catch(() => ({}));
+        const ch = data?.channel || {};
+        const name = typeof ch.name === 'string' ? ch.name.trim() : '';
+        const me = data?.me && typeof data.me === 'object' ? data.me : undefined;
+        if (cancelled) return;
+        if (name) setChannelMeta({ channelId, name, me });
+        else setChannelMeta(null);
+      } catch {
+        setChannelMeta(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [API_URL, isChannel, activeConversationId]);
 
   // Keep parent Chats list/unreads in sync whenever the effective group title changes
   // (e.g. another admin renamed the group and we refreshed group meta).
@@ -4262,6 +4370,11 @@ export default function ChatScreen({
             editedAt: typeof payload.editedAt === 'number' ? payload.editedAt : undefined,
             deletedAt: typeof payload.deletedAt === 'number' ? payload.deletedAt : undefined,
             deletedBySub: typeof payload.deletedBySub === 'string' ? payload.deletedBySub : undefined,
+            mentions: Array.isArray((payload as any).mentions) ? (payload as any).mentions.map(String).filter(Boolean) : undefined,
+            replyToCreatedAt: typeof (payload as any).replyToCreatedAt === 'number' ? (payload as any).replyToCreatedAt : undefined,
+            replyToMessageId: typeof (payload as any).replyToMessageId === 'string' ? (payload as any).replyToMessageId : undefined,
+            replyToUserSub: typeof (payload as any).replyToUserSub === 'string' ? (payload as any).replyToUserSub : undefined,
+            replyToPreview: typeof (payload as any).replyToPreview === 'string' ? (payload as any).replyToPreview : undefined,
           };
           if (msg.userSub && blockedSubsSet.has(String(msg.userSub))) return;
           if (hiddenMessageIds[msg.id]) return;
@@ -4427,6 +4540,11 @@ export default function ChatScreen({
               deletedAt,
               deletedBySub: typeof it.deletedBySub === 'string' ? it.deletedBySub : undefined,
               reactions: normalizeReactions((it as any)?.reactions),
+              mentions: Array.isArray((it as any)?.mentions) ? (it as any).mentions.map(String).filter(Boolean) : undefined,
+              replyToCreatedAt: typeof (it as any)?.replyToCreatedAt === 'number' ? (it as any).replyToCreatedAt : undefined,
+              replyToMessageId: typeof (it as any)?.replyToMessageId === 'string' ? (it as any).replyToMessageId : undefined,
+              replyToUserSub: typeof (it as any)?.replyToUserSub === 'string' ? (it as any).replyToUserSub : undefined,
+              replyToPreview: typeof (it as any)?.replyToPreview === 'string' ? (it as any).replyToPreview : undefined,
               rawText,
               encrypted: encrypted ?? undefined,
               groupEncrypted: groupEncrypted ?? undefined,
@@ -4552,6 +4670,7 @@ export default function ChatScreen({
 
     // Snapshot current input/media.
     const originalInput = currentInput;
+    const originalReplyTarget = replyTarget;
     const originalPendingMedia =
       currentPendingMedia && currentPendingMedia.length > MAX_ATTACHMENTS_PER_MESSAGE
         ? currentPendingMedia.slice(0, MAX_ATTACHMENTS_PER_MESSAGE)
@@ -4577,6 +4696,7 @@ export default function ChatScreen({
       inputRef.current = '';
       setPendingMedia([]);
       pendingMediaRef.current = [];
+      setReplyTarget(null);
     };
 
     const restoreDraftIfUnchanged = () => {
@@ -4815,6 +4935,14 @@ export default function ChatScreen({
       // TTL-from-read: we send a duration, and the countdown starts when the recipient decrypts.
       ttlSeconds: isDm && TTL_OPTIONS[ttlIdx]?.seconds ? TTL_OPTIONS[ttlIdx].seconds : undefined,
       ...(isDm && typeof dmMediaPathsToSend !== 'undefined' ? { mediaPaths: dmMediaPathsToSend } : {}),
+      ...(isChannel && originalReplyTarget
+        ? {
+            replyToCreatedAt: originalReplyTarget.createdAt,
+            replyToMessageId: originalReplyTarget.id,
+            replyToUserSub: originalReplyTarget.userSub,
+            replyToPreview: originalReplyTarget.preview,
+          }
+        : {}),
     };
     try {
     wsRef.current.send(JSON.stringify(outgoing));
@@ -4834,6 +4962,8 @@ export default function ChatScreen({
     displayName,
     activeConversationId,
     isDm,
+    isChannel,
+    replyTarget,
     myPrivateKey,
     peerPublicKey,
     ttlIdx,
@@ -5115,6 +5245,40 @@ export default function ChatScreen({
       closeMessageActions();
     },
     [closeMessageActions, openInfo, isDm]
+  );
+
+  const beginReply = React.useCallback(
+    (target: ChatMessage) => {
+      if (!target) return;
+      if (target.deletedAt) return;
+
+      let preview = '';
+      if (target.encrypted || target.groupEncrypted) {
+        // For encrypted messages, only allow reply preview if we already decrypted.
+        preview = String(target.decryptedText || ENCRYPTED_PLACEHOLDER);
+      } else {
+        const raw = String(target.rawText ?? target.text ?? '');
+        const env = !isDm ? parseChatEnvelope(raw) : null;
+        preview = env ? String(env.text || '') : raw;
+      }
+      preview = preview.replace(/\s+/g, ' ').trim();
+      if (preview.length > 160) preview = `${preview.slice(0, 160)}…`;
+
+      setReplyTarget({
+        id: target.id,
+        createdAt: Number(target.createdAt || Date.now()),
+        user: target.user,
+        userSub: target.userSub,
+        preview,
+      });
+      closeMessageActions();
+      try {
+        textInputRef.current?.focus?.();
+      } catch {
+        // ignore
+      }
+    },
+    [closeMessageActions, isDm]
   );
 
   const cancelInlineEdit = React.useCallback(() => {
@@ -5991,7 +6155,9 @@ export default function ChatScreen({
             <Text style={[styles.title, isDark ? styles.titleDark : null]} numberOfLines={1} ellipsizeMode="tail">
               {peer
                 ? (isGroup ? (groupMeta?.groupName?.trim() ? groupMeta.groupName.trim() : peer) : `DM with ${peer}`)
-                : 'Global Chat'}
+                : isChannel
+                  ? (channelMeta?.name || 'Channel')
+                  : 'Global Chat'}
             </Text>
             <View style={styles.headerTools}>
               <Pressable
@@ -7131,12 +7297,62 @@ export default function ChatScreen({
               </Text>
             </Pressable>
           ) : null}
+          {replyTarget ? (
+            <View style={[styles.attachmentPill, isDark ? styles.attachmentPillDark : null, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
+                  numberOfLines={2}
+                >
+                  {`Replying to ${replyTarget.user || 'user'}: ${replyTarget.preview || ''}`}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setReplyTarget(null)}
+                style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 6, opacity: pressed ? 0.85 : 1 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel reply"
+              >
+                <Text style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}>Cancel</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {typingIndicatorText ? (
             <View style={styles.typingRow}>
               <TypingIndicator
                 text={typingIndicatorText}
                 color={isDark ? styles.typingTextDark.color : styles.typingText.color}
               />
+            </View>
+          ) : null}
+          {mentionSuggestions.length && !isEncryptedChat && !inlineEditTargetId ? (
+            <View
+              style={{
+                marginTop: 8,
+                marginBottom: 2,
+                paddingHorizontal: 12,
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
+              {mentionSuggestions.map((u) => (
+                <Pressable
+                  key={`mention-suggest:${u}`}
+                  onPress={() => insertMention(u)}
+                  style={({ pressed }) => ({
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }}>
+                    @{u}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
           ) : null}
           {/* Inline edit happens inside the bubble (Signal-style). */}
@@ -8034,6 +8250,15 @@ export default function ChatScreen({
                   <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
                     View Ciphertext
                   </Text>
+                </Pressable>
+              ) : null}
+
+              {messageActionTarget && !messageActionTarget.deletedAt ? (
+                <Pressable
+                  onPress={() => beginReply(messageActionTarget)}
+                  style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                >
+                  <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Reply</Text>
                 </Pressable>
               ) : null}
 

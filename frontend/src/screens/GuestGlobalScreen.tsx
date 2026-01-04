@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -183,18 +184,29 @@ function FullscreenVideo({ url }: { url: string }): React.JSX.Element {
   return <VideoView player={player} style={styles.viewerVideo} contentFit="contain" nativeControls />;
 }
 
-async function fetchGuestGlobalHistoryPage(opts?: {
+async function fetchGuestChannelHistoryPage(opts: {
+  conversationId: string;
   before?: number | null;
 }): Promise<{ items: GuestMessage[]; hasMore: boolean; nextCursor: number | null }> {
   if (!API_URL) throw new Error('API_URL is not configured');
   const base = API_URL.replace(/\/$/, '');
+  const conversationId = String(opts?.conversationId || 'global').trim() || 'global';
   const before = opts?.before;
   const qs =
-    `conversationId=${encodeURIComponent('global')}` +
+    `conversationId=${encodeURIComponent(conversationId)}` +
     `&limit=${GUEST_HISTORY_PAGE_SIZE}` +
     `&cursor=1` +
     (typeof before === 'number' && Number.isFinite(before) && before > 0 ? `&before=${encodeURIComponent(String(before))}` : '');
-  const candidates = [`${base}/public/messages?${qs}`, `${base}/messages?${qs}`];
+  const candidates =
+    conversationId === 'global'
+      ? [`${base}/public/messages?${qs}`, `${base}/messages?${qs}`]
+      : [
+          // New Channels public history endpoint (preferred).
+          `${base}/public/channel/messages?${qs}`,
+          // Fallbacks (may be forbidden for non-global; kept for flexibility across deployments).
+          `${base}/public/messages?${qs}`,
+          `${base}/messages?${qs}`,
+        ];
 
   const errors: string[] = [];
   for (const url of candidates) {
@@ -299,6 +311,14 @@ export default function GuestGlobalScreen({
       // ignore
     }
   }, []);
+
+  const [activeConversationId, setActiveConversationId] = React.useState<string>('global');
+  const [activeChannelTitle, setActiveChannelTitle] = React.useState<string>('Global');
+  const [channelPickerOpen, setChannelPickerOpen] = React.useState<boolean>(false);
+  const [channelQuery, setChannelQuery] = React.useState<string>('');
+  const [channelListLoading, setChannelListLoading] = React.useState<boolean>(false);
+  const [channelListError, setChannelListError] = React.useState<string | null>(null);
+  const [channelResults, setChannelResults] = React.useState<Array<{ channelId: string; name: string }>>([]);
 
   const [messages, setMessages] = React.useState<GuestMessage[]>([]);
   const messagesRef = React.useRef<GuestMessage[]>([]);
@@ -490,7 +510,7 @@ export default function GuestGlobalScreen({
 
       try {
         setError(null);
-        const page = await fetchGuestGlobalHistoryPage({ before });
+        const page = await fetchGuestChannelHistoryPage({ conversationId: activeConversationId, before });
         if (reset) {
           setMessages(page.items);
           setHistoryHasMore(!!page.hasMore);
@@ -527,7 +547,7 @@ export default function GuestGlobalScreen({
         setHistoryLoading(false);
       }
     },
-    []
+    [activeConversationId]
   );
 
   const loadOlderHistory = React.useCallback(() => {
@@ -552,7 +572,7 @@ export default function GuestGlobalScreen({
     setHistoryLoading(true);
     try {
       setError(null);
-      const page = await fetchGuestGlobalHistoryPage({ before: null });
+      const page = await fetchGuestChannelHistoryPage({ conversationId: activeConversationId, before: null });
       setMessages((prev) => {
         const seen = new Set<string>();
         const combined = [...page.items, ...prev];
@@ -567,7 +587,7 @@ export default function GuestGlobalScreen({
       historyLoadingRef.current = false;
       setHistoryLoading(false);
     }
-  }, []);
+  }, [activeConversationId]);
 
   const fetchNow = React.useCallback(
     async (opts?: { isManual?: boolean }) => {
@@ -619,11 +639,77 @@ export default function GuestGlobalScreen({
     };
   }, [refreshLatest]);
 
+  // Public channel list (guests can browse + read public channels).
+  React.useEffect(() => {
+    if (!channelPickerOpen) return;
+    if (!API_URL) return;
+    let cancelled = false;
+    const id = setTimeout(() => {
+      (async () => {
+        try {
+          setChannelListLoading(true);
+          setChannelListError(null);
+          const base = API_URL.replace(/\/$/, '');
+          const q = String(channelQuery || '').trim();
+          const qs = `limit=50${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+          const candidates = [`${base}/public/channels/search?${qs}`, `${base}/channels/search?${qs}`];
+
+          let data: any = null;
+          const errors: string[] = [];
+          for (const url of candidates) {
+            const resp = await fetch(url);
+            if (!resp.ok) {
+              const text = await resp.text().catch(() => '');
+              errors.push(`GET ${url} failed (${resp.status}) ${text || ''}`.trim());
+              continue;
+            }
+            data = await resp.json().catch(() => ({}));
+            break;
+          }
+          if (!data) {
+            if (!cancelled) setChannelListError(errors.length ? errors.join('\n') : 'Channel search failed');
+            return;
+          }
+          const list = Array.isArray(data?.channels) ? data.channels : [];
+          const normalized = list
+            .map((c: any) => ({ channelId: String(c.channelId || '').trim(), name: String(c.name || '').trim() }))
+            .filter((c: any) => c.channelId && c.name);
+          if (!cancelled) setChannelResults(normalized);
+        } catch (e: any) {
+          if (!cancelled) setChannelListError(String(e?.message || 'Failed to load channels'));
+        } finally {
+          if (!cancelled) setChannelListLoading(false);
+        }
+      })();
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [channelPickerOpen, channelQuery]);
+
   return (
     // App.tsx already applies the top safe area. Avoid double top inset here (dead space).
     <SafeAreaView style={[styles.container, isDark && styles.containerDark]} edges={['left', 'right']}>
       <View style={styles.headerRow}>
-        <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>Global</Text>
+        <Pressable
+          onPress={() => {
+            setChannelListError(null);
+            setChannelQuery('');
+            setChannelPickerOpen(true);
+          }}
+          style={({ pressed }) => [
+            { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 2 },
+            pressed ? { opacity: 0.9 } : null,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Browse channels"
+        >
+          <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]} numberOfLines={1}>
+            {activeChannelTitle}
+          </Text>
+          <Feather name="chevron-down" size={16} color={isDark ? '#fff' : '#111'} />
+        </Pressable>
         <View style={styles.headerRight}>
           <Pressable
             onPress={() => setMenuOpen(true)}
@@ -676,6 +762,91 @@ export default function GuestGlobalScreen({
           },
         ]}
       />
+
+      <Modal visible={channelPickerOpen} transparent animationType="fade" onRequestClose={() => setChannelPickerOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelPickerOpen(false)} />
+          <View style={[styles.modalCard, isDark ? styles.modalCardDark : null]}>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Channels</Text>
+
+            <TextInput
+              value={channelQuery}
+              onChangeText={(v: string) => {
+                setChannelQuery(v);
+                setChannelListError(null);
+              }}
+              placeholder="Search channels"
+              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+              selectionColor={isDark ? '#ffffff' : '#111'}
+              cursorColor={isDark ? '#ffffff' : '#111'}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderRadius: 10,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+                backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                color: isDark ? '#fff' : '#111',
+                marginBottom: 10,
+              }}
+            />
+
+            {channelListError ? (
+              <Text style={[styles.errorText, isDark && styles.errorTextDark]} numberOfLines={2}>
+                {channelListError}
+              </Text>
+            ) : null}
+
+            <ScrollView style={styles.modalScroll}>
+              <Pressable
+                style={({ pressed }) => [{ paddingVertical: 10 }, pressed ? { opacity: 0.9 } : null]}
+                onPress={() => {
+                  setActiveConversationId('global');
+                  setActiveChannelTitle('Global');
+                  setChannelPickerOpen(false);
+                }}
+              >
+                <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]}>Global</Text>
+              </Pressable>
+
+              {channelListLoading ? (
+                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+                  <ActivityIndicator />
+                </View>
+              ) : channelResults.length ? (
+                channelResults.map((c) => (
+                  <Pressable
+                    key={`guest-channel:${c.channelId}`}
+                    style={({ pressed }) => [{ paddingVertical: 10 }, pressed ? { opacity: 0.9 } : null]}
+                    onPress={() => {
+                      setActiveConversationId(`ch#${c.channelId}`);
+                      setActiveChannelTitle(c.name);
+                      setChannelPickerOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]} numberOfLines={1}>
+                      {c.name}
+                    </Text>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]}>No channels found</Text>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                onPress={() => setChannelPickerOpen(false)}
+                style={({ pressed }) => [styles.modalBtn, isDark ? styles.modalBtnDark : null, pressed ? { opacity: 0.92 } : null]}
+              >
+                <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {error ? (
         <Text style={[styles.errorText, isDark && styles.errorTextDark]} numberOfLines={3}>

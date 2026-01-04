@@ -875,7 +875,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
 
   const [conversationId, setConversationId] = useState<string>('global');
   const [peer, setPeer] = useState<string | null>(null);
-  const [searchOpen, setSearchOpen] = useState<boolean>(false);
+  const [searchOpen, setSearchOpen] = useState<boolean>(false); // DM search
   const [peerInput, setPeerInput] = useState<string>('');
   const [searchError, setSearchError] = useState<string | null>(null);
   const [unreadDmMap, setUnreadDmMap] = useState<
@@ -898,7 +898,42 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   >([]);
   const [chatsLoading, setChatsLoading] = React.useState<boolean>(false);
   const [conversationsCacheAt, setConversationsCacheAt] = React.useState<number>(0);
-  const isDmMode = conversationId !== 'global';
+  const isDmMode = conversationId.startsWith('dm#') || conversationId.startsWith('gdm#');
+  const isChannelMode = !isDmMode;
+  const lastChannelConversationIdRef = React.useRef<string>('global');
+  // "My Channels" modal (opened from Settings → Channels). Lists channels you've joined.
+  const [channelsOpen, setChannelsOpen] = React.useState<boolean>(false);
+  const [myChannelsLoading, setMyChannelsLoading] = React.useState<boolean>(false);
+  const [myChannelsError, setMyChannelsError] = React.useState<string | null>(null);
+  const [myChannels, setMyChannels] = React.useState<Array<{ channelId: string; name: string }>>([]);
+
+  // Channel search/join modal (opened from header channel pill).
+  const [channelSearchOpen, setChannelSearchOpen] = React.useState<boolean>(false);
+  const [channelsLoading, setChannelsLoading] = React.useState<boolean>(false);
+  const [channelsQuery, setChannelsQuery] = React.useState<string>('');
+  const [channelsError, setChannelsError] = React.useState<string | null>(null);
+  const [channelsResults, setChannelsResults] = React.useState<
+    Array<{
+      channelId: string;
+      name: string;
+      nameLower?: string;
+      isPublic: boolean;
+      hasPassword?: boolean;
+      activeMemberCount?: number;
+      isMember?: boolean;
+    }>
+  >([]);
+  const [channelNameById, setChannelNameById] = React.useState<Record<string, string>>({});
+  const [channelPasswordPrompt, setChannelPasswordPrompt] = React.useState<null | { channelId: string; name: string }>(null);
+  const [channelPasswordInput, setChannelPasswordInput] = React.useState<string>('');
+  const [channelJoinError, setChannelJoinError] = React.useState<string | null>(null);
+  // Inline create form (inside My Channels modal)
+  const [createChannelOpen, setCreateChannelOpen] = React.useState<boolean>(false);
+  const [createChannelName, setCreateChannelName] = React.useState<string>('');
+  const [createChannelPassword, setCreateChannelPassword] = React.useState<string>('');
+  const [createChannelIsPublic, setCreateChannelIsPublic] = React.useState<boolean>(true);
+  const [createChannelLoading, setCreateChannelLoading] = React.useState<boolean>(false);
+  const [createChannelError, setCreateChannelError] = React.useState<string | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isDark = theme === 'dark';
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
@@ -914,6 +949,43 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [blocklistCacheAt, setBlocklistCacheAt] = React.useState<number>(0);
 
   const blockedSubs = React.useMemo(() => blockedUsers.map((b) => b.blockedSub).filter(Boolean), [blockedUsers]);
+
+  // Restore last visited channel on boot (Global or ch#...).
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('ui:lastChannelConversationId');
+        const v = typeof raw === 'string' ? raw.trim() : '';
+        if (!mounted) return;
+        if (v === 'global' || v.startsWith('ch#')) {
+          lastChannelConversationIdRef.current = v;
+          // Only auto-switch if we're not already in a DM.
+          setConversationId((prev) => (prev && (prev.startsWith('dm#') || prev.startsWith('gdm#')) ? prev : v));
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Persist last visited channel (not DMs).
+  React.useEffect(() => {
+    const v = conversationId;
+    if (v === 'global' || v.startsWith('ch#')) {
+      lastChannelConversationIdRef.current = v;
+      (async () => {
+        try {
+          await AsyncStorage.setItem('ui:lastChannelConversationId', v);
+        } catch {
+          // ignore
+        }
+      })();
+    }
+  }, [conversationId]);
 
   const getIdToken = React.useCallback(async (): Promise<string | null> => {
     return await getIdTokenWithRetry({ maxAttempts: 10, delayMs: 200 });
@@ -1706,6 +1778,316 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
       setSearchError(null);
     };
 
+  const getChannelIdFromConversationId = React.useCallback((cid: string): string | null => {
+    const s = String(cid || '').trim();
+    if (!s.startsWith('ch#')) return null;
+    const id = s.slice('ch#'.length).trim();
+    return id || null;
+  }, []);
+
+  const activeChannelConversationId = React.useMemo(() => {
+    if (!isDmMode) return conversationId || 'global';
+    return lastChannelConversationIdRef.current || 'global';
+  }, [isDmMode, conversationId]);
+
+  const activeChannelLabel = React.useMemo(() => {
+    if (activeChannelConversationId === 'global') return 'Global';
+    const id = getChannelIdFromConversationId(activeChannelConversationId);
+    if (!id) return 'Global';
+    return channelNameById[id] || 'Channel';
+  }, [activeChannelConversationId, getChannelIdFromConversationId, channelNameById]);
+
+  const enterChannelConversation = React.useCallback(
+    (nextConversationId: string) => {
+      const cid = String(nextConversationId || '').trim() || 'global';
+      // Entering a channel should close DM search UI and clear DM peer state.
+      setConversationId(cid);
+      setPeer(null);
+      setSearchOpen(false);
+      setPeerInput('');
+      setSearchError(null);
+      setChannelsOpen(false);
+      setChannelSearchOpen(false);
+      setChannelsError(null);
+      setChannelJoinError(null);
+      setChannelsQuery('');
+    },
+    []
+  );
+
+  const fetchChannelsSearch = React.useCallback(
+    async (query: string) => {
+      if (!API_URL) return;
+      setChannelsLoading(true);
+      setChannelsError(null);
+      try {
+        const token = await getIdToken();
+        if (!token) {
+          setChannelsError('Unable to authenticate');
+          return;
+        }
+        const base = API_URL.replace(/\/$/, '');
+        const q = String(query || '').trim();
+        const url = `${base}/channels/search?limit=50${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+        const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          let msg = `Channel search failed (${resp.status})`;
+          try {
+            const parsed = text ? JSON.parse(text) : null;
+            if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+          } catch {
+            if (text.trim()) msg = `${msg}: ${text.trim()}`;
+          }
+          setChannelsError(msg);
+          return;
+        }
+        const data = await resp.json().catch(() => ({}));
+        const list = Array.isArray(data?.channels) ? data.channels : [];
+        const normalized = list
+          .map((c: any) => ({
+            channelId: String(c.channelId || '').trim(),
+            name: String(c.name || '').trim(),
+            nameLower: typeof c.nameLower === 'string' ? String(c.nameLower) : undefined,
+            isPublic: !!c.isPublic,
+            hasPassword: typeof c.hasPassword === 'boolean' ? c.hasPassword : undefined,
+            activeMemberCount: typeof c.activeMemberCount === 'number' ? c.activeMemberCount : undefined,
+            isMember: typeof c.isMember === 'boolean' ? c.isMember : undefined,
+          }))
+          .filter((c: any) => c.channelId && c.name);
+        setChannelsResults(normalized);
+        setChannelNameById((prev) => {
+          const next = { ...prev };
+          for (const c of normalized) next[c.channelId] = c.name;
+          return next;
+        });
+      } finally {
+        setChannelsLoading(false);
+      }
+    },
+    [API_URL, getIdToken]
+  );
+
+  React.useEffect(() => {
+    if (!channelSearchOpen) return;
+    const id = setTimeout(() => {
+      void fetchChannelsSearch(channelsQuery);
+    }, 150);
+    return () => clearTimeout(id);
+  }, [channelSearchOpen, channelsQuery, fetchChannelsSearch]);
+
+  const joinChannel = React.useCallback(
+    async (channel: { channelId: string; name: string; isMember?: boolean; hasPassword?: boolean }) => {
+      const channelId = String(channel.channelId || '').trim();
+      if (!channelId) return;
+      if (channel.isMember) {
+        enterChannelConversation(`ch#${channelId}`);
+        return;
+      }
+      if (channel.hasPassword) {
+        setChannelPasswordInput('');
+        setChannelJoinError(null);
+        setChannelSearchOpen(false);
+        setChannelPasswordPrompt({ channelId, name: String(channel.name || 'Channel') });
+        return;
+      }
+      if (!API_URL) return;
+      const token = await getIdToken();
+      if (!token) {
+        setChannelJoinError('Unable to authenticate');
+        return;
+      }
+      const base = API_URL.replace(/\/$/, '');
+      const resp = await fetch(`${base}/channels/join`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        let msg = `Join failed (${resp.status})`;
+        try {
+          const parsed = text ? JSON.parse(text) : null;
+          if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+        } catch {
+          if (text.trim()) msg = `${msg}: ${text.trim()}`;
+        }
+        setChannelJoinError(msg);
+        return;
+      }
+      const data = await resp.json().catch(() => ({}));
+      const ch = data?.channel || {};
+      const name = String(ch.name || channel.name || 'Channel').trim();
+      setChannelNameById((prev) => ({ ...prev, [channelId]: name }));
+      enterChannelConversation(`ch#${channelId}`);
+    },
+    [API_URL, getIdToken, enterChannelConversation]
+  );
+
+  const submitChannelPassword = React.useCallback(async () => {
+    const prompt = channelPasswordPrompt;
+    if (!prompt) return;
+    const channelId = String(prompt.channelId || '').trim();
+    const pw = String(channelPasswordInput || '').trim();
+    if (!channelId) return;
+    if (!pw) {
+      setChannelJoinError('Enter a password');
+      return;
+    }
+    if (!API_URL) return;
+    const token = await getIdToken();
+    if (!token) {
+      setChannelJoinError('Unable to authenticate');
+      return;
+    }
+    setChannelJoinError(null);
+    const base = API_URL.replace(/\/$/, '');
+    const resp = await fetch(`${base}/channels/join`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelId, password: pw }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      let msg = `Join failed (${resp.status})`;
+      try {
+        const parsed = text ? JSON.parse(text) : null;
+        if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+      } catch {
+        if (text.trim()) msg = `${msg}: ${text.trim()}`;
+      }
+      setChannelJoinError(msg);
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
+    const ch = data?.channel || {};
+    const name = String(ch.name || prompt.name || 'Channel').trim();
+    setChannelNameById((prev) => ({ ...prev, [channelId]: name }));
+    // Save locally for re-join UX (optional).
+    try {
+      await AsyncStorage.setItem(`channels:pw:${channelId}`, pw);
+    } catch {
+      // ignore
+    }
+    setChannelPasswordPrompt(null);
+    setChannelPasswordInput('');
+    enterChannelConversation(`ch#${channelId}`);
+  }, [channelPasswordPrompt, channelPasswordInput, API_URL, getIdToken, enterChannelConversation]);
+
+  const fetchMyChannels = React.useCallback(async () => {
+    if (!API_URL) return;
+    setMyChannelsLoading(true);
+    setMyChannelsError(null);
+    try {
+      const token = await getIdToken();
+      if (!token) {
+        setMyChannelsError('Unable to authenticate');
+        return;
+      }
+      const base = API_URL.replace(/\/$/, '');
+      const resp = await fetch(`${base}/channels/search?limit=100`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        let msg = `Failed to load channels (${resp.status})`;
+        try {
+          const parsed = text ? JSON.parse(text) : null;
+          if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+        } catch {
+          if (text.trim()) msg = `${msg}: ${text.trim()}`;
+        }
+        setMyChannelsError(msg);
+        return;
+      }
+      const data = await resp.json().catch(() => ({}));
+      const list = Array.isArray(data?.channels) ? data.channels : [];
+      const joined = list
+        .filter((c: any) => c && c.isMember === true)
+        .map((c: any) => ({ channelId: String(c.channelId || '').trim(), name: String(c.name || '').trim() }))
+        .filter((c: any) => c.channelId && c.name)
+        .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
+      setMyChannels(joined);
+      setChannelNameById((prev) => {
+        const next = { ...prev };
+        for (const c of joined) next[c.channelId] = c.name;
+        return next;
+      });
+    } finally {
+      setMyChannelsLoading(false);
+    }
+  }, [API_URL, getIdToken]);
+
+  React.useEffect(() => {
+    if (!channelsOpen) return;
+    void fetchMyChannels();
+  }, [channelsOpen, fetchMyChannels]);
+
+  const submitCreateChannelInline = React.useCallback(async () => {
+    if (!API_URL) return;
+    if (createChannelLoading) return;
+    const name = String(createChannelName || '').trim();
+    if (!name) {
+      setCreateChannelError('Enter a channel name');
+      return;
+    }
+    const token = await getIdToken();
+    if (!token) {
+      setCreateChannelError('Unable to authenticate');
+      return;
+    }
+    setCreateChannelLoading(true);
+    setCreateChannelError(null);
+    try {
+      const base = API_URL.replace(/\/$/, '');
+      const body: any = { name, isPublic: !!createChannelIsPublic };
+      const pw = String(createChannelPassword || '').trim();
+      if (pw) body.password = pw;
+      const resp = await fetch(`${base}/channels/create`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        let msg = `Create failed (${resp.status})`;
+        try {
+          const parsed = text ? JSON.parse(text) : null;
+          if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+        } catch {
+          if (text.trim()) msg = `${msg}: ${text.trim()}`;
+        }
+        setCreateChannelError(msg);
+        return;
+      }
+      const data = await resp.json().catch(() => ({}));
+      const ch = data?.channel || {};
+      const channelId = String(ch.channelId || '').trim();
+      const channelName = String(ch.name || name || 'Channel').trim();
+      if (!channelId) {
+        setCreateChannelError('Create failed (missing channelId)');
+        return;
+      }
+      setChannelNameById((prev) => ({ ...prev, [channelId]: channelName }));
+      setCreateChannelOpen(false);
+      setCreateChannelName('');
+      setCreateChannelPassword('');
+      setCreateChannelError(null);
+      setChannelsOpen(false);
+      enterChannelConversation(`ch#${channelId}`);
+      void fetchMyChannels();
+    } finally {
+      setCreateChannelLoading(false);
+    }
+  }, [
+    API_URL,
+    createChannelLoading,
+    createChannelName,
+    createChannelIsPublic,
+    createChannelPassword,
+    getIdToken,
+    enterChannelConversation,
+    fetchMyChannels,
+  ]);
+
   const hasUnreadDms = Object.keys(unreadDmMap).length > 0;
   const unreadEntries = React.useMemo(
     () => Object.entries(unreadDmMap),
@@ -1716,6 +2098,18 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     (targetConversationId: string) => {
       if (!targetConversationId) return;
       setConversationId(targetConversationId);
+      if (targetConversationId === 'global' || String(targetConversationId).startsWith('ch#')) {
+        setPeer(null);
+        setSearchOpen(false);
+        setPeerInput('');
+        setSearchError(null);
+        setChannelsOpen(false);
+        setChannelSearchOpen(false);
+        setChannelsError(null);
+        setChannelJoinError(null);
+        setChannelsQuery('');
+        return;
+      }
       // Best-effort title selection:
       // 1) server conversations (authoritative titles for groups + DMs)
       // 2) unread cache (push/unreads can provide a title)
@@ -1762,6 +2156,19 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
           setSearchError(null);
           setConversationId(convId);
           setPeer(senderName || (kind === 'group' ? 'Group DM' : 'Direct Message'));
+          return;
+        }
+        if ((kind === 'channelMention' || kind === 'channelReply') && convId && convId.startsWith('ch#')) {
+          const channelName = typeof data.channelName === 'string' ? data.channelName : '';
+          const channelId = convId.slice('ch#'.length).trim();
+          if (channelId && channelName.trim()) {
+            setChannelNameById((prev) => ({ ...prev, [channelId]: channelName.trim() }));
+          }
+          setSearchOpen(false);
+          setPeerInput('');
+          setSearchError(null);
+          setPeer(null);
+          setConversationId(convId);
         }
       });
     } catch {
@@ -1799,7 +2206,8 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
 
   React.useEffect(() => {
     if (!conversationId) return;
-    if (conversationId === 'global') return;
+    // Only clear unread badges for DM / group DM conversations.
+    if (!(conversationId.startsWith('dm#') || conversationId.startsWith('gdm#'))) return;
     setUnreadDmMap((prev) => {
       if (!prev[conversationId]) return prev;
       const next = { ...prev };
@@ -1830,30 +2238,35 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         <View style={[styles.segment, isDark && styles.segmentDark]}>
           <Pressable
             onPress={() => {
-              setConversationId('global');
-              setPeer(null);
-              setPeerInput('');
-              setSearchError(null);
-              setSearchOpen(false);
+              if (isDmMode) {
+                // Jump back to the last channel (default Global).
+                enterChannelConversation(activeChannelConversationId);
+                return;
+              }
+              // While already in channel mode, open the channel search/join picker (like "Start DM").
+              setChannelsError(null);
+              setChannelJoinError(null);
+              setChannelsQuery('');
+              setChannelSearchOpen(true);
             }}
             style={({ pressed }) => [
               styles.segmentBtn,
-              !isDmMode && styles.segmentBtnActive,
-              !isDmMode && isDark && styles.segmentBtnActiveDark,
+              isChannelMode && styles.segmentBtnActive,
+              isChannelMode && isDark && styles.segmentBtnActiveDark,
               pressed && { opacity: 0.9 },
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Global chat"
+            accessibilityLabel="Channels"
           >
             <Text
               style={[
                 styles.segmentBtnText,
                 isDark && styles.segmentBtnTextDark,
-                !isDmMode && styles.segmentBtnTextActive,
-                !isDmMode && isDark && styles.segmentBtnTextActiveDark,
+                isChannelMode && styles.segmentBtnTextActive,
+                isChannelMode && isDark && styles.segmentBtnTextActiveDark,
               ]}
             >
-              Global
+              {activeChannelLabel}
             </Text>
           </Pressable>
 
@@ -2008,6 +2421,24 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
             onPress: () => {
               setMenuOpen(false);
               setChatsOpen(true);
+            },
+          },
+          {
+            key: 'channels',
+            label: 'Channels',
+            onPress: () => {
+              setMenuOpen(false);
+              setMyChannelsError(null);
+              setCreateChannelError(null);
+              setCreateChannelOpen(false);
+              setCreateChannelName('');
+              setCreateChannelPassword('');
+              setCreateChannelIsPublic(true);
+              setChannelSearchOpen(false);
+              setChannelsError(null);
+              setChannelJoinError(null);
+              setChannelsQuery('');
+              setChannelsOpen(true);
             },
           },
           {
@@ -2837,6 +3268,426 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                 onPress={() => setChatsOpen(false)}
               >
                 <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Settings → Channels: list joined channels (like Chats) */}
+      <Modal visible={channelsOpen} transparent animationType="fade" onRequestClose={() => setChannelsOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelsOpen(false)} />
+          <View style={[styles.chatsCard, isDark ? styles.chatsCardDark : null]}>
+            <View style={styles.chatsTopRow}>
+              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Channels</Text>
+            </View>
+
+            {myChannelsError ? (
+              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{myChannelsError}</Text>
+            ) : null}
+
+            {createChannelOpen ? (
+              <>
+                <TextInput
+                  value={createChannelName}
+                  onChangeText={(v) => {
+                    setCreateChannelName(v);
+                    setCreateChannelError(null);
+                  }}
+                  placeholder="Channel name"
+                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                  selectionColor={isDark ? '#ffffff' : '#111'}
+                  cursorColor={isDark ? '#ffffff' : '#111'}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  style={[
+                    styles.blocksInput,
+                    isDark ? styles.blocksInputDark : null,
+                    {
+                      // `blocksInput` uses flex:1 for row layouts; override for column layout.
+                      flex: 0,
+                      alignSelf: 'stretch',
+                      width: '100%',
+                      height: 44,
+                      fontSize: 16,
+                      lineHeight: 20,
+                      paddingVertical: 10,
+                      textAlignVertical: 'center',
+                      color: isDark ? '#fff' : '#111',
+                    },
+                  ]}
+                />
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <Pressable
+                    onPress={() => setCreateChannelIsPublic(true)}
+                    style={({ pressed }) => [
+                      styles.modalButton,
+                      styles.modalButtonSmall,
+                      createChannelIsPublic ? styles.modalButtonCta : null,
+                      isDark ? (createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
+                  >
+                    <Text style={[styles.modalButtonText, createChannelIsPublic ? styles.modalButtonCtaText : null]}>
+                      Public
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setCreateChannelIsPublic(false)}
+                    style={({ pressed }) => [
+                      styles.modalButton,
+                      styles.modalButtonSmall,
+                      !createChannelIsPublic ? styles.modalButtonCta : null,
+                      isDark ? (!createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
+                  >
+                    <Text style={[styles.modalButtonText, !createChannelIsPublic ? styles.modalButtonCtaText : null]}>
+                      Private
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <TextInput
+                  value={createChannelPassword}
+                  onChangeText={(v) => {
+                    setCreateChannelPassword(v);
+                    setCreateChannelError(null);
+                  }}
+                  placeholder="Password (optional)"
+                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                  selectionColor={isDark ? '#ffffff' : '#111'}
+                  cursorColor={isDark ? '#ffffff' : '#111'}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={[
+                    styles.blocksInput,
+                    isDark ? styles.blocksInputDark : null,
+                    {
+                      flex: 0,
+                      alignSelf: 'stretch',
+                      width: '100%',
+                      height: 44,
+                      fontSize: 16,
+                      lineHeight: 20,
+                      paddingVertical: 10,
+                      textAlignVertical: 'center',
+                      color: isDark ? '#fff' : '#111',
+                    },
+                  ]}
+                />
+
+                {createChannelError ? (
+                  <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{createChannelError}</Text>
+                ) : null}
+
+                <View style={[styles.modalButtons, { justifyContent: 'flex-end' }]}>
+                  <Pressable
+                    style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                    onPress={() => {
+                      setCreateChannelOpen(false);
+                      setCreateChannelError(null);
+                      setCreateChannelLoading(false);
+                      setCreateChannelName('');
+                      setCreateChannelPassword('');
+                      setCreateChannelIsPublic(true);
+                    }}
+                  >
+                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.modalButton,
+                      styles.modalButtonSmall,
+                      styles.modalButtonCta,
+                      isDark ? styles.modalButtonCtaDark : null,
+                      createChannelLoading ? { opacity: 0.7 } : null,
+                    ]}
+                    onPress={() => void submitCreateChannelInline()}
+                  >
+                    <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
+                      {createChannelLoading ? 'Creating…' : 'Create'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+
+            <ScrollView style={styles.chatsScroll}>
+              <Pressable
+                key="mychannel:global"
+                style={({ pressed }) => [
+                  styles.chatRow,
+                  isDark ? styles.chatRowDark : null,
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
+                onPress={() => enterChannelConversation('global')}
+              >
+                <View style={styles.chatRowLeft}>
+                  <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                    Global
+                  </Text>
+                </View>
+                <View style={styles.chatRowRight}>
+                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>Enter</Text>
+                </View>
+              </Pressable>
+
+              {myChannelsLoading ? (
+                <View style={styles.chatsLoadingRow}>
+                  <Text
+                    style={[
+                      styles.modalHelperText,
+                      isDark ? styles.modalHelperTextDark : null,
+                      styles.chatsLoadingText,
+                    ]}
+                  >
+                    Loading
+                  </Text>
+                  <View style={styles.chatsLoadingDotsWrap}>
+                    <AnimatedDots color={isDark ? '#ffffff' : '#111'} size={18} />
+                  </View>
+                </View>
+              ) : myChannels.length ? (
+                myChannels.map((c) => (
+                  <Pressable
+                    key={`mychannel:${c.channelId}`}
+                    style={({ pressed }) => [
+                      styles.chatRow,
+                      isDark ? styles.chatRowDark : null,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
+                    onPress={() => {
+                      setChannelsOpen(false);
+                      enterChannelConversation(`ch#${c.channelId}`);
+                    }}
+                  >
+                    <View style={styles.chatRowLeft}>
+                      <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                        {c.name}
+                      </Text>
+                    </View>
+                    <View style={styles.chatRowRight}>
+                      <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>Enter</Text>
+                    </View>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                  No joined channels
+                </Text>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                onPress={() => {
+                  setCreateChannelError(null);
+                  setCreateChannelLoading(false);
+                  setCreateChannelIsPublic(true);
+                  setCreateChannelPassword('');
+                  setCreateChannelName('');
+                  setCreateChannelOpen((v) => !v);
+                }}
+              >
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  {createChannelOpen ? 'Hide Create' : 'Create'}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                onPress={() => setChannelsOpen(false)}
+              >
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Header channel pill: search/join channels (like Start DM) */}
+      <Modal visible={channelSearchOpen} transparent animationType="fade" onRequestClose={() => setChannelSearchOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelSearchOpen(false)} />
+          <View style={[styles.chatsCard, isDark ? styles.chatsCardDark : null]}>
+            <View style={styles.chatsTopRow}>
+              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Find Channels</Text>
+            </View>
+
+            <View style={styles.blocksSearchRow}>
+              <TextInput
+                value={channelsQuery}
+                onChangeText={(v) => {
+                  setChannelsQuery(v);
+                  setChannelsError(null);
+                  setChannelJoinError(null);
+                }}
+                placeholder="Search channels"
+                placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                selectionColor={isDark ? '#ffffff' : '#111'}
+                cursorColor={isDark ? '#ffffff' : '#111'}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[styles.blocksInput, isDark ? styles.blocksInputDark : null]}
+              />
+              <Pressable
+                onPress={() => void fetchChannelsSearch(channelsQuery)}
+                style={({ pressed }) => [
+                  styles.blocksBtn,
+                  isDark ? styles.blocksBtnDark : null,
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Search channels"
+              >
+                <Text style={[styles.blocksBtnText, isDark ? styles.blocksBtnTextDark : null]}>Search</Text>
+              </Pressable>
+            </View>
+
+            {channelsError ? (
+              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{channelsError}</Text>
+            ) : null}
+            {channelJoinError ? (
+              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{channelJoinError}</Text>
+            ) : null}
+
+            <ScrollView style={styles.chatsScroll}>
+              <Pressable
+                key="searchchannel:global"
+                style={({ pressed }) => [
+                  styles.chatRow,
+                  isDark ? styles.chatRowDark : null,
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
+                onPress={() => enterChannelConversation('global')}
+              >
+                <View style={styles.chatRowLeft}>
+                  <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                    Global
+                  </Text>
+                </View>
+                <View style={styles.chatRowRight}>
+                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>Enter</Text>
+                </View>
+              </Pressable>
+
+              {channelsLoading ? (
+                <View style={styles.chatsLoadingRow}>
+                  <Text
+                    style={[
+                      styles.modalHelperText,
+                      isDark ? styles.modalHelperTextDark : null,
+                      styles.chatsLoadingText,
+                    ]}
+                  >
+                    Loading
+                  </Text>
+                  <View style={styles.chatsLoadingDotsWrap}>
+                    <AnimatedDots color={isDark ? '#ffffff' : '#111'} size={18} />
+                  </View>
+                </View>
+              ) : channelsResults.length ? (
+                channelsResults.map((c) => (
+                  <Pressable
+                    key={`searchchannel:${c.channelId}`}
+                    style={({ pressed }) => [
+                      styles.chatRow,
+                      isDark ? styles.chatRowDark : null,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
+                    onPress={() => void joinChannel(c)}
+                  >
+                    <View style={styles.chatRowLeft}>
+                      <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                        {c.name}
+                      </Text>
+                      {c.hasPassword ? (
+                        <View style={{ marginLeft: 8 }}>
+                          <Feather name="lock" size={14} color={isDark ? '#a7a7b4' : '#666'} />
+                        </View>
+                      ) : null}
+                    </View>
+                    <View style={styles.chatRowRight}>
+                      <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                        {c.isMember ? 'Enter' : 'Join'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                  No channels found
+                </Text>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                onPress={() => setChannelSearchOpen(false)}
+              >
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!channelPasswordPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setChannelPasswordPrompt(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelPasswordPrompt(null)} />
+          <View style={[styles.profileCard, isDark ? styles.profileCardDark : null]}>
+            <View style={styles.chatsTopRow}>
+              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+                Join {channelPasswordPrompt?.name || 'Channel'}
+              </Text>
+            </View>
+            <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, { marginBottom: 8 }]}>
+              Enter channel password
+            </Text>
+            <TextInput
+              value={channelPasswordInput}
+              onChangeText={(v) => {
+                setChannelPasswordInput(v);
+                setChannelJoinError(null);
+              }}
+              placeholder="Password"
+              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+              selectionColor={isDark ? '#ffffff' : '#111'}
+              cursorColor={isDark ? '#ffffff' : '#111'}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[styles.blocksInput, isDark ? styles.blocksInputDark : null]}
+            />
+            {channelJoinError ? (
+              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{channelJoinError}</Text>
+            ) : null}
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                onPress={() => {
+                  setChannelPasswordPrompt(null);
+                  setChannelPasswordInput('');
+                  setChannelJoinError(null);
+                }}
+              >
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSmall, styles.modalButtonCta, isDark ? styles.modalButtonCtaDark : null]}
+                onPress={() => void submitChannelPassword()}
+              >
+                <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>Join</Text>
               </Pressable>
             </View>
           </View>

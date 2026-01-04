@@ -67,6 +67,38 @@ exports.handler = async (event) => {
       }
     }
 
+    // Channel access control: ch#<channelId>
+    // - requires active membership (guests read via /public/channel-messages)
+    if (typeof conversationId === 'string' && conversationId.startsWith('ch#')) {
+      const channelId = conversationId.slice('ch#'.length).trim();
+      if (!channelId) return { statusCode: 400, body: 'Invalid channel conversationId' };
+      const channelsTable = process.env.CHANNELS_TABLE;
+      const membersTable = process.env.CHANNEL_MEMBERS_TABLE;
+      if (!channelsTable) return { statusCode: 500, body: 'CHANNELS_TABLE not configured' };
+      if (!membersTable) return { statusCode: 500, body: 'CHANNEL_MEMBERS_TABLE not configured' };
+
+      const [ch, mem] = await Promise.all([
+        ddb.send(new GetCommand({ TableName: channelsTable, Key: { channelId }, ProjectionExpression: 'channelId, deletedAt' })),
+        ddb.send(
+          new GetCommand({
+            TableName: membersTable,
+            Key: { channelId, memberSub: callerSub },
+            ProjectionExpression: 'memberSub, #s',
+            ExpressionAttributeNames: { '#s': 'status' },
+          })
+        ),
+      ]);
+
+      const channel = ch?.Item;
+      if (!channel || (typeof channel.deletedAt === 'number' && Number.isFinite(channel.deletedAt) && channel.deletedAt > 0)) {
+        return { statusCode: 404, body: 'Channel not found' };
+      }
+      const it = mem?.Item;
+      if (!it) return { statusCode: 403, body: 'Forbidden' };
+      const status = typeof it.status === 'string' ? String(it.status) : '';
+      if (status !== 'active') return { statusCode: 403, body: 'Forbidden' };
+    }
+
     const queryInput = {
       TableName: process.env.MESSAGES_TABLE,
       KeyConditionExpression: 'conversationId = :c',
@@ -144,6 +176,11 @@ exports.handler = async (event) => {
         editedAt: typeof it.editedAt === 'number' ? it.editedAt : undefined,
         deletedAt: typeof it.deletedAt === 'number' ? it.deletedAt : undefined,
         deletedBySub: it.deletedBySub ? String(it.deletedBySub) : undefined,
+        mentions: Array.isArray(it.mentions) ? it.mentions.map(String).filter(Boolean) : undefined,
+        replyToCreatedAt: typeof it.replyToCreatedAt === 'number' ? it.replyToCreatedAt : undefined,
+        replyToMessageId: typeof it.replyToMessageId === 'string' ? it.replyToMessageId : undefined,
+        replyToUserSub: typeof it.replyToUserSub === 'string' ? it.replyToUserSub : undefined,
+        replyToPreview: typeof it.replyToPreview === 'string' ? it.replyToPreview : undefined,
         reactions: it.reactions
           ? Object.fromEntries(
               Object.entries(it.reactions).map(([emoji, setVal]) => {

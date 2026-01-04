@@ -87,6 +87,22 @@ export async function ensureDmNotificationChannel(): Promise<void> {
   }
 }
 
+export async function ensureChannelsNotificationChannel(): Promise<void> {
+  const Notifications = await tryImportNotifications();
+  if (!Notifications) return;
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('channels', {
+      name: 'Channels',
+      // Default to HIGH for mentions/replies; users can mute the channel in OS settings.
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 250],
+      lightColor: '#1976d2',
+    });
+  }
+}
+
 export async function registerForDmPushNotifications(): Promise<{
   ok: boolean;
   reason?: string;
@@ -104,6 +120,7 @@ export async function registerForDmPushNotifications(): Promise<{
   }
 
   await ensureDmNotificationChannel();
+  await ensureChannelsNotificationChannel();
 
   const perm = await Notifications.getPermissionsAsync();
   let status = perm.status;
