@@ -1,0 +1,27 @@
+version: 1
+applications:
+  - appRoot: frontend
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+            # Deploy/update the Amplify Gen 2 backend for this branch and generate amplify_outputs.json
+            # (Amplify Hosting sets AWS_APP_ID and AWS_BRANCH automatically).
+            - |
+              if [ -n "${AWS_APP_ID:-}" ] && [ -n "${AWS_BRANCH:-}" ]; then
+                npx ampx pipeline-deploy --app-id "$AWS_APP_ID" --branch "$AWS_BRANCH"
+              else
+                echo "Skipping backend deploy (AWS_APP_ID/AWS_BRANCH not set)"
+              fi
+        build:
+          commands:
+            - npm run build:web
+      artifacts:
+        baseDirectory: dist
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+

@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:web": "npx expo export -p web --output-dir dist"
   },
   "dependencies": {
     "@aws-amplify/auth": "^6.17.0",
@@ -40,10 +41,12 @@
     "expo-video": "~3.0.15",
     "expo-video-thumbnails": "~10.0.8",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-get-random-values": "^1.11.0",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-url-polyfill": "^3.0.0"
+    "react-native-url-polyfill": "^3.0.0",
+    "react-native-web": "^0.21.0"
   },
   "devDependencies": {
     "@aws-amplify/backend": "^1.18.0",
