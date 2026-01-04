@@ -8,6 +8,7 @@
 //
 // Env (optional unless stated):
 // - USERS_TABLE (required)
+// - STATS_TABLE (optional): PK statKey. If present, decrements { statKey:"app", userCount } when a user row is deleted.
 // - BLOCKS_TABLE (optional)
 // - PUSH_TOKENS_TABLE (optional)
 // - CONVERSATIONS_TABLE (optional)
@@ -138,6 +139,9 @@ exports.handler = async (event) => {
     const pushTokensTable = safeString(process.env.PUSH_TOKENS_TABLE);
     const conversationsTable = safeString(process.env.CONVERSATIONS_TABLE);
     const unreadsTable = safeString(process.env.UNREADS_TABLE);
+    const statsTable = safeString(process.env.STATS_TABLE);
+    const channelsTable = safeString(process.env.CHANNELS_TABLE);
+    const channelMembersTable = safeString(process.env.CHANNEL_MEMBERS_TABLE);
     const readsTable = safeString(process.env.READS_TABLE);
     const recoveryTable = safeString(process.env.RECOVERY_TABLE);
     const messagesTable = safeString(process.env.MESSAGES_TABLE);
@@ -169,12 +173,31 @@ exports.handler = async (event) => {
     }
 
     // Delete core user row
-    await ddb.send(
+    const deletedUser = await ddb.send(
       new DeleteCommand({
         TableName: usersTable,
         Key: { userSub: String(sub) },
+        ReturnValues: 'ALL_OLD',
       })
     );
+
+    // Best-effort: decrement global user count only if a user row actually existed.
+    if (statsTable && deletedUser?.Attributes) {
+      try {
+        await ddb.send(
+          new UpdateCommand({
+            TableName: statsTable,
+            Key: { statKey: 'app' },
+            // Prevent creating a negative counter if the stats item isn't seeded yet.
+            ConditionExpression: 'attribute_exists(statKey) AND userCount >= :one',
+            UpdateExpression: 'SET userCount = userCount + :dec, updatedAt = :u',
+            ExpressionAttributeValues: { ':one': 1, ':dec': -1, ':u': nowMs },
+          })
+        );
+      } catch {
+        // ignore
+      }
+    }
 
     // Best-effort: delete avatar object (public only).
     if (avatarImagePath && avatarImagePath.startsWith('uploads/public/avatars/')) {
@@ -322,6 +345,120 @@ exports.handler = async (event) => {
         }
       } catch {
         // ignore best-effort group admin transfer
+      }
+    }
+
+    // Best-effort: if this user is the only active admin of any Channel, transfer admin
+    // to another active member before removing the user's membership (so the channel isn't orphaned).
+    //
+    // This mirrors the group DM behavior above.
+    if (channelMembersTable) {
+      try {
+        const gsi = safeString(process.env.CHANNEL_MEMBERS_BY_MEMBER_GSI) || 'byMemberSub';
+        const memResp = await ddb.send(
+          new QueryCommand({
+            TableName: channelMembersTable,
+            IndexName: gsi,
+            KeyConditionExpression: 'memberSub = :u',
+            ExpressionAttributeValues: { ':u': String(sub) },
+            ProjectionExpression: 'channelId, #s, isAdmin, joinedAt',
+            ExpressionAttributeNames: { '#s': 'status' },
+            Limit: 200,
+          })
+        );
+        const myMemberships = Array.isArray(memResp.Items) ? memResp.Items : [];
+        const channelIds = Array.from(
+          new Set(
+            myMemberships
+              .filter((m) => safeString(m?.channelId))
+              .map((m) => safeString(m.channelId))
+              .filter(Boolean)
+          )
+        );
+
+        const pickOldestTenured = (rows) => {
+          const sorted = rows
+            .slice()
+            .sort((a, b) => {
+              const aj = typeof a.joinedAt === 'number' ? a.joinedAt : Number.MAX_SAFE_INTEGER;
+              const bj = typeof b.joinedAt === 'number' ? b.joinedAt : Number.MAX_SAFE_INTEGER;
+              if (aj !== bj) return aj - bj;
+              return safeString(a.memberSub).localeCompare(safeString(b.memberSub));
+            });
+          return sorted[0] || null;
+        };
+
+        for (const channelId of channelIds) {
+          const mine = myMemberships.find((m) => safeString(m?.channelId) === channelId) || null;
+          if (!mine) continue;
+          // Only consider active admins.
+          if (!(safeString(mine.status) === 'active' && !!mine.isAdmin)) continue;
+
+          // eslint-disable-next-line no-await-in-loop
+          const membersResp = await ddb.send(
+            new QueryCommand({
+              TableName: channelMembersTable,
+              KeyConditionExpression: 'channelId = :c',
+              ExpressionAttributeValues: { ':c': channelId },
+              ProjectionExpression: 'memberSub, #s, isAdmin, joinedAt',
+              ExpressionAttributeNames: { '#s': 'status' },
+              Limit: 200,
+            })
+          );
+          const members = Array.isArray(membersResp.Items) ? membersResp.Items : [];
+          const activeMembers = members.filter((m) => safeString(m?.status) === 'active');
+          const othersActive = activeMembers.filter((m) => safeString(m?.memberSub) !== String(sub));
+          const othersActiveAdmins = othersActive.filter((m) => !!m.isAdmin);
+
+          // If I'm the only active admin and there are other active members, promote someone.
+          if (othersActive.length > 0 && othersActiveAdmins.length === 0) {
+            const candidate = pickOldestTenured(othersActive);
+            if (candidate && safeString(candidate.memberSub)) {
+              // eslint-disable-next-line no-await-in-loop
+              await ddb.send(
+                new UpdateCommand({
+                  TableName: channelMembersTable,
+                  Key: { channelId, memberSub: safeString(candidate.memberSub) },
+                  UpdateExpression: 'SET isAdmin = :a, updatedAt = :u',
+                  ExpressionAttributeValues: { ':a': true, ':u': nowMs },
+                  ConditionExpression: 'attribute_exists(memberSub)',
+                })
+              );
+            }
+          }
+
+          // Remove the deleted user from the channel roster (treat as left, and ensure not admin).
+          // eslint-disable-next-line no-await-in-loop
+          await ddb
+            .send(
+              new UpdateCommand({
+                TableName: channelMembersTable,
+                Key: { channelId, memberSub: String(sub) },
+                UpdateExpression: 'SET #s = :s, leftAt = :t, updatedAt = :u, isAdmin = :ia REMOVE bannedAt',
+                ExpressionAttributeNames: { '#s': 'status' },
+                ExpressionAttributeValues: { ':s': 'left', ':t': nowMs, ':u': nowMs, ':ia': false },
+                ConditionExpression: 'attribute_exists(memberSub)',
+              })
+            )
+            .catch(() => {});
+
+          // Best-effort: decrement active member count.
+          if (channelsTable) {
+            // eslint-disable-next-line no-await-in-loop
+            await ddb
+              .send(
+                new UpdateCommand({
+                  TableName: channelsTable,
+                  Key: { channelId },
+                  UpdateExpression: 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :dec, updatedAt = :u',
+                  ExpressionAttributeValues: { ':z': 0, ':dec': -1, ':u': nowMs },
+                })
+              )
+              .catch(() => {});
+          }
+        }
+      } catch {
+        // ignore best-effort channel admin transfer
       }
     }
 

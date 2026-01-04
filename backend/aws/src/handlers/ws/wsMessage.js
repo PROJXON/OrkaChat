@@ -115,6 +115,41 @@ const extractChatMediaPathsFromText = (rawText) => {
   }
 };
 
+// For global/channel (plaintext), message text may be stored as a JSON envelope: {type:"chat", text, media}.
+const extractChatTextFromText = (rawText) => {
+  const t = typeof rawText === 'string' ? String(rawText).trim() : '';
+  if (!t) return '';
+  // Fast path: typical plain text messages
+  if (!(t.startsWith('{') && t.endsWith('}'))) return t;
+  try {
+    const obj = JSON.parse(t);
+    if (!obj || typeof obj !== 'object') return t;
+    if (obj.type !== 'chat') return t;
+    const inner = typeof obj.text === 'string' ? String(obj.text) : '';
+    return inner || '';
+  } catch {
+    return t;
+  }
+};
+
+const extractMentionUsernamesLower = (rawText) => {
+  const inner = extractChatTextFromText(rawText);
+  const t = typeof inner === 'string' ? inner : '';
+  if (!t) return [];
+  const out = new Set();
+  // usernames are stored/queried as usernameLower in Users table.
+  // Keep this conservative to reduce false positives.
+  const re = /(^|[^a-zA-Z0-9_.-])@([a-zA-Z0-9_.-]{2,32})/g;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const uname = String(m[2] || '').trim().toLowerCase();
+    if (!uname) continue;
+    out.add(uname);
+    if (out.size >= 20) break;
+  }
+  return Array.from(out);
+};
+
 const setDiff = (a, b) => {
   const A = new Set(Array.isArray(a) ? a : []);
   const B = new Set(Array.isArray(b) ? b : []);
@@ -232,6 +267,45 @@ const sendDmPushNotification = async ({ recipientSub, senderDisplayName, senderS
   }
 };
 
+const sendChannelPushNotification = async ({ recipientSub, senderDisplayName, senderSub, conversationId, channelName, kind }) => {
+  try {
+    const tokens = await queryExpoPushTokensByUserSub(recipientSub);
+    if (!tokens.length) return;
+
+    const title = safeString(channelName) || 'Channel';
+    const body = kind === 'channelMention' ? `${safeString(senderDisplayName) || 'Someone'} mentioned you` : 'New reply';
+    const convId = safeString(conversationId);
+    const sSub = safeString(senderSub);
+    const k = safeString(kind) || 'channelMention';
+
+    const base = {
+      title,
+      body,
+      sound: 'default',
+      priority: 'high',
+      // Separate category so users can mute channels without muting DMs.
+      channelId: 'channels',
+      data: {
+        kind: k,
+        conversationId: convId,
+        channelName: safeString(channelName),
+        senderDisplayName: safeString(senderDisplayName),
+        senderSub: sSub,
+      },
+    };
+
+    const batchSize = 100;
+    for (let i = 0; i < tokens.length; i += batchSize) {
+      const slice = tokens.slice(i, i + batchSize);
+      const msgs = slice.map((to) => ({ ...base, to }));
+      // eslint-disable-next-line no-await-in-loop
+      await sendExpoPush(msgs);
+    }
+  } catch (err) {
+    console.warn('sendChannelPushNotification failed', err);
+  }
+};
+
 const broadcast = async (mgmt, connectionIds, payloadObj) => {
   const data = Buffer.from(JSON.stringify(payloadObj));
   await Promise.all(
@@ -322,6 +396,15 @@ const parseGroupId = (conversationId) => {
   return groupId || null;
 };
 
+// Channel conversationId format: "ch#<channelId>"
+const parseChannelId = (conversationId) => {
+  if (!conversationId || conversationId === 'global') return null;
+  const raw = String(conversationId).trim();
+  if (!raw.startsWith('ch#')) return null;
+  const channelId = raw.slice('ch#'.length).trim();
+  return channelId || null;
+};
+
 const getGroupMember = async (groupId, memberSub) => {
   const table = process.env.GROUP_MEMBERS_TABLE;
   const gid = safeString(groupId);
@@ -344,6 +427,56 @@ const getGroupMember = async (groupId, memberSub) => {
       leftAt: typeof it.leftAt === 'number' ? it.leftAt : undefined,
       bannedAt: typeof it.bannedAt === 'number' ? it.bannedAt : undefined,
     };
+  } catch {
+    return null;
+  }
+};
+
+const getChannelMember = async (channelId, memberSub) => {
+  const table = process.env.CHANNEL_MEMBERS_TABLE;
+  const cid = safeString(channelId);
+  const sub = safeString(memberSub);
+  if (!table || !cid || !sub) return null;
+  try {
+    const resp = await ddb.send(
+      new GetCommand({
+        TableName: table,
+        Key: { channelId: cid, memberSub: sub },
+        ProjectionExpression: 'memberSub, #s, isAdmin, leftAt, bannedAt',
+        ExpressionAttributeNames: { '#s': 'status' },
+      })
+    );
+    const it = resp?.Item;
+    if (!it) return null;
+    return {
+      status: safeString(it.status) || '',
+      isAdmin: !!it.isAdmin,
+      leftAt: typeof it.leftAt === 'number' ? it.leftAt : undefined,
+      bannedAt: typeof it.bannedAt === 'number' ? it.bannedAt : undefined,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const getChannelNameById = async (channelId) => {
+  const table = process.env.CHANNELS_TABLE;
+  const cid = safeString(channelId);
+  if (!table || !cid) return null;
+  try {
+    const resp = await ddb.send(
+      new GetCommand({
+        TableName: table,
+        Key: { channelId: cid },
+        ProjectionExpression: '#n, deletedAt',
+        ExpressionAttributeNames: { '#n': 'name' },
+      })
+    );
+    const it = resp?.Item;
+    if (!it) return null;
+    if (typeof it.deletedAt === 'number' && Number.isFinite(it.deletedAt) && it.deletedAt > 0) return null;
+    const name = safeString(it.name);
+    return name || null;
   } catch {
     return null;
   }
@@ -407,6 +540,29 @@ const getUserDisplayNameBySub = async (userSub) => {
     return String(it.displayName || it.usernameLower || it.userSub || '').trim() || null;
   } catch (err) {
     console.warn('getUserDisplayNameBySub failed', err);
+    return null;
+  }
+};
+
+const getUserSubByUsernameLower = async (usernameLower) => {
+  const usersTable = process.env.USERS_TABLE;
+  const u = safeString(usernameLower).toLowerCase();
+  if (!usersTable || !u) return null;
+  try {
+    const resp = await ddb.send(
+      new QueryCommand({
+        TableName: usersTable,
+        IndexName: 'byUsernameLower',
+        KeyConditionExpression: 'usernameLower = :u',
+        ExpressionAttributeValues: { ':u': u },
+        ProjectionExpression: 'userSub',
+        Limit: 1,
+      })
+    );
+    const it = resp.Items?.[0];
+    const sub = it && typeof it.userSub === 'string' ? String(it.userSub).trim() : '';
+    return sub || null;
+  } catch {
     return null;
   }
 };
@@ -624,6 +780,16 @@ exports.handler = async (event) => {
 
     // JOIN: update convo + refresh TTL in one write
     if (action === 'join') {
+      // Channels: only allow joining if the user is an active member.
+      // (Guests cannot connect to WS; membership is created via HTTP /channels/join.)
+      if (String(conversationId).startsWith('ch#')) {
+        const channelId = parseChannelId(conversationId);
+        if (!channelId) return { statusCode: 400, body: 'Invalid channel conversationId (expected ch#<channelId>).' };
+        const channelName = await getChannelNameById(channelId);
+        if (!channelName) return { statusCode: 404, body: 'Channel not found.' };
+        const mem = await getChannelMember(channelId, senderSub);
+        if (!mem || mem.status !== 'active') return { statusCode: 403, body: 'Forbidden.' };
+      }
       await ddb.send(
         new UpdateCommand({
           TableName: process.env.CONNECTIONS_TABLE,
@@ -632,6 +798,27 @@ exports.handler = async (event) => {
           ExpressionAttributeValues: { ':c': conversationId, ':e': expiresAt },
         })
       );
+      // Presence hint: let currently-joined viewers refresh rosters/counts immediately
+      // when someone joins the channel/group room (without persisting a system message).
+      try {
+        const conv = String(conversationId || '');
+        const shouldNotify = conv.startsWith('ch#') || conv.startsWith('gdm#');
+        if (shouldNotify) {
+          const connIds = await queryConnIdsByConversation(conv).catch(() => []);
+          const others = (connIds || []).filter((id) => id && id !== connectionId);
+          if (others.length) {
+            await broadcast(mgmt, others, {
+              type: 'presence',
+              kind: 'join',
+              conversationId: conv,
+              userSub: senderSub,
+              createdAt: nowMs,
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
       return { statusCode: 200, body: 'Joined.' };
     }
 
@@ -653,6 +840,8 @@ exports.handler = async (event) => {
     let groupId = null;
     let groupMember = null;
     let groupActiveSubs = null;
+    let channelId = null;
+    let channelMember = null;
 
     if (conversationId === 'global') {
       // Only broadcast to people who are currently "joined" to global
@@ -685,11 +874,41 @@ exports.handler = async (event) => {
       }
       const activeSet = new Set(groupActiveSubs);
       if (!activeSet.has(senderSub)) {
-        if (action !== 'read') return { statusCode: 403, body: 'Forbidden.' };
+        const isSelfLeftSystem =
+          action === 'system' &&
+          safeString(body.systemKind) === 'left' &&
+          safeString(body.targetSub) &&
+          safeString(body.targetSub) === senderSub &&
+          groupMember &&
+          groupMember.status === 'left';
+        if (!isSelfLeftSystem && action !== 'read') return { statusCode: 403, body: 'Forbidden.' };
       }
 
       const connLists = await Promise.all(groupActiveSubs.map((s) => queryConnIdsByUserSub(s).catch(() => [])));
       recipientConnIds = Array.from(new Set(connLists.flat().filter(Boolean)));
+    } else if (String(conversationId).startsWith('ch#')) {
+      channelId = parseChannelId(conversationId);
+      if (!channelId) return { statusCode: 400, body: 'Invalid channel conversationId (expected ch#<channelId>).' };
+      // Ensure channel exists (and isn't deleted)
+      const channelName = await getChannelNameById(channelId);
+      if (!channelName) return { statusCode: 404, body: 'Channel not found.' };
+      channelMember = await getChannelMember(channelId, senderSub);
+      // Channels:
+      // - Most actions require the sender to be an active member.
+      // - Exception: allow a user to publish their own "left" system event even after /channels/leave
+      //   has already flipped their membership status to "left" (so the UI can broadcast the event).
+      if (!channelMember) return { statusCode: 403, body: 'Forbidden.' };
+      if (channelMember.status !== 'active') {
+        const isSelfLeftSystem =
+          action === 'system' &&
+          safeString(body.systemKind) === 'left' &&
+          safeString(body.targetSub) &&
+          safeString(body.targetSub) === senderSub &&
+          channelMember.status === 'left';
+        if (!isSelfLeftSystem) return { statusCode: 403, body: 'Forbidden.' };
+      }
+      // Only broadcast to people currently joined to this channel room
+      recipientConnIds = await queryConnIdsByConversation(conversationId);
     } else {
       return { statusCode: 400, body: 'Invalid conversationId.' };
     }
@@ -698,7 +917,8 @@ exports.handler = async (event) => {
     // Allows the client to request a server-validated system message (so it persists + broadcasts).
     // Most system events are admin-only, except a user may publish their own "left" event.
     if (action === 'system') {
-      if (!groupId) return { statusCode: 400, body: 'system only supported for group DMs.' };
+      const scope = groupId ? 'group' : channelId ? 'channel' : null;
+      if (!scope) return { statusCode: 400, body: 'system only supported for group DMs and channels.' };
       const systemKind = safeString(body.systemKind);
       const allowed = new Set(['ban', 'unban', 'kick', 'left', 'removed', 'added', 'update']);
       if (!systemKind || !allowed.has(systemKind)) {
@@ -717,12 +937,13 @@ exports.handler = async (event) => {
       // - For admin-only events: require active admin.
       // - For self-left event: allow either active OR already-left member (so the client can log the event
       //   after a successful /groups/leave call without racing).
+      const scopeMember = scope === 'group' ? groupMember : channelMember;
       if (isSelfLeft) {
-        if (!groupMember || (groupMember.status !== 'active' && groupMember.status !== 'left')) {
+        if (!scopeMember || (scopeMember.status !== 'active' && scopeMember.status !== 'left')) {
           return { statusCode: 403, body: 'Forbidden.' };
         }
       } else {
-        if (!groupMember || groupMember.status !== 'active' || !groupMember.isAdmin) {
+        if (!scopeMember || scopeMember.status !== 'active' || !scopeMember.isAdmin) {
           return { statusCode: 403, body: 'Admin required.' };
         }
       }
@@ -749,13 +970,30 @@ exports.handler = async (event) => {
         else if (systemKind === 'removed' && targetName) systemText = `${targetName} was removed by ${senderDisplayName || 'an admin'}`;
         else if (systemKind === 'update') {
           const updateField = safeString(body.updateField || body.field);
-          const groupName = safeString(body.groupName);
-          if (updateField === 'groupName') {
-            systemText = groupName ? `Group name changed to ${groupName}` : 'Group name reset to default';
+          if (scope === 'channel') {
+            const channelName = safeString(body.channelName);
+            if (updateField === 'channelName') {
+              systemText = channelName ? `Channel name changed to ${channelName}` : `${senderDisplayName || 'An admin'} updated the channel`;
+            } else if (updateField === 'visibility') {
+              const isPublic = String(body.isPublic) === 'true' || body.isPublic === true || body.isPublic === 1;
+              systemText = `Channel visibility set to ${isPublic ? 'Public' : 'Private'}`;
+            } else if (updateField === 'password') {
+              const hp = String(body.hasPassword) === 'true' || body.hasPassword === true || body.hasPassword === 1;
+              systemText = `Channel password ${hp ? 'enabled' : 'cleared'}`;
+            } else {
+              systemText = `${senderDisplayName || 'An admin'} updated the channel`;
+            }
           } else {
-            systemText = `${senderDisplayName || 'An admin'} updated the group`;
+            const groupName = safeString(body.groupName);
+            if (updateField === 'groupName') {
+              systemText = groupName ? `Group name changed to ${groupName}` : 'Group name reset to default';
+            } else {
+              systemText = `${senderDisplayName || 'An admin'} updated the group`;
+            }
           }
-        } else systemText = `${senderDisplayName || 'An admin'} updated the group`;
+        } else systemText = scope === 'channel'
+          ? `${senderDisplayName || 'An admin'} updated the channel`
+          : `${senderDisplayName || 'An admin'} updated the group`;
       }
 
       const systemMessageId = `sys-${nowMs}-${Math.random().toString(36).slice(2)}`;
@@ -810,10 +1048,12 @@ exports.handler = async (event) => {
       return { statusCode: 200, body: 'System message sent.' };
     }
 
-    // ---- KICK (group-only, admin-only, UI eject) ----
+    // ---- KICK (group/channel, admin-only, UI eject) ----
     if (action === 'kick') {
-      if (!groupId) return { statusCode: 400, body: 'kick only supported for group DMs.' };
-      if (!groupMember || groupMember.status !== 'active' || !groupMember.isAdmin) {
+      const scope = groupId ? 'group' : channelId ? 'channel' : null;
+      if (!scope) return { statusCode: 400, body: 'kick only supported for group DMs and channels.' };
+      const scopeMember = scope === 'group' ? groupMember : channelMember;
+      if (!scopeMember || scopeMember.status !== 'active' || !scopeMember.isAdmin) {
         return { statusCode: 403, body: 'Admin required.' };
       }
       const targetSub = safeString(body.targetSub);
@@ -1034,14 +1274,15 @@ exports.handler = async (event) => {
       // Async cleanup for attachments on edit:
       // - Global/channel: compare old/new envelopes.
       // - DM: use mediaPaths stored on the message row; allow client to provide updated mediaPaths.
-      const isDm = conversationId !== 'global';
-      const oldMediaPaths = isDm
+      const isEncryptedChat =
+        String(conversationId || '').startsWith('dm#') || String(conversationId || '').startsWith('gdm#');
+      const oldMediaPaths = isEncryptedChat
         ? normalizeMediaPaths(msg.mediaPaths)
         : extractChatMediaPathsFromText(typeof msg.text === 'string' ? msg.text : '');
       const incomingMediaPaths = Object.prototype.hasOwnProperty.call(body, 'mediaPaths')
         ? normalizeMediaPaths(body.mediaPaths)
         : undefined; // undefined => keep existing
-      const newMediaPaths = isDm
+      const newMediaPaths = isEncryptedChat
         ? incomingMediaPaths === undefined
           ? oldMediaPaths
           : incomingMediaPaths
@@ -1053,12 +1294,12 @@ exports.handler = async (event) => {
           TableName: process.env.MESSAGES_TABLE,
           Key: { conversationId, createdAt: messageCreatedAt },
           UpdateExpression:
-            isDm && incomingMediaPaths !== undefined
+            isEncryptedChat && incomingMediaPaths !== undefined
               ? 'SET #t = :t, mediaPaths = :mp, editedAt = :ea, updatedAt = :ua'
               : 'SET #t = :t, editedAt = :ea, updatedAt = :ua',
           ExpressionAttributeNames: { '#t': 'text' },
           ExpressionAttributeValues:
-            isDm && incomingMediaPaths !== undefined
+            isEncryptedChat && incomingMediaPaths !== undefined
               ? { ':t': newText, ':mp': newMediaPaths, ':ea': nowMs, ':ua': nowMs }
               : { ':t': newText, ':ea': nowMs, ':ua': nowMs },
         })
@@ -1067,8 +1308,8 @@ exports.handler = async (event) => {
       if (toDelete.length) {
         enqueueMediaDeletes({
           keys: toDelete,
-          reason: isDm ? 'dm_attachment_replaced' : 'attachment_replaced',
-          allowedPrefixes: isDm ? ['uploads/dm/'] : ['uploads/channels/'],
+          reason: isEncryptedChat ? 'dm_attachment_replaced' : 'attachment_replaced',
+          allowedPrefixes: isEncryptedChat ? ['uploads/dm/'] : ['uploads/channels/'],
           context: { conversationId, messageCreatedAt },
         }).catch((err) => console.warn('enqueueMediaDeletes(edit) failed (ignored)', err));
       }
@@ -1109,15 +1350,16 @@ exports.handler = async (event) => {
       // Async cleanup for attachments on delete:
       // - Global/channel: parse msg.text envelope before we REMOVE it.
       // - DM: use msg.mediaPaths (stored out-of-band).
-      const isDm = conversationId !== 'global';
-      const mediaPaths = isDm
+      const isEncryptedChat =
+        String(conversationId || '').startsWith('dm#') || String(conversationId || '').startsWith('gdm#');
+      const mediaPaths = isEncryptedChat
         ? normalizeMediaPaths(msg.mediaPaths)
         : extractChatMediaPathsFromText(typeof msg.text === 'string' ? msg.text : '');
       if (mediaPaths.length) {
         enqueueMediaDeletes({
           keys: mediaPaths,
-          reason: isDm ? 'dm_message_deleted' : 'message_deleted',
-          allowedPrefixes: isDm ? ['uploads/dm/'] : ['uploads/channels/'],
+          reason: isEncryptedChat ? 'dm_message_deleted' : 'message_deleted',
+          allowedPrefixes: isEncryptedChat ? ['uploads/dm/'] : ['uploads/channels/'],
           context: { conversationId, messageCreatedAt },
         }).catch((err) => console.warn('enqueueMediaDeletes(delete) failed (ignored)', err));
       }
@@ -1285,6 +1527,7 @@ exports.handler = async (event) => {
 
     const isDm = String(conversationId || '').startsWith('dm#');
     const isGroup = String(conversationId || '').startsWith('gdm#');
+    const isChannel = String(conversationId || '').startsWith('ch#');
 
     // Block enforcement (DM only).
     // If either party has blocked the other, do not persist or broadcast.
@@ -1324,6 +1567,70 @@ exports.handler = async (event) => {
       ? normalizeMediaPaths(body.mediaPaths)
       : undefined;
 
+    // Mentions + replies (plaintext chats: global + channels)
+    let mentions = undefined;
+    let replyToCreatedAt = undefined;
+    let replyToMessageId = undefined;
+    let replyToUserSub = undefined;
+    let replyToPreview = undefined;
+    let channelNameForNotify = null;
+
+    const isGlobal = conversationId === 'global';
+    const allowPlainMentionsReplies = isChannel || isGlobal;
+
+    if (allowPlainMentionsReplies) {
+      // reply metadata (best-effort)
+      const rtc = Number(body.replyToCreatedAt ?? body.replyToMessageCreatedAt);
+      if (Number.isFinite(rtc) && rtc > 0) replyToCreatedAt = rtc;
+      if (typeof body.replyToMessageId === 'string' && String(body.replyToMessageId).trim()) {
+        replyToMessageId = String(body.replyToMessageId).trim().slice(0, 120);
+      }
+      if (typeof body.replyToUserSub === 'string' && String(body.replyToUserSub).trim()) {
+        replyToUserSub = String(body.replyToUserSub).trim();
+      }
+      if (typeof body.replyToPreview === 'string' && String(body.replyToPreview).trim()) {
+        replyToPreview = String(body.replyToPreview).trim().slice(0, 160);
+      }
+
+      // mention resolution (best-effort)
+      const usernames = extractMentionUsernamesLower(text);
+      if (usernames.length) {
+        const subs = await Promise.all(usernames.map((u) => getUserSubByUsernameLower(u)));
+        const uniqueSubs = Array.from(new Set(subs.filter(Boolean))).filter((s) => s !== senderSub);
+        let finalSubs = uniqueSubs;
+        if (isChannel) {
+          // Only notify/store mentions for active channel members.
+          const checked = await Promise.all(
+            uniqueSubs.map(async (s) => {
+              try {
+                const mem = await getChannelMember(channelId, s);
+                if (!mem || mem.status !== 'active') return null;
+                return s;
+              } catch {
+                return null;
+              }
+            })
+          );
+          finalSubs = checked.filter(Boolean);
+        }
+        if (finalSubs.length) mentions = finalSubs;
+      }
+
+      // For reply notifications (channels), require reply target to be an active channel member.
+      if (replyToUserSub && replyToUserSub !== senderSub) {
+        if (isChannel) {
+          const mem = await getChannelMember(channelId, replyToUserSub);
+          if (!mem || mem.status !== 'active') replyToUserSub = undefined;
+        }
+      } else {
+        replyToUserSub = undefined;
+      }
+
+      if (isChannel) {
+        channelNameForNotify = await getChannelNameById(channelId);
+      }
+    }
+
     // Persist (store display + stable key)
     await ddb.send(
       new PutCommand({
@@ -1336,6 +1643,11 @@ exports.handler = async (event) => {
           user: senderDisplayName,
           userLower: senderUsernameLower,
           userSub: senderSub,
+          ...(mentions && mentions.length ? { mentions } : {}),
+          ...(replyToCreatedAt ? { replyToCreatedAt } : {}),
+          ...(replyToMessageId ? { replyToMessageId } : {}),
+          ...(replyToUserSub ? { replyToUserSub } : {}),
+          ...(replyToPreview ? { replyToPreview } : {}),
           ...(conversationId !== 'global' && incomingMediaPaths && incomingMediaPaths.length
             ? { mediaPaths: incomingMediaPaths }
             : {}),
@@ -1358,10 +1670,42 @@ exports.handler = async (event) => {
       text,
       createdAt: nowMs,
       conversationId,
-      conversationKind: isGroup ? 'group' : isDm ? 'dm' : undefined,
+      conversationKind: isGroup ? 'group' : isDm ? 'dm' : isChannel ? 'channel' : undefined,
       ...(isGroup ? { groupTitle: groupTitleForPayload } : {}),
+      ...(allowPlainMentionsReplies && mentions && mentions.length ? { mentions } : {}),
+      ...(allowPlainMentionsReplies && replyToCreatedAt ? { replyToCreatedAt } : {}),
+      ...(allowPlainMentionsReplies && replyToMessageId ? { replyToMessageId } : {}),
+      ...(allowPlainMentionsReplies && replyToUserSub ? { replyToUserSub } : {}),
+      ...(allowPlainMentionsReplies && replyToPreview ? { replyToPreview } : {}),
       ...(ttlSeconds ? { ttlSeconds } : {}),
     });
+
+    // Channel notifications: mentions + replies only (no channel-wide fanout).
+    if (isChannel) {
+      try {
+        const notifySubs = new Set();
+        if (Array.isArray(mentions)) for (const s of mentions) if (s && s !== senderSub) notifySubs.add(String(s));
+        if (replyToUserSub && replyToUserSub !== senderSub) notifySubs.add(String(replyToUserSub));
+        const subs = Array.from(notifySubs);
+        await Promise.all(
+          subs.map(async (u) => {
+            const activeConns = await queryConnIdsByUserSub(u).catch(() => []);
+            if (Array.isArray(activeConns) && activeConns.length) return;
+            const kind = u === replyToUserSub ? 'channelReply' : 'channelMention';
+            await sendChannelPushNotification({
+              recipientSub: u,
+              senderDisplayName,
+              senderSub,
+              conversationId,
+              channelName: channelNameForNotify || 'Channel',
+              kind,
+            });
+          })
+        );
+      } catch {
+        // ignore
+      }
+    }
 
     // Persist unread so offline users see it on next login via GET /unreads
     if (conversationId !== 'global') {

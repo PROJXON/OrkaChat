@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   AppState,
   AppStateStatus,
   FlatList,
@@ -13,6 +12,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -24,6 +24,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import Feather from '@expo/vector-icons/Feather';
 import { HeaderMenuModal } from '../components/HeaderMenuModal';
 import { AvatarBubble } from '../components/AvatarBubble';
+import { AnimatedDots } from '../components/AnimatedDots';
 
 type GuestMessage = {
   id: string;
@@ -183,18 +184,29 @@ function FullscreenVideo({ url }: { url: string }): React.JSX.Element {
   return <VideoView player={player} style={styles.viewerVideo} contentFit="contain" nativeControls />;
 }
 
-async function fetchGuestGlobalHistoryPage(opts?: {
+async function fetchGuestChannelHistoryPage(opts: {
+  conversationId: string;
   before?: number | null;
 }): Promise<{ items: GuestMessage[]; hasMore: boolean; nextCursor: number | null }> {
   if (!API_URL) throw new Error('API_URL is not configured');
   const base = API_URL.replace(/\/$/, '');
+  const conversationId = String(opts?.conversationId || 'global').trim() || 'global';
   const before = opts?.before;
   const qs =
-    `conversationId=${encodeURIComponent('global')}` +
+    `conversationId=${encodeURIComponent(conversationId)}` +
     `&limit=${GUEST_HISTORY_PAGE_SIZE}` +
     `&cursor=1` +
     (typeof before === 'number' && Number.isFinite(before) && before > 0 ? `&before=${encodeURIComponent(String(before))}` : '');
-  const candidates = [`${base}/public/messages?${qs}`, `${base}/messages?${qs}`];
+  const candidates =
+    conversationId === 'global'
+      ? [`${base}/public/messages?${qs}`, `${base}/messages?${qs}`]
+      : [
+          // New Channels public history endpoint (preferred).
+          `${base}/public/channel/messages?${qs}`,
+          // Fallbacks (may be forbidden for non-global; kept for flexibility across deployments).
+          `${base}/public/messages?${qs}`,
+          `${base}/messages?${qs}`,
+        ];
 
   const errors: string[] = [];
   for (const url of candidates) {
@@ -299,6 +311,17 @@ export default function GuestGlobalScreen({
       // ignore
     }
   }, []);
+
+  const [activeConversationId, setActiveConversationId] = React.useState<string>('global');
+  const [activeChannelTitle, setActiveChannelTitle] = React.useState<string>('Global');
+  const [channelPickerOpen, setChannelPickerOpen] = React.useState<boolean>(false);
+  const [channelQuery, setChannelQuery] = React.useState<string>('');
+  const [channelListLoading, setChannelListLoading] = React.useState<boolean>(false);
+  const [channelListError, setChannelListError] = React.useState<string | null>(null);
+  const [globalUserCount, setGlobalUserCount] = React.useState<number | null>(null);
+  const [channelResults, setChannelResults] = React.useState<
+    Array<{ channelId: string; name: string; activeMemberCount?: number }>
+  >([]);
 
   const [messages, setMessages] = React.useState<GuestMessage[]>([]);
   const messagesRef = React.useRef<GuestMessage[]>([]);
@@ -490,7 +513,7 @@ export default function GuestGlobalScreen({
 
       try {
         setError(null);
-        const page = await fetchGuestGlobalHistoryPage({ before });
+        const page = await fetchGuestChannelHistoryPage({ conversationId: activeConversationId, before });
         if (reset) {
           setMessages(page.items);
           setHistoryHasMore(!!page.hasMore);
@@ -527,7 +550,7 @@ export default function GuestGlobalScreen({
         setHistoryLoading(false);
       }
     },
-    []
+    [activeConversationId]
   );
 
   const loadOlderHistory = React.useCallback(() => {
@@ -552,7 +575,7 @@ export default function GuestGlobalScreen({
     setHistoryLoading(true);
     try {
       setError(null);
-      const page = await fetchGuestGlobalHistoryPage({ before: null });
+      const page = await fetchGuestChannelHistoryPage({ conversationId: activeConversationId, before: null });
       setMessages((prev) => {
         const seen = new Set<string>();
         const combined = [...page.items, ...prev];
@@ -567,7 +590,7 @@ export default function GuestGlobalScreen({
       historyLoadingRef.current = false;
       setHistoryLoading(false);
     }
-  }, []);
+  }, [activeConversationId]);
 
   const fetchNow = React.useCallback(
     async (opts?: { isManual?: boolean }) => {
@@ -619,11 +642,88 @@ export default function GuestGlobalScreen({
     };
   }, [refreshLatest]);
 
+  // Public channel list (guests can browse + read public channels).
+  React.useEffect(() => {
+    if (!channelPickerOpen) return;
+    if (!API_URL) return;
+    let cancelled = false;
+    const id = setTimeout(() => {
+      (async () => {
+        try {
+          setChannelListLoading(true);
+          setChannelListError(null);
+          const base = API_URL.replace(/\/$/, '');
+          const q = String(channelQuery || '').trim();
+          const qs = `limit=50${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+          const candidates = [`${base}/public/channels/search?${qs}`, `${base}/channels/search?${qs}`];
+
+          let data: any = null;
+          const errors: string[] = [];
+          for (const url of candidates) {
+            const resp = await fetch(url);
+            if (!resp.ok) {
+              const text = await resp.text().catch(() => '');
+              errors.push(`GET ${url} failed (${resp.status}) ${text || ''}`.trim());
+              continue;
+            }
+            data = await resp.json().catch(() => ({}));
+            break;
+          }
+          if (!data) {
+            // Avoid showing raw URLs/errors to guests (dev convenience).
+            console.warn('Guest channel search failed', errors.join('\n'));
+            if (!cancelled) setChannelListError('Channel search failed');
+            return;
+          }
+          if (typeof data?.globalUserCount === 'number' && Number.isFinite(data.globalUserCount) && data.globalUserCount >= 0) {
+            if (!cancelled) setGlobalUserCount(Math.floor(data.globalUserCount));
+          } else if (!q) {
+            if (!cancelled) setGlobalUserCount(null);
+          }
+          const list = Array.isArray(data?.channels) ? data.channels : [];
+          const normalized = list
+            .map((c: any) => ({
+              channelId: String(c.channelId || '').trim(),
+              name: String(c.name || '').trim(),
+              activeMemberCount: typeof c.activeMemberCount === 'number' ? c.activeMemberCount : undefined,
+            }))
+            .filter((c: any) => c.channelId && c.name);
+          if (!cancelled) setChannelResults(normalized);
+        } catch (e: any) {
+          if (!cancelled) setChannelListError(String(e?.message || 'Failed to load channels'));
+        } finally {
+          if (!cancelled) setChannelListLoading(false);
+        }
+      })();
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [channelPickerOpen, channelQuery]);
+
   return (
     // App.tsx already applies the top safe area. Avoid double top inset here (dead space).
     <SafeAreaView style={[styles.container, isDark && styles.containerDark]} edges={['left', 'right']}>
       <View style={styles.headerRow}>
-        <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>Global</Text>
+        <Pressable
+          onPress={() => {
+            setChannelListError(null);
+            setChannelQuery('');
+            setChannelPickerOpen(true);
+          }}
+          style={({ pressed }) => [
+            { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 2 },
+            pressed ? { opacity: 0.9 } : null,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Browse channels"
+        >
+          <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]} numberOfLines={1}>
+            {activeChannelTitle}
+          </Text>
+          <Feather name="chevron-down" size={16} color={isDark ? '#fff' : '#111'} />
+        </Pressable>
         <View style={styles.headerRight}>
           <Pressable
             onPress={() => setMenuOpen(true)}
@@ -677,6 +777,171 @@ export default function GuestGlobalScreen({
         ]}
       />
 
+      <Modal visible={channelPickerOpen} transparent animationType="fade" onRequestClose={() => setChannelPickerOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelPickerOpen(false)} />
+          <View style={[styles.modalCard, isDark ? styles.modalCardDark : null]}>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Channels</Text>
+
+            <TextInput
+              value={channelQuery}
+              onChangeText={(v: string) => {
+                setChannelQuery(v);
+                setChannelListError(null);
+              }}
+              placeholder="Search Channels"
+              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+              selectionColor={isDark ? '#ffffff' : '#111'}
+              cursorColor={isDark ? '#ffffff' : '#111'}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderRadius: 10,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+                backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                color: isDark ? '#fff' : '#111',
+                marginBottom: 10,
+              }}
+            />
+
+            {channelListError ? (
+              <Text style={[styles.errorText, isDark && styles.errorTextDark]} numberOfLines={2}>
+                {channelListError}
+              </Text>
+            ) : null}
+
+            <ScrollView style={styles.modalScroll}>
+              <Pressable
+                style={({ pressed }) => [
+                  {
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    minHeight: 44,
+                    borderRadius: 12,
+                    alignSelf: 'stretch',
+                    backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+                    marginBottom: 8,
+                    opacity: pressed ? 0.85 : 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  },
+                ]}
+                onPress={() => {
+                  setActiveConversationId('global');
+                  setActiveChannelTitle('Global');
+                  setChannelPickerOpen(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Enter Global"
+              >
+                <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }}>Global</Text>
+                <View
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 999,
+                    backgroundColor: isDark ? '#2a2a33' : '#fff',
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: isDark ? 'transparent' : '#e3e3e3',
+                    minWidth: 38,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ fontWeight: '900', color: isDark ? '#fff' : '#111' }}>
+                    {typeof globalUserCount === 'number' ? String(globalUserCount) : '—'}
+                  </Text>
+                </View>
+              </Pressable>
+
+              {channelListLoading ? (
+                <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: isDark ? '#d7d7e0' : '#555', fontWeight: '700', fontSize: 14 }}>
+                      Loading
+                    </Text>
+                    <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={16} />
+                  </View>
+                </View>
+              ) : channelResults.length ? (
+                channelResults.map((c) => (
+                  <Pressable
+                    key={`guest-channel:${c.channelId}`}
+                    style={({ pressed }) => [
+                      {
+                        paddingVertical: 10,
+                        paddingHorizontal: 10,
+                        minHeight: 44,
+                        borderRadius: 12,
+                        alignSelf: 'stretch',
+                        backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+                        marginBottom: 8,
+                        opacity: pressed ? 0.85 : 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      },
+                    ]}
+                    onPress={() => {
+                      setActiveConversationId(`ch#${c.channelId}`);
+                      setActiveChannelTitle(c.name);
+                      setChannelPickerOpen(false);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Enter ${c.name}`}
+                  >
+                    <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }} numberOfLines={1}>
+                      {c.name}
+                    </Text>
+                    <View
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 999,
+                        backgroundColor: isDark ? '#2a2a33' : '#fff',
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: isDark ? 'transparent' : '#e3e3e3',
+                        minWidth: 38,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginLeft: 10,
+                      }}
+                    >
+                      <Text style={{ fontWeight: '900', color: isDark ? '#fff' : '#111' }}>
+                        {String(typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0)}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))
+              ) : (
+                <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]}>
+                  {String(channelQuery || '').trim()
+                    ? 'No channels found'
+                    : 'No public channels yet'}
+                </Text>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                onPress={() => setChannelPickerOpen(false)}
+                style={({ pressed }) => [styles.modalBtn, isDark ? styles.modalBtnDark : null, pressed ? { opacity: 0.92 } : null]}
+              >
+                <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {error ? (
         <Text style={[styles.errorText, isDark && styles.errorTextDark]} numberOfLines={3}>
           {error}
@@ -685,7 +950,12 @@ export default function GuestGlobalScreen({
 
       {loading && messages.length === 0 ? (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ color: isDark ? '#d7d7e0' : '#555', fontWeight: '700', fontSize: 14 }}>
+              Loading
+            </Text>
+            <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={16} />
+          </View>
         </View>
       ) : null}
 
@@ -722,7 +992,7 @@ export default function GuestGlobalScreen({
                 </Pressable>
               ) : (
                 <Text style={{ color: isDark ? '#aaa' : '#666' }}>
-                  {messages.length === 0 ? 'Sign in to Start the Conversation!' : 'No older messages'}
+                  {messages.length === 0 ? 'Sign in to Start the Conversation!' : 'No Older Messages'}
                 </Text>
               )}
             </View>
