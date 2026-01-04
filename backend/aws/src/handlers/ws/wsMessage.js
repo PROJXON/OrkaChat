@@ -1567,7 +1567,7 @@ exports.handler = async (event) => {
       ? normalizeMediaPaths(body.mediaPaths)
       : undefined;
 
-    // Mentions + replies (channels only)
+    // Mentions + replies (plaintext chats: global + channels)
     let mentions = undefined;
     let replyToCreatedAt = undefined;
     let replyToMessageId = undefined;
@@ -1575,7 +1575,10 @@ exports.handler = async (event) => {
     let replyToPreview = undefined;
     let channelNameForNotify = null;
 
-    if (isChannel) {
+    const isGlobal = conversationId === 'global';
+    const allowPlainMentionsReplies = isChannel || isGlobal;
+
+    if (allowPlainMentionsReplies) {
       // reply metadata (best-effort)
       const rtc = Number(body.replyToCreatedAt ?? body.replyToMessageCreatedAt);
       if (Number.isFinite(rtc) && rtc > 0) replyToCreatedAt = rtc;
@@ -1594,31 +1597,38 @@ exports.handler = async (event) => {
       if (usernames.length) {
         const subs = await Promise.all(usernames.map((u) => getUserSubByUsernameLower(u)));
         const uniqueSubs = Array.from(new Set(subs.filter(Boolean))).filter((s) => s !== senderSub);
-        // Only notify/store mentions for active channel members.
-        const checked = await Promise.all(
-          uniqueSubs.map(async (s) => {
-            try {
-              const mem = await getChannelMember(channelId, s);
-              if (!mem || mem.status !== 'active') return null;
-              return s;
-            } catch {
-              return null;
-            }
-          })
-        );
-        const finalSubs = checked.filter(Boolean);
+        let finalSubs = uniqueSubs;
+        if (isChannel) {
+          // Only notify/store mentions for active channel members.
+          const checked = await Promise.all(
+            uniqueSubs.map(async (s) => {
+              try {
+                const mem = await getChannelMember(channelId, s);
+                if (!mem || mem.status !== 'active') return null;
+                return s;
+              } catch {
+                return null;
+              }
+            })
+          );
+          finalSubs = checked.filter(Boolean);
+        }
         if (finalSubs.length) mentions = finalSubs;
       }
 
-      // For reply notifications, require reply target to be an active channel member.
+      // For reply notifications (channels), require reply target to be an active channel member.
       if (replyToUserSub && replyToUserSub !== senderSub) {
-        const mem = await getChannelMember(channelId, replyToUserSub);
-        if (!mem || mem.status !== 'active') replyToUserSub = undefined;
+        if (isChannel) {
+          const mem = await getChannelMember(channelId, replyToUserSub);
+          if (!mem || mem.status !== 'active') replyToUserSub = undefined;
+        }
       } else {
         replyToUserSub = undefined;
       }
 
-      channelNameForNotify = await getChannelNameById(channelId);
+      if (isChannel) {
+        channelNameForNotify = await getChannelNameById(channelId);
+      }
     }
 
     // Persist (store display + stable key)
@@ -1662,11 +1672,11 @@ exports.handler = async (event) => {
       conversationId,
       conversationKind: isGroup ? 'group' : isDm ? 'dm' : isChannel ? 'channel' : undefined,
       ...(isGroup ? { groupTitle: groupTitleForPayload } : {}),
-      ...(isChannel && mentions && mentions.length ? { mentions } : {}),
-      ...(isChannel && replyToCreatedAt ? { replyToCreatedAt } : {}),
-      ...(isChannel && replyToMessageId ? { replyToMessageId } : {}),
-      ...(isChannel && replyToUserSub ? { replyToUserSub } : {}),
-      ...(isChannel && replyToPreview ? { replyToPreview } : {}),
+      ...(allowPlainMentionsReplies && mentions && mentions.length ? { mentions } : {}),
+      ...(allowPlainMentionsReplies && replyToCreatedAt ? { replyToCreatedAt } : {}),
+      ...(allowPlainMentionsReplies && replyToMessageId ? { replyToMessageId } : {}),
+      ...(allowPlainMentionsReplies && replyToUserSub ? { replyToUserSub } : {}),
+      ...(allowPlainMentionsReplies && replyToPreview ? { replyToPreview } : {}),
       ...(ttlSeconds ? { ttlSeconds } : {}),
     });
 

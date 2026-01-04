@@ -1195,8 +1195,8 @@ export default function ChatScreen({
   // Basic @mention autocomplete for plaintext chats (global/channels).
   // Uses recent senders (no extra network calls) and inserts "@usernameLower ".
   const mentionQuery = React.useMemo(() => {
-    // Only enable mention autocomplete in channels (not global, not encrypted chats).
-    if (isEncryptedChat || !isChannel) return null;
+    // Only enable mention autocomplete in plaintext chats (not encrypted DMs / group DMs).
+    if (isEncryptedChat) return null;
     const s = String(input || '');
     const at = s.lastIndexOf('@');
     if (at < 0) return null;
@@ -1248,7 +1248,7 @@ export default function ChatScreen({
   const renderTextWithMentions = React.useCallback(
     (text: string) => {
       const s = String(text || '');
-      if (!isChannel) return s;
+      if (isEncryptedChat) return s;
       if (!s || !s.includes('@')) return s;
       const re = /(^|[^a-zA-Z0-9_.-])@([a-zA-Z0-9_.-]{2,32})/g;
       const out: Array<{ key: string; text: string; mention: boolean }> = [];
@@ -1273,7 +1273,7 @@ export default function ChatScreen({
         )
       );
     },
-    [isChannel, styles.mentionText]
+    [isEncryptedChat, styles.mentionText]
   );
 
   const insertMention = React.useCallback(
@@ -5321,7 +5321,7 @@ export default function ChatScreen({
       // TTL-from-read: we send a duration, and the countdown starts when the recipient decrypts.
       ttlSeconds: isDm && TTL_OPTIONS[ttlIdx]?.seconds ? TTL_OPTIONS[ttlIdx].seconds : undefined,
       ...(isDm && typeof dmMediaPathsToSend !== 'undefined' ? { mediaPaths: dmMediaPathsToSend } : {}),
-      ...(isChannel && originalReplyTarget
+      ...(!isDm && !isGroup && originalReplyTarget
         ? {
             replyToCreatedAt: originalReplyTarget.createdAt,
             replyToMessageId: originalReplyTarget.id,
@@ -8124,6 +8124,7 @@ export default function ChatScreen({
                   }}
                   style={({ pressed }) => [
                     styles.replyThumbWrap,
+                    { marginRight: 10 },
                     pressed ? { opacity: 0.9 } : null,
                   ]}
                   accessibilityRole="button"
