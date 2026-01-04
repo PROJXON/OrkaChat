@@ -1296,6 +1296,14 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
       const title = String(titleRaw || '').trim();
       if (!title) return;
 
+      // Channels: update channelNameById so the header "Channel" label updates immediately.
+      if (convId.startsWith('ch#')) {
+        const channelId = convId.slice('ch#'.length).trim();
+        if (channelId) {
+          setChannelNameById((prev) => ({ ...prev, [channelId]: title }));
+        }
+      }
+
       // Persist local override so fetches won't overwrite the UI with stale server titles.
       titleOverrideByConvIdRef.current = setTitleOverride(titleOverrideByConvIdRef.current, convId, title);
 
@@ -3342,6 +3350,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                     setCreateChannelError(null);
                   }}
                   placeholder="Channel name"
+                  maxLength={21}
                   placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
                   selectionColor={isDark ? '#ffffff' : '#111'}
                   cursorColor={isDark ? '#ffffff' : '#111'}
@@ -3631,7 +3640,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       Global
                     </Text>
                   </View>
-                  <View style={styles.chatRowRight}>
+                  <View style={[styles.chatRowRight, { marginLeft: 10 }]}>
                     <View style={[styles.memberChip, isDark ? styles.memberChipDark : null]}>
                       <Text style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}>
                         {typeof globalUserCount === 'number' ? String(globalUserCount) : '—'}
@@ -3677,7 +3686,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                         </View>
                       ) : null}
                     </View>
-                    <View style={styles.chatRowRight}>
+                    <View style={[styles.chatRowRight, { marginLeft: 10 }]}>
                       <View style={[styles.memberChip, isDark ? styles.memberChipDark : null]}>
                         <Text style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}>
                           {String(typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0)}
@@ -3720,7 +3729,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
               </Text>
             </View>
             <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, { marginBottom: 8 }]}>
-              Enter channel password
+              Enter Channel Password
             </Text>
             <TextInput
               value={channelPasswordInput}
@@ -3728,21 +3737,36 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                 setChannelPasswordInput(v);
                 setChannelJoinError(null);
               }}
-              placeholder="Password"
+              placeholder="Channel Password"
               placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
               selectionColor={isDark ? '#ffffff' : '#111'}
               cursorColor={isDark ? '#ffffff' : '#111'}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
-              style={[styles.blocksInput, isDark ? styles.blocksInputDark : null]}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={() => void submitChannelPassword()}
+              style={[
+                styles.blocksInput,
+                isDark ? styles.blocksInputDark : null,
+                // `blocksInput` is used in row layouts and has flex: 1; override for standalone column input.
+                { flex: 0, alignSelf: 'stretch', marginBottom: 12 },
+              ]}
             />
             {channelJoinError ? (
               <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{channelJoinError}</Text>
             ) : null}
-            <View style={styles.modalButtons}>
+            <View style={[styles.modalButtons, { marginTop: 2 }]}>
               <Pressable
+                // Keep Join consistent with other modal actions (no heavy "blackened" CTA for this prompt).
                 style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                onPress={() => void submitChannelPassword()}
+              >
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Join</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null, { marginLeft: 8 }]}
                 onPress={() => {
                   setChannelPasswordPrompt(null);
                   setChannelPasswordInput('');
@@ -3750,12 +3774,6 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                 }}
               >
                 <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.modalButtonSmall, styles.modalButtonCta, isDark ? styles.modalButtonCtaDark : null]}
-                onPress={() => void submitChannelPassword()}
-              >
-                <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>Join</Text>
               </Pressable>
             </View>
           </View>
@@ -5443,6 +5461,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e3e3e3',
     maxHeight: '70%',
+    // Ensure the card sits above the modal backdrop Pressable for touch handling on Android.
+    position: 'relative',
+    zIndex: 2,
+    elevation: 8,
   },
   chatsCardDark: {
     backgroundColor: '#14141a',
@@ -5458,6 +5480,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e3e3e3',
     maxHeight: '70%',
+    // Ensure the card sits above the modal backdrop Pressable for touch handling on Android.
+    position: 'relative',
+    zIndex: 2,
+    elevation: 8,
   },
   profileCardDark: { backgroundColor: '#14141a', borderColor: '#2a2a33' },
   profilePreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
@@ -5618,6 +5644,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e3e3e3',
     maxHeight: '70%',
+    // Ensure the card sits above the modal backdrop Pressable for touch handling on Android.
+    position: 'relative',
+    zIndex: 2,
+    elevation: 8,
   },
   blocksCardDark: { backgroundColor: '#14141a', borderColor: '#2a2a33' },
   blocksTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },

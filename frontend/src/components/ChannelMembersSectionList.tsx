@@ -19,9 +19,11 @@ export function ChannelMembersSectionList({
   styles,
   meIsAdmin,
   actionBusy,
+  kickCooldownUntilBySub,
   avatarUrlByPath,
   onBan,
   onUnban,
+  onKick,
   onToggleAdmin,
 }: {
   members: MemberRow[];
@@ -30,9 +32,11 @@ export function ChannelMembersSectionList({
   styles: any;
   meIsAdmin: boolean;
   actionBusy: boolean;
+  kickCooldownUntilBySub: Record<string, number>;
   avatarUrlByPath: Record<string, string>;
   onBan: (member: { memberSub: string; label: string }) => void;
   onUnban: (memberSub: string) => void;
+  onKick: (memberSub: string) => void;
   onToggleAdmin: (member: { memberSub: string; isAdmin: boolean }) => void;
 }) {
   const visible = (Array.isArray(members) ? members : []).filter((m) => m && (m.status === 'active' || m.status === 'banned'));
@@ -70,6 +74,9 @@ export function ChannelMembersSectionList({
           const isMe = !!mySub && String(m.memberSub) === mySub;
           const label = isMe ? 'You' : (m.displayName || String(m.memberSub || '').slice(0, 10));
           const canAdmin = !!meIsAdmin && !isMe;
+          const canKick = canAdmin && m.status === 'active' && !m.isAdmin;
+          const kickCoolingDown =
+            typeof kickCooldownUntilBySub[m.memberSub] === 'number' && Date.now() < kickCooldownUntilBySub[m.memberSub];
           const isBanned = m.status === 'banned';
           const imageUri =
             m.avatarImagePath && avatarUrlByPath[String(m.avatarImagePath)]
@@ -117,6 +124,20 @@ export function ChannelMembersSectionList({
                         <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Ban</Text>
                       </Pressable>
                     )}
+
+                    {canKick ? (
+                      <Pressable
+                        style={[
+                          styles.toolBtn,
+                          isDark ? styles.toolBtnDark : null,
+                          (actionBusy || kickCoolingDown) ? { opacity: 0.6 } : null,
+                        ]}
+                        disabled={actionBusy || kickCoolingDown}
+                        onPress={() => onKick(m.memberSub)}
+                      >
+                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Kick</Text>
+                      </Pressable>
+                    ) : null}
 
                     {m.status === 'active' ? (
                       <Pressable

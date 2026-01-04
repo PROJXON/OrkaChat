@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   AppState,
   AppStateStatus,
   FlatList,
@@ -25,6 +24,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import Feather from '@expo/vector-icons/Feather';
 import { HeaderMenuModal } from '../components/HeaderMenuModal';
 import { AvatarBubble } from '../components/AvatarBubble';
+import { AnimatedDots } from '../components/AnimatedDots';
 
 type GuestMessage = {
   id: string;
@@ -862,7 +862,12 @@ export default function GuestGlobalScreen({
 
               {channelListLoading ? (
                 <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-                  <ActivityIndicator />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: isDark ? '#d7d7e0' : '#555', fontWeight: '700', fontSize: 14 }}>
+                      Loading
+                    </Text>
+                    <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={16} />
+                  </View>
                 </View>
               ) : channelResults.length ? (
                 channelResults.map((c) => (
@@ -945,7 +950,12 @@ export default function GuestGlobalScreen({
 
       {loading && messages.length === 0 ? (
         <View style={styles.loadingWrap}>
-          <ActivityIndicator />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ color: isDark ? '#d7d7e0' : '#555', fontWeight: '700', fontSize: 14 }}>
+              Loading
+            </Text>
+            <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={16} />
+          </View>
         </View>
       ) : null}
 

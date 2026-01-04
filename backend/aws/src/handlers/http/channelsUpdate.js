@@ -30,9 +30,15 @@ const {
   ScanCommand,
 } = require('@aws-sdk/lib-dynamodb');
 
-// NOTE (AWS Console copy/paste): if this file is pasted into Lambda root as `index.js`,
-// change this to: require('./lib/channels') and add `lib/channels.js` next to index.js.
-const { hashPassword, validateChannelName } = require('./lib/channels');
+// Lambda Layer import (required):
+// - Layer must contain: /opt/nodejs/lib/channels.js
+const channelsLib = require('/opt/nodejs/lib/channels.js');
+if (!channelsLib || typeof channelsLib.hashPassword !== 'function' || typeof channelsLib.validateChannelName !== 'function') {
+  throw new Error(
+    'Channels layer is missing required exports (hashPassword/validateChannelName). Publish the latest channels-lib-layer.zip and attach the updated Layer version to this Lambda.'
+  );
+}
+const { hashPassword, validateChannelName } = channelsLib;
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -256,7 +262,7 @@ exports.handler = async (event) => {
             )
             .catch(() => {});
         }
-      } else {
+      } else if (op === 'unban') {
         // unban => move to left (user can re-join via /channels/join if public)
         if (!target) return json(404, { message: 'Not found' });
         await ddb.send(

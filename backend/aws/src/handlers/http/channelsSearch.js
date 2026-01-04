@@ -20,9 +20,15 @@ const {
   BatchGetCommand,
 } = require('@aws-sdk/lib-dynamodb');
 
-// NOTE (AWS Console copy/paste): if this file is pasted into Lambda root as `index.js`,
-// change this to: require('./lib/channels') and add `lib/channels.js` next to index.js.
-const { normalizeChannelKey } = require('./lib/channels');
+// Lambda Layer import (required):
+// - Layer must contain: /opt/nodejs/lib/channels.js
+const channelsLib = require('/opt/nodejs/lib/channels.js');
+if (!channelsLib || typeof channelsLib.normalizeChannelKey !== 'function') {
+  throw new Error(
+    'Channels layer is missing required export (normalizeChannelKey). Publish the latest channels-lib-layer.zip and attach the updated Layer version to this Lambda.'
+  );
+}
+const { normalizeChannelKey } = channelsLib;
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -124,14 +130,25 @@ exports.handler = async (event) => {
       );
     }
 
-    const publicChannels = (publicResp.Items || []).map((it) => ({
-      channelId: safeString(it.channelId),
-      name: safeString(it.name),
-      nameLower: safeString(it.nameLower),
-      isPublic: !!it.isPublic,
-      hasPassword: !!it.hasPassword,
-      activeMemberCount: typeof it.activeMemberCount === 'number' ? it.activeMemberCount : undefined,
-    })).filter((c) => c.channelId && c.name);
+    // Hide password-protected channels from discovery unless the query matches exactly.
+    // Rationale: password channels act like "semi-private" rooms; you should already know the exact name to try joining.
+    const publicChannels = (publicResp.Items || [])
+      .map((it) => ({
+        channelId: safeString(it.channelId),
+        name: safeString(it.name),
+        nameLower: safeString(it.nameLower),
+        isPublic: !!it.isPublic,
+        hasPassword: !!it.hasPassword,
+        activeMemberCount: typeof it.activeMemberCount === 'number' ? it.activeMemberCount : undefined,
+      }))
+      .filter((c) => c.channelId && c.name)
+      .filter((c) => {
+        if (!c.hasPassword) return true;
+        // If there's no query, don't show password channels in the public list.
+        if (!q) return false;
+        // Only reveal password channels when the search key matches exactly.
+        return String(c.nameLower || '') === String(q || '');
+      });
 
     // 2) Private/member channels (only for authed callers)
     let memberChannels = [];

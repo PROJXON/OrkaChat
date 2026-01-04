@@ -56,6 +56,7 @@ import { InAppCameraModal } from '../components/InAppCameraModal';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as MediaLibrary from 'expo-media-library';
+import Feather from '@expo/vector-icons/Feather';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { fromByteArray, toByteArray } from 'base64-js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
@@ -830,6 +831,9 @@ export default function ChatScreen({
     user?: string;
     userSub?: string;
     preview: string;
+    mediaKind?: 'image' | 'video' | 'file';
+    mediaCount?: number;
+    mediaThumbUri?: string | null;
   }>(null);
   const sendTimeoutRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [typingByUserExpiresAt, setTypingByUserExpiresAt] = React.useState<Record<string, number>>(
@@ -1147,9 +1151,16 @@ export default function ChatScreen({
   const isGroup = React.useMemo(() => activeConversationId.startsWith('gdm#'), [activeConversationId]);
   const isChannel = React.useMemo(() => activeConversationId.startsWith('ch#'), [activeConversationId]);
   const isEncryptedChat = isDm || isGroup;
+  const activeChannelId = React.useMemo(
+    () => (isChannel ? String(activeConversationId).slice('ch#'.length).trim() : ''),
+    [isChannel, activeConversationId]
+  );
   const [channelMeta, setChannelMeta] = React.useState<
     null | { channelId: string; name: string; isPublic?: boolean; hasPassword?: boolean; meIsAdmin: boolean; meStatus: string }
   >(null);
+  // Track which channel the current roster belongs to so UI doesn't briefly show stale counts
+  // during the first render after switching channels (effects run after paint).
+  const [channelRosterChannelId, setChannelRosterChannelId] = React.useState<string>('');
   const [channelMembers, setChannelMembers] = React.useState<
     Array<{
       memberSub: string;
@@ -1161,13 +1172,15 @@ export default function ChatScreen({
       avatarImagePath?: string;
     }>
   >([]);
+  const channelRosterMatchesActive = !!activeChannelId && channelRosterChannelId === activeChannelId;
+  const channelMembersForUi = channelRosterMatchesActive ? channelMembers : [];
   const channelMembersVisible = React.useMemo(
-    () => channelMembers.filter((m) => m && (m.status === 'active' || m.status === 'banned')),
-    [channelMembers]
+    () => channelMembersForUi.filter((m) => m && (m.status === 'active' || m.status === 'banned')),
+    [channelMembersForUi]
   );
   const channelMembersActiveCount = React.useMemo(
-    () => channelMembers.reduce((acc, m) => (m && m.status === 'active' ? acc + 1 : acc), 0),
-    [channelMembers]
+    () => channelMembersForUi.reduce((acc, m) => (m && m.status === 'active' ? acc + 1 : acc), 0),
+    [channelMembersForUi]
   );
   const [channelMembersOpen, setChannelMembersOpen] = React.useState<boolean>(false);
   const [channelSettingsOpen, setChannelSettingsOpen] = React.useState<boolean>(true);
@@ -1176,11 +1189,14 @@ export default function ChatScreen({
   const [channelNameDraft, setChannelNameDraft] = React.useState<string>('');
   const [channelPasswordEditOpen, setChannelPasswordEditOpen] = React.useState<boolean>(false);
   const [channelPasswordDraft, setChannelPasswordDraft] = React.useState<string>('');
+  // Prevent stale header/settings from briefly showing the previous channel when switching between channels.
+  const lastChannelIdRef = React.useRef<string>('');
 
   // Basic @mention autocomplete for plaintext chats (global/channels).
   // Uses recent senders (no extra network calls) and inserts "@usernameLower ".
   const mentionQuery = React.useMemo(() => {
-    if (isEncryptedChat) return null;
+    // Only enable mention autocomplete in channels (not global, not encrypted chats).
+    if (isEncryptedChat || !isChannel) return null;
     const s = String(input || '');
     const at = s.lastIndexOf('@');
     if (at < 0) return null;
@@ -1194,6 +1210,21 @@ export default function ChatScreen({
     return { at, q };
   }, [input, isEncryptedChat]);
 
+  // Avoid suggesting the current user in mention autocomplete.
+  // We infer usernameLower from recent messages sent by this user (best-effort).
+  const myUsernameLowerForMentions = React.useMemo(() => {
+    const mySub = typeof myUserId === 'string' ? String(myUserId).trim() : '';
+    if (!mySub) return '';
+    for (const m of messages.slice(0, 300)) {
+      if (!m) continue;
+      if (m.userSub && String(m.userSub) === mySub && typeof m.userLower === 'string') {
+        const u = String(m.userLower).trim().toLowerCase();
+        if (u && u !== 'system') return u;
+      }
+    }
+    return '';
+  }, [messages, myUserId]);
+
   const mentionSuggestions = React.useMemo(() => {
     if (!mentionQuery) return [];
     const q = mentionQuery.q;
@@ -1202,6 +1233,7 @@ export default function ChatScreen({
     for (const m of messages.slice(0, 200)) {
       const u = typeof m.userLower === 'string' ? m.userLower : '';
       if (!u || u === 'system') continue;
+      if (myUsernameLowerForMentions && u === myUsernameLowerForMentions) continue;
       if (q && !u.startsWith(q)) continue;
       if (seen.has(u)) continue;
       seen.add(u);
@@ -1209,7 +1241,40 @@ export default function ChatScreen({
       if (candidates.length >= 6) break;
     }
     return candidates;
-  }, [mentionQuery, messages]);
+  }, [mentionQuery, messages, myUsernameLowerForMentions]);
+
+  // Render helper: bold @mentions in chat text (local rendering only).
+  // This does NOT affect backend mention detection or push behavior.
+  const renderTextWithMentions = React.useCallback(
+    (text: string) => {
+      const s = String(text || '');
+      if (!isChannel) return s;
+      if (!s || !s.includes('@')) return s;
+      const re = /(^|[^a-zA-Z0-9_.-])@([a-zA-Z0-9_.-]{2,32})/g;
+      const out: Array<{ key: string; text: string; mention: boolean }> = [];
+      let last = 0;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(s)) !== null) {
+        const prefix = String(m[1] || '');
+        const uname = String(m[2] || '');
+        const atIdx = m.index + prefix.length; // index of '@'
+        if (atIdx > last) out.push({ key: `t:${last}`, text: s.slice(last, atIdx), mention: false });
+        out.push({ key: `m:${atIdx}`, text: `@${uname}`, mention: true });
+        last = m.index + String(m[0]).length;
+      }
+      if (last < s.length) out.push({ key: `t:${last}`, text: s.slice(last), mention: false });
+      return out.map((p) =>
+        p.mention ? (
+          <Text key={p.key} style={styles.mentionText}>
+            {p.text}
+          </Text>
+        ) : (
+          <Text key={p.key}>{p.text}</Text>
+        )
+      );
+    },
+    [isChannel, styles.mentionText]
+  );
 
   const insertMention = React.useCallback(
     (usernameLower: string) => {
@@ -1237,7 +1302,8 @@ export default function ChatScreen({
     const idToken = tokens?.idToken?.toString();
     if (!idToken) return;
     const base = API_URL.replace(/\/$/, '');
-    const resp = await fetch(`${base}/channels/members?channelId=${encodeURIComponent(channelId)}`, {
+    // Ask for banned users too; backend will only include them for admins.
+    const resp = await fetch(`${base}/channels/members?channelId=${encodeURIComponent(channelId)}&includeBanned=1`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     if (!resp.ok) return;
@@ -1261,6 +1327,7 @@ export default function ChatScreen({
         avatarImagePath: typeof m?.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
       }))
       .filter((m: any) => m.memberSub);
+    setChannelRosterChannelId(channelId);
     setChannelMembers(members);
     if (name) setChannelMeta({ channelId, name, isPublic, hasPassword, meIsAdmin, meStatus });
   }, [API_URL, isChannel, activeConversationId]);
@@ -1272,14 +1339,25 @@ export default function ChatScreen({
       if (!API_URL || !isChannel) {
         setChannelMeta(null);
         setChannelMembers([]);
+        lastChannelIdRef.current = '';
+        setChannelRosterChannelId('');
         return;
       }
       const channelId = String(activeConversationId).slice('ch#'.length).trim();
       if (!channelId) {
         setChannelMeta(null);
         setChannelMembers([]);
+        lastChannelIdRef.current = '';
+        setChannelRosterChannelId('');
         return;
       }
+      // If we switched to a different channel, clear the previous channel's meta immediately
+      // so the title + settings row don't show stale values while the new roster loads.
+      if (lastChannelIdRef.current && lastChannelIdRef.current !== channelId) {
+        setChannelMeta(null);
+        setChannelMembers([]);
+      }
+      lastChannelIdRef.current = channelId;
       try {
         await refreshChannelRoster();
         if (cancelled) return;
@@ -1299,6 +1377,21 @@ export default function ChatScreen({
     if (!isChannel) return;
     void refreshChannelRoster();
   }, [channelMembersOpen, isChannel, refreshChannelRoster]);
+
+  // Keep the parent header/channel pill title in sync once we learn the channel name.
+  const lastPushedChannelTitleRef = React.useRef<string>('');
+  React.useEffect(() => {
+    if (!isChannel) return;
+    const name = channelMeta?.name ? String(channelMeta.name).trim() : '';
+    if (!name) return;
+    if (name === lastPushedChannelTitleRef.current) return;
+    lastPushedChannelTitleRef.current = name;
+    try {
+      onConversationTitleChanged?.(activeConversationId, name);
+    } catch {
+      // ignore
+    }
+  }, [isChannel, channelMeta?.name, activeConversationId, onConversationTitleChanged]);
 
   // Keep parent Chats list/unreads in sync whenever the effective group title changes
   // (e.g. another admin renamed the group and we refreshed group meta).
@@ -3636,6 +3729,13 @@ export default function ChatScreen({
 
   const [groupRefreshNonce, setGroupRefreshNonce] = React.useState<number>(0);
   const lastGroupRosterRefreshAtRef = React.useRef<number>(0);
+  const lastChannelRosterRefreshAtRef = React.useRef<number>(0);
+
+  // ws event handlers should always call the latest roster refresher.
+  const refreshChannelRosterRef = React.useRef<null | (() => Promise<void>)>(null);
+  React.useEffect(() => {
+    refreshChannelRosterRef.current = refreshChannelRoster;
+  }, [refreshChannelRoster]);
 
   // Group metadata + member key hydration (for encryption + admin UI).
   React.useEffect(() => {
@@ -3849,6 +3949,39 @@ export default function ChatScreen({
           const msg = (resp.json && typeof resp.json.message === 'string' ? resp.json.message : resp.text) || 'Request failed';
           showAlert('Channel update failed', `${msg}`.trim());
           return;
+        }
+        // Broadcast to other connected members so their UI refreshes instantly (counts, meta).
+        // (Server validates admin for update events.)
+        try {
+          const ws = wsRef.current;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            if (op === 'setPublic') {
+              ws.send(
+                JSON.stringify({
+                  action: 'system',
+                  conversationId: activeConversationId,
+                  systemKind: 'update',
+                  updateField: 'visibility',
+                  isPublic: !!extra?.isPublic,
+                  createdAt: Date.now(),
+                })
+              );
+            } else if (op === 'setPassword' || op === 'clearPassword') {
+              const nextHasPassword = op === 'setPassword';
+              ws.send(
+                JSON.stringify({
+                  action: 'system',
+                  conversationId: activeConversationId,
+                  systemKind: 'update',
+                  updateField: 'password',
+                  hasPassword: nextHasPassword,
+                  createdAt: Date.now(),
+                })
+              );
+            }
+          }
+        } catch {
+          // ignore
         }
         // Refresh channel meta/members (best-effort)
         try {
@@ -4081,6 +4214,38 @@ export default function ChatScreen({
     [isGroup, activeConversationId, showAlert]
   );
 
+  const channelKick = React.useCallback(
+    (targetSub: string) => {
+      if (!isChannel) return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showAlert('Not connected', 'WebSocket is not connected.');
+        return;
+      }
+      // UI-only cooldown (per-user) so admins can't spam kick.
+      const sub = String(targetSub || '').trim();
+      if (!sub) return;
+      const until = Date.now() + 5000;
+      setKickCooldownUntilBySub((prev) => ({ ...prev, [sub]: until }));
+      // Ensure the button re-enables even if the modal stays open.
+      if (kickCooldownTimersRef.current[sub]) {
+        clearTimeout(kickCooldownTimersRef.current[sub]);
+      }
+      kickCooldownTimersRef.current[sub] = setTimeout(() => {
+        setKickCooldownUntilBySub((prev) => {
+          if (!prev[sub]) return prev;
+          const next = { ...prev };
+          delete next[sub];
+          return next;
+        });
+        delete kickCooldownTimersRef.current[sub];
+      }, 5200);
+      // Kick is UI eject + system message only (no membership change).
+      ws.send(JSON.stringify({ action: 'kick', conversationId: activeConversationId, targetSub, createdAt: Date.now() }));
+    },
+    [isChannel, activeConversationId, showAlert]
+  );
+
   const closeWs = React.useCallback(() => {
     if (wsReconnectTimerRef.current) {
       clearTimeout(wsReconnectTimerRef.current);
@@ -4252,6 +4417,32 @@ export default function ChatScreen({
           }
         }
 
+        // Presence hints (server-authored, not persisted): e.g. someone joined the room.
+        // Use these to refresh rosters/counts promptly without adding extra system messages.
+        if (payload && payload.type === 'presence' && payload.conversationId === activeConv) {
+          try {
+            const kind = typeof payload.kind === 'string' ? payload.kind : '';
+            if (kind === 'join' || kind === 'leave') {
+              const now = Date.now();
+              const conv = String(activeConv || '');
+              if (conv.startsWith('gdm#')) {
+                if (now - (lastGroupRosterRefreshAtRef.current || 0) > 750) {
+                  lastGroupRosterRefreshAtRef.current = now;
+                  setGroupRefreshNonce((n) => n + 1);
+                }
+              } else if (conv.startsWith('ch#')) {
+                if (now - (lastChannelRosterRefreshAtRef.current || 0) > 750) {
+                  lastChannelRosterRefreshAtRef.current = now;
+                  void refreshChannelRosterRef.current?.();
+                }
+              }
+            }
+          } catch {
+            // ignore
+          }
+          return;
+        }
+
         // System events (server-authored), e.g. "User was kicked"
         if (
           payload &&
@@ -4264,11 +4455,19 @@ export default function ChatScreen({
           try {
             const kind = typeof payload.systemKind === 'string' ? payload.systemKind : '';
             const membershipKinds = new Set(['added', 'ban', 'unban', 'unbanned', 'left', 'removed', 'kick', 'kicked', 'banned', 'update']);
-            if (kind && membershipKinds.has(kind) && String(activeConv || '').startsWith('gdm#')) {
+            if (kind && membershipKinds.has(kind)) {
               const now = Date.now();
-              if (now - (lastGroupRosterRefreshAtRef.current || 0) > 750) {
-                lastGroupRosterRefreshAtRef.current = now;
-                setGroupRefreshNonce((n) => n + 1);
+              const conv = String(activeConv || '');
+              if (conv.startsWith('gdm#')) {
+                if (now - (lastGroupRosterRefreshAtRef.current || 0) > 750) {
+                  lastGroupRosterRefreshAtRef.current = now;
+                  setGroupRefreshNonce((n) => n + 1);
+                }
+              } else if (conv.startsWith('ch#')) {
+                if (now - (lastChannelRosterRefreshAtRef.current || 0) > 750) {
+                  lastChannelRosterRefreshAtRef.current = now;
+                  void refreshChannelRosterRef.current?.();
+                }
               }
             }
           } catch {
@@ -5440,6 +5639,49 @@ export default function ChatScreen({
       if (target.deletedAt) return;
 
       let preview = '';
+      let mediaKind: 'image' | 'video' | 'file' | undefined;
+      let mediaCount: number | undefined;
+      let mediaThumbUri: string | null | undefined;
+
+      // Best-effort: attach a tiny thumbnail/count for media replies.
+      try {
+        if (target.encrypted || target.groupEncrypted) {
+          const plain = String(target.decryptedText || '');
+          const dmEnv = target.encrypted ? parseDmMediaEnvelope(plain) : null;
+          const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
+          const gEnv = target.groupEncrypted ? parseGroupMediaEnvelope(plain) : null;
+          const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
+          const items = (dmItems.length ? dmItems : gItems) as any[];
+          if (items.length) {
+            mediaCount = items.length;
+            const first = (items[0]?.media ?? items[0]) as any;
+            const k = (first?.kind as any) || 'file';
+            mediaKind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
+            const thumbPath = first?.thumbPath ? String(first.thumbPath) : '';
+            mediaThumbUri = thumbPath && dmThumbUriByPath[thumbPath] ? dmThumbUriByPath[thumbPath] : null;
+          }
+        } else {
+          const raw = String(target.rawText ?? target.text ?? '');
+          const env = !isDm ? parseChatEnvelope(raw) : null;
+          const envList = env ? normalizeChatMediaList(env.media) : [];
+          if (envList.length) {
+            mediaCount = envList.length;
+            const first = envList[0];
+            const k =
+              first.kind === 'file' && (first.contentType || '').startsWith('image/')
+                ? 'image'
+                : first.kind === 'file' && (first.contentType || '').startsWith('video/')
+                  ? 'video'
+                  : first.kind;
+            mediaKind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
+            const key = String(first.thumbPath || first.path);
+            mediaThumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+          }
+        }
+      } catch {
+        // ignore
+      }
+
       if (target.encrypted || target.groupEncrypted) {
         // For encrypted messages, only allow reply preview if we already decrypted.
         preview = String(target.decryptedText || ENCRYPTED_PLACEHOLDER);
@@ -5450,6 +5692,10 @@ export default function ChatScreen({
       }
       preview = preview.replace(/\s+/g, ' ').trim();
       if (preview.length > 160) preview = `${preview.slice(0, 160)}…`;
+      if (!preview && mediaCount && mediaCount > 0) {
+        const base = mediaKind === 'image' ? 'Photo' : mediaKind === 'video' ? 'Video' : 'Attachment';
+        preview = mediaCount > 1 ? `${base} · ${mediaCount} attachments` : base;
+      }
 
       setReplyTarget({
         id: target.id,
@@ -5457,6 +5703,9 @@ export default function ChatScreen({
         user: target.user,
         userSub: target.userSub,
         preview,
+        mediaKind,
+        mediaCount,
+        mediaThumbUri: typeof mediaThumbUri === 'string' ? mediaThumbUri : null,
       });
       closeMessageActions();
       try {
@@ -5465,7 +5714,12 @@ export default function ChatScreen({
         // ignore
       }
     },
-    [closeMessageActions, isDm]
+    [
+      closeMessageActions,
+      isDm,
+      dmThumbUriByPath,
+      mediaUrlByPath,
+    ]
   );
 
   const cancelInlineEdit = React.useCallback(() => {
@@ -6340,10 +6594,10 @@ export default function ChatScreen({
           {headerTop ? <View style={styles.headerTopSlot}>{headerTop}</View> : null}
           <View style={styles.titleRow}>
             <Text style={[styles.title, isDark ? styles.titleDark : null]} numberOfLines={1} ellipsizeMode="tail">
-              {peer
-                ? (isGroup ? (groupMeta?.groupName?.trim() ? groupMeta.groupName.trim() : peer) : `DM with ${peer}`)
-                : isChannel
-                  ? (channelMeta?.name || 'Channel')
+              {isChannel
+                ? (channelMeta?.name || 'Channel')
+                : peer
+                  ? (isGroup ? (groupMeta?.groupName?.trim() ? groupMeta.groupName.trim() : peer) : `DM with ${peer}`)
                   : 'Global Chat'}
             </Text>
             <View style={styles.headerTools}>
@@ -6669,9 +6923,10 @@ export default function ChatScreen({
           ) : isChannel ? (
             <>
               {channelSettingsOpen ? (
-                <View style={[styles.dmSettingsRow, styles.groupSettingsRow]}>
-                  <View style={styles.dmSettingSlotLeft}>
-                    <View style={styles.dmSettingGroup}>
+                <View style={[styles.channelAdminPanel, dmSettingsCompact ? { rowGap: 8 } : null]}>
+                  {/* Row 1: Members + (Name/Leave) */}
+                  <View style={[styles.channelAdminRow, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
+                    <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
                       <Text
                         style={[
                           styles.decryptLabel,
@@ -6693,52 +6948,8 @@ export default function ChatScreen({
                         </Text>
                       </Pressable>
                     </View>
-                  </View>
 
-                  <View style={styles.dmSettingSlotCenter}>
-                    <View style={styles.dmSettingGroup}>
-                      {channelMeta?.meIsAdmin ? (
-                        <>
-                          <Text
-                            style={[
-                              styles.decryptLabel,
-                              isDark ? styles.decryptLabelDark : null,
-                              styles.dmSettingLabel,
-                              dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            Public
-                          </Text>
-                          <Switch
-                            value={!!channelMeta?.isPublic}
-                            onValueChange={(v) => {
-                              setChannelMeta((prev) => (prev ? { ...prev, isPublic: !!v } : prev));
-                              void channelUpdate('setPublic', { isPublic: !!v });
-                            }}
-                            trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                            thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                            ios_backgroundColor="#d1d1d6"
-                          />
-                        </>
-                      ) : (
-                        <Text
-                          style={[
-                            styles.decryptLabel,
-                            isDark ? styles.decryptLabelDark : null,
-                            styles.dmSettingLabel,
-                            dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {channelMeta?.isPublic ? 'Public' : 'Private'}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={styles.dmSettingSlotRight}>
-                    <View style={[styles.dmSettingGroup, { justifyContent: 'flex-end', gap: 10 }]}>
+                    <View style={[styles.channelAdminActions, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
                       {channelMeta?.meIsAdmin ? (
                         <Pressable
                           style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
@@ -6752,7 +6963,78 @@ export default function ChatScreen({
                         </Pressable>
                       ) : null}
 
+                      <Pressable
+                        style={[
+                          styles.toolBtn,
+                          isDark ? styles.toolBtnDark : null,
+                          channelActionBusy ? { opacity: 0.6 } : null,
+                          // Some RN versions don't support `gap` reliably; enforce spacing explicitly.
+                          { marginLeft: 10 },
+                        ]}
+                        disabled={channelActionBusy}
+                        onPress={() => void channelLeave()}
+                      >
+                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Leave</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Row 2: Visibility + Password */}
+                  <View style={[styles.channelAdminRow, { marginTop: 8 }, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
+                    <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
                       {channelMeta?.meIsAdmin ? (
+                        <>
+                          <Text
+                            style={[
+                              styles.decryptLabel,
+                              isDark ? styles.decryptLabelDark : null,
+                              styles.dmSettingLabel,
+                              dmSettingsCompact ? styles.dmSettingLabelCompact : null,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            Visibility
+                          </Text>
+                          <Switch
+                            value={!!channelMeta?.isPublic}
+                            onValueChange={(v) => {
+                              setChannelMeta((prev) => (prev ? { ...prev, isPublic: !!v } : prev));
+                              void channelUpdate('setPublic', { isPublic: !!v });
+                            }}
+                            trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
+                            thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+                            ios_backgroundColor="#d1d1d6"
+                          />
+                          <Text
+                            style={[
+                              styles.decryptLabel,
+                              isDark ? styles.decryptLabelDark : null,
+                              styles.dmSettingLabel,
+                              dmSettingsCompact ? styles.dmSettingLabelCompact : null,
+                              { fontWeight: '900' },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {channelMeta?.isPublic ? 'Public' : 'Private'}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text
+                          style={[
+                            styles.decryptLabel,
+                            isDark ? styles.decryptLabelDark : null,
+                            styles.dmSettingLabel,
+                            dmSettingsCompact ? styles.dmSettingLabelCompact : null,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {`Visibility: ${channelMeta?.isPublic ? 'Public' : 'Private'}`}
+                        </Text>
+                      )}
+                    </View>
+
+                    {channelMeta?.meIsAdmin && channelMeta?.isPublic ? (
+                      <View style={styles.channelAdminActions}>
                         <Pressable
                           style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
                           disabled={channelActionBusy}
@@ -6767,20 +7049,19 @@ export default function ChatScreen({
                             setChannelPasswordEditOpen(true);
                           }}
                         >
-                          <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                            {channelMeta?.hasPassword ? 'Unlock' : 'Lock'}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Feather
+                              name={channelMeta?.hasPassword ? 'lock' : 'unlock'}
+                              size={14}
+                              color={isDark ? '#ffffff' : '#111'}
+                            />
+                            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                              {dmSettingsCompact ? 'Password' : channelMeta?.hasPassword ? 'Password: On' : 'Password: Off'}
+                            </Text>
+                          </View>
                         </Pressable>
-                      ) : null}
-
-                      <Pressable
-                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                        disabled={channelActionBusy}
-                        onPress={() => void channelLeave()}
-                      >
-                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Leave</Text>
-                      </Pressable>
-                    </View>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               ) : null}
@@ -7115,6 +7396,116 @@ export default function ChatScreen({
                               </View>
                             ) : null}
                           </View>
+                      {!isDeleted && item.replyToMessageId && item.replyToPreview ? (
+                        (() => {
+                          // Best-effort: if we still have the replied-to message locally, show a tiny media thumb/count.
+                          const origin = visibleMessages.find((m) => m && m.id === item.replyToMessageId);
+                          let thumbUri: string | null = null;
+                          let count = 0;
+                          let kind: 'image' | 'video' | 'file' = 'file';
+                          try {
+                            if (origin && !origin.deletedAt) {
+                              const env = !origin.encrypted && !origin.groupEncrypted && !isDm ? parseChatEnvelope(origin.rawText ?? origin.text) : null;
+                              const list = env ? normalizeChatMediaList(env.media) : [];
+                              if (list.length) {
+                                count = list.length;
+                                const first = list[0];
+                                const k =
+                                  first.kind === 'file' && (first.contentType || '').startsWith('image/')
+                                    ? 'image'
+                                    : first.kind === 'file' && (first.contentType || '').startsWith('video/')
+                                      ? 'video'
+                                      : first.kind;
+                                kind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
+                                const key = String(first.thumbPath || first.path);
+                                thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+                              }
+                            }
+                          } catch {
+                            // ignore
+                          }
+                          const openOriginMedia = () => {
+                            if (!origin) return;
+                            const env = !origin.encrypted && !origin.groupEncrypted && !isDm ? parseChatEnvelope(origin.rawText ?? origin.text) : null;
+                            const list = env ? normalizeChatMediaList(env.media) : [];
+                            if (!list.length) return;
+                            openViewer(list, 0);
+                          };
+                          return (
+                            <View
+                              style={[
+                                styles.replySnippet,
+                                isOutgoing
+                                  ? styles.replySnippetOutgoing
+                                  : isDark
+                                    ? styles.replySnippetIncomingDark
+                                    : styles.replySnippetIncoming,
+                              ]}
+                            >
+                              {count ? (
+                                <Pressable
+                                  onPress={openOriginMedia}
+                                  style={({ pressed }) => [
+                                    styles.replyThumbWrap,
+                                    pressed ? { opacity: 0.9 } : null,
+                                  ]}
+                                  accessibilityRole="button"
+                                  accessibilityLabel="Open replied media"
+                                >
+                                  {thumbUri ? (
+                                    <Image source={{ uri: thumbUri }} style={styles.replyThumb} />
+                                  ) : (
+                                    <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
+                                      <Text style={styles.replyThumbPlaceholderText}>
+                                        {kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'File'}
+                                      </Text>
+                                    </View>
+                                  )}
+                                  {count > 1 ? (
+                                    <View style={styles.replyThumbCountBadge}>
+                                      <Text style={styles.replyThumbCountText}>{`+${count - 1}`}</Text>
+                                    </View>
+                                  ) : null}
+                                </Pressable>
+                              ) : null}
+                              <Text
+                                style={[
+                                  styles.replySnippetLabel,
+                                  isOutgoing
+                                    ? styles.replySnippetLabelOutgoing
+                                    : isDark
+                                      ? styles.replySnippetLabelIncomingDark
+                                      : styles.replySnippetLabelIncoming,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {`Replying to ${
+                                  item.replyToUserSub
+                                    ? (String(item.replyToUserSub) === String(myUserId)
+                                        ? 'You'
+                                        : (avatarProfileBySub[String(item.replyToUserSub)]?.displayName ||
+                                          nameBySub[String(item.replyToUserSub)] ||
+                                          'user'))
+                                    : 'user'
+                                }`}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.replySnippetText,
+                                  isOutgoing
+                                    ? styles.replySnippetTextOutgoing
+                                    : isDark
+                                      ? styles.replySnippetTextIncomingDark
+                                      : styles.replySnippetTextIncoming,
+                                ]}
+                                numberOfLines={2}
+                              >
+                                {String(item.replyToPreview || '').trim()}
+                              </Text>
+                            </View>
+                          );
+                        })()
+                      ) : null}
                           {inlineEditTargetId && item.id === inlineEditTargetId && !isDeleted ? (
                             <View style={styles.inlineEditWrap}>
                               <TextInput
@@ -7224,7 +7615,7 @@ export default function ChatScreen({
                                   styles.mediaHeaderCaptionFlex,
                                 ]}
                               >
-                                {captionText}
+                                {renderTextWithMentions(String(captionText || ''))}
                               </Text>
                               {showEditedInlineForCaption || showSendStatusInline ? (
                                 <View style={styles.mediaHeaderCaptionIndicators}>
@@ -7354,6 +7745,115 @@ export default function ChatScreen({
                         {metaLine}
                       </Text>
                       ) : null}
+                      {!isDeleted && item.replyToMessageId && item.replyToPreview ? (
+                        (() => {
+                          const origin = visibleMessages.find((m) => m && m.id === item.replyToMessageId);
+                          let thumbUri: string | null = null;
+                          let count = 0;
+                          let kind: 'image' | 'video' | 'file' = 'file';
+                          try {
+                            if (origin && !origin.deletedAt) {
+                              const env = !origin.encrypted && !origin.groupEncrypted && !isDm ? parseChatEnvelope(origin.rawText ?? origin.text) : null;
+                              const list = env ? normalizeChatMediaList(env.media) : [];
+                              if (list.length) {
+                                count = list.length;
+                                const first = list[0];
+                                const k =
+                                  first.kind === 'file' && (first.contentType || '').startsWith('image/')
+                                    ? 'image'
+                                    : first.kind === 'file' && (first.contentType || '').startsWith('video/')
+                                      ? 'video'
+                                      : first.kind;
+                                kind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
+                                const key = String(first.thumbPath || first.path);
+                                thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+                              }
+                            }
+                          } catch {
+                            // ignore
+                          }
+                          const openOriginMedia = () => {
+                            if (!origin) return;
+                            const env = !origin.encrypted && !origin.groupEncrypted && !isDm ? parseChatEnvelope(origin.rawText ?? origin.text) : null;
+                            const list = env ? normalizeChatMediaList(env.media) : [];
+                            if (!list.length) return;
+                            openViewer(list, 0);
+                          };
+                          return (
+                        <View
+                          style={[
+                            styles.replySnippet,
+                            isOutgoing
+                              ? styles.replySnippetOutgoing
+                              : isDark
+                                ? styles.replySnippetIncomingDark
+                                : styles.replySnippetIncoming,
+                          ]}
+                        >
+                          {count ? (
+                            <Pressable
+                              onPress={openOriginMedia}
+                              style={({ pressed }) => [
+                                styles.replyThumbWrap,
+                                pressed ? { opacity: 0.9 } : null,
+                              ]}
+                              accessibilityRole="button"
+                              accessibilityLabel="Open replied media"
+                            >
+                              {thumbUri ? (
+                                <Image source={{ uri: thumbUri }} style={styles.replyThumb} />
+                              ) : (
+                                <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
+                                  <Text style={styles.replyThumbPlaceholderText}>
+                                    {kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'File'}
+                                  </Text>
+                                </View>
+                              )}
+                              {count > 1 ? (
+                                <View style={styles.replyThumbCountBadge}>
+                                  <Text style={styles.replyThumbCountText}>{`+${count - 1}`}</Text>
+                                </View>
+                              ) : null}
+                            </Pressable>
+                          ) : null}
+                          <Text
+                            style={[
+                              styles.replySnippetLabel,
+                              isOutgoing
+                                ? styles.replySnippetLabelOutgoing
+                                : isDark
+                                  ? styles.replySnippetLabelIncomingDark
+                                  : styles.replySnippetLabelIncoming,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {`Replying to ${
+                              item.replyToUserSub
+                                ? (String(item.replyToUserSub) === String(myUserId)
+                                    ? 'You'
+                                    : (avatarProfileBySub[String(item.replyToUserSub)]?.displayName ||
+                                      nameBySub[String(item.replyToUserSub)] ||
+                                      'user'))
+                                : 'user'
+                            }`}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.replySnippetText,
+                              isOutgoing
+                                ? styles.replySnippetTextOutgoing
+                                : isDark
+                                  ? styles.replySnippetTextIncomingDark
+                                  : styles.replySnippetTextIncoming,
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {String(item.replyToPreview || '').trim()}
+                          </Text>
+                        </View>
+                          );
+                        })()
+                      ) : null}
                       {displayText?.length ? (
                         <View
                           style={[
@@ -7467,7 +7967,7 @@ export default function ChatScreen({
                                 isDeleted ? styles.deletedText : null,
                           ]}
                         >
-                              {displayText}
+                              {renderTextWithMentions(String(displayText || ''))}
                             </Text>
                           )}
                           {isEdited ? (
@@ -7609,7 +8109,42 @@ export default function ChatScreen({
             </Pressable>
           ) : null}
           {replyTarget ? (
-            <View style={[styles.attachmentPill, isDark ? styles.attachmentPillDark : null, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+            <View style={[styles.attachmentPill, isDark ? styles.attachmentPillDark : null, { flexDirection: 'row', alignItems: 'center' }]}>
+              {replyTarget.mediaCount ? (
+                <Pressable
+                  onPress={() => {
+                    // Best-effort: open the original target if it's in memory.
+                    const t = messages.find((m) => m && m.id === replyTarget.id);
+                    if (!t) return;
+                    const raw = String(t.rawText ?? t.text ?? '');
+                    const env = !t.encrypted && !t.groupEncrypted && !isDm ? parseChatEnvelope(raw) : null;
+                    const envList = env ? normalizeChatMediaList(env.media) : [];
+                    if (!envList.length) return;
+                    openViewer(envList, 0);
+                  }}
+                  style={({ pressed }) => [
+                    styles.replyThumbWrap,
+                    pressed ? { opacity: 0.9 } : null,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open replied media"
+                >
+                  {replyTarget.mediaThumbUri ? (
+                    <Image source={{ uri: replyTarget.mediaThumbUri }} style={styles.replyThumb} />
+                  ) : (
+                    <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
+                      <Text style={styles.replyThumbPlaceholderText}>
+                        {replyTarget.mediaKind === 'image' ? 'Photo' : replyTarget.mediaKind === 'video' ? 'Video' : 'File'}
+                      </Text>
+                    </View>
+                  )}
+                  {(replyTarget.mediaCount || 0) > 1 ? (
+                    <View style={styles.replyThumbCountBadge}>
+                      <Text style={styles.replyThumbCountText}>{`+${(replyTarget.mediaCount || 0) - 1}`}</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+              ) : null}
               <View style={{ flex: 1 }}>
                 <Text
                   style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
@@ -7620,7 +8155,7 @@ export default function ChatScreen({
               </View>
               <Pressable
                 onPress={() => setReplyTarget(null)}
-                style={({ pressed }) => [{ paddingHorizontal: 10, paddingVertical: 6, opacity: pressed ? 0.85 : 1 }]}
+                style={({ pressed }) => [{ marginLeft: 10, paddingHorizontal: 10, paddingVertical: 6, opacity: pressed ? 0.85 : 1 }]}
                 accessibilityRole="button"
                 accessibilityLabel="Cancel reply"
               >
@@ -9214,24 +9749,12 @@ export default function ChatScreen({
                   void groupUpdate(isAdmin ? 'demoteAdmin' : 'promoteAdmin', { memberSub })
                 }
                 onBan={async ({ memberSub, label }) => {
-                  const ok =
-                    typeof promptConfirm === 'function'
-                      ? await promptConfirm(
-                          'Ban user?',
-                          `Ban ${label}?\n\nThey will be removed from the chat and stop receiving new messages.\n\nUnban removes the ban, but does not automatically re-add them. To add them back, use “Add” above.`,
-                          { confirmText: 'Ban', cancelText: 'Cancel', destructive: true }
-                        )
-                      : await new Promise<boolean>((resolve) => {
-                          Alert.alert(
-                            'Ban user?',
-                            `Ban ${label}?\n\nThey will be removed from the chat and stop receiving new messages.\n\nUnban removes the ban, but does not automatically re-add them. To add them back, use “Add” above.`,
-                            [
-                              { text: 'Ban', style: 'destructive', onPress: () => resolve(true) },
-                              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                            ],
-                            { cancelable: true }
-                          );
-                        });
+                  if (typeof promptConfirm !== 'function') return;
+                  const ok = await promptConfirm(
+                    'Ban user?',
+                    `Ban ${label}?\n\nThey will be removed from the chat and stop receiving new messages.\n\nUnban removes the ban, but does not automatically re-add them. To add them back, use “Add” above.`,
+                    { confirmText: 'Ban', cancelText: 'Cancel', destructive: true }
+                  );
                   if (!ok) return;
                   await groupUpdate('ban', { memberSub });
 
@@ -9293,23 +9816,47 @@ export default function ChatScreen({
                 styles={styles}
                 meIsAdmin={!!channelMeta?.meIsAdmin}
                 actionBusy={channelActionBusy}
+                kickCooldownUntilBySub={kickCooldownUntilBySub}
                 avatarUrlByPath={avatarUrlByPath}
-                onBan={({ memberSub, label }) => {
+                onBan={async ({ memberSub, label }) => {
                   if (!memberSub) return;
-                  Alert.alert(
+                  if (typeof promptConfirm !== 'function') return;
+                  const ok = await promptConfirm(
                     'Ban member?',
-                    `Ban ${label || 'member'} from this channel?`,
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Ban',
-                        style: 'destructive',
-                        onPress: () => void channelUpdate('ban', { memberSub }),
-                      },
-                    ]
+                    `Ban ${label || 'member'} from this channel?\n\nThey will be removed immediately and cannot join again until you unban them.\n\nUnban removes the ban, but does not automatically re-add them. If the channel is public, they can re-join from the channel list.`,
+                    { confirmText: 'Ban', cancelText: 'Cancel', destructive: true }
                   );
+                  if (!ok) return;
+                  await channelUpdate('ban', { memberSub });
+                  // Persist + broadcast the system event, then eject target UI (best-effort).
+                  try {
+                    const ws = wsRef.current;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                      ws.send(
+                        JSON.stringify({
+                          action: 'system',
+                          conversationId: activeConversationId,
+                          systemKind: 'ban',
+                          targetSub: memberSub,
+                          createdAt: Date.now(),
+                        })
+                      );
+                      ws.send(
+                        JSON.stringify({
+                          action: 'kick',
+                          conversationId: activeConversationId,
+                          targetSub: memberSub,
+                          suppressSystem: true,
+                          createdAt: Date.now(),
+                        })
+                      );
+                    }
+                  } catch {
+                    // ignore
+                  }
                 }}
                 onUnban={(memberSub) => void channelUpdate('unban', { memberSub })}
+                onKick={(memberSub) => channelKick(memberSub)}
                 onToggleAdmin={({ memberSub, isAdmin }) => {
                   // Optimistic UI so "last admin" guard reflects immediately.
                   setChannelMembers((prev) =>
@@ -9341,7 +9888,7 @@ export default function ChatScreen({
               value={channelNameDraft}
               onChangeText={setChannelNameDraft}
               placeholder="Channel name"
-              maxLength={64}
+              maxLength={21}
               placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
               selectionColor={isDark ? '#ffffff' : '#111'}
               cursorColor={isDark ? '#ffffff' : '#111'}
@@ -9362,13 +9909,6 @@ export default function ChatScreen({
             />
             <View style={styles.summaryButtons}>
               <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                disabled={channelActionBusy}
-                onPress={() => setChannelNameEditOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
-              </Pressable>
-              <Pressable
                 style={[
                   styles.toolBtn,
                   isDark ? styles.toolBtnDark : null,
@@ -9379,10 +9919,35 @@ export default function ChatScreen({
                   const next = String(channelNameDraft || '').trim();
                   void channelUpdate('setName', { name: next });
                   setChannelMeta((prev) => (prev ? { ...prev, name: next || prev.name } : prev));
+                  // Broadcast a generic "channel updated" system event so other members refresh titles promptly.
+                  try {
+                    const ws = wsRef.current;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                      ws.send(
+                        JSON.stringify({
+                          action: 'system',
+                          conversationId: activeConversationId,
+                          systemKind: 'update',
+                          updateField: 'channelName',
+                          channelName: next,
+                          createdAt: Date.now(),
+                        })
+                      );
+                    }
+                  } catch {
+                    // ignore
+                  }
                   setChannelNameEditOpen(false);
                 }}
               >
                 <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                disabled={channelActionBusy}
+                onPress={() => setChannelNameEditOpen(false)}
+              >
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
               </Pressable>
             </View>
           </View>
@@ -9423,13 +9988,6 @@ export default function ChatScreen({
             />
             <View style={styles.summaryButtons}>
               <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                disabled={channelActionBusy}
-                onPress={() => setChannelPasswordEditOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
-              </Pressable>
-              <Pressable
                 style={[
                   styles.toolBtn,
                   isDark ? styles.toolBtnDark : null,
@@ -9449,6 +10007,19 @@ export default function ChatScreen({
                 }}
               >
                 <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.toolBtn,
+                  isDark ? styles.toolBtnDark : null,
+                  channelActionBusy ? { opacity: 0.6 } : null,
+                  // Some RN versions don't support `gap` reliably; enforce spacing explicitly.
+                  { marginLeft: 10 },
+                ]}
+                disabled={channelActionBusy}
+                onPress={() => setChannelPasswordEditOpen(false)}
+              >
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
               </Pressable>
             </View>
           </View>
@@ -9759,6 +10330,24 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0,
   },
+  channelAdminPanel: {
+    // Two-row admin layout for channels (Members/Name/Leave, then Visibility/Password).
+    alignSelf: 'stretch',
+    flexDirection: 'column',
+    marginTop: 0,
+  },
+  channelAdminRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  channelAdminActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    // Avoid relying on `gap` (not supported in some RN versions).
+    marginLeft: 10,
+  },
   dmSettingLabel: { flexShrink: 1, minWidth: 0 },
   dmSettingLabelCompact: { fontSize: 11 },
   ttlChipCompact: { paddingHorizontal: 8, paddingVertical: 4 },
@@ -9925,6 +10514,50 @@ const styles = StyleSheet.create({
   messageTextRow: { flexDirection: 'row', alignItems: 'flex-end' },
   messageTextRowOutgoing: { justifyContent: 'flex-end' },
   messageTextFlex: { flexGrow: 1, flexShrink: 1 },
+  mentionText: { fontWeight: '900' },
+  replySnippet: {
+    marginTop: 6,
+    marginBottom: 6,
+    paddingLeft: 10,
+    borderLeftWidth: 2,
+  },
+  replySnippetOutgoing: { borderLeftColor: 'rgba(255,255,255,0.75)' },
+  replySnippetIncoming: { borderLeftColor: 'rgba(0,0,0,0.35)' },
+  replySnippetIncomingDark: { borderLeftColor: 'rgba(255,255,255,0.35)' },
+  replySnippetLabel: { fontSize: 12, fontWeight: '900' },
+  replySnippetLabelOutgoing: { color: 'rgba(255,255,255,0.92)' },
+  replySnippetLabelIncoming: { color: '#555' },
+  replySnippetLabelIncomingDark: { color: '#a7a7b4' },
+  replySnippetText: { fontSize: 13, marginTop: 2 },
+  replySnippetTextOutgoing: { color: 'rgba(255,255,255,0.92)' },
+  replySnippetTextIncoming: { color: '#111' },
+  replySnippetTextIncomingDark: { color: '#fff' },
+  replyThumbWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 6,
+    alignSelf: 'flex-start',
+  },
+  replyThumb: { width: '100%', height: '100%' },
+  replyThumbPlaceholder: {
+    backgroundColor: 'rgba(0,0,0,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  replyThumbPlaceholderText: { fontSize: 9, fontWeight: '900', color: 'rgba(0,0,0,0.55)', textAlign: 'center' },
+  replyThumbCountBadge: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  replyThumbCountText: { color: '#fff', fontSize: 10, fontWeight: '900' },
   sendStatusInline: { marginLeft: 6, fontSize: 12 },
   sendStatusInlineOutgoing: { color: 'rgba(255,255,255,0.9)' }, // readable on blue bubble (light mode)
   sendStatusInlineOutgoingDark: { color: 'rgba(255,255,255,0.85)' }, // readable on blue bubble (dark mode)

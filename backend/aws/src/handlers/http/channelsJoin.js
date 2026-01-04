@@ -20,9 +20,15 @@ const {
   QueryCommand,
 } = require('@aws-sdk/lib-dynamodb');
 
-// NOTE (AWS Console copy/paste): if this file is pasted into Lambda root as `index.js`,
-// change this to: require('./lib/channels') and add `lib/channels.js` next to index.js.
-const { verifyPassword, normalizeChannelKey } = require('./lib/channels');
+// Lambda Layer import (required):
+// - Layer must contain: /opt/nodejs/lib/channels.js
+const channelsLib = require('/opt/nodejs/lib/channels.js');
+if (!channelsLib || typeof channelsLib.verifyPassword !== 'function' || typeof channelsLib.normalizeChannelKey !== 'function') {
+  throw new Error(
+    'Channels layer is missing required exports (verifyPassword/normalizeChannelKey). Publish the latest channels-lib-layer.zip and attach the updated Layer version to this Lambda.'
+  );
+}
+const { verifyPassword, normalizeChannelKey } = channelsLib;
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -103,8 +109,16 @@ exports.handler = async (event) => {
 
     const hasPassword = !!channel.hasPassword;
     if (hasPassword) {
-      const ok = verifyPassword(password, safeString(channel.passwordHash));
-      if (!ok) return json(403, { message: 'Invalid password' });
+      // Treat *any* failure here as an incorrect password.
+      // This avoids leaking implementation details and also protects against older Layer versions
+      // where verifyPassword might throw on unexpected formats.
+      let ok = false;
+      try {
+        ok = verifyPassword(password, safeString(channel.passwordHash));
+      } catch {
+        ok = false;
+      }
+      if (!ok) return json(403, { message: 'Incorrect channel password' });
     }
 
     const nowMs = Date.now();

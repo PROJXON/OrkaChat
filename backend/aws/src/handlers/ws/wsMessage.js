@@ -798,6 +798,27 @@ exports.handler = async (event) => {
           ExpressionAttributeValues: { ':c': conversationId, ':e': expiresAt },
         })
       );
+      // Presence hint: let currently-joined viewers refresh rosters/counts immediately
+      // when someone joins the channel/group room (without persisting a system message).
+      try {
+        const conv = String(conversationId || '');
+        const shouldNotify = conv.startsWith('ch#') || conv.startsWith('gdm#');
+        if (shouldNotify) {
+          const connIds = await queryConnIdsByConversation(conv).catch(() => []);
+          const others = (connIds || []).filter((id) => id && id !== connectionId);
+          if (others.length) {
+            await broadcast(mgmt, others, {
+              type: 'presence',
+              kind: 'join',
+              conversationId: conv,
+              userSub: senderSub,
+              createdAt: nowMs,
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
       return { statusCode: 200, body: 'Joined.' };
     }
 
@@ -853,7 +874,14 @@ exports.handler = async (event) => {
       }
       const activeSet = new Set(groupActiveSubs);
       if (!activeSet.has(senderSub)) {
-        if (action !== 'read') return { statusCode: 403, body: 'Forbidden.' };
+        const isSelfLeftSystem =
+          action === 'system' &&
+          safeString(body.systemKind) === 'left' &&
+          safeString(body.targetSub) &&
+          safeString(body.targetSub) === senderSub &&
+          groupMember &&
+          groupMember.status === 'left';
+        if (!isSelfLeftSystem && action !== 'read') return { statusCode: 403, body: 'Forbidden.' };
       }
 
       const connLists = await Promise.all(groupActiveSubs.map((s) => queryConnIdsByUserSub(s).catch(() => [])));
@@ -865,7 +893,20 @@ exports.handler = async (event) => {
       const channelName = await getChannelNameById(channelId);
       if (!channelName) return { statusCode: 404, body: 'Channel not found.' };
       channelMember = await getChannelMember(channelId, senderSub);
-      if (!channelMember || channelMember.status !== 'active') return { statusCode: 403, body: 'Forbidden.' };
+      // Channels:
+      // - Most actions require the sender to be an active member.
+      // - Exception: allow a user to publish their own "left" system event even after /channels/leave
+      //   has already flipped their membership status to "left" (so the UI can broadcast the event).
+      if (!channelMember) return { statusCode: 403, body: 'Forbidden.' };
+      if (channelMember.status !== 'active') {
+        const isSelfLeftSystem =
+          action === 'system' &&
+          safeString(body.systemKind) === 'left' &&
+          safeString(body.targetSub) &&
+          safeString(body.targetSub) === senderSub &&
+          channelMember.status === 'left';
+        if (!isSelfLeftSystem) return { statusCode: 403, body: 'Forbidden.' };
+      }
       // Only broadcast to people currently joined to this channel room
       recipientConnIds = await queryConnIdsByConversation(conversationId);
     } else {
@@ -929,13 +970,30 @@ exports.handler = async (event) => {
         else if (systemKind === 'removed' && targetName) systemText = `${targetName} was removed by ${senderDisplayName || 'an admin'}`;
         else if (systemKind === 'update') {
           const updateField = safeString(body.updateField || body.field);
-          const groupName = safeString(body.groupName);
-          if (updateField === 'groupName') {
-            systemText = groupName ? `Group name changed to ${groupName}` : 'Group name reset to default';
+          if (scope === 'channel') {
+            const channelName = safeString(body.channelName);
+            if (updateField === 'channelName') {
+              systemText = channelName ? `Channel name changed to ${channelName}` : `${senderDisplayName || 'An admin'} updated the channel`;
+            } else if (updateField === 'visibility') {
+              const isPublic = String(body.isPublic) === 'true' || body.isPublic === true || body.isPublic === 1;
+              systemText = `Channel visibility set to ${isPublic ? 'Public' : 'Private'}`;
+            } else if (updateField === 'password') {
+              const hp = String(body.hasPassword) === 'true' || body.hasPassword === true || body.hasPassword === 1;
+              systemText = `Channel password ${hp ? 'enabled' : 'cleared'}`;
+            } else {
+              systemText = `${senderDisplayName || 'An admin'} updated the channel`;
+            }
           } else {
-            systemText = `${senderDisplayName || 'An admin'} updated the group`;
+            const groupName = safeString(body.groupName);
+            if (updateField === 'groupName') {
+              systemText = groupName ? `Group name changed to ${groupName}` : 'Group name reset to default';
+            } else {
+              systemText = `${senderDisplayName || 'An admin'} updated the group`;
+            }
           }
-        } else systemText = `${senderDisplayName || 'An admin'} updated the group`;
+        } else systemText = scope === 'channel'
+          ? `${senderDisplayName || 'An admin'} updated the channel`
+          : `${senderDisplayName || 'An admin'} updated the group`;
       }
 
       const systemMessageId = `sys-${nowMs}-${Math.random().toString(36).slice(2)}`;
