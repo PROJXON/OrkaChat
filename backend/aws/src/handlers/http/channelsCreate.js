@@ -26,6 +26,17 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const safeString = (v) => (typeof v === 'string' ? String(v).trim() : '');
 
+function publicRankSk(activeMemberCount, channelId) {
+  // For DynamoDB GSI ordering: lexicographic ascending.
+  // Lower rank => more members. We encode: (CAP - count) zero-padded + '#' + channelId.
+  const CAP = 999_999_999_999; // supports huge counts while keeping fixed width
+  const c = Math.max(0, Math.floor(Number(activeMemberCount) || 0));
+  const r = Math.max(0, CAP - c);
+  const left = String(r).padStart(12, '0');
+  const id = safeString(channelId);
+  return `${left}#${id}`;
+}
+
 const json = (statusCode, bodyObj) => ({
   statusCode,
   headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -120,6 +131,12 @@ exports.handler = async (event) => {
           isPublic: !!isPublic,
           hasPassword,
           ...(hasPassword ? { passwordHash } : {}),
+          ...(isPublic
+            ? {
+                publicIndexPk: 'public',
+                publicRankSk: publicRankSk(1, channelId),
+              }
+            : {}),
           createdBySub: callerSub,
           createdAt: nowMs,
           updatedAt: nowMs,

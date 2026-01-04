@@ -43,6 +43,15 @@ const json = (statusCode, bodyObj) => ({
   body: JSON.stringify(bodyObj),
 });
 
+function publicRankSk(activeMemberCount, channelId) {
+  const CAP = 999_999_999_999;
+  const c = Math.max(0, Math.floor(Number(activeMemberCount) || 0));
+  const r = Math.max(0, CAP - c);
+  const left = String(r).padStart(12, '0');
+  const id = safeString(channelId);
+  return `${left}#${id}`;
+}
+
 async function nameLowerExists({ channelsTable, nameLower, gsiName }) {
   if (!channelsTable || !nameLower) return false;
   const idx = safeString(gsiName) || 'byNameLower';
@@ -138,8 +147,17 @@ exports.handler = async (event) => {
         new UpdateCommand({
           TableName: channelsTable,
           Key: { channelId },
-          UpdateExpression: 'SET isPublic = :p, updatedAt = :u',
-          ExpressionAttributeValues: { ':p': isPublic, ':u': nowMs },
+          UpdateExpression: isPublic
+            ? 'SET isPublic = :p, publicIndexPk = :pk, publicRankSk = :sk, updatedAt = :u'
+            : 'SET isPublic = :p, updatedAt = :u REMOVE publicIndexPk, publicRankSk',
+          ExpressionAttributeValues: isPublic
+            ? {
+                ':p': true,
+                ':u': nowMs,
+                ':pk': 'public',
+                ':sk': publicRankSk(typeof channel.activeMemberCount === 'number' ? channel.activeMemberCount : 0, channelId),
+              }
+            : { ':p': false, ':u': nowMs },
         })
       );
     } else if (op === 'setPassword') {
@@ -219,8 +237,21 @@ exports.handler = async (event) => {
               new UpdateCommand({
                 TableName: channelsTable,
                 Key: { channelId },
-                UpdateExpression: 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :dec, updatedAt = :u',
-                ExpressionAttributeValues: { ':z': 0, ':dec': -1, ':u': nowMs },
+                UpdateExpression: channel.isPublic
+                  ? 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :dec, publicIndexPk = :pk, publicRankSk = :sk, updatedAt = :u'
+                  : 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :dec, updatedAt = :u',
+                ExpressionAttributeValues: channel.isPublic
+                  ? {
+                      ':z': 0,
+                      ':dec': -1,
+                      ':u': nowMs,
+                      ':pk': 'public',
+                      ':sk': publicRankSk(
+                        Math.max(0, (typeof channel.activeMemberCount === 'number' ? channel.activeMemberCount : 0) - 1),
+                        channelId
+                      ),
+                    }
+                  : { ':z': 0, ':dec': -1, ':u': nowMs },
               })
             )
             .catch(() => {});
@@ -244,7 +275,7 @@ exports.handler = async (event) => {
         new UpdateCommand({
           TableName: channelsTable,
           Key: { channelId },
-          UpdateExpression: 'SET deletedAt = :d, isPublic = :p, updatedAt = :u',
+          UpdateExpression: 'SET deletedAt = :d, isPublic = :p, updatedAt = :u REMOVE publicIndexPk, publicRankSk',
           ExpressionAttributeValues: { ':d': nowMs, ':p': false, ':u': nowMs },
         })
       );

@@ -27,6 +27,7 @@ import {
 import { AnimatedDots } from '../components/AnimatedDots';
 import { AvatarBubble } from '../components/AvatarBubble';
 import { GroupMembersSectionList } from '../components/GroupMembersSectionList';
+import { ChannelMembersSectionList } from '../components/ChannelMembersSectionList';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WS_URL, API_URL, CDN_URL } from '../config/env';
 // const API_URL = "https://828bp5ailc.execute-api.us-east-2.amazonaws.com"
@@ -1146,7 +1147,35 @@ export default function ChatScreen({
   const isGroup = React.useMemo(() => activeConversationId.startsWith('gdm#'), [activeConversationId]);
   const isChannel = React.useMemo(() => activeConversationId.startsWith('ch#'), [activeConversationId]);
   const isEncryptedChat = isDm || isGroup;
-  const [channelMeta, setChannelMeta] = React.useState<null | { channelId: string; name: string; me?: { isAdmin?: boolean } }>(null);
+  const [channelMeta, setChannelMeta] = React.useState<
+    null | { channelId: string; name: string; isPublic?: boolean; hasPassword?: boolean; meIsAdmin: boolean; meStatus: string }
+  >(null);
+  const [channelMembers, setChannelMembers] = React.useState<
+    Array<{
+      memberSub: string;
+      displayName?: string;
+      status: string;
+      isAdmin: boolean;
+      avatarBgColor?: string;
+      avatarTextColor?: string;
+      avatarImagePath?: string;
+    }>
+  >([]);
+  const channelMembersVisible = React.useMemo(
+    () => channelMembers.filter((m) => m && (m.status === 'active' || m.status === 'banned')),
+    [channelMembers]
+  );
+  const channelMembersActiveCount = React.useMemo(
+    () => channelMembers.reduce((acc, m) => (m && m.status === 'active' ? acc + 1 : acc), 0),
+    [channelMembers]
+  );
+  const [channelMembersOpen, setChannelMembersOpen] = React.useState<boolean>(false);
+  const [channelSettingsOpen, setChannelSettingsOpen] = React.useState<boolean>(true);
+  const [channelActionBusy, setChannelActionBusy] = React.useState<boolean>(false);
+  const [channelNameEditOpen, setChannelNameEditOpen] = React.useState<boolean>(false);
+  const [channelNameDraft, setChannelNameDraft] = React.useState<string>('');
+  const [channelPasswordEditOpen, setChannelPasswordEditOpen] = React.useState<boolean>(false);
+  const [channelPasswordDraft, setChannelPasswordDraft] = React.useState<string>('');
 
   // Basic @mention autocomplete for plaintext chats (global/channels).
   // Uses recent senders (no extra network calls) and inserts "@usernameLower ".
@@ -1200,46 +1229,76 @@ export default function ChatScreen({
     [mentionQuery, input]
   );
 
+  const refreshChannelRoster = React.useCallback(async () => {
+    if (!API_URL || !isChannel) return;
+    const channelId = String(activeConversationId).slice('ch#'.length).trim();
+    if (!channelId) return;
+    const { tokens } = await fetchAuthSession();
+    const idToken = tokens?.idToken?.toString();
+    if (!idToken) return;
+    const base = API_URL.replace(/\/$/, '');
+    const resp = await fetch(`${base}/channels/members?channelId=${encodeURIComponent(channelId)}`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (!resp.ok) return;
+    const data = await resp.json().catch(() => ({}));
+    const ch = data?.channel || {};
+    const name = typeof ch.name === 'string' ? ch.name.trim() : '';
+    const me = data?.me && typeof data.me === 'object' ? data.me : undefined;
+    const meIsAdmin = !!me?.isAdmin;
+    const meStatus = typeof me?.status === 'string' ? String(me.status) : 'active';
+    const isPublic = typeof ch.isPublic === 'boolean' ? ch.isPublic : undefined;
+    const hasPassword = typeof ch.hasPassword === 'boolean' ? ch.hasPassword : undefined;
+    const membersRaw = Array.isArray(data?.members) ? data.members : [];
+    const members = membersRaw
+      .map((m: any) => ({
+        memberSub: String(m?.memberSub || '').trim(),
+        displayName: typeof m?.displayName === 'string' ? String(m.displayName) : undefined,
+        status: typeof m?.status === 'string' ? String(m.status) : 'active',
+        isAdmin: !!m?.isAdmin,
+        avatarBgColor: typeof m?.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
+        avatarTextColor: typeof m?.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
+        avatarImagePath: typeof m?.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
+      }))
+      .filter((m: any) => m.memberSub);
+    setChannelMembers(members);
+    if (name) setChannelMeta({ channelId, name, isPublic, hasPassword, meIsAdmin, meStatus });
+  }, [API_URL, isChannel, activeConversationId]);
+
   // Fetch channel metadata (title, admin flag) when entering a channel.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!API_URL || !isChannel) {
         setChannelMeta(null);
+        setChannelMembers([]);
         return;
       }
       const channelId = String(activeConversationId).slice('ch#'.length).trim();
       if (!channelId) {
         setChannelMeta(null);
+        setChannelMembers([]);
         return;
       }
       try {
-        const { tokens } = await fetchAuthSession();
-        const idToken = tokens?.idToken?.toString();
-        if (!idToken) return;
-        const base = API_URL.replace(/\/$/, '');
-        const resp = await fetch(`${base}/channels/members?channelId=${encodeURIComponent(channelId)}`, {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        if (!resp.ok) {
-          setChannelMeta(null);
-          return;
-        }
-        const data = await resp.json().catch(() => ({}));
-        const ch = data?.channel || {};
-        const name = typeof ch.name === 'string' ? ch.name.trim() : '';
-        const me = data?.me && typeof data.me === 'object' ? data.me : undefined;
+        await refreshChannelRoster();
         if (cancelled) return;
-        if (name) setChannelMeta({ channelId, name, me });
-        else setChannelMeta(null);
       } catch {
         setChannelMeta(null);
+        setChannelMembers([]);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [API_URL, isChannel, activeConversationId]);
+  }, [API_URL, isChannel, activeConversationId, refreshChannelRoster]);
+
+  // When opening the Members modal, refresh immediately so it reflects latest state.
+  React.useEffect(() => {
+    if (!channelMembersOpen) return;
+    if (!isChannel) return;
+    void refreshChannelRoster();
+  }, [channelMembersOpen, isChannel, refreshChannelRoster]);
 
   // Keep parent Chats list/unreads in sync whenever the effective group title changes
   // (e.g. another admin renamed the group and we refreshed group meta).
@@ -1916,9 +1975,14 @@ export default function ChatScreen({
       // NOTE: current Amplify Storage auth policies (from amplify_outputs.json) allow `uploads/*`.
       // Keep uploads under that prefix so authenticated users can PUT.
       const baseKey = `${Date.now()}-${safeName}`;
-      const channelId = String(activeConversationId || 'global');
-      const path = `uploads/channels/${channelId}/${baseKey}`;
-      const thumbPath = `uploads/channels/${channelId}/thumbs/${baseKey}.webp`;
+      // IMPORTANT:
+      // Never include the conversationId prefix (e.g. "ch#") in S3 keys.
+      // A raw '#' in a path will be treated as a URL fragment and break CDN/media URLs.
+      const conv = String(activeConversationId || 'global').trim() || 'global';
+      const channelId = conv.startsWith('ch#') ? conv.slice('ch#'.length) : conv;
+      const safeChannelId = channelId.replace(/[^\w.\-]+/g, '_') || 'global';
+      const path = `uploads/channels/${safeChannelId}/${baseKey}`;
+      const thumbPath = `uploads/channels/${safeChannelId}/thumbs/${baseKey}.webp`;
 
       await uploadData({
         path,
@@ -3749,6 +3813,129 @@ export default function ChatScreen({
     [API_URL]
   );
 
+  const channelPost = React.useCallback(
+    async (path: string, body: any): Promise<{ ok: boolean; status: number; json?: any; text?: string }> => {
+      if (!API_URL) return { ok: false, status: 0, text: 'API not configured' };
+      const { tokens } = await fetchAuthSession();
+      const idToken = tokens?.idToken?.toString();
+      if (!idToken) return { ok: false, status: 401, text: 'Not authenticated' };
+      const base = API_URL.replace(/\/$/, '');
+      const res = await fetch(`${base}${path}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      });
+      const text = await res.text().catch(() => '');
+      let json: any = undefined;
+      try {
+        json = text ? JSON.parse(text) : undefined;
+      } catch {
+        // ignore
+      }
+      return { ok: res.ok, status: res.status, json, text };
+    },
+    [API_URL]
+  );
+
+  const channelUpdate = React.useCallback(
+    async (op: string, extra: any) => {
+      if (!isChannel) return;
+      const cid = String(activeConversationId).slice('ch#'.length).trim();
+      if (!cid) return;
+      setChannelActionBusy(true);
+      try {
+        const resp = await channelPost('/channels/update', { channelId: cid, op, ...(extra || {}) });
+        if (!resp.ok) {
+          const msg = (resp.json && typeof resp.json.message === 'string' ? resp.json.message : resp.text) || 'Request failed';
+          showAlert('Channel update failed', `${msg}`.trim());
+          return;
+        }
+        // Refresh channel meta/members (best-effort)
+        try {
+          await refreshChannelRoster();
+        } catch {}
+      } finally {
+        setChannelActionBusy(false);
+      }
+    },
+    [isChannel, activeConversationId, channelPost, showAlert, refreshChannelRoster]
+  );
+
+  const channelLeave = React.useCallback(async () => {
+    if (!isChannel) return;
+    // UX guard: prevent orphaning a channel (no active admins).
+    // Mirrors the group DM rule.
+    try {
+      const mySub = typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : '';
+      if (channelMeta?.meIsAdmin && mySub) {
+        const active = channelMembers.filter((m) => m && m.status === 'active');
+        const otherActive = active.filter((m) => String(m.memberSub) !== mySub);
+        const otherActiveAdmins = otherActive.filter((m) => !!m.isAdmin);
+        if (otherActive.length > 0 && otherActiveAdmins.length === 0) {
+          showAlert('Wait!', 'You are the last admin. Promote someone else before leaving.');
+          return;
+        }
+      }
+    } catch {
+      // ignore; fall back to server enforcement
+    }
+    const ok = promptConfirm
+      ? await promptConfirm('Leave channel?', 'You will stop receiving new messages', {
+          confirmText: 'Leave',
+          cancelText: 'Cancel',
+          destructive: true,
+        })
+      : true;
+    if (!ok) return;
+    const cid = String(activeConversationId).slice('ch#'.length).trim();
+    if (!cid) return;
+    setChannelActionBusy(true);
+    try {
+      const resp = await channelPost('/channels/leave', { channelId: cid });
+      if (!resp.ok) {
+        const msg = (resp.json && typeof resp.json.message === 'string' ? resp.json.message : resp.text) || 'Request failed';
+        showAlert('Leave failed', `${msg}`.trim());
+        return;
+      }
+      setToast({ kind: 'success', message: 'Left channel' });
+      // Optimistically update local roster/counts so UI reflects leave immediately.
+      try {
+        const mySub = typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : '';
+        if (mySub) {
+          setChannelMembers((prev) =>
+            (Array.isArray(prev) ? prev : []).map((m) =>
+              m && String(m.memberSub) === mySub ? { ...m, status: 'left', isAdmin: false } : m
+            )
+          );
+          setChannelMeta((prev) => (prev ? { ...prev, meStatus: 'left', meIsAdmin: false } : prev));
+        }
+      } catch {
+        // ignore
+      }
+      // Broadcast a "left" system note (best-effort) so others refresh rosters promptly.
+      try {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN && myUserId) {
+          ws.send(
+            JSON.stringify({
+              action: 'system',
+              conversationId: activeConversationId,
+              systemKind: 'left',
+              targetSub: myUserId,
+              createdAt: Date.now(),
+            })
+          );
+        }
+      } catch {
+        // ignore
+      }
+      setChannelMembersOpen(false);
+      onKickedFromConversationRef.current?.(activeConversationId);
+    } finally {
+      setChannelActionBusy(false);
+    }
+  }, [isChannel, activeConversationId, channelPost, promptConfirm, showAlert, channelMembers, channelMeta?.meIsAdmin, myUserId]);
+
   const groupUpdate = React.useCallback(
     async (op: string, extra: any) => {
       if (!isGroup) return;
@@ -3815,7 +4002,7 @@ export default function ChatScreen({
         const otherActiveAdmins = otherActive.filter((m) => !!m.isAdmin);
         // If there are other active members, require at least one admin besides me.
         if (otherActive.length > 0 && otherActiveAdmins.length === 0) {
-          showAlert('Cannot leave', 'You are the last admin. Promote someone else before leaving.');
+          showAlert('Wait!', 'You are the last admin. Promote someone else before leaving.');
           return;
         }
       }
@@ -6220,7 +6407,7 @@ export default function ChatScreen({
                         size={16}
                       />
                     ) : null}
-                    {isEncryptedChat ? (
+                    {(isEncryptedChat || isChannel) ? (
                       <Pressable
                         style={({ pressed }) => [
                           styles.dmSettingsCaretBtn,
@@ -6232,14 +6419,19 @@ export default function ChatScreen({
                           } catch {
                             // ignore
                           }
-                          setDmSettingsOpen((v) => !v);
+                          if (isEncryptedChat) setDmSettingsOpen((v) => !v);
+                          else setChannelSettingsOpen((v) => !v);
                         }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         accessibilityRole="button"
-                        accessibilityLabel={dmSettingsOpen ? 'Hide message options' : 'Show message options'}
+                        accessibilityLabel={
+                          isEncryptedChat
+                            ? (dmSettingsOpen ? 'Hide message options' : 'Show message options')
+                            : (channelSettingsOpen ? 'Hide channel options' : 'Show channel options')
+                        }
                       >
                         <MaterialIcons
-                          name={dmSettingsOpen ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                          name={(isEncryptedChat ? dmSettingsOpen : channelSettingsOpen) ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
                           size={18}
                           color={isDark ? '#b7b7c2' : '#555'}
                         />
@@ -6474,6 +6666,125 @@ export default function ChatScreen({
                 </>
               ) : null}
             </>
+          ) : isChannel ? (
+            <>
+              {channelSettingsOpen ? (
+                <View style={[styles.dmSettingsRow, styles.groupSettingsRow]}>
+                  <View style={styles.dmSettingSlotLeft}>
+                    <View style={styles.dmSettingGroup}>
+                      <Text
+                        style={[
+                          styles.decryptLabel,
+                          isDark ? styles.decryptLabelDark : null,
+                          styles.dmSettingLabel,
+                          dmSettingsCompact ? styles.dmSettingLabelCompact : null,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        Members
+                      </Text>
+                      <Pressable
+                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                        disabled={channelActionBusy}
+                        onPress={() => setChannelMembersOpen(true)}
+                      >
+                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                          {`${channelMembersActiveCount || 0}`}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  <View style={styles.dmSettingSlotCenter}>
+                    <View style={styles.dmSettingGroup}>
+                      {channelMeta?.meIsAdmin ? (
+                        <>
+                          <Text
+                            style={[
+                              styles.decryptLabel,
+                              isDark ? styles.decryptLabelDark : null,
+                              styles.dmSettingLabel,
+                              dmSettingsCompact ? styles.dmSettingLabelCompact : null,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            Public
+                          </Text>
+                          <Switch
+                            value={!!channelMeta?.isPublic}
+                            onValueChange={(v) => {
+                              setChannelMeta((prev) => (prev ? { ...prev, isPublic: !!v } : prev));
+                              void channelUpdate('setPublic', { isPublic: !!v });
+                            }}
+                            trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
+                            thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+                            ios_backgroundColor="#d1d1d6"
+                          />
+                        </>
+                      ) : (
+                        <Text
+                          style={[
+                            styles.decryptLabel,
+                            isDark ? styles.decryptLabelDark : null,
+                            styles.dmSettingLabel,
+                            dmSettingsCompact ? styles.dmSettingLabelCompact : null,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {channelMeta?.isPublic ? 'Public' : 'Private'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.dmSettingSlotRight}>
+                    <View style={[styles.dmSettingGroup, { justifyContent: 'flex-end', gap: 10 }]}>
+                      {channelMeta?.meIsAdmin ? (
+                        <Pressable
+                          style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                          disabled={channelActionBusy}
+                          onPress={() => {
+                            setChannelNameDraft(channelMeta?.name || '');
+                            setChannelNameEditOpen(true);
+                          }}
+                        >
+                          <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Name</Text>
+                        </Pressable>
+                      ) : null}
+
+                      {channelMeta?.meIsAdmin ? (
+                        <Pressable
+                          style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                          disabled={channelActionBusy}
+                          onPress={() => {
+                            if (channelMeta?.hasPassword) {
+                              void channelUpdate('clearPassword', {});
+                              setChannelMeta((prev) => (prev ? { ...prev, hasPassword: false } : prev));
+                              setToast({ kind: 'success', message: 'Password cleared' });
+                              return;
+                            }
+                            setChannelPasswordDraft('');
+                            setChannelPasswordEditOpen(true);
+                          }}
+                        >
+                          <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                            {channelMeta?.hasPassword ? 'Unlock' : 'Lock'}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+
+                      <Pressable
+                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                        disabled={channelActionBusy}
+                        onPress={() => void channelLeave()}
+                      >
+                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Leave</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+            </>
           ) : null}
           {error ? (
             <Text style={[styles.error, isDark ? styles.errorDark : null]}>{error}</Text>
@@ -6548,7 +6859,7 @@ export default function ChatScreen({
                     </Pressable>
                   ) : (
                     <Text style={{ color: isDark ? '#aaa' : '#666' }}>
-                      {visibleMessages.length === 0 ? 'Start the Conversation!' : 'No older messages'}
+                      {visibleMessages.length === 0 ? 'Start the Conversation!' : 'No Older Messages'}
                     </Text>
                   )}
                 </View>
@@ -8962,6 +9273,182 @@ export default function ChatScreen({
                 onPress={() => setGroupMembersOpen(false)}
               >
                 <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={channelMembersOpen} transparent animationType="fade" onRequestClose={() => setChannelMembersOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
+            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
+              Members
+            </Text>
+            <ScrollView style={{ maxHeight: 520, alignSelf: 'stretch' }}>
+              <ChannelMembersSectionList
+                members={channelMembersVisible as any}
+                mySub={typeof myUserId === 'string' ? myUserId : ''}
+                isDark={isDark}
+                styles={styles}
+                meIsAdmin={!!channelMeta?.meIsAdmin}
+                actionBusy={channelActionBusy}
+                avatarUrlByPath={avatarUrlByPath}
+                onBan={({ memberSub, label }) => {
+                  if (!memberSub) return;
+                  Alert.alert(
+                    'Ban member?',
+                    `Ban ${label || 'member'} from this channel?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Ban',
+                        style: 'destructive',
+                        onPress: () => void channelUpdate('ban', { memberSub }),
+                      },
+                    ]
+                  );
+                }}
+                onUnban={(memberSub) => void channelUpdate('unban', { memberSub })}
+                onToggleAdmin={({ memberSub, isAdmin }) => {
+                  // Optimistic UI so "last admin" guard reflects immediately.
+                  setChannelMembers((prev) =>
+                    (Array.isArray(prev) ? prev : []).map((m) =>
+                      m && String(m.memberSub) === String(memberSub) ? { ...m, isAdmin: !isAdmin } : m
+                    )
+                  );
+                  void channelUpdate(isAdmin ? 'demoteAdmin' : 'promoteAdmin', { memberSub });
+                }}
+              />
+            </ScrollView>
+            <View style={styles.summaryButtons}>
+              <Pressable
+                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+                onPress={() => setChannelMembersOpen(false)}
+              >
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={channelNameEditOpen} transparent animationType="fade" onRequestClose={() => setChannelNameEditOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
+            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Channel Name</Text>
+            <TextInput
+              value={channelNameDraft}
+              onChangeText={setChannelNameDraft}
+              placeholder="Channel name"
+              maxLength={64}
+              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+              selectionColor={isDark ? '#ffffff' : '#111'}
+              cursorColor={isDark ? '#ffffff' : '#111'}
+              style={{
+                width: '100%',
+                height: 48,
+                paddingHorizontal: 12,
+                borderWidth: 1,
+                borderRadius: 10,
+                marginTop: 10,
+                backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                borderColor: isDark ? '#3a3a46' : '#e3e3e3',
+                color: isDark ? '#ffffff' : '#111',
+                fontSize: 16,
+              }}
+              editable
+              autoFocus
+            />
+            <View style={styles.summaryButtons}>
+              <Pressable
+                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                disabled={channelActionBusy}
+                onPress={() => setChannelNameEditOpen(false)}
+              >
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.toolBtn,
+                  isDark ? styles.toolBtnDark : null,
+                  channelActionBusy ? { opacity: 0.6 } : null,
+                ]}
+                disabled={channelActionBusy}
+                onPress={() => {
+                  const next = String(channelNameDraft || '').trim();
+                  void channelUpdate('setName', { name: next });
+                  setChannelMeta((prev) => (prev ? { ...prev, name: next || prev.name } : prev));
+                  setChannelNameEditOpen(false);
+                }}
+              >
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={channelPasswordEditOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setChannelPasswordEditOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
+            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Channel Password</Text>
+            <TextInput
+              value={channelPasswordDraft}
+              onChangeText={setChannelPasswordDraft}
+              placeholder="Password"
+              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+              selectionColor={isDark ? '#ffffff' : '#111'}
+              cursorColor={isDark ? '#ffffff' : '#111'}
+              secureTextEntry
+              style={{
+                width: '100%',
+                height: 48,
+                paddingHorizontal: 12,
+                borderWidth: 1,
+                borderRadius: 10,
+                marginTop: 10,
+                backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                borderColor: isDark ? '#3a3a46' : '#e3e3e3',
+                color: isDark ? '#ffffff' : '#111',
+                fontSize: 16,
+              }}
+              editable
+              autoFocus
+            />
+            <View style={styles.summaryButtons}>
+              <Pressable
+                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                disabled={channelActionBusy}
+                onPress={() => setChannelPasswordEditOpen(false)}
+              >
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.toolBtn,
+                  isDark ? styles.toolBtnDark : null,
+                  channelActionBusy ? { opacity: 0.6 } : null,
+                ]}
+                disabled={channelActionBusy}
+                onPress={() => {
+                  const pw = String(channelPasswordDraft || '').trim();
+                  if (!pw) {
+                    showAlert('Password required', 'Enter a password.');
+                    return;
+                  }
+                  void channelUpdate('setPassword', { password: pw });
+                  setChannelMeta((prev) => (prev ? { ...prev, hasPassword: true } : prev));
+                  setChannelPasswordEditOpen(false);
+                  setChannelPasswordDraft('');
+                }}
+              >
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
               </Pressable>
             </View>
           </View>

@@ -912,6 +912,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [channelsLoading, setChannelsLoading] = React.useState<boolean>(false);
   const [channelsQuery, setChannelsQuery] = React.useState<string>('');
   const [channelsError, setChannelsError] = React.useState<string | null>(null);
+  const [globalUserCount, setGlobalUserCount] = React.useState<number | null>(null);
   const [channelsResults, setChannelsResults] = React.useState<
     Array<{
       channelId: string;
@@ -1843,6 +1844,12 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
           return;
         }
         const data = await resp.json().catch(() => ({}));
+        if (typeof data?.globalUserCount === 'number' && Number.isFinite(data.globalUserCount) && data.globalUserCount >= 0) {
+          setGlobalUserCount(Math.floor(data.globalUserCount));
+        } else if (!q) {
+          // When opening the modal with empty search, prefer clearing stale counts if not provided.
+          setGlobalUserCount(null);
+        }
         const list = Array.isArray(data?.channels) ? data.channels : [];
         const normalized = list
           .map((c: any) => ({
@@ -2020,6 +2027,44 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     if (!channelsOpen) return;
     void fetchMyChannels();
   }, [channelsOpen, fetchMyChannels]);
+
+  const leaveChannelFromSettings = React.useCallback(
+    async (channelId: string) => {
+      const cid = String(channelId || '').trim();
+      if (!cid) return;
+      if (!API_URL) return;
+      try {
+        const token = await getIdToken();
+        if (!token) {
+          setMyChannelsError('Unable to authenticate');
+          return;
+        }
+        const base = API_URL.replace(/\/$/, '');
+        const resp = await fetch(`${base}/channels/leave`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelId: cid }),
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          let msg = `Leave failed (${resp.status})`;
+          try {
+            const parsed = text ? JSON.parse(text) : null;
+            if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+          } catch {
+            if (text.trim()) msg = `${msg}: ${text.trim()}`;
+          }
+          // Show a proper prompt (especially for "last admin" cases).
+          void promptAlert('Unable to leave', msg);
+          return;
+        }
+        setMyChannels((prev) => (Array.isArray(prev) ? prev : []).filter((c) => String(c.channelId) !== cid));
+      } catch (e: any) {
+        void promptAlert('Unable to leave', String(e?.message || 'Leave failed'));
+      }
+    },
+    [API_URL, getIdToken, promptAlert]
+  );
 
   const submitCreateChannelInline = React.useCallback(async () => {
     if (!API_URL) return;
@@ -3233,13 +3278,14 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
                         {t.peer || 'Direct Message'}
                       </Text>
-                      {t.unreadCount > 0 ? <View style={styles.unreadDot} /> : null}
                     </View>
                     <View style={styles.chatRowRight}>
                       {t.unreadCount > 0 ? (
-                        <Text style={[styles.chatRowCount, isDark ? styles.chatRowCountDark : null]}>
-                          {t.unreadCount}
-                        </Text>
+                        <View style={[styles.unreadChip, isDark ? styles.unreadChipDark : null]}>
+                          <Text style={[styles.unreadChipText, isDark ? styles.unreadChipTextDark : null]}>
+                            {t.unreadCount}
+                          </Text>
+                        </View>
                       ) : null}
                       <Pressable
                         onPress={() => void deleteConversationFromList(t.conversationId)}
@@ -3432,7 +3478,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                   </Text>
                 </View>
                 <View style={styles.chatRowRight}>
-                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>Enter</Text>
+                  <View style={[styles.defaultChip, isDark ? styles.defaultChipDark : null]}>
+                    <Text style={[styles.defaultChipText, isDark ? styles.defaultChipTextDark : null]}>Default</Text>
+                  </View>
                 </View>
               </Pressable>
 
@@ -3471,7 +3519,18 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       </Text>
                     </View>
                     <View style={styles.chatRowRight}>
-                      <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>Enter</Text>
+                      <Pressable
+                        onPress={() => void leaveChannelFromSettings(c.channelId)}
+                        style={({ pressed }) => [
+                          styles.leaveChip,
+                          isDark ? styles.leaveChipDark : null,
+                          pressed ? { opacity: 0.9 } : null,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Leave channel"
+                      >
+                        <Text style={[styles.leaveChipText, isDark ? styles.leaveChipTextDark : null]}>Leave</Text>
+                      </Pressable>
                     </View>
                   </Pressable>
                 ))
@@ -3526,7 +3585,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                   setChannelsError(null);
                   setChannelJoinError(null);
                 }}
-                placeholder="Search channels"
+                placeholder="Search Channels"
                 placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
                 selectionColor={isDark ? '#ffffff' : '#111'}
                 cursorColor={isDark ? '#ffffff' : '#111'}
@@ -3542,7 +3601,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                   pressed ? { opacity: 0.9 } : null,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel="Search channels"
+                accessibilityLabel="Search Channels"
               >
                 <Text style={[styles.blocksBtnText, isDark ? styles.blocksBtnTextDark : null]}>Search</Text>
               </Pressable>
@@ -3556,24 +3615,31 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
             ) : null}
 
             <ScrollView style={styles.chatsScroll}>
-              <Pressable
-                key="searchchannel:global"
-                style={({ pressed }) => [
-                  styles.chatRow,
-                  isDark ? styles.chatRowDark : null,
-                  pressed ? { opacity: 0.9 } : null,
-                ]}
-                onPress={() => enterChannelConversation('global')}
-              >
-                <View style={styles.chatRowLeft}>
-                  <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
-                    Global
-                  </Text>
-                </View>
-                <View style={styles.chatRowRight}>
-                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>Enter</Text>
-                </View>
-              </Pressable>
+              {/* Only show Global as a suggestion when not actively searching */}
+              {!String(channelsQuery || '').trim() ? (
+                <Pressable
+                  key="searchchannel:global"
+                  style={({ pressed }) => [
+                    styles.chatRow,
+                    isDark ? styles.chatRowDark : null,
+                    pressed ? { opacity: 0.9 } : null,
+                  ]}
+                  onPress={() => enterChannelConversation('global')}
+                >
+                  <View style={styles.chatRowLeft}>
+                    <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                      Global
+                    </Text>
+                  </View>
+                  <View style={styles.chatRowRight}>
+                    <View style={[styles.memberChip, isDark ? styles.memberChipDark : null]}>
+                      <Text style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}>
+                        {typeof globalUserCount === 'number' ? String(globalUserCount) : '—'}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              ) : null}
 
               {channelsLoading ? (
                 <View style={styles.chatsLoadingRow}>
@@ -3612,9 +3678,11 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       ) : null}
                     </View>
                     <View style={styles.chatRowRight}>
-                      <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                        {c.isMember ? 'Enter' : 'Join'}
-                      </Text>
+                      <View style={[styles.memberChip, isDark ? styles.memberChipDark : null]}>
+                        <Text style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}>
+                          {String(typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0)}
+                        </Text>
+                      </View>
                     </View>
                   </Pressable>
                 ))
@@ -5046,6 +5114,27 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#1976d2',
   },
+  unreadChip: {
+    minWidth: 26,
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: '#1976d2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadChipDark: {
+    backgroundColor: '#1976d2',
+  },
+  unreadChipText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  unreadChipTextDark: {
+    color: '#fff',
+  },
   signOutPill: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -5454,6 +5543,7 @@ const styles = StyleSheet.create({
   chatRow: {
     paddingVertical: 10,
     paddingHorizontal: 10,
+    minHeight: 44,
     borderRadius: 12,
     backgroundColor: '#f2f2f7',
     borderWidth: StyleSheet.hairlineWidth,
@@ -5470,6 +5560,42 @@ const styles = StyleSheet.create({
   chatRowNameDark: { color: '#fff' },
   chatRowCount: { fontWeight: '900', color: '#1976d2' },
   chatRowCountDark: { color: '#fff' },
+  memberChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e3e3e3',
+    minWidth: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberChipDark: { backgroundColor: '#2a2a33', borderColor: 'transparent' },
+  memberChipText: { fontWeight: '900', color: '#111' },
+  memberChipTextDark: { color: '#fff' },
+  leaveChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#ffebee',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#ffcdd2',
+  },
+  leaveChipDark: { backgroundColor: '#2a2a33', borderColor: 'transparent' },
+  leaveChipText: { color: '#c62828', fontWeight: '900' },
+  leaveChipTextDark: { color: '#ff6b6b' },
+  defaultChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#f2f2f7',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e3e3e3',
+  },
+  defaultChipDark: { backgroundColor: '#2a2a33', borderColor: 'transparent' },
+  defaultChipText: { color: '#666', fontWeight: '900' },
+  defaultChipTextDark: { color: '#a7a7b4' },
   chatDeleteBtn: {
     width: 34,
     height: 34,

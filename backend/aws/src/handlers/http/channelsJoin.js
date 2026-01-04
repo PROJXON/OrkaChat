@@ -33,6 +33,15 @@ const json = (statusCode, bodyObj) => ({
   body: JSON.stringify(bodyObj),
 });
 
+function publicRankSk(activeMemberCount, channelId) {
+  const CAP = 999_999_999_999;
+  const c = Math.max(0, Math.floor(Number(activeMemberCount) || 0));
+  const r = Math.max(0, CAP - c);
+  const left = String(r).padStart(12, '0');
+  const id = safeString(channelId);
+  return `${left}#${id}`;
+}
+
 async function getChannelByIdOrNameLower({ channelsTable, channelId, nameLower }) {
   const id = safeString(channelId);
   if (id) {
@@ -144,8 +153,18 @@ exports.handler = async (event) => {
           new UpdateCommand({
             TableName: channelsTable,
             Key: { channelId: cid },
-            UpdateExpression: 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :inc, updatedAt = :u',
-            ExpressionAttributeValues: { ':z': 0, ':inc': 1, ':u': nowMs },
+            UpdateExpression: channel.isPublic
+              ? 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :inc, publicIndexPk = :pk, publicRankSk = :sk, updatedAt = :u'
+              : 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :inc, updatedAt = :u',
+            ExpressionAttributeValues: channel.isPublic
+              ? {
+                  ':z': 0,
+                  ':inc': 1,
+                  ':u': nowMs,
+                  ':pk': 'public',
+                  ':sk': publicRankSk((typeof channel.activeMemberCount === 'number' ? channel.activeMemberCount : 0) + 1, cid),
+                }
+              : { ':z': 0, ':inc': 1, ':u': nowMs },
           })
         )
         .catch(() => {});
@@ -165,6 +184,18 @@ exports.handler = async (event) => {
     });
   } catch (err) {
     console.error('channelsJoin error', err);
+    const name = String(err?.name || '');
+    const msg = String(err?.message || '');
+    const combined = `${name} ${msg}`.trim();
+    // Most common cause in dev: missing DynamoDB permissions on the Lambda role
+    // (AccessDeniedException / not authorized to perform dynamodb:...).
+    if (/AccessDenied|not authorized|UnauthorizedOperation/i.test(combined)) {
+      return json(500, { message: 'Access denied (check channelsJoin IAM policy for DynamoDB permissions)' });
+    }
+    // Another common cause in manual copy/paste deployments: missing ./lib/channels.js in the Lambda.
+    if (/Cannot find module|MODULE_NOT_FOUND/i.test(combined)) {
+      return json(500, { message: 'Missing lib/channels.js in Lambda (fix require path / add lib file)' });
+    }
     return json(500, { message: 'Internal error' });
   }
 };

@@ -318,7 +318,10 @@ export default function GuestGlobalScreen({
   const [channelQuery, setChannelQuery] = React.useState<string>('');
   const [channelListLoading, setChannelListLoading] = React.useState<boolean>(false);
   const [channelListError, setChannelListError] = React.useState<string | null>(null);
-  const [channelResults, setChannelResults] = React.useState<Array<{ channelId: string; name: string }>>([]);
+  const [globalUserCount, setGlobalUserCount] = React.useState<number | null>(null);
+  const [channelResults, setChannelResults] = React.useState<
+    Array<{ channelId: string; name: string; activeMemberCount?: number }>
+  >([]);
 
   const [messages, setMessages] = React.useState<GuestMessage[]>([]);
   const messagesRef = React.useRef<GuestMessage[]>([]);
@@ -667,12 +670,23 @@ export default function GuestGlobalScreen({
             break;
           }
           if (!data) {
-            if (!cancelled) setChannelListError(errors.length ? errors.join('\n') : 'Channel search failed');
+            // Avoid showing raw URLs/errors to guests (dev convenience).
+            console.warn('Guest channel search failed', errors.join('\n'));
+            if (!cancelled) setChannelListError('Channel search failed');
             return;
+          }
+          if (typeof data?.globalUserCount === 'number' && Number.isFinite(data.globalUserCount) && data.globalUserCount >= 0) {
+            if (!cancelled) setGlobalUserCount(Math.floor(data.globalUserCount));
+          } else if (!q) {
+            if (!cancelled) setGlobalUserCount(null);
           }
           const list = Array.isArray(data?.channels) ? data.channels : [];
           const normalized = list
-            .map((c: any) => ({ channelId: String(c.channelId || '').trim(), name: String(c.name || '').trim() }))
+            .map((c: any) => ({
+              channelId: String(c.channelId || '').trim(),
+              name: String(c.name || '').trim(),
+              activeMemberCount: typeof c.activeMemberCount === 'number' ? c.activeMemberCount : undefined,
+            }))
             .filter((c: any) => c.channelId && c.name);
           if (!cancelled) setChannelResults(normalized);
         } catch (e: any) {
@@ -775,7 +789,7 @@ export default function GuestGlobalScreen({
                 setChannelQuery(v);
                 setChannelListError(null);
               }}
-              placeholder="Search channels"
+              placeholder="Search Channels"
               placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
               selectionColor={isDark ? '#ffffff' : '#111'}
               cursorColor={isDark ? '#ffffff' : '#111'}
@@ -801,14 +815,49 @@ export default function GuestGlobalScreen({
 
             <ScrollView style={styles.modalScroll}>
               <Pressable
-                style={({ pressed }) => [{ paddingVertical: 10 }, pressed ? { opacity: 0.9 } : null]}
+                style={({ pressed }) => [
+                  {
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    minHeight: 44,
+                    borderRadius: 12,
+                    alignSelf: 'stretch',
+                    backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+                    marginBottom: 8,
+                    opacity: pressed ? 0.85 : 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  },
+                ]}
                 onPress={() => {
                   setActiveConversationId('global');
                   setActiveChannelTitle('Global');
                   setChannelPickerOpen(false);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Enter Global"
               >
-                <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]}>Global</Text>
+                <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }}>Global</Text>
+                <View
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 999,
+                    backgroundColor: isDark ? '#2a2a33' : '#fff',
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: isDark ? 'transparent' : '#e3e3e3',
+                    minWidth: 38,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ fontWeight: '900', color: isDark ? '#fff' : '#111' }}>
+                    {typeof globalUserCount === 'number' ? String(globalUserCount) : '—'}
+                  </Text>
+                </View>
               </Pressable>
 
               {channelListLoading ? (
@@ -819,20 +868,60 @@ export default function GuestGlobalScreen({
                 channelResults.map((c) => (
                   <Pressable
                     key={`guest-channel:${c.channelId}`}
-                    style={({ pressed }) => [{ paddingVertical: 10 }, pressed ? { opacity: 0.9 } : null]}
+                    style={({ pressed }) => [
+                      {
+                        paddingVertical: 10,
+                        paddingHorizontal: 10,
+                        minHeight: 44,
+                        borderRadius: 12,
+                        alignSelf: 'stretch',
+                        backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+                        marginBottom: 8,
+                        opacity: pressed ? 0.85 : 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      },
+                    ]}
                     onPress={() => {
                       setActiveConversationId(`ch#${c.channelId}`);
                       setActiveChannelTitle(c.name);
                       setChannelPickerOpen(false);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Enter ${c.name}`}
                   >
-                    <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]} numberOfLines={1}>
+                    <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }} numberOfLines={1}>
                       {c.name}
                     </Text>
+                    <View
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 999,
+                        backgroundColor: isDark ? '#2a2a33' : '#fff',
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: isDark ? 'transparent' : '#e3e3e3',
+                        minWidth: 38,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginLeft: 10,
+                      }}
+                    >
+                      <Text style={{ fontWeight: '900', color: isDark ? '#fff' : '#111' }}>
+                        {String(typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0)}
+                      </Text>
+                    </View>
                   </Pressable>
                 ))
               ) : (
-                <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]}>No channels found</Text>
+                <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]}>
+                  {String(channelQuery || '').trim()
+                    ? 'No channels found'
+                    : 'No public channels yet'}
+                </Text>
               )}
             </ScrollView>
 
@@ -893,7 +982,7 @@ export default function GuestGlobalScreen({
                 </Pressable>
               ) : (
                 <Text style={{ color: isDark ? '#aaa' : '#666' }}>
-                  {messages.length === 0 ? 'Sign in to Start the Conversation!' : 'No older messages'}
+                  {messages.length === 0 ? 'Sign in to Start the Conversation!' : 'No Older Messages'}
                 </Text>
               )}
             </View>
