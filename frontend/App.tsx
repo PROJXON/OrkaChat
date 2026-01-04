@@ -874,6 +874,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     ));
 
   const [conversationId, setConversationId] = useState<string>('global');
+  const [channelRestoreDone, setChannelRestoreDone] = React.useState<boolean>(false);
   const [peer, setPeer] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState<boolean>(false); // DM search
   const [peerInput, setPeerInput] = useState<string>('');
@@ -966,6 +967,8 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         }
       } catch {
         // ignore
+      } finally {
+        if (mounted) setChannelRestoreDone(true);
       }
     })();
     return () => {
@@ -4196,27 +4199,33 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
           </View>
         </Modal>
       <View style={{ flex: 1 }}>
-        <ChatScreen
-          conversationId={conversationId}
-          peer={peer}
-          displayName={displayName}
-          onNewDmNotification={handleNewDmNotification}
-          onKickedFromConversation={(convId) => {
-            if (!convId) return;
-            if (conversationId !== convId) return;
-            setConversationId('global');
-            setPeer(null);
-          }}
-          onConversationTitleChanged={handleConversationTitleChanged}
-          headerTop={headerTop}
-          theme={theme}
-          chatBackground={chatBackground}
-          blockedUserSubs={blockedSubs}
-          keyEpoch={keyEpoch}
-          promptAlert={promptAlert}
-          promptConfirm={promptConfirm}
-          onBlockUserSub={addBlockBySub}
-        />
+        {channelRestoreDone ? (
+          <ChatScreen
+            conversationId={conversationId}
+            peer={peer}
+            displayName={displayName}
+            onNewDmNotification={handleNewDmNotification}
+            onKickedFromConversation={(convId) => {
+              if (!convId) return;
+              if (conversationId !== convId) return;
+              setConversationId('global');
+              setPeer(null);
+            }}
+            onConversationTitleChanged={handleConversationTitleChanged}
+            headerTop={headerTop}
+            theme={theme}
+            chatBackground={chatBackground}
+            blockedUserSubs={blockedSubs}
+            keyEpoch={keyEpoch}
+            promptAlert={promptAlert}
+            promptConfirm={promptConfirm}
+            onBlockUserSub={addBlockBySub}
+          />
+        ) : (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? '#0b0b0f' : '#fff' }}>
+            <ActivityIndicator size="large" color={isDark ? '#fff' : '#111'} />
+          </View>
+        )}
       </View>
     </View>
   );
