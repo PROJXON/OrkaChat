@@ -83,6 +83,8 @@ export function AvatarBubble({
         <Image
           source={{ uri: imageUri }}
           onError={() => setImageFailed(true)}
+          // Smooth out "pop-in" when avatar images resolve (Android supports this; iOS ignores).
+          fadeDuration={150}
           style={[styles.image, { borderRadius: Math.floor(size / 2) }]}
         />
       ) : (

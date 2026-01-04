@@ -1182,6 +1182,17 @@ export default function ChatScreen({
     () => channelMembersForUi.reduce((acc, m) => (m && m.status === 'active' ? acc + 1 : acc), 0),
     [channelMembersForUi]
   );
+  // Best-effort cached count to avoid flashing "0" before roster loads.
+  const [channelMembersActiveCountHint, setChannelMembersActiveCountHint] = React.useState<number | null>(null);
+  const channelMembersCountLabel = React.useMemo(() => {
+    // When roster is loaded for this channel, show the real active count.
+    if (channelRosterMatchesActive && channelMembersForUi.length) return `${channelMembersActiveCount || 0}`;
+    // Otherwise, show cached hint if we have one; else a neutral placeholder.
+    if (typeof channelMembersActiveCountHint === 'number' && Number.isFinite(channelMembersActiveCountHint)) {
+      return `${Math.max(0, Math.floor(channelMembersActiveCountHint))}`;
+    }
+    return '—';
+  }, [channelRosterMatchesActive, channelMembersForUi.length, channelMembersActiveCount, channelMembersActiveCountHint]);
   const [channelMembersOpen, setChannelMembersOpen] = React.useState<boolean>(false);
   const [channelSettingsOpen, setChannelSettingsOpen] = React.useState<boolean>(true);
   const [channelActionBusy, setChannelActionBusy] = React.useState<boolean>(false);
@@ -1329,8 +1340,73 @@ export default function ChatScreen({
       .filter((m: any) => m.memberSub);
     setChannelRosterChannelId(channelId);
     setChannelMembers(members);
+    const activeCount = members.reduce((acc: number, m: any) => (m && m.status === 'active' ? acc + 1 : acc), 0);
+    setChannelMembersActiveCountHint(activeCount);
     if (name) setChannelMeta({ channelId, name, isPublic, hasPassword, meIsAdmin, meStatus });
+
+    // Persist a tiny channel header cache so cold starts don't flash placeholders.
+    // (We avoid caching signed avatar URLs; just stable metadata.)
+    try {
+      const key = `ui:channelCache:${channelId}`;
+      const payload = {
+        v: 1,
+        channelId,
+        name,
+        isPublic: typeof isPublic === 'boolean' ? isPublic : undefined,
+        hasPassword: typeof hasPassword === 'boolean' ? hasPassword : undefined,
+        meIsAdmin: !!meIsAdmin,
+        meStatus: meStatus || 'active',
+        activeCount,
+        savedAt: Date.now(),
+      };
+      // Fire-and-forget.
+      void AsyncStorage.setItem(key, JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
   }, [API_URL, isChannel, activeConversationId]);
+
+  // Load cached channel header snapshot ASAP on entering a channel (reduces "flash" on cold start).
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!isChannel) {
+        setChannelMembersActiveCountHint(null);
+        return;
+      }
+      const channelId = String(activeConversationId).slice('ch#'.length).trim();
+      if (!channelId) return;
+      try {
+        const raw = await AsyncStorage.getItem(`ui:channelCache:${channelId}`);
+        if (cancelled) return;
+        if (!raw) return;
+        const obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object') return;
+        if (String(obj.channelId || '') !== channelId) return;
+
+        const name = typeof obj.name === 'string' ? obj.name.trim() : '';
+        const isPublic = typeof obj.isPublic === 'boolean' ? obj.isPublic : undefined;
+        const hasPassword = typeof obj.hasPassword === 'boolean' ? obj.hasPassword : undefined;
+        const meIsAdmin = !!obj.meIsAdmin;
+        const meStatus = typeof obj.meStatus === 'string' ? String(obj.meStatus) : 'active';
+        const activeCount = typeof obj.activeCount === 'number' && Number.isFinite(obj.activeCount) ? Math.max(0, Math.floor(obj.activeCount)) : null;
+
+        if (activeCount != null) setChannelMembersActiveCountHint(activeCount);
+
+        // Only apply cached meta if we don't already have fresh meta for this channel.
+        setChannelMeta((prev) => {
+          if (prev && prev.channelId === channelId && prev.name && String(prev.name).trim()) return prev;
+          if (!name) return prev;
+          return { channelId, name, isPublic, hasPassword, meIsAdmin, meStatus };
+        });
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isChannel, activeConversationId]);
 
   // Fetch channel metadata (title, admin flag) when entering a channel.
   React.useEffect(() => {
@@ -1341,6 +1417,7 @@ export default function ChatScreen({
         setChannelMembers([]);
         lastChannelIdRef.current = '';
         setChannelRosterChannelId('');
+        setChannelMembersActiveCountHint(null);
         return;
       }
       const channelId = String(activeConversationId).slice('ch#'.length).trim();
@@ -1349,6 +1426,7 @@ export default function ChatScreen({
         setChannelMembers([]);
         lastChannelIdRef.current = '';
         setChannelRosterChannelId('');
+        setChannelMembersActiveCountHint(null);
         return;
       }
       // If we switched to a different channel, clear the previous channel's meta immediately
@@ -1356,6 +1434,7 @@ export default function ChatScreen({
       if (lastChannelIdRef.current && lastChannelIdRef.current !== channelId) {
         setChannelMeta(null);
         setChannelMembers([]);
+        setChannelMembersActiveCountHint(null);
       }
       lastChannelIdRef.current = channelId;
       try {
@@ -1364,6 +1443,7 @@ export default function ChatScreen({
       } catch {
         setChannelMeta(null);
         setChannelMembers([]);
+        setChannelMembersActiveCountHint(null);
       }
     })();
     return () => {
@@ -6595,7 +6675,7 @@ export default function ChatScreen({
           <View style={styles.titleRow}>
             <Text style={[styles.title, isDark ? styles.titleDark : null]} numberOfLines={1} ellipsizeMode="tail">
               {isChannel
-                ? (channelMeta?.name || 'Channel')
+                ? (channelMeta?.name || '…')
                 : peer
                   ? (isGroup ? (groupMeta?.groupName?.trim() ? groupMeta.groupName.trim() : peer) : `DM with ${peer}`)
                   : 'Global Chat'}
@@ -6944,7 +7024,7 @@ export default function ChatScreen({
                         onPress={() => setChannelMembersOpen(true)}
                       >
                         <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                          {`${channelMembersActiveCount || 0}`}
+                          {channelMembersCountLabel}
                         </Text>
                       </Pressable>
                     </View>
