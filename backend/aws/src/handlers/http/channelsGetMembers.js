@@ -192,6 +192,8 @@ exports.handler = async (event) => {
         nameLower: safeString(channel.nameLower),
         isPublic: !!channel.isPublic,
         hasPassword: !!channel.hasPassword,
+        aboutText: typeof channel.aboutText === 'string' ? String(channel.aboutText) : '',
+        aboutVersion: typeof channel.aboutVersion === 'number' && Number.isFinite(channel.aboutVersion) ? channel.aboutVersion : 0,
         activeMemberCount: typeof channel.activeMemberCount === 'number' ? channel.activeMemberCount : undefined,
         createdAt: typeof channel.createdAt === 'number' ? channel.createdAt : undefined,
         createdBySub: channel.createdBySub ? safeString(channel.createdBySub) : undefined,
