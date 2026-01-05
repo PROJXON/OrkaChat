@@ -4288,6 +4288,7 @@ const LinkedConfirmResetPasswordFormFields = ({
   caret: { selectionColor: string; cursorColor?: string };
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4317,7 +4318,7 @@ const LinkedConfirmResetPasswordFormFields = ({
           disabled={isPending}
           error={hasError}
           fieldStyle={fieldStyle}
-          style={fieldContainerStyle}
+          style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
           secureTextEntry={isPassword ? !showPassword : undefined}
@@ -4337,7 +4338,7 @@ const LinkedConfirmResetPasswordFormFields = ({
     );
   });
 
-  return <View style={style}>{formFields}</View>;
+  return <View style={[style, webFullWidth]}>{formFields}</View>;
 };
 
 const LinkedSignUpFormFields = ({
@@ -4357,6 +4358,7 @@ const LinkedSignUpFormFields = ({
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
   const MAX_USERNAME_LEN = 21;
+  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4389,7 +4391,7 @@ const LinkedSignUpFormFields = ({
           disabled={isPending}
           error={hasError}
           fieldStyle={fieldStyle}
-          style={fieldContainerStyle}
+          style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
           secureTextEntry={isPassword ? !showPassword : undefined}
@@ -4409,7 +4411,7 @@ const LinkedSignUpFormFields = ({
     );
   });
 
-  return <View style={style}>{formFields}</View>;
+  return <View style={[style, webFullWidth]}>{formFields}</View>;
 };
 
 const LinkedSignInFormFields = ({
@@ -4428,6 +4430,7 @@ const LinkedSignInFormFields = ({
   caret: { selectionColor: string; cursorColor?: string };
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4455,7 +4458,7 @@ const LinkedSignInFormFields = ({
           disabled={isPending}
           error={hasError}
           fieldStyle={fieldStyle}
-          style={fieldContainerStyle}
+          style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
           secureTextEntry={isPassword ? !showPassword : undefined}
@@ -4475,7 +4478,7 @@ const LinkedSignInFormFields = ({
     );
   });
 
-  return <View style={style}>{formFields}</View>;
+  return <View style={[style, webFullWidth]}>{formFields}</View>;
 };
 
 const CustomSignUp = ({

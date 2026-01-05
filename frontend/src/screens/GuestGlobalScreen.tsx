@@ -6,6 +6,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   RefreshControl,
   Pressable,
   ScrollView,
@@ -959,46 +960,70 @@ export default function GuestGlobalScreen({
         </View>
       ) : null}
 
+      {/*
+        Web note:
+        FlatList `inverted` can render upside-down on web in some environments.
+        Keep native inverted behavior, but render non-inverted on web and reverse data.
+      */}
       <FlatList
-        data={messages}
+        data={Platform.OS === 'web' ? [...messages].reverse() : messages}
         keyExtractor={(m) => m.id}
-        inverted
+        inverted={Platform.OS !== 'web'}
         keyboardShouldPersistTaps="handled"
-        onEndReached={() => {
-          if (!API_URL) return;
-          if (!historyHasMore) return;
-          if (historyLoading) return;
-          loadOlderHistory();
-        }}
+        onEndReached={
+          Platform.OS === 'web'
+            ? undefined
+            : () => {
+                if (!API_URL) return;
+                if (!historyHasMore) return;
+                if (historyLoading) return;
+                loadOlderHistory();
+              }
+        }
         onEndReachedThreshold={0.2}
         ListFooterComponent={
-          API_URL ? (
-            <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-              {historyHasMore ? (
-                <Pressable
-                  onPress={loadOlderHistory}
-                  disabled={historyLoading}
-                  style={({ pressed }) => ({
-                    paddingHorizontal: 14,
-                    paddingVertical: 9,
-                    borderRadius: 999,
-                    backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
-                    opacity: historyLoading ? 0.6 : pressed ? 0.85 : 1,
-                  })}
-                >
-                  <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
-                    {historyLoading ? 'Loading older…' : 'Load older messages'}
-                  </Text>
-                </Pressable>
-              ) : (
-                <Text style={{ color: isDark ? '#aaa' : '#666' }}>
-                  {messages.length === 0 ? 'Sign in to Start the Conversation!' : 'No Older Messages'}
-                </Text>
-              )}
-            </View>
-          ) : null
+          Platform.OS === 'web'
+            ? null
+            : (API_URL ? (
+                <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                  {historyHasMore ? (
+                    <Pressable
+                      onPress={loadOlderHistory}
+                      disabled={historyLoading}
+                      style={({ pressed }) => ({
+                        paddingHorizontal: 14,
+                        paddingVertical: 9,
+                        borderRadius: 999,
+                        backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
+                        opacity: historyLoading ? 0.6 : pressed ? 0.85 : 1,
+                      })}
+                    >
+                      <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
+                        {historyLoading ? 'Loading older…' : 'Load older messages'}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={{ color: isDark ? '#aaa' : '#666' }}>
+                      {messages.length === 0 ? 'Sign in to Start the Conversation!' : 'No Older Messages'}
+                    </Text>
+                  )}
+                </View>
+              ) : null)
         }
         contentContainerStyle={styles.listContent}
+        // For web (non-inverted), load older history when the user scrolls to the top.
+        onScroll={
+          Platform.OS === 'web'
+            ? (e: any) => {
+                if (!API_URL) return;
+                if (!historyHasMore) return;
+                if (historyLoading) return;
+                const y = Number(e?.nativeEvent?.contentOffset?.y ?? 0);
+                if (y <= 40) loadOlderHistory();
+              }
+            : undefined
+        }
+        scrollEventThrottle={Platform.OS === 'web' ? 16 : undefined}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
