@@ -5022,6 +5022,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e3e3e3',
+    // Give it a little breathing room from the top/right edge of the sheet.
+    marginTop: 4,
   },
   authModalCloseCircleDark: {
     backgroundColor: '#1c1c22',

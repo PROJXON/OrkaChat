@@ -26,6 +26,8 @@ import Feather from '@expo/vector-icons/Feather';
 import { HeaderMenuModal } from '../components/HeaderMenuModal';
 import { AvatarBubble } from '../components/AvatarBubble';
 import { AnimatedDots } from '../components/AnimatedDots';
+import { RichText } from '../components/RichText';
+import { ConfirmLinkModal } from '../components/ConfirmLinkModal';
 
 type GuestMessage = {
   id: string;
@@ -356,6 +358,40 @@ export default function GuestGlobalScreen({
 
   const [viewerOpen, setViewerOpen] = React.useState<boolean>(false);
   const [viewerMedia, setViewerMedia] = React.useState<null | { url: string; kind: 'image' | 'video' | 'file'; fileName?: string }>(null);
+
+  const [linkConfirmOpen, setLinkConfirmOpen] = React.useState<boolean>(false);
+  const [linkConfirmUrl, setLinkConfirmUrl] = React.useState<string>('');
+  const [linkConfirmDomain, setLinkConfirmDomain] = React.useState<string>('');
+  const requestOpenLink = React.useCallback((url: string) => {
+    const s = String(url || '').trim();
+    if (!s) return;
+    let domain = '';
+    try {
+      domain = new URL(s).host;
+    } catch {
+      // ignore
+    }
+    setLinkConfirmUrl(s);
+    setLinkConfirmDomain(domain);
+    setLinkConfirmOpen(true);
+  }, []);
+
+  const requestSignIn = React.useCallback(() => {
+    // Avoid stacked modals on Android (can get into a state where a transparent modal blocks touches).
+    setMenuOpen(false);
+    setChannelPickerOpen(false);
+    setReactionInfoOpen(false);
+    setViewerOpen(false);
+    setLinkConfirmOpen(false);
+    // Defer so modal close animations/state flush first.
+    setTimeout(() => {
+      try {
+        onSignIn();
+      } catch {
+        // ignore
+      }
+    }, 0);
+  }, [onSignIn]);
 
   React.useEffect(() => {
     messagesRef.current = messages;
@@ -741,6 +777,8 @@ export default function GuestGlobalScreen({
         </View>
       </View>
 
+      {/* Ensure the message list never overlaps the header on Android touch layers. */}
+      <View style={{ flex: 1, alignSelf: 'stretch' }}>
       <HeaderMenuModal
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -772,7 +810,7 @@ export default function GuestGlobalScreen({
             label: 'Sign in',
             onPress: () => {
               setMenuOpen(false);
-              onSignIn();
+              requestSignIn();
             },
           },
         ]}
@@ -966,6 +1004,7 @@ export default function GuestGlobalScreen({
         Keep native inverted behavior, but render non-inverted on web and reverse data.
       */}
       <FlatList
+        style={{ flex: 1 }}
         data={Platform.OS === 'web' ? [...messages].reverse() : messages}
         keyExtractor={(m) => m.id}
         inverted={Platform.OS !== 'web'}
@@ -1045,6 +1084,7 @@ export default function GuestGlobalScreen({
             <GuestMessageRow
               item={item}
               isDark={isDark}
+              onOpenUrl={requestOpenLink}
               resolvePathUrl={resolvePathUrl}
               onOpenReactionInfo={openReactionInfo}
               onOpenViewer={openViewer}
@@ -1071,7 +1111,7 @@ export default function GuestGlobalScreen({
       >
         <View style={styles.bottomBarInner}>
           <Pressable
-            onPress={onSignIn}
+            onPress={requestSignIn}
             style={({ pressed }) => [
               styles.bottomBarCta,
               isDark && styles.bottomBarCtaDark,
@@ -1127,15 +1167,24 @@ export default function GuestGlobalScreen({
           <View style={[styles.modalCard, isDark && styles.modalCardDark]}>
             <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>Welcome to Projxon</Text>
             <ScrollView style={styles.modalScroll}>
-              <Text style={[styles.modalRowText, isDark && styles.modalRowTextDark]}>
-                You’re currently viewing a guest preview of Global chat. You can join public channels.
-              </Text>
-              <Text style={[styles.modalRowText, isDark && styles.modalRowTextDark]}>
-                Sign in to send messages, react, utilize AI features, and access direct messages.
-              </Text>
-              <Text style={[styles.modalRowText, isDark && styles.modalRowTextDark]}>
-                Tip: DMs support end-to-end encryption on signed-in devices.
-              </Text>
+              <RichText
+                text="You’re currently viewing a guest preview of Global chat. You can join public channels."
+                isDark={isDark}
+                style={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
+                enableMentions={false}
+              />
+              <RichText
+                text="Sign in to send messages, react, utilize AI features, and access direct messages."
+                isDark={isDark}
+                style={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
+                enableMentions={false}
+              />
+              <RichText
+                text="Tip: DMs support end-to-end encryption on signed-in devices."
+                isDark={isDark}
+                style={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
+                enableMentions={false}
+              />
             </ScrollView>
             <View style={styles.modalButtons}>
               <Pressable
@@ -1150,7 +1199,7 @@ export default function GuestGlobalScreen({
                 style={[styles.modalBtn, isDark && styles.modalBtnDark]}
                 onPress={() => {
                   void dismissOnboarding();
-                  onSignIn();
+                  requestSignIn();
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Sign in"
@@ -1196,6 +1245,23 @@ export default function GuestGlobalScreen({
           </View>
         </View>
       </Modal>
+
+      {linkConfirmOpen ? (
+        <ConfirmLinkModal
+          open={linkConfirmOpen}
+          isDark={isDark}
+          url={linkConfirmUrl}
+          domain={linkConfirmDomain}
+          onCancel={() => setLinkConfirmOpen(false)}
+          onOpen={() => {
+            const u = String(linkConfirmUrl || '').trim();
+            setLinkConfirmOpen(false);
+            if (!u) return;
+            void Linking.openURL(u).catch(() => {});
+          }}
+        />
+      ) : null}
+      </View>
     </SafeAreaView>
   );
 }
@@ -1203,6 +1269,7 @@ export default function GuestGlobalScreen({
 function GuestMessageRow({
   item,
   isDark,
+  onOpenUrl,
   resolvePathUrl,
   onOpenReactionInfo,
   onOpenViewer,
@@ -1216,6 +1283,7 @@ function GuestMessageRow({
 }: {
   item: GuestMessage;
   isDark: boolean;
+  onOpenUrl: (url: string) => void;
   resolvePathUrl: (path: string) => Promise<string | null>;
   onOpenReactionInfo: (emoji: string, subs: string[], namesBySub?: Record<string, string>) => void;
   onOpenViewer: (media: GuestMediaItem) => void;
@@ -1349,15 +1417,18 @@ function GuestMessageRow({
               </View>
               {captionHasText ? (
                 <View style={styles.guestMediaCaptionRow}>
-                  <Text
+                  <RichText
+                    text={String(item.text || '')}
+                    isDark={isDark}
+                    enableMentions={true}
+                    variant="neutral"
+                    onOpenUrl={onOpenUrl}
                     style={[
                       styles.guestMediaCaption,
-                      isDark ? styles.guestMediaCaptionDark : null,
+                      ...(isDark ? [styles.guestMediaCaptionDark] : []),
                       styles.guestMediaCaptionFlex,
                     ]}
-                  >
-                    {item.text}
-                  </Text>
+                  />
                   {isEdited ? (
                     <View style={styles.guestMediaCaptionIndicators}>
                       <Text style={[styles.guestEditedLabel, isDark ? styles.guestEditedLabelDark : null]}>
@@ -1441,7 +1512,14 @@ function GuestMessageRow({
             <Text style={[styles.guestMetaLine, isDark ? styles.guestMetaLineDark : null]}>{metaLine}</Text>
             {item.text?.trim() ? (
               <View style={styles.guestTextRow}>
-                <Text style={[styles.msgText, isDark && styles.msgTextDark, styles.guestTextFlex]}>{item.text}</Text>
+                <RichText
+                  text={String(item.text || '')}
+                  isDark={isDark}
+                  style={[styles.msgText, ...(isDark ? [styles.msgTextDark] : []), styles.guestTextFlex]}
+                  enableMentions={true}
+                  variant="neutral"
+                  onOpenUrl={onOpenUrl}
+                />
                 {isEdited ? (
                   <Text style={[styles.guestEditedInline, isDark ? styles.guestEditedLabelDark : null]}>Edited</Text>
                 ) : null}
@@ -1491,6 +1569,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    zIndex: 10,
+    elevation: 10,
   },
   headerTitle: {
     fontSize: 18,

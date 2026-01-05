@@ -63,6 +63,8 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { gcm } from '@noble/ciphers/aes.js';
 import { getDmMediaSignedUrl } from '../utils/dmSignedUrl';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { RichText } from '../components/RichText';
+import { ConfirmLinkModal } from '../components/ConfirmLinkModal';
 
 function toCdnUrl(path: string): string {
   const base = (CDN_URL || '').trim();
@@ -1156,7 +1158,16 @@ export default function ChatScreen({
     [isChannel, activeConversationId]
   );
   const [channelMeta, setChannelMeta] = React.useState<
-    null | { channelId: string; name: string; isPublic?: boolean; hasPassword?: boolean; meIsAdmin: boolean; meStatus: string }
+    null | {
+      channelId: string;
+      name: string;
+      isPublic?: boolean;
+      hasPassword?: boolean;
+      aboutText?: string;
+      aboutVersion?: number;
+      meIsAdmin: boolean;
+      meStatus: string;
+    }
   >(null);
   // Track which channel the current roster belongs to so UI doesn't briefly show stale counts
   // during the first render after switching channels (effects run after paint).
@@ -1198,6 +1209,26 @@ export default function ChatScreen({
   const [channelActionBusy, setChannelActionBusy] = React.useState<boolean>(false);
   const [channelNameEditOpen, setChannelNameEditOpen] = React.useState<boolean>(false);
   const [channelNameDraft, setChannelNameDraft] = React.useState<string>('');
+  const [channelAboutOpen, setChannelAboutOpen] = React.useState<boolean>(false);
+  const [channelAboutEdit, setChannelAboutEdit] = React.useState<boolean>(false);
+  const [channelAboutDraft, setChannelAboutDraft] = React.useState<string>('');
+  const [linkConfirmOpen, setLinkConfirmOpen] = React.useState<boolean>(false);
+  const [linkConfirmUrl, setLinkConfirmUrl] = React.useState<string>('');
+  const [linkConfirmDomain, setLinkConfirmDomain] = React.useState<string>('');
+
+  const requestOpenLink = React.useCallback((url: string) => {
+    const s = String(url || '').trim();
+    if (!s) return;
+    let domain = '';
+    try {
+      domain = new URL(s).host;
+    } catch {
+      // ignore
+    }
+    setLinkConfirmUrl(s);
+    setLinkConfirmDomain(domain);
+    setLinkConfirmOpen(true);
+  }, []);
   const [channelPasswordEditOpen, setChannelPasswordEditOpen] = React.useState<boolean>(false);
   const [channelPasswordDraft, setChannelPasswordDraft] = React.useState<string>('');
   // Prevent stale header/settings from briefly showing the previous channel when switching between channels.
@@ -1326,6 +1357,8 @@ export default function ChatScreen({
     const meStatus = typeof me?.status === 'string' ? String(me.status) : 'active';
     const isPublic = typeof ch.isPublic === 'boolean' ? ch.isPublic : undefined;
     const hasPassword = typeof ch.hasPassword === 'boolean' ? ch.hasPassword : undefined;
+    const aboutText = typeof ch.aboutText === 'string' ? String(ch.aboutText) : '';
+    const aboutVersion = typeof ch.aboutVersion === 'number' && Number.isFinite(ch.aboutVersion) ? ch.aboutVersion : 0;
     const membersRaw = Array.isArray(data?.members) ? data.members : [];
     const members = membersRaw
       .map((m: any) => ({
@@ -1342,7 +1375,7 @@ export default function ChatScreen({
     setChannelMembers(members);
     const activeCount = members.reduce((acc: number, m: any) => (m && m.status === 'active' ? acc + 1 : acc), 0);
     setChannelMembersActiveCountHint(activeCount);
-    if (name) setChannelMeta({ channelId, name, isPublic, hasPassword, meIsAdmin, meStatus });
+    if (name) setChannelMeta({ channelId, name, isPublic, hasPassword, aboutText, aboutVersion, meIsAdmin, meStatus });
 
     // Persist a tiny channel header cache so cold starts don't flash placeholders.
     // (We avoid caching signed avatar URLs; just stable metadata.)
@@ -1354,6 +1387,8 @@ export default function ChatScreen({
         name,
         isPublic: typeof isPublic === 'boolean' ? isPublic : undefined,
         hasPassword: typeof hasPassword === 'boolean' ? hasPassword : undefined,
+        aboutText,
+        aboutVersion,
         meIsAdmin: !!meIsAdmin,
         meStatus: meStatus || 'active',
         activeCount,
@@ -1387,6 +1422,9 @@ export default function ChatScreen({
         const name = typeof obj.name === 'string' ? obj.name.trim() : '';
         const isPublic = typeof obj.isPublic === 'boolean' ? obj.isPublic : undefined;
         const hasPassword = typeof obj.hasPassword === 'boolean' ? obj.hasPassword : undefined;
+        const aboutText = typeof obj.aboutText === 'string' ? String(obj.aboutText) : '';
+        const aboutVersion =
+          typeof obj.aboutVersion === 'number' && Number.isFinite(obj.aboutVersion) ? obj.aboutVersion : 0;
         const meIsAdmin = !!obj.meIsAdmin;
         const meStatus = typeof obj.meStatus === 'string' ? String(obj.meStatus) : 'active';
         const activeCount = typeof obj.activeCount === 'number' && Number.isFinite(obj.activeCount) ? Math.max(0, Math.floor(obj.activeCount)) : null;
@@ -1397,7 +1435,7 @@ export default function ChatScreen({
         setChannelMeta((prev) => {
           if (prev && prev.channelId === channelId && prev.name && String(prev.name).trim()) return prev;
           if (!name) return prev;
-          return { channelId, name, isPublic, hasPassword, meIsAdmin, meStatus };
+          return { channelId, name, isPublic, hasPassword, aboutText, aboutVersion, meIsAdmin, meStatus };
         });
       } catch {
         // ignore
@@ -1407,6 +1445,40 @@ export default function ChatScreen({
       cancelled = true;
     };
   }, [isChannel, activeConversationId]);
+
+  // Auto-popup Channel About on first join or whenever aboutVersion changes.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!isChannel) return;
+      const cid = String(activeConversationId).slice('ch#'.length).trim();
+      if (!cid) return;
+      const aboutText = typeof channelMeta?.aboutText === 'string' ? channelMeta.aboutText : '';
+      const aboutVersion = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
+      if (!aboutText.trim()) return;
+      if (!aboutVersion || aboutVersion <= 0) return;
+      try {
+        const key = `ui:channelAboutSeen:${cid}`;
+        const seenRaw = await AsyncStorage.getItem(key);
+        if (cancelled) return;
+        const seen = typeof seenRaw === 'string' && seenRaw.trim() ? Number(seenRaw) : 0;
+        if (!Number.isFinite(seen) || seen < aboutVersion) {
+          setChannelAboutDraft(aboutText);
+          setChannelAboutEdit(false);
+          setChannelAboutOpen(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setChannelAboutDraft(aboutText);
+          setChannelAboutEdit(false);
+          setChannelAboutOpen(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isChannel, activeConversationId, channelMeta?.aboutText, channelMeta?.aboutVersion]);
 
   // Fetch channel metadata (title, admin flag) when entering a channel.
   React.useEffect(() => {
@@ -7143,6 +7215,52 @@ export default function ChatScreen({
                       </View>
                     ) : null}
                   </View>
+
+                  {/* Row 3: About */}
+                  <View style={[styles.channelAdminRow, { marginTop: 8 }, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
+                    <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
+                      <Text
+                        style={[
+                          styles.decryptLabel,
+                          isDark ? styles.decryptLabelDark : null,
+                          styles.dmSettingLabel,
+                          dmSettingsCompact ? styles.dmSettingLabelCompact : null,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        About
+                      </Text>
+                      <Pressable
+                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                        disabled={channelActionBusy}
+                        onPress={() => {
+                          setChannelAboutDraft(String(channelMeta?.aboutText || ''));
+                          setChannelAboutEdit(false);
+                          setChannelAboutOpen(true);
+                        }}
+                      >
+                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                          {channelMeta?.aboutText && String(channelMeta.aboutText).trim() ? 'View' : (channelMeta?.meIsAdmin ? 'Set' : 'None')}
+                        </Text>
+                      </Pressable>
+                    </View>
+
+                    {channelMeta?.meIsAdmin ? (
+                      <View style={styles.channelAdminActions}>
+                        <Pressable
+                          style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                          disabled={channelActionBusy}
+                          onPress={() => {
+                            setChannelAboutDraft(String(channelMeta?.aboutText || ''));
+                            setChannelAboutEdit(true);
+                            setChannelAboutOpen(true);
+                          }}
+                        >
+                          <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Edit</Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
               ) : null}
             </>
@@ -7747,7 +7865,11 @@ export default function ChatScreen({
                             </View>
                           ) : captionText?.length ? (
                             <View style={styles.mediaHeaderCaptionRow}>
-                              <Text
+                              <RichText
+                                text={String(captionText || '')}
+                                isDark={isDark}
+                                enableMentions={!isEncryptedChat}
+                                variant={isOutgoing ? 'outgoing' : 'incoming'}
                                 style={[
                                   styles.mediaHeaderCaption,
                                   isOutgoing
@@ -7757,9 +7879,9 @@ export default function ChatScreen({
                                       : styles.mediaHeaderCaptionIncoming,
                                   styles.mediaHeaderCaptionFlex,
                                 ]}
-                              >
-                                {renderTextWithMentions(String(captionText || ''))}
-                              </Text>
+                                mentionStyle={styles.mentionText}
+                                onOpenUrl={requestOpenLink}
+                              />
                               {showEditedInlineForCaption || showSendStatusInline ? (
                                 <View style={styles.mediaHeaderCaptionIndicators}>
                                   {showEditedInlineForCaption ? (
@@ -8098,7 +8220,11 @@ export default function ChatScreen({
                               </View>
                             </View>
                           ) : (
-                        <Text
+                        <RichText
+                          text={String(displayText || '')}
+                          isDark={isDark}
+                          enableMentions={!isEncryptedChat}
+                          variant={isOutgoing ? 'outgoing' : 'incoming'}
                           style={[
                             styles.messageText,
                             isOutgoing
@@ -8106,12 +8232,12 @@ export default function ChatScreen({
                               : isDark
                                 ? styles.messageTextIncomingDark
                                 : styles.messageTextIncoming,
-                                styles.messageTextFlex,
-                                isDeleted ? styles.deletedText : null,
+                            styles.messageTextFlex,
+                            ...(isDeleted ? [styles.deletedText] : []),
                           ]}
-                        >
-                              {renderTextWithMentions(String(displayText || ''))}
-                            </Text>
+                          mentionStyle={styles.mentionText}
+                          onOpenUrl={requestOpenLink}
+                        />
                           )}
                           {isEdited ? (
                             <Text
@@ -10019,6 +10145,196 @@ export default function ChatScreen({
               >
                 <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
               </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {linkConfirmOpen ? (
+        <ConfirmLinkModal
+          open={linkConfirmOpen}
+          isDark={isDark}
+          url={linkConfirmUrl}
+          domain={linkConfirmDomain}
+          onCancel={() => setLinkConfirmOpen(false)}
+          onOpen={() => {
+            const u = String(linkConfirmUrl || '').trim();
+            setLinkConfirmOpen(false);
+            if (!u) return;
+            void Linking.openURL(u).catch(() => {});
+          }}
+        />
+      ) : null}
+
+      <Modal
+        visible={channelAboutOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setChannelAboutEdit(false);
+          setChannelAboutOpen(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              setChannelAboutEdit(false);
+              setChannelAboutOpen(false);
+            }}
+          />
+          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
+            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
+              {channelMeta?.name ? `${channelMeta.name} · About` : 'About'}
+            </Text>
+
+            {channelAboutEdit ? (
+              <>
+                <Text
+                  style={[
+                    styles.summaryText,
+                    isDark ? styles.summaryTextDark : null,
+                    { marginBottom: 8 },
+                  ]}
+                >
+                  Supports **bold**, *italics*, links, and ||spoilers||. Max 4000 chars.
+                </Text>
+                <TextInput
+                  value={channelAboutDraft}
+                  onChangeText={(v) => setChannelAboutDraft(v.slice(0, 4000))}
+                  placeholder="Write channel info / rules…"
+                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                  selectionColor={isDark ? '#ffffff' : '#111'}
+                  cursorColor={isDark ? '#ffffff' : '#111'}
+                  multiline
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    minHeight: 160,
+                    maxHeight: 320,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                    borderColor: isDark ? '#3a3a46' : '#e3e3e3',
+                    color: isDark ? '#ffffff' : '#111',
+                    fontSize: 15,
+                  }}
+                />
+                <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null, { marginTop: 6 }]}>
+                  {`${String(channelAboutDraft || '').length}/4000`}
+                </Text>
+              </>
+            ) : (
+              <ScrollView style={styles.summaryScroll}>
+                {String(channelAboutDraft || '').trim() ? (
+                  <RichText
+                    text={String(channelAboutDraft || '')}
+                    isDark={isDark}
+                    style={[styles.summaryText, ...(isDark ? [styles.summaryTextDark] : [])]}
+                    enableMentions={false}
+                    variant="neutral"
+                    onOpenUrl={requestOpenLink}
+                  />
+                ) : (
+                  <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>(No channel about set.)</Text>
+                )}
+              </ScrollView>
+            )}
+
+            <View style={styles.summaryButtons}>
+              {channelAboutEdit ? (
+                <>
+                  <Pressable
+                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null, { marginRight: 'auto' }]}
+                    disabled={channelActionBusy}
+                    onPress={() => {
+                      setChannelAboutEdit(false);
+                    }}
+                  >
+                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Preview</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                    disabled={channelActionBusy}
+                    onPress={async () => {
+                      const next = String(channelAboutDraft || '').slice(0, 4000);
+                      await channelUpdate('setAbout', { aboutText: next });
+                      // Broadcast an "update" hint so others refresh promptly.
+                      try {
+                        const ws = wsRef.current;
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                          ws.send(
+                            JSON.stringify({
+                              action: 'system',
+                              conversationId: activeConversationId,
+                              systemKind: 'update',
+                              updateField: 'about',
+                              createdAt: Date.now(),
+                            })
+                          );
+                        }
+                      } catch {
+                        // ignore
+                      }
+                      // Refresh local draft from latest meta and mark as seen.
+                      try {
+                        await refreshChannelRosterRef.current?.();
+                        const cid = String(activeConversationId).slice('ch#'.length).trim();
+                        const v = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
+                        if (cid && v) void AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
+                      } catch {
+                        // ignore
+                      }
+                      setChannelAboutEdit(false);
+                    }}
+                  >
+                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+                    disabled={channelActionBusy}
+                    onPress={() => {
+                      setChannelAboutDraft(String(channelMeta?.aboutText || ''));
+                      setChannelAboutEdit(false);
+                      setChannelAboutOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Pressable
+                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+                    onPress={async () => {
+                      // Mark current version as seen on dismiss.
+                      try {
+                        const cid = String(activeConversationId).slice('ch#'.length).trim();
+                        const v = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
+                        if (cid && v) await AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
+                      } catch {
+                        // ignore
+                      }
+                      setChannelAboutEdit(false);
+                      setChannelAboutOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Got it</Text>
+                  </Pressable>
+                  {channelMeta?.meIsAdmin ? (
+                    <Pressable
+                      style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+                      onPress={() => {
+                        setChannelAboutEdit(true);
+                      }}
+                    >
+                      <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Edit</Text>
+                    </Pressable>
+                  ) : null}
+                </>
+              )}
             </View>
           </View>
         </View>
