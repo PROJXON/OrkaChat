@@ -80,7 +80,13 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const outputs = require('./amplify_outputs.json');
+  const outputs =
+    // Prefer a committed web/prod outputs file so Hosting doesn't accidentally create a new Cognito pool.
+    // Falls back to local/sandbox outputs for native/dev.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    (Platform.OS === 'web' ? require('./amplify_outputs.web.json') : null) ||
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('./amplify_outputs.json');
   Amplify.configure(outputs);
 } catch {
   // amplify_outputs.json not present yet; run `npx ampx sandbox` to generate it.

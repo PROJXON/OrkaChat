@@ -23,12 +23,18 @@ That should produce a static site in `frontend/dist/`.
 - Connect your git provider (GitHub/CodeCommit/etc.)
 - Choose the repository + branch
 - Set **App root** to `frontend` (monorepo)
-- Amplify will pick up the root `amplify.yml` build spec
+- Ensure Amplify is using the **repo build spec** from the root `amplify.yml` (not a server-stored build spec).
+  - In Amplify → **Hosting → Build settings**, choose the option to **use `amplify.yml` from the repository** (wording varies),
+    or download the build spec and replace it by committing `amplify.yml` to the repo root.
 
 ### 2a) Amplify Gen 2 backend outputs (important)
 
 This app loads `frontend/amplify_outputs.json` at runtime to configure Amplify Auth/Storage.
-In CI, the `amplify.yml` runs `npx ampx pipeline-deploy` to deploy/update the Gen 2 backend for the branch and generate the outputs file automatically.
+Important for Cognito:
+
+- If Amplify Hosting runs `npx ampx pipeline-deploy` using its own `$AWS_APP_ID/$AWS_BRANCH`, it can create a **new backend env** and thus a **new Cognito User Pool**.
+- If you want web to use the **same Cognito pool as mobile**, configure web to use a committed outputs file (this repo uses `frontend/amplify_outputs.web.json`)
+  and keep backend deploy disabled in Hosting builds.
 
 ### 3) Add SPA rewrite (important)
 
