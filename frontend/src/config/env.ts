@@ -18,7 +18,12 @@ let outputsCdnUrl = '';
 let outputsSignerApiUrl = '';
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const outputs = require('../../amplify_outputs.json');
+  const outputs =
+    // Prefer a committed web/prod outputs file so Hosting doesn't accidentally create a new Cognito pool.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    (typeof navigator !== 'undefined' ? require('../../amplify_outputs.web.json') : null) ||
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('../../amplify_outputs.json');
   outputsCdnUrl =
     typeof outputs?.custom?.cdnUrl === 'string'
       ? outputs.custom.cdnUrl

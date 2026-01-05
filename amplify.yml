@@ -6,13 +6,26 @@ applications:
         preBuild:
           commands:
             - npm ci
-            # Deploy/update the Amplify Gen 2 backend for this branch and generate amplify_outputs.json
-            # (Amplify Hosting sets AWS_APP_ID and AWS_BRANCH automatically).
+            # Optional:
+            # Deploy/update the Amplify Gen 2 backend during CI and generate amplify_outputs.json.
+            #
+            # IMPORTANT: If you let Hosting use AWS_APP_ID/AWS_BRANCH, it will create a NEW backend env
+            # (and thus a NEW Cognito User Pool) for this hosting app/branch.
+            #
+            # To keep web using an existing "shared" backend (same Cognito pool as mobile), either:
+            # - leave AMPLIFY_DEPLOY_BACKEND unset/false (web uses committed outputs), OR
+            # - set AMPLIFY_DEPLOY_BACKEND=true and set AMPX_APP_ID/AMPX_BRANCH to the backend you want.
             - |
-              if [ -n "${AWS_APP_ID:-}" ] && [ -n "${AWS_BRANCH:-}" ]; then
-                npx ampx pipeline-deploy --app-id "$AWS_APP_ID" --branch "$AWS_BRANCH"
+              if [ "${AMPLIFY_DEPLOY_BACKEND:-false}" = "true" ]; then
+                APP_ID="${AMPX_APP_ID:-${AWS_APP_ID:-}}"
+                BRANCH="${AMPX_BRANCH:-${AWS_BRANCH:-}}"
+                if [ -n "$APP_ID" ] && [ -n "$BRANCH" ]; then
+                  npx ampx pipeline-deploy --app-id "$APP_ID" --branch "$BRANCH"
+                else
+                  echo "Skipping backend deploy (missing APP_ID/BRANCH). Set AMPX_APP_ID and AMPX_BRANCH."
+                fi
               else
-                echo "Skipping backend deploy (AWS_APP_ID/AWS_BRANCH not set)"
+                echo "Skipping backend deploy (AMPLIFY_DEPLOY_BACKEND is false)"
               fi
         build:
           commands:

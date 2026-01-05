@@ -7174,58 +7174,121 @@ export default function ChatScreen({
             </View>
           ) : null}
 
+          {/*
+            Web note:
+            React Native's FlatList `inverted` behavior is implemented differently on web and can render
+            list content upside-down in some environments. We render a non-inverted list on web and
+            reverse the data, while keeping the same UX semantics (bottom = newest, top = older).
+          */}
           <FlatList
             style={styles.messageList}
-            data={visibleMessages}
+            data={Platform.OS === 'web' ? [...visibleMessages].reverse() : visibleMessages}
             keyExtractor={(m) => m.id}
-            inverted
+            inverted={Platform.OS !== 'web'}
             keyboardShouldPersistTaps="handled"
             ListHeaderComponent={
-              isGroup && groupMeta?.meStatus && groupMeta.meStatus !== 'active' ? (
-                <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                  <Text style={{ color: isDark ? '#a7a7b4' : '#666', fontStyle: 'italic', fontWeight: '700' }}>
-                    {groupMeta.meStatus === 'banned'
-                      ? 'You are banned from this chat'
-                      : groupMeta.meStatus === 'left'
-                        ? 'You left this chat'
-                        : 'This chat is read‑only'}
-                  </Text>
-                </View>
-              ) : null
+              // In the *inverted* (native) list, the header renders at the bottom near the composer.
+              // In the non-inverted (web) list, the footer renders at the bottom.
+              Platform.OS === 'web'
+                ? API_URL ? (
+                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                      {historyHasMore ? (
+                        <Pressable
+                          onPress={loadOlderHistory}
+                          disabled={historyLoading}
+                          style={{
+                            paddingHorizontal: 14,
+                            paddingVertical: 9,
+                            borderRadius: 999,
+                            backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
+                            opacity: historyLoading ? 0.6 : 1,
+                          }}
+                        >
+                          <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
+                            {historyLoading ? 'Loading older…' : 'Load older messages'}
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <Text style={{ color: isDark ? '#aaa' : '#666' }}>
+                          {visibleMessages.length === 0 ? 'Start the Conversation!' : 'No Older Messages'}
+                        </Text>
+                      )}
+                    </View>
+                  ) : null
+                : isGroup && groupMeta?.meStatus && groupMeta.meStatus !== 'active' ? (
+                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                      <Text style={{ color: isDark ? '#a7a7b4' : '#666', fontStyle: 'italic', fontWeight: '700' }}>
+                        {groupMeta.meStatus === 'banned'
+                          ? 'You are banned from this chat'
+                          : groupMeta.meStatus === 'left'
+                            ? 'You left this chat'
+                            : 'This chat is read‑only'}
+                      </Text>
+                    </View>
+                  ) : null
             }
-            onEndReached={() => {
-              if (!API_URL) return;
-              if (!historyHasMore) return;
-              loadOlderHistory();
-            }}
+            onEndReached={
+              Platform.OS === 'web'
+                ? undefined
+                : () => {
+                    if (!API_URL) return;
+                    if (!historyHasMore) return;
+                    loadOlderHistory();
+                  }
+            }
             onEndReachedThreshold={0.2}
             ListFooterComponent={
-              API_URL ? (
-                <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                  {historyHasMore ? (
-                    <Pressable
-                      onPress={loadOlderHistory}
-                      disabled={historyLoading}
-                      style={{
-                        paddingHorizontal: 14,
-                        paddingVertical: 9,
-                        borderRadius: 999,
-                        backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
-                        opacity: historyLoading ? 0.6 : 1,
-                      }}
-                    >
-                      <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
-                        {historyLoading ? 'Loading older…' : 'Load older messages'}
+              Platform.OS === 'web'
+                ? (isGroup && groupMeta?.meStatus && groupMeta.meStatus !== 'active' ? (
+                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                      <Text style={{ color: isDark ? '#a7a7b4' : '#666', fontStyle: 'italic', fontWeight: '700' }}>
+                        {groupMeta.meStatus === 'banned'
+                          ? 'You are banned from this chat'
+                          : groupMeta.meStatus === 'left'
+                            ? 'You left this chat'
+                            : 'This chat is read‑only'}
                       </Text>
-                    </Pressable>
-                  ) : (
-                    <Text style={{ color: isDark ? '#aaa' : '#666' }}>
-                      {visibleMessages.length === 0 ? 'Start the Conversation!' : 'No Older Messages'}
-                    </Text>
-                  )}
-                </View>
-              ) : null
+                    </View>
+                  ) : null)
+                : (API_URL ? (
+                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                      {historyHasMore ? (
+                        <Pressable
+                          onPress={loadOlderHistory}
+                          disabled={historyLoading}
+                          style={{
+                            paddingHorizontal: 14,
+                            paddingVertical: 9,
+                            borderRadius: 999,
+                            backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
+                            opacity: historyLoading ? 0.6 : 1,
+                          }}
+                        >
+                          <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
+                            {historyLoading ? 'Loading older…' : 'Load older messages'}
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <Text style={{ color: isDark ? '#aaa' : '#666' }}>
+                          {visibleMessages.length === 0 ? 'Start the Conversation!' : 'No Older Messages'}
+                        </Text>
+                      )}
+                    </View>
+                  ) : null)
             }
+            // For web (non-inverted), load older history when the user scrolls to the top.
+            onScroll={
+              Platform.OS === 'web'
+                ? (e: any) => {
+                    if (!API_URL) return;
+                    if (!historyHasMore) return;
+                    if (historyLoading) return;
+                    const y = Number(e?.nativeEvent?.contentOffset?.y ?? 0);
+                    if (y <= 40) loadOlderHistory();
+                  }
+                : undefined
+            }
+            scrollEventThrottle={Platform.OS === 'web' ? 16 : undefined}
             // Perf tuning (especially on Android):
             removeClippedSubviews={Platform.OS === 'android'}
             initialNumToRender={18}
