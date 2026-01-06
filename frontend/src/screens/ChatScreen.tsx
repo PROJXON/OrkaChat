@@ -524,11 +524,13 @@ function MediaStackCarousel({
   }, [loopEnabled, mediaList, n]);
 
   const scrollRef = React.useRef<ScrollView | null>(null);
+  const scrollXRef = React.useRef<number>(0);
   const [pageIdx, setPageIdx] = React.useState<number>(0); // 0..n-1
   const pageIdxRef = React.useRef<number>(0);
   React.useEffect(() => {
     pageIdxRef.current = pageIdx;
   }, [pageIdx]);
+  const [webHover, setWebHover] = React.useState<boolean>(false);
 
   // When media changes, reset to the first "real" page.
   React.useEffect(() => {
@@ -572,6 +574,7 @@ function MediaStackCarousel({
     (e: any) => {
       if (!loopEnabled) return;
       const x = Number(e?.nativeEvent?.contentOffset?.x ?? 0);
+      scrollXRef.current = x;
       const raw = Math.round(x / Math.max(1, width)); // 0..n+1
       const nextIdx =
         raw === 0 ? n - 1 : raw === n + 1 ? 0 : Math.max(0, Math.min(n - 1, raw - 1));
@@ -597,7 +600,15 @@ function MediaStackCarousel({
   if (!n) return null;
 
   return (
-    <View style={{ width }}>
+    <View
+      style={{ width, position: 'relative' }}
+      {...(Platform.OS === 'web'
+        ? {
+            onMouseEnter: () => setWebHover(true),
+            onMouseLeave: () => setWebHover(false),
+          }
+        : {})}
+    >
       {/* Stacked-card hint behind the top attachment */}
       {n > 1 ? (
         <>
@@ -624,6 +635,21 @@ function MediaStackCarousel({
         scrollEventThrottle={16}
         onScroll={handleScroll}
         onMomentumScrollEnd={handleMomentumEnd}
+        {...(Platform.OS === 'web'
+          ? {
+              // Web: map vertical wheel to horizontal paging so trackpad/mouse wheel "swipes" work naturally.
+              onWheel: (e: any) => {
+                const dx = Number(e?.nativeEvent?.deltaX ?? 0);
+                const dy = Number(e?.nativeEvent?.deltaY ?? 0);
+                if (Math.abs(dy) <= Math.abs(dx)) return;
+                try {
+                  scrollRef.current?.scrollTo({ x: Math.max(0, scrollXRef.current + dy), y: 0, animated: false });
+                } catch {
+                  // ignore
+                }
+              },
+            }
+          : {})}
       >
         {pages.map((m2, idx2) => {
           const looksImage = m2.kind === 'image' || (m2.kind === 'file' && (m2.contentType || '').startsWith('image/'));
@@ -689,6 +715,28 @@ function MediaStackCarousel({
           );
         })}
       </ScrollView>
+
+      {/* Web: explicit left/right controls for multi-attachment messages (show on hover like viewer chrome). */}
+      {Platform.OS === 'web' && n > 1 && webHover ? (
+        <>
+          <Pressable
+            style={[styles.mediaCarouselNavBtn, styles.mediaCarouselNavLeft]}
+            onPress={() => goTo((pageIdxRef.current - 1 + n) % n)}
+            accessibilityRole="button"
+            accessibilityLabel="Previous attachment"
+          >
+            <Text style={styles.mediaCarouselNavText}>‹</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.mediaCarouselNavBtn, styles.mediaCarouselNavRight]}
+            onPress={() => goTo((pageIdxRef.current + 1) % n)}
+            accessibilityRole="button"
+            accessibilityLabel="Next attachment"
+          >
+            <Text style={styles.mediaCarouselNavText}>›</Text>
+          </Pressable>
+        </>
+      ) : null}
 
       {/* Count badge overlay (always visible for multi) */}
       {n > 1 ? (
@@ -986,6 +1034,8 @@ export default function ChatScreen({
   const [messageActionTarget, setMessageActionTarget] = React.useState<ChatMessage | null>(null);
   const [messageActionAnchor, setMessageActionAnchor] = React.useState<{ x: number; y: number } | null>(null);
   const actionMenuAnim = React.useRef(new Animated.Value(0)).current;
+  const actionMenuMeasuredHRef = React.useRef<number>(0);
+  const [actionMenuMeasuredH, setActionMenuMeasuredH] = React.useState<number>(0);
   const [reportOpen, setReportOpen] = React.useState(false);
   const [reportKind, setReportKind] = React.useState<'message' | 'user'>('message');
   const [reportTargetMessage, setReportTargetMessage] = React.useState<ChatMessage | null>(null);
@@ -1145,11 +1195,16 @@ export default function ChatScreen({
   const helperScrollContentHRef = React.useRef<number>(0);
   const helperScrollContentRef = React.useRef<View | null>(null);
   const helperLastTurnRef = React.useRef<View | null>(null);
+  const helperLastTurnLayoutRef = React.useRef<{ y: number; h: number; ok: boolean }>({ y: 0, h: 0, ok: false });
   const helperAutoScrollRetryRef = React.useRef<{ timer: any; attempts: number }>({ timer: null, attempts: 0 });
   // Drives deterministic scroll behavior.
   // - 'thinking': always pin to bottom
   // - 'answer': bottom unless answer bubble is taller than viewport (then show top of bubble)
   const helperAutoScrollIntentRef = React.useRef<null | 'thinking' | 'answer'>(null);
+  // Web: content height can keep changing after we scroll (font/layout ticks). Keep auto-scroll "sticky"
+  // for a short window right after we programmatically scrolled.
+  const helperLastAutoScrollAtRef = React.useRef<number>(0);
+  const helperLastAutoScrollContentHRef = React.useRef<number>(0);
   const [isUploading, setIsUploading] = React.useState(false);
   type PendingMediaItem = {
     uri: string;
@@ -1201,6 +1256,7 @@ export default function ChatScreen({
         gdmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
       }
   >(null);
+  const viewerScrollRef = React.useRef<ScrollView | null>(null);
   const [dmThumbUriByPath, setDmThumbUriByPath] = React.useState<Record<string, string>>({});
   const [dmFileUriByPath, setDmFileUriByPath] = React.useState<Record<string, string>>({});
   const inFlightDmViewerDecryptRef = React.useRef<Set<string>>(new Set());
@@ -1208,6 +1264,7 @@ export default function ChatScreen({
   const [viewerChromeVisible, setViewerChromeVisible] = React.useState<boolean>(true);
   const viewerChromeHideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewerChromeOpacity = React.useRef(new Animated.Value(1)).current;
+  const viewerChromeLastPointerAtRef = React.useRef<number>(0);
   const [toast, setToast] = React.useState<null | { message: string; kind: 'success' | 'error' }>(null);
   const toastAnim = React.useRef(new Animated.Value(0)).current;
   const toastTimerRef = React.useRef<any>(null);
@@ -6653,6 +6710,18 @@ export default function ChatScreen({
 
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
+        // Friendly quota messaging (theme-appropriate modal via openInfo).
+        if (resp.status === 429) {
+          let msg = 'AI limit reached. Please try again later.';
+          try {
+            const j = JSON.parse(text || '{}');
+            if (j && typeof j.message === 'string' && j.message.trim()) msg = j.message.trim();
+          } catch {
+            // ignore
+          }
+          openInfo('AI limit reached', msg);
+          return;
+        }
         throw new Error(`AI helper failed (${resp.status}): ${text || 'no body'}`);
       }
       const data = await resp.json().catch(() => ({}));
@@ -6737,6 +6806,8 @@ export default function ChatScreen({
       const sv: any = helperScrollRef.current as any;
       if (sv?.scrollToEnd) {
         sv.scrollToEnd({ animated: true });
+        helperLastAutoScrollAtRef.current = Date.now();
+        helperLastAutoScrollContentHRef.current = Math.max(0, Math.floor(helperScrollContentHRef.current || 0));
         helperAutoScrollIntentRef.current = null;
         if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
         helperAutoScrollRetryRef.current.timer = null;
@@ -6749,6 +6820,8 @@ export default function ChatScreen({
         return;
       }
       helperScrollRef.current?.scrollTo({ y: endY, animated: true });
+      helperLastAutoScrollAtRef.current = Date.now();
+      helperLastAutoScrollContentHRef.current = Math.max(0, Math.floor(helperScrollContentHRef.current || 0));
       helperAutoScrollIntentRef.current = null;
       if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
       helperAutoScrollRetryRef.current.timer = null;
@@ -6762,9 +6835,29 @@ export default function ChatScreen({
       return;
     }
 
-    // Measure the last bubble relative to the ScrollView content container, then decide:
+    // Preferred: use last bubble onLayout measurements (works well on web).
+    // Decide:
     // - If it fits: scroll to end
     // - If it doesn't: scroll so the bubble's top is at the top of the viewport
+    const lastLayout = helperLastTurnLayoutRef.current;
+    if (intent === 'answer' && lastLayout?.ok) {
+      const bubbleTopY = Math.max(0, Math.floor(lastLayout.y));
+      const latestViewportH = Math.max(0, Math.floor(helperScrollViewportHRef.current || 0));
+      const latestContentH = Math.max(0, Math.floor(helperScrollContentHRef.current || 0));
+      const latestEndY = latestViewportH > 0 ? Math.max(0, latestContentH - latestViewportH) : 0;
+      const responseH = Math.max(0, Math.floor(latestContentH - bubbleTopY));
+      const targetY = responseH > latestViewportH ? bubbleTopY : latestEndY;
+      helperScrollRef.current?.scrollTo({ y: targetY, animated: true });
+      helperLastAutoScrollAtRef.current = Date.now();
+      helperLastAutoScrollContentHRef.current = latestContentH;
+      helperAutoScrollIntentRef.current = null;
+      if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
+      helperAutoScrollRetryRef.current.timer = null;
+      helperAutoScrollRetryRef.current.attempts = 0;
+      return;
+    }
+
+    // Fallback: measure with UIManager (more reliable on native than RN-web).
     const measureLastTurnAndScroll = () => {
       const contentNode: any = helperScrollContentRef.current as any;
       const lastNode: any = helperLastTurnRef.current as any;
@@ -6794,6 +6887,8 @@ export default function ChatScreen({
             const responseH = Math.max(0, Math.floor(latestContentH - bubbleTopY));
             const targetY = responseH > latestViewportH ? bubbleTopY : latestEndY;
             helperScrollRef.current?.scrollTo({ y: targetY, animated: true });
+            helperLastAutoScrollAtRef.current = Date.now();
+            helperLastAutoScrollContentHRef.current = latestContentH;
             helperAutoScrollIntentRef.current = null;
             if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
             helperAutoScrollRetryRef.current.timer = null;
@@ -6968,6 +7063,8 @@ export default function ChatScreen({
                         disabled={!myPrivateKey}
                         isDark={isDark}
                       />
+                    ) : Platform.OS === 'web' ? (
+                      <MiniToggle value={autoDecrypt} onValueChange={setAutoDecrypt} disabled={!myPrivateKey} isDark={isDark} />
                     ) : (
                       <Switch
                         value={autoDecrypt}
@@ -7031,6 +7128,22 @@ export default function ChatScreen({
                           isDark={isDark}
                           onValueChange={(v) => {
                             // If turning OFF, also suppress any queued receipts so they won't send later.
+                            if (!v) {
+                              const pending = Array.from(pendingReadCreatedAtSetRef.current || []);
+                              const maxPending = pending.length ? Math.max(...pending) : 0;
+                              if (Number.isFinite(maxPending) && maxPending > 0) {
+                                setReadReceiptSuppressUpTo((prev) => (maxPending > prev ? maxPending : prev));
+                              }
+                              pendingReadCreatedAtSetRef.current = new Set();
+                            }
+                            setSendReadReceipts(v);
+                          }}
+                        />
+                      ) : Platform.OS === 'web' ? (
+                        <MiniToggle
+                          value={sendReadReceipts}
+                          isDark={isDark}
+                          onValueChange={(v) => {
                             if (!v) {
                               const pending = Array.from(pendingReadCreatedAtSetRef.current || []);
                               const maxPending = pending.length ? Math.max(...pending) : 0;
@@ -7116,6 +7229,8 @@ export default function ChatScreen({
                               disabled={!myPrivateKey}
                               isDark={isDark}
                             />
+                          ) : Platform.OS === 'web' ? (
+                            <MiniToggle value={autoDecrypt} onValueChange={setAutoDecrypt} disabled={!myPrivateKey} isDark={isDark} />
                           ) : (
                             <Switch
                               value={autoDecrypt}
@@ -7703,10 +7818,14 @@ export default function ChatScreen({
                 }}
                 onLongPress={(e) => {
                   if (isDeleted) return;
-                  openMessageActions(item, {
-                    x: (e?.nativeEvent as any)?.pageX ?? 0,
-                    y: (e?.nativeEvent as any)?.pageY ?? 0,
-                  });
+                  const ne: any = (e as any)?.nativeEvent ?? {};
+                  // On web, `clientX/Y` tracks the visible viewport better than `pageX/Y`.
+                  // (Mobile browser toolbars + visual viewport can otherwise cause the menu to render flush/cut off.)
+                  const x =
+                    Platform.OS === 'web' ? (ne?.clientX ?? ne?.pageX ?? 0) : (ne?.pageX ?? 0);
+                  const y =
+                    Platform.OS === 'web' ? (ne?.clientY ?? ne?.pageY ?? 0) : (ne?.pageY ?? 0);
+                  openMessageActions(item, { x, y });
                 }}
               >
                 <View
@@ -8873,6 +8992,17 @@ export default function ChatScreen({
                 }}
                 onContentSizeChange={(_w, h) => {
                   helperScrollContentHRef.current = h;
+                  // RN-web can adjust content height after a programmatic scroll due to font/layout ticks.
+                  // If we just auto-scrolled, keep the intent alive briefly so we "follow" the newest AI output.
+                  const lastAt = helperLastAutoScrollAtRef.current || 0;
+                  const lastH = helperLastAutoScrollContentHRef.current || 0;
+                  if (!helperAutoScrollIntentRef.current && helperThread.length) {
+                    const ageMs = Date.now() - lastAt;
+                    if (ageMs >= 0 && ageMs < 700 && Math.abs(h - lastH) > 2) {
+                      helperAutoScrollRetryRef.current.attempts = 0;
+                      helperAutoScrollIntentRef.current = 'answer';
+                    }
+                  }
                   setTimeout(() => autoScrollAiHelper(), 0);
                 }}
               >
@@ -8900,6 +9030,11 @@ export default function ChatScreen({
                           }}
                           onLayout={(e) => {
                             if (idx !== lastAssistantIdx) return;
+                            helperLastTurnLayoutRef.current = {
+                              y: Number(e?.nativeEvent?.layout?.y ?? 0),
+                              h: Number(e?.nativeEvent?.layout?.height ?? 0),
+                              ok: true,
+                            };
                             // Ensure we re-run scroll logic after the newest assistant bubble lays out.
                             setTimeout(() => autoScrollAiHelper(), 0);
                           }}
@@ -9147,10 +9282,39 @@ export default function ChatScreen({
                   <Text style={[styles.reportTargetToggleLabel, isDark ? styles.reportTargetToggleLabelDark : null]}>
                     Message
                   </Text>
-                  <Switch
-                    value={reportKind === 'user'}
-                    disabled={reportSubmitting}
-                    onValueChange={(next) => {
+                  {Platform.OS === 'web' ? (
+                    <MiniToggle
+                      value={reportKind === 'user'}
+                      disabled={reportSubmitting}
+                      isDark={isDark}
+                      onValueChange={(next) => {
+                        if (next) {
+                          // Switch to reporting the user (hydrate from the message if needed)
+                          if (reportTargetUserSub) {
+                            setReportKind('user');
+                            return;
+                          }
+                          const sub = reportTargetMessage?.userSub ? String(reportTargetMessage.userSub) : '';
+                          if (sub) {
+                            setReportTargetUserSub(sub);
+                            setReportTargetUserLabel(String(reportTargetMessage?.user || '').trim());
+                            setReportKind('user');
+                            return;
+                          }
+                          setReportNotice({ type: 'error', message: 'Cannot report user: no user was found for this report.' });
+                          setReportKind('message');
+                          return;
+                        }
+
+                        // Switch back to reporting the message (if we have one)
+                        if (reportTargetMessage) setReportKind('message');
+                      }}
+                    />
+                  ) : (
+                    <Switch
+                      value={reportKind === 'user'}
+                      disabled={reportSubmitting}
+                      onValueChange={(next) => {
                       if (next) {
                         // Switch to reporting the user (hydrate from the message if needed)
                         if (reportTargetUserSub) {
@@ -9171,10 +9335,11 @@ export default function ChatScreen({
 
                       // Switch back to reporting the message (if we have one)
                       if (reportTargetMessage) setReportKind('message');
-                    }}
-                    trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                    thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                  />
+                      }}
+                      trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
+                      thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+                    />
+                  )}
                   <Text style={[styles.reportTargetToggleLabel, isDark ? styles.reportTargetToggleLabelDark : null]}>
                     User
                   </Text>
@@ -9222,20 +9387,134 @@ export default function ChatScreen({
                     <Text style={[styles.reportPreviewLabel, isDark ? styles.reportPreviewLabelDark : null]}>
                       Message Preview
                     </Text>
-                    <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
-                      {(() => {
-                        const t = reportTargetMessage;
-                        if (!t) return '(no message selected)';
-                        if (t.deletedAt) return '(deleted)';
-                        const text =
-                          (typeof t.decryptedText === 'string' && t.decryptedText.trim())
-                            ? t.decryptedText.trim()
-                            : (typeof t.text === 'string' && t.text.trim())
-                              ? t.text.trim()
-                              : '';
-                        return text ? text.slice(0, 200) : '(no text)';
-                      })()}
-                    </Text>
+                    {(() => {
+                      const t = reportTargetMessage;
+                      if (!t) {
+                        return <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>(no message selected)</Text>;
+                      }
+                      if (t.deletedAt) {
+                        return <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>(deleted)</Text>;
+                      }
+
+                      const rawText =
+                        (typeof t.decryptedText === 'string' && t.decryptedText.trim())
+                          ? t.decryptedText.trim()
+                          : (typeof t.text === 'string' && t.text.trim())
+                            ? t.text.trim()
+                            : '';
+
+                      // Global/channel media messages often store a JSON chat envelope in `text`.
+                      // If we render that raw string, the report preview becomes unreadable.
+                      const env = !t.encrypted && !t.groupEncrypted ? parseChatEnvelope(rawText) : null;
+                      const envMediaList = env ? normalizeChatMediaList(env.media) : [];
+                      const fallbackList = Array.isArray(t.mediaList) && t.mediaList.length ? t.mediaList : t.media ? [t.media] : [];
+                      const previewMediaList = (envMediaList.length ? envMediaList : fallbackList) as any[];
+                      const media = (previewMediaList.length ? previewMediaList[0] : null) as any;
+                      const mediaCount = previewMediaList.length;
+                      const mediaFileNames = (() => {
+                        const names = previewMediaList
+                          .map((m) => (m && typeof (m as any).fileName === 'string' ? String((m as any).fileName).trim() : ''))
+                          .filter(Boolean);
+                        // Keep order, de-dupe.
+                        const seen = new Set<string>();
+                        const uniq: string[] = [];
+                        for (const n of names) {
+                          if (seen.has(n)) continue;
+                          seen.add(n);
+                          uniq.push(n);
+                        }
+                        return uniq;
+                      })();
+                      const mediaFileNamesLines = (() => {
+                        if (!mediaFileNames.length) return '';
+                        const max = 4;
+                        const shown = mediaFileNames.slice(0, max);
+                        const extra = mediaFileNames.length - shown.length;
+                        return shown.join('\n') + (extra > 0 ? `\n+${extra} more` : '');
+                      })();
+
+                      const mediaLabel = (() => {
+                        const k = String(media?.kind || '').toLowerCase();
+                        if (k === 'image') return 'Photo';
+                        if (k === 'video') return 'Video';
+                        const ct = String(media?.contentType || '');
+                        if (ct.startsWith('image/')) return 'Photo';
+                        if (ct.startsWith('video/')) return 'Video';
+                        return 'Attachment';
+                      })();
+                      const mediaMetaLabel = mediaCount > 1 ? `${mediaLabel} · ${mediaCount} attachments` : mediaCount === 1 ? mediaLabel : '';
+
+                      const text = (() => {
+                        const msgText = env?.text && typeof env.text === 'string' ? env.text.trim() : '';
+                        if (msgText) return msgText;
+                        // Fall back to the raw text ONLY if it doesn't look like a chat envelope.
+                        if (rawText.startsWith('{') && rawText.includes('"type"') && rawText.includes('"chat"')) return '';
+                        return rawText;
+                      })();
+
+                      const thumbPath = media?.thumbPath || media?.path || '';
+                      const isEnc = typeof thumbPath === 'string' && thumbPath.includes('.enc');
+                      const thumbUrl = !isEnc && thumbPath ? toCdnUrl(thumbPath) : '';
+
+                      if (thumbUrl) {
+                        return (
+                          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                            <Image
+                              source={{ uri: thumbUrl }}
+                              style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: isDark ? '#1c1c22' : '#e9e9ee' }}
+                              resizeMode="cover"
+                            />
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              {mediaMetaLabel ? (
+                                <Text
+                                  style={[
+                                    styles.reportPreviewText,
+                                    isDark ? styles.reportPreviewTextDark : null,
+                                    { opacity: 0.75, marginBottom: 2 },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {mediaMetaLabel}
+                                </Text>
+                              ) : null}
+                              {text ? (
+                                <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]} numberOfLines={3}>
+                                  {text.slice(0, 200)}
+                                </Text>
+                              ) : null}
+                              {mediaFileNames.length ? (
+                                <Text
+                                  style={[
+                                    styles.reportPreviewText,
+                                    isDark ? styles.reportPreviewTextDark : null,
+                                    { opacity: 0.75, marginTop: 4 },
+                                  ]}
+                                  numberOfLines={4}
+                                >
+                                  {mediaFileNamesLines}
+                                </Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        );
+                      }
+
+                      if (media?.path) {
+                        const line1 = `${mediaMetaLabel || ''}${text ? `${mediaMetaLabel ? ': ' : ''}${text.slice(0, 200)}` : ''}${isEnc ? ' (encrypted attachment)' : ''}`.trim();
+                        return (
+                          <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
+                            {line1 || (isEnc ? '(encrypted attachment)' : '')}
+                            {mediaFileNamesLines ? `\n${mediaFileNamesLines}` : ''}
+                          </Text>
+                        );
+                      }
+
+                      return (
+                        <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
+                          {text ? text.slice(0, 200) : '(no text)'}
+                        </Text>
+                      );
+                    })()}
                   </View>
                 ) : (
                   <View style={[styles.reportPreviewBox, isDark ? styles.reportPreviewBoxDark : null]}>
@@ -9300,14 +9579,28 @@ export default function ChatScreen({
               styles.actionMenuCard,
               isDark ? styles.actionMenuCardDark : null,
               (() => {
-                const w = Dimensions.get('window').width;
-                const h = Dimensions.get('window').height;
+                const vv =
+                  Platform.OS === 'web' && typeof window !== 'undefined'
+                    ? (window as any).visualViewport
+                    : null;
+                // On web, prefer the *visual viewport* (handles mobile browser toolbars/URL bar correctly).
+                const w = (vv && typeof vv.width === 'number' ? vv.width : null) ?? Dimensions.get('window').width;
+                const h = (vv && typeof vv.height === 'number' ? vv.height : null) ?? Dimensions.get('window').height;
                 const cardW = Math.min(w - 36, 360);
                 const left = Math.max(18, (w - cardW) / 2);
                 const anchorY = messageActionAnchor?.y ?? h / 2;
+                const safeTop = Math.max(12, 12 + (insets.top || 0));
+                // Web often reports 0 bottom insets; keep a comfortable bottom margin anyway.
+                const safeBottom = Math.max(12, 12 + (insets.bottom || 0) + (Platform.OS === 'web' ? 16 : 0));
+                // Reposition-only (no scrolling): clamp the card so it stays fully visible.
+                // Use a best-effort measured height when available, otherwise fall back to a conservative estimate.
+                const cardH = Math.max(220, Math.floor(actionMenuMeasuredH || actionMenuMeasuredHRef.current || 360));
                 const desiredTop = anchorY - 160;
-                const top = Math.max(22, Math.min(h - 360, desiredTop));
-                return { position: 'absolute', width: cardW, left, top };
+                const minTop = safeTop;
+                const maxTop = Math.max(minTop, Math.floor(h - safeBottom - cardH));
+                const top = Math.max(minTop, Math.min(maxTop, desiredTop));
+                const maxH = Math.max(220, Math.floor(h - safeTop - safeBottom));
+                return { position: 'absolute', width: cardW, left, top, maxHeight: maxH };
               })(),
               {
                 opacity: actionMenuAnim,
@@ -9330,6 +9623,17 @@ export default function ChatScreen({
                 ],
               },
             ]}
+            onLayout={(e) => {
+              try {
+                const h = Number(e?.nativeEvent?.layout?.height ?? 0);
+                if (Number.isFinite(h) && h > 0) {
+                  actionMenuMeasuredHRef.current = h;
+                  setActionMenuMeasuredH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+                }
+              } catch {
+                // ignore
+              }
+            }}
           >
             {/* Message preview (Signal-style) */}
             {messageActionTarget ? (
@@ -9443,7 +9747,12 @@ export default function ChatScreen({
               </View>
             ) : null}
 
-            <View style={styles.actionMenuOptions}>
+            <ScrollView
+              style={styles.actionMenuOptionsScroll}
+              contentContainerStyle={styles.actionMenuOptionsContent}
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+            >
               {/* Reactions */}
               {messageActionTarget &&
               !messageActionTarget.deletedAt &&
@@ -9704,7 +10013,7 @@ export default function ChatScreen({
               >
                 <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Report…</Text>
               </Pressable>
-            </View>
+            </ScrollView>
           </Animated.View>
         </View>
       </Modal>
@@ -10673,7 +10982,19 @@ export default function ChatScreen({
         }}
       >
         <View style={styles.viewerOverlay}>
-          <View style={styles.viewerCard}>
+          <View
+            style={styles.viewerCard}
+            {...(Platform.OS === 'web'
+              ? {
+                  onMouseMove: () => {
+                    const now = Date.now();
+                    if (now - (viewerChromeLastPointerAtRef.current || 0) < 120) return;
+                    viewerChromeLastPointerAtRef.current = now;
+                    showViewerChromeBriefly();
+                  },
+                }
+              : {})}
+          >
             <Animated.View
               style={[
                 styles.viewerTopBar,
@@ -10751,6 +11072,7 @@ export default function ChatScreen({
 
                 return (
                   <ScrollView
+                    ref={viewerScrollRef}
                     horizontal
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
@@ -10837,6 +11159,61 @@ export default function ChatScreen({
                   </ScrollView>
                 );
               })()}
+
+              {/* Web: swipe/drag paging can be flaky; provide explicit nav controls for multi-media. */}
+              {Platform.OS === 'web' && viewerState ? (() => {
+                const vs = viewerState;
+                const count =
+                  vs.mode === 'global'
+                    ? (vs.globalItems?.length ?? 0)
+                    : vs.mode === 'dm'
+                      ? (vs.dmItems?.length ?? 0)
+                      : vs.mode === 'gdm'
+                        ? (vs.gdmItems?.length ?? 0)
+                        : 0;
+                if (count <= 1) return null;
+                const idx = vs.index || 0;
+                const go = (dir: -1 | 1) => {
+                  const next = (idx + dir + count) % count;
+                  setViewerState((prev) => (prev ? { ...prev, index: next } : prev));
+                  const w = Dimensions.get('window').width;
+                  // Give ScrollView a tick to render, then scroll.
+                  setTimeout(() => {
+                    (viewerScrollRef.current as any)?.scrollTo?.({ x: w * next, y: 0, animated: true });
+                  }, 0);
+                };
+                return (
+                  <Animated.View
+                    style={[
+                      // IMPORTANT: fill the viewer so absolute-positioned buttons hug the edges.
+                      // (Without this, their absolute positioning becomes relative to a small wrapper.)
+                      StyleSheet.absoluteFillObject,
+                      ...(Platform.OS === 'web'
+                        ? [{ pointerEvents: (viewerChromeVisible ? 'auto' : 'none') as 'auto' | 'none' }]
+                        : []),
+                      { opacity: viewerChromeOpacity, zIndex: 11 },
+                    ]}
+                    pointerEvents={Platform.OS === 'web' ? undefined : viewerChromeVisible ? 'auto' : 'none'}
+                  >
+                    <Pressable
+                      style={[styles.viewerNavBtn, styles.viewerNavLeft]}
+                      onPress={() => go(-1)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Previous attachment"
+                    >
+                      <Text style={styles.viewerNavText}>‹</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.viewerNavBtn, styles.viewerNavRight]}
+                      onPress={() => go(1)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Next attachment"
+                    >
+                      <Text style={styles.viewerNavText}>›</Text>
+                    </Pressable>
+                  </Animated.View>
+                );
+              })() : null}
             </View>
           </View>
         </View>
@@ -11423,6 +11800,23 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   mediaCountBadgeText: { color: '#fff', fontWeight: '900', fontSize: 12 },
+  mediaCarouselNavBtn: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    zIndex: 7,
+  },
+  mediaCarouselNavLeft: { left: 10 },
+  mediaCarouselNavRight: { right: 10 },
+  mediaCarouselNavText: { color: '#fff', fontWeight: '900', fontSize: 22, lineHeight: 22, marginTop: -1 },
   mediaDotsOverlay: {
     position: 'absolute',
     left: 0,
@@ -11867,6 +12261,12 @@ const styles = StyleSheet.create({
   actionMenuMediaCaption: { color: '#222', lineHeight: 18 },
   actionMenuMediaCaptionDark: { color: '#d7d7e0' },
   actionMenuOptions: { paddingVertical: 6 },
+  actionMenuOptionsScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  actionMenuOptionsContent: { paddingVertical: 6 },
   reactionInfoRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
   reactionInfoRemoveHint: { opacity: 0.75, fontSize: 12, fontWeight: '700', fontStyle: 'italic', marginLeft: 8 },
   reactionOverlay: {
@@ -12051,6 +12451,23 @@ const styles = StyleSheet.create({
   viewerCloseText: { color: '#fff', fontWeight: '700' },
   viewerBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   viewerTapArea: { flex: 1, width: '100%', height: '100%' },
+  viewerNavBtn: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    zIndex: 11,
+  },
+  viewerNavLeft: { left: 12 },
+  viewerNavRight: { right: 12 },
+  viewerNavText: { color: '#fff', fontWeight: '900', fontSize: 28, lineHeight: 28, marginTop: -2 },
   // RN-web deprecates `style.resizeMode`; use the Image prop instead.
   viewerImage: { width: '100%', height: '100%' },
   viewerVideo: { width: '100%', height: '100%' },
