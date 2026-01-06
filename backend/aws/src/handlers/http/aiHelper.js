@@ -164,6 +164,7 @@ exports.handler = async (event) => {
 
     const tableName = process.env.AI_HELPER_TABLE;
     const throttleSeconds = Number(process.env.HELPER_THROTTLE_SECONDS || 15);
+    const ttlDays = Number(process.env.AI_HELPER_TTL_DAYS || 7);
 
     // Keep context bounded. Client typically sends ~50.
     const transcript = messages
@@ -408,7 +409,8 @@ exports.handler = async (event) => {
 
               if (tableName) {
                 try {
-                  const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+                  const ttlSeconds = Number.isFinite(ttlDays) ? Math.max(0, Math.floor(ttlDays * 24 * 60 * 60)) : 0;
+                  const expiresAt = ttlSeconds > 0 ? Math.floor(Date.now() / 1000) + ttlSeconds : undefined;
 
                   await ddb.send(
                     new PutItemCommand({
@@ -418,7 +420,7 @@ exports.handler = async (event) => {
                         conversationId: { S: threadKey },
                         threadJson: { S: JSON.stringify(nextThread2) },
                         updatedAt: { S: new Date().toISOString() },
-                        expiresAt: { N: String(expiresAt) },
+                        ...(expiresAt ? { expiresAt: { N: String(expiresAt) } } : {}),
                       },
                     })
                   );
@@ -433,6 +435,7 @@ exports.handler = async (event) => {
                         resultJson: { S: responseBody2 },
                         updatedAt: { S: new Date().toISOString() },
                         lastRequestedAt: { N: String(Date.now()) },
+                        ...(expiresAt ? { expiresAt: { N: String(expiresAt) } } : {}),
                       },
                     })
                   );
@@ -509,7 +512,8 @@ exports.handler = async (event) => {
     if (tableName) {
       try {
         // Store helper thread state (best-effort). Keep it separate from the per-request cache key.
-        const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 days (TTL if enabled)
+        const ttlSeconds = Number.isFinite(ttlDays) ? Math.max(0, Math.floor(ttlDays * 24 * 60 * 60)) : 0;
+        const expiresAt = ttlSeconds > 0 ? Math.floor(Date.now() / 1000) + ttlSeconds : undefined;
 
         await ddb.send(
           new PutItemCommand({
@@ -519,7 +523,7 @@ exports.handler = async (event) => {
               conversationId: { S: threadKey },
               threadJson: { S: JSON.stringify(nextThread) },
               updatedAt: { S: new Date().toISOString() },
-              expiresAt: { N: String(expiresAt) },
+              ...(expiresAt ? { expiresAt: { N: String(expiresAt) } } : {}),
             },
           })
         );
@@ -535,6 +539,7 @@ exports.handler = async (event) => {
               resultJson: { S: responseBody },
               updatedAt: { S: new Date().toISOString() },
               lastRequestedAt: { N: String(Date.now()) },
+              ...(expiresAt ? { expiresAt: { N: String(expiresAt) } } : {}),
             },
           })
         );

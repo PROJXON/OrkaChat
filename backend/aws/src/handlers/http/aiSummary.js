@@ -35,6 +35,7 @@ exports.handler = async (event) => {
 
     const tableName = process.env.AI_SUMMARY_TABLE;
     const throttleSeconds = Number(process.env.SUMMARY_THROTTLE_SECONDS || 30);
+    const ttlDays = Number(process.env.AI_SUMMARY_TTL_DAYS || 7);
 
     const transcript = messages
       .slice(-80)
@@ -126,6 +127,8 @@ exports.handler = async (event) => {
     // Store/update cache (best-effort)
     if (tableName && convoId) {
       try {
+        const ttlSeconds = Number.isFinite(ttlDays) ? Math.max(0, Math.floor(ttlDays * 24 * 60 * 60)) : 0;
+        const expiresAt = ttlSeconds > 0 ? Math.floor(Date.now() / 1000) + ttlSeconds : undefined;
         await ddb.send(
           new PutItemCommand({
             TableName: tableName,
@@ -136,6 +139,7 @@ exports.handler = async (event) => {
               summary: { S: summary },
               updatedAt: { S: new Date().toISOString() },
               lastRequestedAt: { N: String(Date.now()) },
+              ...(expiresAt ? { expiresAt: { N: String(expiresAt) } } : {}),
             },
           })
         );
