@@ -621,7 +621,6 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         let resetRecoveryRequested = false;
         if (!keyPair) {
           const token = (await fetchAuthSession()).tokens?.idToken?.toString();
-          console.log('token', token);
           const recoveryResp = await fetch(`${API_URL.replace(/\/$/, '')}/users/recovery`, {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -3999,19 +3998,16 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
       </Modal>
         <Modal visible={!!uiPrompt} transparent animationType="fade">
           <View style={styles.modalOverlay}>
-            <View
-              style={[
-                styles.modalContent,
-                isDark ? styles.modalContentDark : null,
-              ]}
-            >
-              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
-                {uiPrompt?.title || ''}
-              </Text>
-              <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                {uiPrompt?.message || ''}
-              </Text>
-              {uiPrompt?.kind === 'choice3' ? (
+            {/* Prevent "empty modal + OK button" flash during fade-out when uiPrompt has been cleared. */}
+            {uiPrompt ? (
+              <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
+                <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+                  {uiPrompt.title || ''}
+                </Text>
+                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                  {uiPrompt.message || ''}
+                </Text>
+                {uiPrompt.kind === 'choice3' ? (
                 <View style={{ alignSelf: 'stretch', gap: 10 }}>
                   <Pressable
                     style={[
@@ -4024,9 +4020,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       isDark && uiPrompt?.primaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
                     ]}
                     onPress={() => {
-                      const resolve = uiPrompt?.resolve;
+                      const resolve = uiPrompt.resolve;
                       setUiPrompt(null);
-                      resolve?.('primary');
+                      resolve('primary');
                     }}
                   >
                     <Text
@@ -4037,7 +4033,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                         isDark ? styles.modalButtonTextDark : null,
                       ]}
                     >
-                      {uiPrompt?.primaryText}
+                      {uiPrompt.primaryText}
                     </Text>
                   </Pressable>
 
@@ -4052,9 +4048,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       isDark && uiPrompt?.secondaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
                     ]}
                     onPress={() => {
-                      const resolve = uiPrompt?.resolve;
+                      const resolve = uiPrompt.resolve;
                       setUiPrompt(null);
-                      resolve?.('secondary');
+                      resolve('secondary');
                     }}
                   >
                     <Text
@@ -4065,7 +4061,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                         isDark ? styles.modalButtonTextDark : null,
                       ]}
                     >
-                      {uiPrompt?.secondaryText}
+                      {uiPrompt.secondaryText}
                     </Text>
                   </Pressable>
 
@@ -4080,9 +4076,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       isDark && uiPrompt?.tertiaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
                     ]}
                     onPress={() => {
-                      const resolve = uiPrompt?.resolve;
+                      const resolve = uiPrompt.resolve;
                       setUiPrompt(null);
-                      resolve?.('tertiary');
+                      resolve('tertiary');
                     }}
                   >
                     <Text
@@ -4093,7 +4089,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                         isDark ? styles.modalButtonTextDark : null,
                       ]}
                     >
-                      {uiPrompt?.tertiaryText}
+                      {uiPrompt.tertiaryText}
                     </Text>
                   </Pressable>
                 </View>
@@ -4102,17 +4098,17 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                     <Pressable
                       style={[
                         styles.modalButton,
-                        uiPrompt?.kind === 'alert' ? styles.modalButtonPrimary : null,
-                        uiPrompt?.destructive ? styles.modalButtonDanger : null,
+                        uiPrompt.kind === 'alert' ? styles.modalButtonPrimary : null,
+                        uiPrompt.destructive ? styles.modalButtonDanger : null,
                         isDark ? styles.modalButtonDark : null,
-                        isDark && uiPrompt?.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
-                        isDark && uiPrompt?.destructive ? styles.modalButtonDangerDark : null,
+                        isDark && uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
+                        isDark && uiPrompt.destructive ? styles.modalButtonDangerDark : null,
                       ]}
                       onPress={() => {
-                        const resolve = uiPrompt?.resolve;
-                        const kind = uiPrompt?.kind;
+                        const resolve = uiPrompt.resolve;
+                        const kind = uiPrompt.kind;
                         setUiPrompt(null);
-                        resolve?.(kind === 'confirm' ? true : undefined);
+                        resolve(kind === 'confirm' ? true : undefined);
                       }}
                     >
                       <Text
@@ -4123,89 +4119,220 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                           isDark ? styles.modalButtonTextDark : null,
                         ]}
                       >
-                        {uiPrompt?.confirmText || 'OK'}
+                        {uiPrompt.confirmText || 'OK'}
                       </Text>
                     </Pressable>
-                    {uiPrompt?.kind === 'confirm' ? (
+                    {uiPrompt.kind === 'confirm' ? (
                       <Pressable
                         style={[styles.modalButton, isDark ? styles.modalButtonDark : null]}
                         onPress={() => {
-                          const resolve = uiPrompt?.resolve;
+                          const resolve = uiPrompt.resolve;
                           setUiPrompt(null);
-                          resolve?.(false);
+                          resolve(false);
                         }}
                       >
                         <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                          {uiPrompt?.cancelText || 'Cancel'}
+                          {uiPrompt.cancelText || 'Cancel'}
                         </Text>
                       </Pressable>
                     ) : null}
                 </View>
               )}
-            </View>
+              </View>
+            ) : null}
           </View>
         </Modal>
         <Modal visible={promptVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
-              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{promptLabel}</Text>
-              {passphrasePrompt?.mode === 'setup' ? (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                  Make sure you remember your passphrase for future device recovery - we do not
-                  store it.
-                </Text>
-              ) : passphrasePrompt?.mode === 'change' ? (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                  Choose a new passphrase you’ll remember - we do not store it
-                </Text>
-              ) : passphrasePrompt?.mode === 'reset' ? (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                  Set a new recovery passphrase for your account - we do not store it
-                </Text>
-              ) : null}
-              <View style={styles.passphraseFieldWrapper}>
-                <TextInput
-                  style={[
-                    styles.modalInput,
-                    styles.passphraseInput,
-                    isDark ? styles.modalInputDark : styles.modalInputLight,
-                    processing ? styles.modalInputDisabled : null,
-                    isDark && processing ? styles.modalInputDisabledDark : null,
-                  ]}
-                  secureTextEntry={!passphraseVisible}
-                  value={passphraseInput}
-                  onChangeText={(t) => {
-                    setPassphraseInput(t);
-                    if (passphraseError) setPassphraseError(null);
-                  }}
-                  placeholder="Passphrase"
-                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                  selectionColor={isDark ? '#ffffff' : '#111'}
-                  cursorColor={isDark ? '#ffffff' : '#111'}
-                  autoFocus
-                  editable={!processing}
-                />
-                <Pressable
-                  style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
-                  onPress={() => setPassphraseVisible((v) => !v)}
-                  disabled={processing}
-                  accessibilityRole="button"
-                  accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
-                >
-                  <Image
-                    source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
-                    tintColor={isDark ? '#8f8fa3' : '#777'}
-                    style={{
-                      width: 18,
-                      height: 18,
-                    }}
-                  />
-                </Pressable>
-              </View>
+            {Platform.OS === 'web' ? (
+              // Web: keep password inputs inside a <form> to satisfy browser heuristics.
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handlePromptSubmit();
+                }}
+                // Center the modal content within the overlay.
+                style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
+              >
+                <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
+                  <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{promptLabel}</Text>
+                  {passphrasePrompt?.mode === 'setup' ? (
+                    <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                      Make sure you remember your passphrase for future device recovery - we do not
+                      store it.
+                    </Text>
+                  ) : passphrasePrompt?.mode === 'change' ? (
+                    <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                      Choose a new passphrase you’ll remember - we do not store it
+                    </Text>
+                  ) : passphrasePrompt?.mode === 'reset' ? (
+                    <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                      Set a new recovery passphrase for your account - we do not store it
+                    </Text>
+                  ) : null}
+                  <View style={styles.passphraseFieldWrapper}>
+                    <TextInput
+                      style={[
+                        styles.modalInput,
+                        styles.passphraseInput,
+                        isDark ? styles.modalInputDark : styles.modalInputLight,
+                        processing ? styles.modalInputDisabled : null,
+                        isDark && processing ? styles.modalInputDisabledDark : null,
+                      ]}
+                      secureTextEntry={!passphraseVisible}
+                      value={passphraseInput}
+                      onChangeText={(t) => {
+                        setPassphraseInput(t);
+                        if (passphraseError) setPassphraseError(null);
+                      }}
+                      placeholder="Passphrase"
+                      placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                      selectionColor={isDark ? '#ffffff' : '#111'}
+                      cursorColor={isDark ? '#ffffff' : '#111'}
+                      autoFocus
+                      editable={!processing}
+                    />
+                    <Pressable
+                      style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
+                      onPress={() => setPassphraseVisible((v) => !v)}
+                      disabled={processing}
+                      accessibilityRole="button"
+                      accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
+                    >
+                      <Image
+                        source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
+                        tintColor={isDark ? '#8f8fa3' : '#777'}
+                        style={{
+                          width: 18,
+                          height: 18,
+                        }}
+                      />
+                    </Pressable>
+                  </View>
 
-              {passphrasePrompt?.mode === 'setup' ||
-              passphrasePrompt?.mode === 'change' ||
-              passphrasePrompt?.mode === 'reset' ? (
+                  {passphrasePrompt?.mode === 'setup' ||
+                  passphrasePrompt?.mode === 'change' ||
+                  passphrasePrompt?.mode === 'reset' ? (
+                    <View style={styles.passphraseFieldWrapper}>
+                      <TextInput
+                        style={[
+                          styles.modalInput,
+                          styles.passphraseInput,
+                          isDark ? styles.modalInputDark : styles.modalInputLight,
+                          processing ? styles.modalInputDisabled : null,
+                          isDark && processing ? styles.modalInputDisabledDark : null,
+                        ]}
+                        secureTextEntry={!passphraseVisible}
+                        value={passphraseConfirmInput}
+                        onChangeText={(t) => {
+                          setPassphraseConfirmInput(t);
+                          if (passphraseError) setPassphraseError(null);
+                        }}
+                        placeholder="Confirm Passphrase"
+                        placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                        selectionColor={isDark ? '#ffffff' : '#111'}
+                        cursorColor={isDark ? '#ffffff' : '#111'}
+                        editable={!processing}
+                      />
+                      <Pressable
+                        style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
+                        onPress={() => setPassphraseVisible((v) => !v)}
+                        disabled={processing}
+                        accessibilityRole="button"
+                        accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
+                      >
+                        <Image
+                          source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
+                          tintColor={isDark ? '#8f8fa3' : '#777'}
+                          style={{
+                            width: 18,
+                            height: 18,
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                  ) : null}
+
+                  {passphraseError ? (
+                    <Text style={[styles.passphraseErrorText, isDark ? styles.passphraseErrorTextDark : null]}>
+                      {passphraseError}
+                    </Text>
+                  ) : null}
+                  <View style={styles.modalButtons}>
+                    {/*
+                      Disable submit until user enters a passphrase (avoid accidental empty submits).
+                      Also avoids showing "Incorrect passphrase" alerts due to empty input.
+                    */}
+                    <Pressable
+                      style={[
+                        styles.modalButton,
+                        styles.modalButtonCta,
+                        isDark ? styles.modalButtonCtaDark : null,
+                        (processing ||
+                          !passphraseInput.trim() ||
+                          ((passphrasePrompt?.mode === 'setup' ||
+                            passphrasePrompt?.mode === 'change' ||
+                            passphrasePrompt?.mode === 'reset') &&
+                            !passphraseConfirmInput.trim())) && { opacity: 0.45 },
+                      ]}
+                      onPress={handlePromptSubmit}
+                      disabled={
+                        processing ||
+                        !passphraseInput.trim() ||
+                        ((passphrasePrompt?.mode === 'setup' ||
+                          passphrasePrompt?.mode === 'change' ||
+                          passphrasePrompt?.mode === 'reset') &&
+                          !passphraseConfirmInput.trim())
+                      }
+                      >
+                        {processing ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                            <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
+                              {passphrasePrompt?.mode === 'restore'
+                                ? 'Decrypting'
+                                : passphrasePrompt?.mode === 'change'
+                                  ? 'Updating backup'
+                                  : passphrasePrompt?.mode === 'reset'
+                                    ? 'Resetting recovery'
+                                    : 'Encrypting backup'}
+                            </Text>
+                            <AnimatedDots color="#fff" size={18} />
+                          </View>
+                        ) : (
+                          <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
+                            Submit
+                          </Text>
+                        )}
+                    </Pressable>
+                    <Pressable
+                      style={[styles.modalButton, isDark ? styles.modalButtonDark : null, processing && { opacity: 0.45 }]}
+                      onPress={() => void handlePromptCancel()}
+                      disabled={processing}
+                    >
+                      <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                        Cancel
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </form>
+            ) : (
+              <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
+                <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{promptLabel}</Text>
+                {passphrasePrompt?.mode === 'setup' ? (
+                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                    Make sure you remember your passphrase for future device recovery - we do not
+                    store it.
+                  </Text>
+                ) : passphrasePrompt?.mode === 'change' ? (
+                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                    Choose a new passphrase you’ll remember - we do not store it
+                  </Text>
+                ) : passphrasePrompt?.mode === 'reset' ? (
+                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                    Set a new recovery passphrase for your account - we do not store it
+                  </Text>
+                ) : null}
                 <View style={styles.passphraseFieldWrapper}>
                   <TextInput
                     style={[
@@ -4216,15 +4343,16 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       isDark && processing ? styles.modalInputDisabledDark : null,
                     ]}
                     secureTextEntry={!passphraseVisible}
-                    value={passphraseConfirmInput}
+                    value={passphraseInput}
                     onChangeText={(t) => {
-                      setPassphraseConfirmInput(t);
+                      setPassphraseInput(t);
                       if (passphraseError) setPassphraseError(null);
                     }}
-                    placeholder="Confirm Passphrase"
+                    placeholder="Passphrase"
                     placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
                     selectionColor={isDark ? '#ffffff' : '#111'}
                     cursorColor={isDark ? '#ffffff' : '#111'}
+                    autoFocus
                     editable={!processing}
                   />
                   <Pressable
@@ -4244,39 +4372,75 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                     />
                   </Pressable>
                 </View>
-              ) : null}
-
-              {passphraseError ? (
-                <Text style={[styles.passphraseErrorText, isDark ? styles.passphraseErrorTextDark : null]}>
-                  {passphraseError}
-                </Text>
-              ) : null}
-              <View style={styles.modalButtons}>
-                {/*
-                  Disable submit until user enters a passphrase (avoid accidental empty submits).
-                  Also avoids showing "Incorrect passphrase" alerts due to empty input.
-                */}
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    styles.modalButtonCta,
-                    isDark ? styles.modalButtonCtaDark : null,
-                    (processing ||
+                {passphrasePrompt?.mode === 'setup' ||
+                passphrasePrompt?.mode === 'change' ||
+                passphrasePrompt?.mode === 'reset' ? (
+                  <View style={styles.passphraseFieldWrapper}>
+                    <TextInput
+                      style={[
+                        styles.modalInput,
+                        styles.passphraseInput,
+                        isDark ? styles.modalInputDark : styles.modalInputLight,
+                        processing ? styles.modalInputDisabled : null,
+                        isDark && processing ? styles.modalInputDisabledDark : null,
+                      ]}
+                      secureTextEntry={!passphraseVisible}
+                      value={passphraseConfirmInput}
+                      onChangeText={(t) => {
+                        setPassphraseConfirmInput(t);
+                        if (passphraseError) setPassphraseError(null);
+                      }}
+                      placeholder="Confirm Passphrase"
+                      placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                      selectionColor={isDark ? '#ffffff' : '#111'}
+                      cursorColor={isDark ? '#ffffff' : '#111'}
+                      editable={!processing}
+                    />
+                    <Pressable
+                      style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
+                      onPress={() => setPassphraseVisible((v) => !v)}
+                      disabled={processing}
+                      accessibilityRole="button"
+                      accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
+                    >
+                      <Image
+                        source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
+                        tintColor={isDark ? '#8f8fa3' : '#777'}
+                        style={{
+                          width: 18,
+                          height: 18,
+                        }}
+                      />
+                    </Pressable>
+                  </View>
+                ) : null}
+                {passphraseError ? (
+                  <Text style={[styles.passphraseErrorText, isDark ? styles.passphraseErrorTextDark : null]}>
+                    {passphraseError}
+                  </Text>
+                ) : null}
+                <View style={styles.modalButtons}>
+                  <Pressable
+                    style={[
+                      styles.modalButton,
+                      styles.modalButtonCta,
+                      isDark ? styles.modalButtonCtaDark : null,
+                      (processing ||
+                        !passphraseInput.trim() ||
+                        ((passphrasePrompt?.mode === 'setup' ||
+                          passphrasePrompt?.mode === 'change' ||
+                          passphrasePrompt?.mode === 'reset') &&
+                          !passphraseConfirmInput.trim())) && { opacity: 0.45 },
+                    ]}
+                    onPress={handlePromptSubmit}
+                    disabled={
+                      processing ||
                       !passphraseInput.trim() ||
                       ((passphrasePrompt?.mode === 'setup' ||
                         passphrasePrompt?.mode === 'change' ||
                         passphrasePrompt?.mode === 'reset') &&
-                        !passphraseConfirmInput.trim())) && { opacity: 0.45 },
-                  ]}
-                  onPress={handlePromptSubmit}
-                  disabled={
-                    processing ||
-                    !passphraseInput.trim() ||
-                    ((passphrasePrompt?.mode === 'setup' ||
-                      passphrasePrompt?.mode === 'change' ||
-                      passphrasePrompt?.mode === 'reset') &&
-                      !passphraseConfirmInput.trim())
-                  }
+                        !passphraseConfirmInput.trim())
+                    }
                   >
                     {processing ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
@@ -4287,27 +4451,24 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                               ? 'Updating backup'
                               : passphrasePrompt?.mode === 'reset'
                                 ? 'Resetting recovery'
-                              : 'Encrypting backup'}
+                                : 'Encrypting backup'}
                         </Text>
                         <AnimatedDots color="#fff" size={18} />
                       </View>
                     ) : (
-                      <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
-                        Submit
-                      </Text>
+                      <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>Submit</Text>
                     )}
-                </Pressable>
-                <Pressable
-                  style={[styles.modalButton, isDark ? styles.modalButtonDark : null, processing && { opacity: 0.45 }]}
-                  onPress={() => void handlePromptCancel()}
-                  disabled={processing}
-                >
-                  <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                    Cancel
-                  </Text>
-                </Pressable>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalButton, isDark ? styles.modalButtonDark : null, processing && { opacity: 0.45 }]}
+                    onPress={() => void handlePromptCancel()}
+                    disabled={processing}
+                  >
+                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            )}
           </View>
         </Modal>
       <View style={{ flex: 1 }}>
@@ -5891,7 +6052,9 @@ const styles = StyleSheet.create({
   modalContent: {
     // Keep generic modals (alerts, recovery passphrase, etc.) reasonably sized on desktop web,
     // while preserving the refined native sizing.
-    ...(Platform.OS === 'web' ? ({ width: '92%', maxWidth: 520 } as const) : ({ width: '80%' } as const)),
+    ...(Platform.OS === 'web'
+      ? ({ width: '92%', maxWidth: 520, alignSelf: 'center' } as const)
+      : ({ width: '80%' } as const)),
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 12,
