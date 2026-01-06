@@ -80,27 +80,45 @@ const dmKeyGroup = dmPublicKey
     })
   : null;
 
+// ---- CORS for CDN-served media ----
+// The web app needs to fetch() encrypted blobs (e.g. *.webp.enc) to decrypt them client-side.
+// Without CORS headers on the CloudFront response, the browser blocks reading the bytes.
+const mediaCorsPolicy = new cloudfront.ResponseHeadersPolicy(cdnScope, 'MediaCdnCorsPolicy', {
+  comment: 'CORS for OrkaChat media CDN (encrypted media requires fetch+decrypt on web)',
+  corsBehavior: {
+    accessControlAllowCredentials: false,
+    accessControlAllowHeaders: ['*'],
+    accessControlAllowMethods: ['GET', 'HEAD', 'OPTIONS'],
+    // CORS is not a security boundary (DM uses signed URLs). Allow all origins to avoid env-specific drift.
+    accessControlAllowOrigins: ['*'],
+    originOverride: true,
+  },
+});
+
 const cdn = new cloudfront.Distribution(cdnScope, 'MediaCdn', {
   defaultBehavior: {
     origin: s3Origin,
     viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-    allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+    allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
     cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+    responseHeadersPolicy: mediaCorsPolicy,
   },
   additionalBehaviors: {
     // Public channel media (including thumbs)
     '/uploads/channels/*': {
       origin: s3Origin,
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+      allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
       cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+      responseHeadersPolicy: mediaCorsPolicy,
     },
     // Public avatars
     '/uploads/public/*': {
       origin: s3Origin,
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+      allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
       cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+      responseHeadersPolicy: mediaCorsPolicy,
     },
 
     ...(dmKeyGroup
@@ -109,9 +127,10 @@ const cdn = new cloudfront.Distribution(cdnScope, 'MediaCdn', {
           '/uploads/dm/*': {
             origin: s3Origin,
             viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-            allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
             cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
             trustedKeyGroups: [dmKeyGroup],
+            responseHeadersPolicy: mediaCorsPolicy,
           },
         }
       : {}),
