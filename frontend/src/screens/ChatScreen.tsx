@@ -96,13 +96,13 @@ function TypingIndicator({
           toValue: 1,
           duration: 260,
           easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(v, {
           toValue: 0,
           duration: 260,
           easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]);
 
@@ -699,7 +699,13 @@ function MediaStackCarousel({
 
       {/* Dots overlay (tap-able) */}
       {n > 1 ? (
-        <View style={styles.mediaDotsOverlay} pointerEvents="box-none">
+        <View
+          style={[
+            styles.mediaDotsOverlay,
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+          ]}
+          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+        >
           <View style={styles.mediaDotsRow}>
             {mediaList.map((_, i) => {
               const active = i === pageIdx;
@@ -822,6 +828,65 @@ export default function ChatScreen({
     () => messages.filter((m) => !(m.userSub && blockedSubsSet.has(String(m.userSub)))),
     [messages, blockedSubsSet]
   );
+  const messageListData = React.useMemo(
+    () => (Platform.OS === 'web' ? [...visibleMessages].reverse() : visibleMessages),
+    [visibleMessages]
+  );
+  // Web-only: since we render a non-inverted list (and reverse data), explicitly start at the bottom.
+  const messageListRef = React.useRef<any>(null);
+  const webDidInitialScrollRef = React.useRef<boolean>(false);
+  const webAtBottomRef = React.useRef<boolean>(true);
+  const [webListReady, setWebListReady] = React.useState<boolean>(Platform.OS !== 'web');
+  const webInitScrollTimerRef = React.useRef<any>(null);
+  const webInitScrollAttemptsRef = React.useRef<number>(0);
+  const webListViewportHRef = React.useRef<number>(0);
+  const webListContentHRef = React.useRef<number>(0);
+  const scrollWebListToBottom = React.useCallback((animated: boolean) => {
+    if (Platform.OS !== 'web') return;
+    const list: any = messageListRef.current;
+    const viewportH = Math.max(0, Math.floor(webListViewportHRef.current || 0));
+    const contentH = Math.max(0, Math.floor(webListContentHRef.current || 0));
+    const endY = viewportH > 0 ? Math.max(0, contentH - viewportH) : null;
+
+    // Prefer explicit offset (more reliable than scrollToEnd on RN-web when content height changes).
+    if (typeof endY === 'number' && Number.isFinite(endY) && list?.scrollToOffset) {
+      list.scrollToOffset({ offset: endY + 9999, animated: !!animated });
+      return;
+    }
+    if (list?.scrollToEnd) list.scrollToEnd({ animated: !!animated });
+  }, []);
+
+  const kickWebInitialScrollToEnd = React.useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    if (webInitScrollTimerRef.current) clearTimeout(webInitScrollTimerRef.current);
+    webInitScrollAttemptsRef.current = 0;
+    const step = () => {
+      scrollWebListToBottom(false);
+      webInitScrollAttemptsRef.current += 1;
+      // Give RN-web a few layout/virtualization ticks to settle before we reveal.
+      if (webInitScrollAttemptsRef.current < 10) {
+        webInitScrollTimerRef.current = setTimeout(step, 50);
+      } else {
+        setWebListReady(true);
+      }
+    };
+    step();
+  }, [scrollWebListToBottom]);
+
+  React.useEffect(() => {
+    return () => {
+      if (webInitScrollTimerRef.current) clearTimeout(webInitScrollTimerRef.current);
+    };
+  }, []);
+
+  // Web: when messages first appear, start at the bottom (newest).
+  React.useLayoutEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (webDidInitialScrollRef.current) return;
+    if (!visibleMessages.length) return;
+    webDidInitialScrollRef.current = true;
+    kickWebInitialScrollToEnd();
+  }, [visibleMessages.length, kickWebInitialScrollToEnd]);
   const AVATAR_SIZE = 44;
   const AVATAR_GAP = 8;
   const AVATAR_GUTTER = AVATAR_SIZE + AVATAR_GAP;
@@ -1660,7 +1725,7 @@ export default function ChatScreen({
     Animated.timing(viewerChromeOpacity, {
       toValue: viewerChromeVisible ? 1 : 0,
       duration: 160,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start();
   }, [viewerChromeVisible, viewerChromeOpacity]);
 
@@ -2823,9 +2888,9 @@ export default function ChatScreen({
       setToast({ message, kind });
       toastAnim.stopAnimation();
       toastAnim.setValue(0);
-      Animated.timing(toastAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+      Animated.timing(toastAnim, { toValue: 1, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start();
       toastTimerRef.current = setTimeout(() => {
-        Animated.timing(toastAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
+        Animated.timing(toastAnim, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start(() => {
           setToast(null);
         });
       }, 1800);
@@ -5761,7 +5826,7 @@ export default function ChatScreen({
       actionMenuAnim.setValue(0);
       Animated.spring(actionMenuAnim, {
         toValue: 1,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
         friction: 9,
         tension: 90,
       }).start();
@@ -7303,18 +7368,25 @@ export default function ChatScreen({
         </View>
         <View style={styles.chatBody}>
           <View
-            pointerEvents="none"
             style={[
               styles.chatBgBase,
+              ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
               resolvedChatBg.mode === 'default'
                 ? { backgroundColor: isDark ? '#0b0b0f' : '#fff' }
                 : resolvedChatBg.mode === 'color'
                   ? { backgroundColor: resolvedChatBg.color }
                   : null,
             ]}
+            pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
           />
           {resolvedChatBg.mode === 'image' ? (
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+              ]}
+              pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
+            >
               <Image
                 source={{ uri: resolvedChatBg.uri }}
                 style={[StyleSheet.absoluteFill, { opacity: resolvedChatBg.opacity ?? 1 }]}
@@ -7331,10 +7403,39 @@ export default function ChatScreen({
             reverse the data, while keeping the same UX semantics (bottom = newest, top = older).
           */}
           <FlatList
-            style={styles.messageList}
-            data={Platform.OS === 'web' ? [...visibleMessages].reverse() : visibleMessages}
+            style={[styles.messageList, Platform.OS === 'web' && !webListReady ? { opacity: 0 } : null]}
+            data={messageListData}
             keyExtractor={(m) => m.id}
             inverted={Platform.OS !== 'web'}
+            ref={(r) => {
+              messageListRef.current = r;
+            }}
+            onLayout={
+              Platform.OS === 'web'
+                ? (e: any) => {
+                    const h = Number(e?.nativeEvent?.layout?.height ?? 0);
+                    if (Number.isFinite(h) && h > 0) webListViewportHRef.current = h;
+                    if (!webListReady) kickWebInitialScrollToEnd();
+                  }
+                : undefined
+            }
+            onContentSizeChange={
+              Platform.OS === 'web'
+                ? (_w: number, h: number) => {
+                    const hh = Number(h ?? 0);
+                    if (Number.isFinite(hh) && hh > 0) webListContentHRef.current = hh;
+                    // If the user is already at bottom (or this is the first render), keep pinned to the bottom.
+                    if (!webDidInitialScrollRef.current || webAtBottomRef.current) {
+                      scrollWebListToBottom(false);
+                      webDidInitialScrollRef.current = true;
+                    }
+                    // While we haven't revealed yet, keep trying to pin to the bottom.
+                    if (!webListReady) {
+                      kickWebInitialScrollToEnd();
+                    }
+                  }
+                : undefined
+            }
             keyboardShouldPersistTaps="handled"
             ListHeaderComponent={
               // In the *inverted* (native) list, the header renders at the bottom near the composer.
@@ -7430,6 +7531,17 @@ export default function ChatScreen({
             onScroll={
               Platform.OS === 'web'
                 ? (e: any) => {
+                    // Track whether the user is near the bottom so we don't hijack scroll while reading older messages.
+                    try {
+                      const ne = e?.nativeEvent;
+                      const y = Number(ne?.contentOffset?.y ?? 0);
+                      const viewportH = Number(ne?.layoutMeasurement?.height ?? 0);
+                      const contentH = Number(ne?.contentSize?.height ?? 0);
+                      const distFromBottom = contentH - (y + viewportH);
+                      webAtBottomRef.current = Number.isFinite(distFromBottom) ? distFromBottom <= 80 : true;
+                    } catch {
+                      // ignore
+                    }
                     if (!API_URL) return;
                     if (!historyHasMore) return;
                     if (historyLoading) return;
@@ -7547,13 +7659,16 @@ export default function ChatScreen({
             (item.userSub && String(item.userSub)) ||
             (item.userLower && String(item.userLower)) ||
             normalizeUser(item.user ?? 'anon');
-          const next = visibleMessages[index + 1];
-          const nextSenderKey = next
-            ? (next.userSub && String(next.userSub)) ||
-              (next.userLower && String(next.userLower)) ||
-              normalizeUser(next.user ?? 'anon')
+          // IMPORTANT: `index` is relative to the FlatList `data` prop.
+          // On web we reverse the data (oldest-first), so the "older neighbor" is `index - 1`.
+          // On native we keep newest-first (inverted list), so the "older neighbor" is `index + 1`.
+          const olderNeighbor = Platform.OS === 'web' ? messageListData[index - 1] : messageListData[index + 1];
+          const olderSenderKey = olderNeighbor
+            ? (olderNeighbor.userSub && String(olderNeighbor.userSub)) ||
+              (olderNeighbor.userLower && String(olderNeighbor.userLower)) ||
+              normalizeUser(olderNeighbor.user ?? 'anon')
             : '';
-          const showAvatarForIncoming = !isOutgoing && (!next || nextSenderKey !== senderKey);
+          const showAvatarForIncoming = !isOutgoing && (!olderNeighbor || olderSenderKey !== senderKey);
           const prof = item.userSub ? avatarProfileBySub[String(item.userSub)] : undefined;
           const avatarImageUri =
             prof?.avatarImagePath ? avatarUrlByPath[String(prof.avatarImagePath)] : undefined;
@@ -7972,8 +8087,9 @@ export default function ChatScreen({
                           style={[
                             styles.reactionOverlay,
                             isOutgoing ? styles.reactionOverlayOutgoing : styles.reactionOverlayIncoming,
+                            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
                           ]}
-                          pointerEvents="box-none"
+                          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
                         >
                           {reactionEntriesVisible.slice(0, 3).map((r, idx) => {
                             const mine = myUserId ? r.userSubs.includes(myUserId) : false;
@@ -8335,8 +8451,9 @@ export default function ChatScreen({
                           style={[
                             styles.reactionOverlay,
                             isOutgoing ? styles.reactionOverlayOutgoing : styles.reactionOverlayIncoming,
+                            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
                           ]}
-                          pointerEvents="box-none"
+                          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
                         >
                           {reactionEntriesVisible.slice(0, 3).map((r, idx) => {
                             const mine = myUserId ? r.userSubs.includes(myUserId) : false;
@@ -10253,7 +10370,7 @@ export default function ChatScreen({
                     { marginBottom: 8 },
                   ]}
                 >
-                  Supports **bold**, *italics*, links, and ||spoilers||. Max 4000 chars.
+                  Supports **bold**, *italics*, and links. Max 4000 chars.
                 </Text>
                 <TextInput
                   value={channelAboutDraft}
@@ -10558,11 +10675,14 @@ export default function ChatScreen({
         <View style={styles.viewerOverlay}>
           <View style={styles.viewerCard}>
             <Animated.View
-              pointerEvents={viewerChromeVisible ? 'auto' : 'none'}
               style={[
                 styles.viewerTopBar,
+                ...(Platform.OS === 'web'
+                  ? [{ pointerEvents: (viewerChromeVisible ? 'auto' : 'none') as 'auto' | 'none' }]
+                  : []),
                 { height: 52 + insets.top, paddingTop: insets.top, opacity: viewerChromeOpacity },
               ]}
+              pointerEvents={Platform.OS === 'web' ? undefined : viewerChromeVisible ? 'auto' : 'none'}
             >
               {(() => {
                 const vs = viewerState;
@@ -10687,7 +10807,7 @@ export default function ChatScreen({
                             accessibilityRole="button"
                             accessibilityLabel="Toggle controls"
                           >
-                            <Image source={{ uri: url }} style={styles.viewerImage} />
+                          <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
                           </Pressable>
                         );
                       }
@@ -10724,9 +10844,9 @@ export default function ChatScreen({
 
       {toast ? (
         <Animated.View
-          pointerEvents="none"
           style={[
             styles.toastWrap,
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
             {
               bottom: Math.max(16, insets.bottom + 12),
               opacity: toastAnim,
@@ -10740,6 +10860,7 @@ export default function ChatScreen({
               ],
             },
           ]}
+          pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
         >
           <View
             style={[
@@ -10995,6 +11116,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'flex-start',
+    // On web, ensure the row measures full width so bubble maxWidth percentages behave as expected.
+    width: '100%',
   },
   messageRowIncoming: { justifyContent: 'flex-start' },
   messageRowOutgoing: { justifyContent: 'flex-end' },
@@ -11002,7 +11125,7 @@ const styles = StyleSheet.create({
   avatarSpacer: { opacity: 0 },
   messageBubble: {
     // Match guest screen behavior: allow bubbles to grow wider so long text wraps naturally.
-    maxWidth: '92%',
+    maxWidth: '96%',
     flexShrink: 1,
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -11033,7 +11156,8 @@ const styles = StyleSheet.create({
   },
   messageTextRow: { flexDirection: 'row', alignItems: 'flex-end' },
   messageTextRowOutgoing: { justifyContent: 'flex-end' },
-  messageTextFlex: { flexGrow: 1, flexShrink: 1 },
+  // minWidth:0 is important on web flexbox so long unbroken text (e.g. links) can shrink/wrap inside the bubble.
+  messageTextFlex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
   mentionText: { fontWeight: '900' },
   replySnippet: {
     marginTop: 6,
@@ -11241,9 +11365,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 42,
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.6)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 2px 6px rgba(0,0,0,0.6)' }
+      : { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }),
   },
   extraThumbRow: {
     flexDirection: 'row',
@@ -11275,9 +11399,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 4px rgba(0,0,0,0.7)' }
+      : { textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }),
   },
   extraThumbPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   extraThumbPlaceholderText: { fontSize: 12, fontWeight: '800', color: '#444' },
@@ -11593,8 +11717,10 @@ const styles = StyleSheet.create({
   reportBtnDangerText: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
   summaryModal: {
-    width: '88%',
-    maxHeight: '80%',
+    // On desktop web, constrain width/height so it feels like a modal (not a giant sheet).
+    ...(Platform.OS === 'web'
+      ? ({ width: '92%', maxWidth: 720, maxHeight: 640, alignSelf: 'center' } as const)
+      : ({ width: '88%', maxHeight: '80%' } as const)),
     minHeight: 0,
     // Modals should be white in light mode.
     backgroundColor: '#fff',
@@ -11606,7 +11732,12 @@ const styles = StyleSheet.create({
   summaryLoadingText: { color: '#555', fontWeight: '600' },
   // IMPORTANT: allow scroll areas inside modals to shrink on small screens
   // so footer buttons (Done/Close/Cancel) remain reachable.
-  summaryScroll: { flexGrow: 1, flexShrink: 1, minHeight: 0 },
+  summaryScroll: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+    ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
+  },
   summaryText: { color: '#222', lineHeight: 20 },
   summaryButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
   summaryModalDark: { backgroundColor: '#14141a' },
@@ -11622,6 +11753,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     backgroundColor: '#fafafa',
     color: '#111',
+    ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
   },
   helperInputFollowUp: {
     marginTop: 10,
@@ -11710,10 +11842,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 10px 18px rgba(0,0,0,0.22)' }
+      : { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }),
     elevation: 12,
   },
   actionMenuCardDark: { backgroundColor: '#14141a' },
@@ -11767,10 +11898,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f2f2f7',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e3e3e3',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 6px rgba(0,0,0,0.08)' }
+      : { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }),
     elevation: 2,
   },
   // Keep reaction chips consistent: no overlapping/stacking.
@@ -11780,7 +11910,7 @@ const styles = StyleSheet.create({
   reactionMiniChipDark: {
     backgroundColor: '#1c1c22',
     borderColor: '#2a2a33',
-    shadowOpacity: 0,
+    ...(Platform.OS === 'web' ? { boxShadow: 'none' } : { shadowOpacity: 0 }),
     elevation: 0,
   },
   reactionMiniChipMine: {
@@ -11921,7 +12051,8 @@ const styles = StyleSheet.create({
   viewerCloseText: { color: '#fff', fontWeight: '700' },
   viewerBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   viewerTapArea: { flex: 1, width: '100%', height: '100%' },
-  viewerImage: { width: '100%', height: '100%', resizeMode: 'contain' },
+  // RN-web deprecates `style.resizeMode`; use the Image prop instead.
+  viewerImage: { width: '100%', height: '100%' },
   viewerVideo: { width: '100%', height: '100%' },
   viewerFallback: { color: '#fff' },
 

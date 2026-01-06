@@ -359,6 +359,16 @@ export default function GuestGlobalScreen({
 
   const [messages, setMessages] = React.useState<GuestMessage[]>([]);
   const messagesRef = React.useRef<GuestMessage[]>([]);
+  // Web-only: since we render a non-inverted list (and reverse data), explicitly start at the bottom.
+  const messageListRef = React.useRef<any>(null);
+  const webDidInitialScrollRef = React.useRef<boolean>(false);
+  const webAtBottomRef = React.useRef<boolean>(true);
+  const webWheelRefreshLastMsRef = React.useRef<number>(0);
+  const [webListReady, setWebListReady] = React.useState<boolean>(Platform.OS !== 'web');
+  const webInitScrollTimerRef = React.useRef<any>(null);
+  const webInitScrollAttemptsRef = React.useRef<number>(0);
+  const webListViewportHRef = React.useRef<number>(0);
+  const webListContentHRef = React.useRef<number>(0);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [refreshing, setRefreshing] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -433,6 +443,58 @@ export default function GuestGlobalScreen({
   React.useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  const messageListData = React.useMemo(
+    () => (Platform.OS === 'web' ? [...messages].reverse() : messages),
+    [messages]
+  );
+
+  const scrollWebListToBottom = React.useCallback((animated: boolean) => {
+    if (Platform.OS !== 'web') return;
+    const list: any = messageListRef.current;
+    const viewportH = Math.max(0, Math.floor(webListViewportHRef.current || 0));
+    const contentH = Math.max(0, Math.floor(webListContentHRef.current || 0));
+    const endY = viewportH > 0 ? Math.max(0, contentH - viewportH) : null;
+
+    // Prefer explicit offset (more reliable than scrollToEnd on RN-web when content height changes).
+    if (typeof endY === 'number' && Number.isFinite(endY) && list?.scrollToOffset) {
+      list.scrollToOffset({ offset: endY + 9999, animated: !!animated });
+      return;
+    }
+    if (list?.scrollToEnd) list.scrollToEnd({ animated: !!animated });
+  }, []);
+
+  const kickWebInitialScrollToEnd = React.useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    if (webInitScrollTimerRef.current) clearTimeout(webInitScrollTimerRef.current);
+    webInitScrollAttemptsRef.current = 0;
+    const step = () => {
+      scrollWebListToBottom(false);
+      webInitScrollAttemptsRef.current += 1;
+      // Give RN-web a few layout/virtualization ticks to settle before we reveal.
+      if (webInitScrollAttemptsRef.current < 10) {
+        webInitScrollTimerRef.current = setTimeout(step, 50);
+      } else {
+        setWebListReady(true);
+      }
+    };
+    step();
+  }, [scrollWebListToBottom]);
+
+  React.useEffect(() => {
+    return () => {
+      if (webInitScrollTimerRef.current) clearTimeout(webInitScrollTimerRef.current);
+    };
+  }, []);
+
+  // Web: when messages first appear, start at the bottom (newest).
+  React.useLayoutEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (webDidInitialScrollRef.current) return;
+    if (!messages.length) return;
+    webDidInitialScrollRef.current = true;
+    kickWebInitialScrollToEnd();
+  }, [messages.length, kickWebInitialScrollToEnd]);
 
   const resolvePathUrl = React.useCallback(
     async (path: string): Promise<string | null> => {
@@ -870,12 +932,27 @@ export default function GuestGlobalScreen({
         headerRight={
           <View style={[styles.themeToggle, isDark && styles.themeToggleDark]}>
             <Feather name={isDark ? 'moon' : 'sun'} size={16} color={isDark ? '#fff' : '#111'} />
-            <Switch
-              value={isDark}
-              onValueChange={(v) => setTheme(v ? 'dark' : 'light')}
-              trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-              thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-            />
+            {Platform.OS === 'web' ? (
+              <Pressable
+                onPress={() => setTheme(isDark ? 'light' : 'dark')}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle theme"
+                style={({ pressed }) => [
+                  styles.webToggleTrack,
+                  isDark ? styles.webToggleTrackOn : null,
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
+              >
+                <View style={[styles.webToggleThumb, isDark ? styles.webToggleThumbOn : null]} />
+              </Pressable>
+            ) : (
+              <Switch
+                value={isDark}
+                onValueChange={(v) => setTheme(v ? 'dark' : 'light')}
+                trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
+                thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+              />
+            )}
           </View>
         }
         items={[
@@ -1205,80 +1282,150 @@ export default function GuestGlobalScreen({
         FlatList `inverted` can render upside-down on web in some environments.
         Keep native inverted behavior, but render non-inverted on web and reverse data.
       */}
-      <FlatList
+      <View
         style={{ flex: 1 }}
-        data={Platform.OS === 'web' ? [...messages].reverse() : messages}
-        keyExtractor={(m) => m.id}
-        inverted={Platform.OS !== 'web'}
-        keyboardShouldPersistTaps="handled"
-        onEndReached={
-          Platform.OS === 'web'
-            ? undefined
-            : () => {
-                if (!API_URL) return;
-                if (!historyHasMore) return;
-                if (historyLoading) return;
-                loadOlderHistory();
-              }
-        }
-        onEndReachedThreshold={0.2}
-        ListFooterComponent={
-          Platform.OS === 'web'
-            ? null
-            : (API_URL ? (
-                <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                  {historyHasMore ? (
-                    <Pressable
-                      onPress={loadOlderHistory}
-                      disabled={historyLoading}
-                      style={({ pressed }) => ({
-                        paddingHorizontal: 14,
-                        paddingVertical: 9,
-                        borderRadius: 999,
-                        backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
-                        opacity: historyLoading ? 0.6 : pressed ? 0.85 : 1,
-                      })}
-                    >
-                      <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
-                        {historyLoading ? 'Loading older…' : 'Load older messages'}
+        {...(Platform.OS === 'web'
+          ? ({
+              onWheel: (e: any) => {
+                try {
+                  if (!webAtBottomRef.current) return;
+                  const dy = Number(e?.deltaY ?? 0);
+                  if (!Number.isFinite(dy) || dy <= 0) return;
+                  if (refreshing) return;
+                  const now = Date.now();
+                  if (now - webWheelRefreshLastMsRef.current < 900) return;
+                  webWheelRefreshLastMsRef.current = now;
+                  fetchNow({ isManual: true });
+                } catch {
+                  // ignore
+                }
+              },
+            } as any)
+          : ({} as any))}
+      >
+        <FlatList
+          style={{ flex: 1, opacity: Platform.OS === 'web' && !webListReady ? 0 : 1 }}
+          data={messageListData}
+          keyExtractor={(m) => m.id}
+          inverted={Platform.OS !== 'web'}
+          ref={(r) => {
+            messageListRef.current = r;
+          }}
+          onLayout={
+            Platform.OS === 'web'
+              ? (e: any) => {
+                  const h = Number(e?.nativeEvent?.layout?.height ?? 0);
+                  if (Number.isFinite(h) && h > 0) webListViewportHRef.current = h;
+                  if (!webListReady) kickWebInitialScrollToEnd();
+                }
+              : undefined
+          }
+          onContentSizeChange={
+            Platform.OS === 'web'
+              ? (_w: number, h: number) => {
+                  const hh = Number(h ?? 0);
+                  if (Number.isFinite(hh) && hh > 0) webListContentHRef.current = hh;
+                  // If the user is already at bottom (or this is the first render), keep pinned to the bottom.
+                  if (!webDidInitialScrollRef.current || webAtBottomRef.current) {
+                    scrollWebListToBottom(false);
+                    webDidInitialScrollRef.current = true;
+                  }
+                  // While we haven't revealed yet, keep trying to pin to the bottom.
+                  if (!webListReady) {
+                    kickWebInitialScrollToEnd();
+                  }
+                }
+              : undefined
+          }
+          keyboardShouldPersistTaps="handled"
+          onEndReached={
+            Platform.OS === 'web'
+              ? undefined
+              : () => {
+                  if (!API_URL) return;
+                  if (!historyHasMore) return;
+                  if (historyLoading) return;
+                  loadOlderHistory();
+                }
+          }
+          onEndReachedThreshold={0.2}
+          ListFooterComponent={
+            Platform.OS === 'web'
+              ? null
+              : (API_URL ? (
+                  <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                    {historyHasMore ? (
+                      <Pressable
+                        onPress={loadOlderHistory}
+                        disabled={historyLoading}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: 14,
+                          paddingVertical: 9,
+                          borderRadius: 999,
+                          backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
+                          opacity: historyLoading ? 0.6 : pressed ? 0.85 : 1,
+                        })}
+                      >
+                        <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
+                          {historyLoading ? 'Loading older…' : 'Load older messages'}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={{ color: isDark ? '#aaa' : '#666' }}>
+                        {messages.length === 0 ? 'Sign in to Start the Conversation!' : 'No Older Messages'}
                       </Text>
-                    </Pressable>
-                  ) : (
-                    <Text style={{ color: isDark ? '#aaa' : '#666' }}>
-                      {messages.length === 0 ? 'Sign in to Start the Conversation!' : 'No Older Messages'}
-                    </Text>
-                  )}
-                </View>
-              ) : null)
-        }
-        contentContainerStyle={styles.listContent}
-        // For web (non-inverted), load older history when the user scrolls to the top.
-        onScroll={
-          Platform.OS === 'web'
-            ? (e: any) => {
-                if (!API_URL) return;
-                if (!historyHasMore) return;
-                if (historyLoading) return;
-                const y = Number(e?.nativeEvent?.contentOffset?.y ?? 0);
-                if (y <= 40) loadOlderHistory();
-              }
-            : undefined
-        }
-        scrollEventThrottle={Platform.OS === 'web' ? 16 : undefined}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => fetchNow({ isManual: true })}
-            tintColor={isDark ? '#ffffff' : '#111'}
-          />
-        }
-        renderItem={({ item, index }) => {
+                    )}
+                  </View>
+                ) : null)
+          }
+          contentContainerStyle={styles.listContent}
+          // For web (non-inverted), load older history when the user scrolls to the top.
+          onScroll={
+            Platform.OS === 'web'
+              ? (e: any) => {
+                  // Track whether the user is near the bottom so we don't hijack scroll while reading older messages.
+                  try {
+                    const ne = e?.nativeEvent;
+                    const y = Number(ne?.contentOffset?.y ?? 0);
+                    const viewportH = Number(ne?.layoutMeasurement?.height ?? 0);
+                    const contentH = Number(ne?.contentSize?.height ?? 0);
+                    const distFromBottom = contentH - (y + viewportH);
+                    webAtBottomRef.current = Number.isFinite(distFromBottom) ? distFromBottom <= 80 : true;
+                  } catch {
+                    // ignore
+                  }
+                  if (!API_URL) return;
+                  if (!historyHasMore) return;
+                  if (historyLoading) return;
+                  const y = Number(e?.nativeEvent?.contentOffset?.y ?? 0);
+                  if (y <= 40) loadOlderHistory();
+                }
+              : undefined
+          }
+          scrollEventThrottle={Platform.OS === 'web' ? 16 : undefined}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchNow({ isManual: true })}
+              tintColor={isDark ? '#ffffff' : '#111'}
+            />
+          }
+          renderItem={({ item, index }) => {
           const AVATAR_SIZE = 44;
           const AVATAR_GAP = 8;
-          const senderKey = (item.userSub && String(item.userSub)) || item.user;
-          const next = messages[index + 1];
-          const nextSenderKey = next ? ((next.userSub && String(next.userSub)) || next.user) : '';
-          const showAvatar = !next || nextSenderKey !== senderKey;
+          const normSender = (m?: GuestMessage | null) => {
+            if (!m) return '';
+            const sub = m.userSub ? String(m.userSub) : '';
+            if (sub) return `sub:${sub}`;
+            return `user:${String(m.user || '').trim().toLowerCase()}`;
+          };
+          const senderKey = normSender(item);
+          // IMPORTANT: `index` is relative to the FlatList `data` prop.
+          // On web we reverse the data (oldest-first), so the "older neighbor" is `index - 1`.
+          // On native we keep newest-first (inverted list), so the "older neighbor" is `index + 1`.
+          const olderNeighbor = Platform.OS === 'web' ? messageListData[index - 1] : messageListData[index + 1];
+          const olderSenderKey = normSender(olderNeighbor);
+          const showAvatar = !olderNeighbor || olderSenderKey !== senderKey;
           const AVATAR_GUTTER = showAvatar ? AVATAR_SIZE + AVATAR_GAP : 0;
           const prof = item.userSub ? avatarProfileBySub[String(item.userSub)] : undefined;
           const avatarImageUri = prof?.avatarImagePath ? urlByPath[String(prof.avatarImagePath)] : undefined;
@@ -1299,8 +1446,9 @@ export default function GuestGlobalScreen({
               showAvatar={showAvatar}
             />
           );
-        }}
-      />
+          }}
+        />
+      </View>
 
       {/* Bottom bar CTA (like the chat input row), so messages never render behind it */}
       <View
@@ -1427,7 +1575,7 @@ export default function GuestGlobalScreen({
             </View>
             <View style={styles.viewerBody}>
               {viewerMedia?.kind === 'image' && viewerMedia?.url ? (
-                <Image source={{ uri: viewerMedia.url }} style={styles.viewerImage} />
+                <Image source={{ uri: viewerMedia.url }} style={styles.viewerImage} resizeMode="contain" />
               ) : viewerMedia?.kind === 'video' && viewerMedia?.url ? (
                 <FullscreenVideo url={viewerMedia.url} />
               ) : (
@@ -1574,6 +1722,13 @@ function GuestMessageRow({
     return { w: Math.min(maxW, w2), h: maxH };
   })();
 
+  // Use a pixel max width for text bubbles too (more reliable than % on web, and accounts for avatar gutter).
+  const TEXT_BUBBLE_MAX_WIDTH_FRACTION = 0.96;
+  const textMaxW = Math.max(
+    220,
+    Math.floor((windowWidth - Math.max(0, avatarGutter)) * TEXT_BUBBLE_MAX_WIDTH_FRACTION)
+  );
+
   return (
     <View style={[styles.msgRow]}>
       {showAvatar ? (
@@ -1678,7 +1833,14 @@ function GuestMessageRow({
           </View>
 
           {reactionEntriesVisible.length ? (
-            <View style={styles.guestReactionOverlay} pointerEvents="box-none">
+            <View
+              style={[
+                styles.guestReactionOverlay,
+                // RN-web deprecates the pointerEvents prop; use style.pointerEvents on web.
+                ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+              ]}
+              pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+            >
               {reactionEntriesVisible.map(([emoji, info]) => (
                 <Pressable
                   key={`${item.id}:${emoji}`}
@@ -1699,8 +1861,8 @@ function GuestMessageRow({
           ) : null}
         </View>
       ) : (
-        <View style={styles.guestBubbleOuter}>
-          <View style={[styles.bubble, isDark && styles.bubbleDark]}>
+        <View style={[styles.guestBubbleOuter, { maxWidth: textMaxW }]}>
+          <View style={[styles.bubble, isDark && styles.bubbleDark, { maxWidth: textMaxW }]}>
             <Text style={[styles.guestMetaLine, isDark ? styles.guestMetaLineDark : null]}>{metaLine}</Text>
             {item.text?.trim() ? (
               <View style={styles.guestTextRow}>
@@ -1720,7 +1882,13 @@ function GuestMessageRow({
           </View>
 
           {reactionEntriesVisible.length ? (
-            <View style={styles.guestReactionOverlay} pointerEvents="box-none">
+            <View
+              style={[
+                styles.guestReactionOverlay,
+                ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+              ]}
+              pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+            >
               {reactionEntriesVisible.map(([emoji, info]) => (
                 <Pressable
                   key={`${item.id}:${emoji}`}
@@ -1792,6 +1960,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#14141a',
     borderColor: '#2a2a33',
   },
+  // Web-only: avoid browser default teal/blue accent that can bleed into the native Switch implementation.
+  webToggleTrack: {
+    width: 44,
+    height: 26,
+    borderRadius: 999,
+    padding: 2,
+    backgroundColor: '#d1d1d6',
+    justifyContent: 'center',
+  },
+  webToggleTrackOn: {
+    // Match mobile: keep the track light; the "on" state is indicated by thumb position.
+    backgroundColor: '#d1d1d6',
+  },
+  webToggleThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    transform: [{ translateX: 0 }],
+  },
+  webToggleThumbOn: {
+    backgroundColor: '#2a2a33',
+    transform: [{ translateX: 18 }],
+  },
   menuIconBtn: {
     width: 40,
     height: 40,
@@ -1848,12 +2040,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     alignItems: 'flex-start',
     flexDirection: 'row',
+    // Ensure rows take full width on web so bubble maxWidth percentages are measured correctly.
+    width: '100%',
   },
   avatarGutter: { marginRight: 8 },
   avatarSpacer: { opacity: 0 },
-  guestBubbleOuter: { alignSelf: 'flex-start', position: 'relative', overflow: 'visible', maxWidth: '92%' },
+  // Wrapper used for positioning the reaction overlay.
+  // Max width is set per-row (pixel) for reliability on web; keep this style flexible.
+  guestBubbleOuter: { alignSelf: 'flex-start', position: 'relative', overflow: 'visible', flexShrink: 1, minWidth: 0 },
   bubble: {
-    maxWidth: '92%',
+    // Slightly wider bubbles; also keep responsive on web.
+    maxWidth: '96%',
+    flexShrink: 1,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1886,8 +2084,11 @@ const styles = StyleSheet.create({
   },
   guestReactionText: { color: '#111', fontWeight: '800', fontSize: 12 },
   guestReactionTextDark: { color: '#fff' },
-  guestTextRow: { flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap' },
-  guestTextFlex: { flexShrink: 1 },
+  // Match ChatScreen: keep the main text container on a single row so the RichText can flex-grow
+  // and wrap based on the bubble width (especially important on web).
+  guestTextRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  // minWidth:0 is important on web flexbox so long unbroken text (e.g. links) can shrink/wrap inside the bubble.
+  guestTextFlex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
   guestEditedInline: {
     marginLeft: 6,
     fontSize: 12,
@@ -1915,7 +2116,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   guestMetaLineDark: {
-    color: '#b7b7c2',
+    color: '#fff',
   },
   timeText: {
     fontSize: 12,
@@ -1923,10 +2124,10 @@ const styles = StyleSheet.create({
     color: '#777',
   },
   timeTextDark: {
-    color: '#a7a7b4',
+    color: '#fff',
   },
   userTextDark: {
-    color: '#d7d7e0',
+    color: '#fff',
   },
   msgText: {
     fontSize: 15,
@@ -1993,9 +2194,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 42,
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.6)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 2px 6px rgba(0,0,0,0.6)' }
+      : { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }),
   },
   mediaFill: { width: '100%', height: '100%' },
   guestMediaFileChip: {
@@ -2116,7 +2317,8 @@ const styles = StyleSheet.create({
   viewerCloseBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.12)' },
   viewerCloseText: { color: '#fff', fontWeight: '800' },
   viewerBody: { flex: 1 },
-  viewerImage: { width: '100%', height: '100%', resizeMode: 'contain' },
+  // RN-web deprecates `style.resizeMode`; use the Image prop instead.
+  viewerImage: { width: '100%', height: '100%' },
   viewerVideo: { width: '100%', height: '100%' },
   viewerFallback: { color: '#fff', padding: 14 },
 });

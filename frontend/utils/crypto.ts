@@ -1,4 +1,6 @@
 import { secp256k1 } from '@noble/curves/secp256k1';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { getRandomBytes } from 'expo-crypto';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
@@ -45,7 +47,13 @@ export const generateKeypair = async (): Promise<KeyPair> => {
 export const storeKeyPair = async (userId: string, keypair: KeyPair) => {
   try {
     const keyData = JSON.stringify(keypair);
-    await SecureStore.setItemAsync(`crypto_keys_${userId}`, keyData);
+    const storageKey = `crypto_keys_${userId}`;
+    // SecureStore is not reliably supported on web. Use AsyncStorage (localStorage-backed) instead.
+    if (Platform.OS === 'web') {
+      await AsyncStorage.setItem(storageKey, keyData);
+    } else {
+      await SecureStore.setItemAsync(storageKey, keyData);
+    }
     console.log(`Keys stored for ${userId}`);
   } catch (error) {
     console.error('Error storing keys:', error);
@@ -55,7 +63,10 @@ export const storeKeyPair = async (userId: string, keypair: KeyPair) => {
 
 export const loadKeyPair = async(userId: string): Promise<KeyPair | null> => {
   try {
-    const keyData = await SecureStore.getItemAsync(`crypto_keys_${userId}`);
+    const storageKey = `crypto_keys_${userId}`;
+    // SecureStore is not reliably supported on web. Use AsyncStorage (localStorage-backed) instead.
+    const keyData =
+      Platform.OS === 'web' ? await AsyncStorage.getItem(storageKey) : await SecureStore.getItemAsync(storageKey);
     if (!keyData) return null;
     return JSON.parse(keyData);
   } catch (error) {

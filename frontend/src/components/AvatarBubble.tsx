@@ -85,6 +85,7 @@ export function AvatarBubble({
           onError={() => setImageFailed(true)}
           // Smooth out "pop-in" when avatar images resolve (Android supports this; iOS ignores).
           fadeDuration={150}
+          resizeMode="cover"
           style={[styles.image, { borderRadius: Math.floor(size / 2) }]}
         />
       ) : (
@@ -103,7 +104,6 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
   },
   text: {
     fontWeight: '900',

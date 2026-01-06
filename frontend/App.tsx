@@ -30,12 +30,12 @@ import {
   Authenticator,
   ThemeProvider,
   useAuthenticator,
-} from "@aws-amplify/ui-react-native";
+} from "@aws-amplify/ui-react-native/src";
 // IMPORTANT: use the React-Native entrypoint (`src/*`) so these primitives share the same ThemeContext
 // as our `ThemeProvider` and Authenticator defaults. Importing from `dist/*` creates a separate context,
 // causing mismatched colors/borders (especially in dark mode).
 import { icons } from '@aws-amplify/ui-react-native/src/assets';
-import { Button as AmplifyButton, IconButton, PhoneNumberField, TextField } from '@aws-amplify/ui-react-native/src/primitives';
+import { Button as AmplifyButton, PhoneNumberField, TextField } from '@aws-amplify/ui-react-native/src/primitives';
 import { authenticatorTextUtil, getErrors } from '@aws-amplify/ui';
 import {
   DefaultContent,
@@ -507,17 +507,10 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const checkRecoveryBlobExists = async (token: string): Promise<boolean | null> => {
     if (!API_URL) return null;
     const url = `${API_URL.replace(/\/$/, '')}/users/recovery`;
+    // Web/dev fix: many API Gateway deployments don't enable CORS for HEAD (preflight fails),
+    // so use GET which is already supported by our handlers.
     try {
-      // Prefer HEAD if supported (avoids downloading the blob). Some deployments don't support HEAD
-      // and may return 404/405 even when the resource exists, so only treat HEAD "ok" as authoritative.
-      const headResp = await fetch(url, { method: 'HEAD', headers: { Authorization: `Bearer ${token}` } });
-      if (headResp.ok) return true;
-      // fall through to GET for a definitive answer
-    } catch {
-      // ignore; fallback to GET below
-    }
-    try {
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const resp = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
       if (resp.ok) return true;
       if (resp.status === 404) {
         console.log('recovery blob exists check: 404');
@@ -621,7 +614,6 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         let resetRecoveryRequested = false;
         if (!keyPair) {
           const token = (await fetchAuthSession()).tokens?.idToken?.toString();
-          console.log('token', token);
           const recoveryResp = await fetch(`${API_URL.replace(/\/$/, '')}/users/recovery`, {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -2316,7 +2308,10 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     void fetchUnreads();
   }, [user, fetchUnreads]);
 
-  const promptVisible = !!passphrasePrompt;
+  // Avoid stacking multiple React Native `Modal`s at once on web:
+  // when we show a confirm/choice prompt (uiPrompt), hide the passphrase modal so
+  // the confirm/choice isn't rendered "behind" it.
+  const promptVisible = !!passphrasePrompt && !uiPrompt;
   const promptLabel =
     passphrasePrompt?.mode === 'restore'
       ? 'Enter your Recovery Passphrase'
@@ -2500,12 +2495,27 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         headerRight={
           <View style={[styles.themeToggle, isDark && styles.themeToggleDark]}>
             <Feather name={isDark ? 'moon' : 'sun'} size={16} color={isDark ? '#fff' : '#111'} />
-            <Switch
-              value={isDark}
-              onValueChange={(v) => setTheme(v ? 'dark' : 'light')}
-              trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-              thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-            />
+            {Platform.OS === 'web' ? (
+              <Pressable
+                onPress={() => setTheme(isDark ? 'light' : 'dark')}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle theme"
+                style={({ pressed }) => [
+                  styles.webToggleTrack,
+                  isDark ? styles.webToggleTrackOn : null,
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
+              >
+                <View style={[styles.webToggleThumb, isDark ? styles.webToggleThumbOn : null]} />
+              </Pressable>
+            ) : (
+              <Switch
+                value={isDark}
+                onValueChange={(v) => setTheme(v ? 'dark' : 'light')}
+                trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
+                thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+              />
+            )}
           </View>
         }
         items={[
@@ -3981,19 +3991,16 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
       </Modal>
         <Modal visible={!!uiPrompt} transparent animationType="fade">
           <View style={styles.modalOverlay}>
-            <View
-              style={[
-                styles.modalContent,
-                isDark ? styles.modalContentDark : null,
-              ]}
-            >
-              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
-                {uiPrompt?.title || ''}
-              </Text>
-              <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                {uiPrompt?.message || ''}
-              </Text>
-              {uiPrompt?.kind === 'choice3' ? (
+            {/* Prevent "empty modal + OK button" flash during fade-out when uiPrompt has been cleared. */}
+            {uiPrompt ? (
+              <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
+                <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+                  {uiPrompt.title || ''}
+                </Text>
+                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                  {uiPrompt.message || ''}
+                </Text>
+                {uiPrompt.kind === 'choice3' ? (
                 <View style={{ alignSelf: 'stretch', gap: 10 }}>
                   <Pressable
                     style={[
@@ -4006,9 +4013,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       isDark && uiPrompt?.primaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
                     ]}
                     onPress={() => {
-                      const resolve = uiPrompt?.resolve;
+                      const resolve = uiPrompt.resolve;
                       setUiPrompt(null);
-                      resolve?.('primary');
+                      resolve('primary');
                     }}
                   >
                     <Text
@@ -4019,7 +4026,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                         isDark ? styles.modalButtonTextDark : null,
                       ]}
                     >
-                      {uiPrompt?.primaryText}
+                      {uiPrompt.primaryText}
                     </Text>
                   </Pressable>
 
@@ -4034,9 +4041,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       isDark && uiPrompt?.secondaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
                     ]}
                     onPress={() => {
-                      const resolve = uiPrompt?.resolve;
+                      const resolve = uiPrompt.resolve;
                       setUiPrompt(null);
-                      resolve?.('secondary');
+                      resolve('secondary');
                     }}
                   >
                     <Text
@@ -4047,7 +4054,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                         isDark ? styles.modalButtonTextDark : null,
                       ]}
                     >
-                      {uiPrompt?.secondaryText}
+                      {uiPrompt.secondaryText}
                     </Text>
                   </Pressable>
 
@@ -4062,9 +4069,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       isDark && uiPrompt?.tertiaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
                     ]}
                     onPress={() => {
-                      const resolve = uiPrompt?.resolve;
+                      const resolve = uiPrompt.resolve;
                       setUiPrompt(null);
-                      resolve?.('tertiary');
+                      resolve('tertiary');
                     }}
                   >
                     <Text
@@ -4075,7 +4082,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                         isDark ? styles.modalButtonTextDark : null,
                       ]}
                     >
-                      {uiPrompt?.tertiaryText}
+                      {uiPrompt.tertiaryText}
                     </Text>
                   </Pressable>
                 </View>
@@ -4084,17 +4091,17 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                     <Pressable
                       style={[
                         styles.modalButton,
-                        uiPrompt?.kind === 'alert' ? styles.modalButtonPrimary : null,
-                        uiPrompt?.destructive ? styles.modalButtonDanger : null,
+                        uiPrompt.kind === 'alert' ? styles.modalButtonPrimary : null,
+                        uiPrompt.destructive ? styles.modalButtonDanger : null,
                         isDark ? styles.modalButtonDark : null,
-                        isDark && uiPrompt?.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
-                        isDark && uiPrompt?.destructive ? styles.modalButtonDangerDark : null,
+                        isDark && uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
+                        isDark && uiPrompt.destructive ? styles.modalButtonDangerDark : null,
                       ]}
                       onPress={() => {
-                        const resolve = uiPrompt?.resolve;
-                        const kind = uiPrompt?.kind;
+                        const resolve = uiPrompt.resolve;
+                        const kind = uiPrompt.kind;
                         setUiPrompt(null);
-                        resolve?.(kind === 'confirm' ? true : undefined);
+                        resolve(kind === 'confirm' ? true : undefined);
                       }}
                     >
                       <Text
@@ -4105,89 +4112,220 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                           isDark ? styles.modalButtonTextDark : null,
                         ]}
                       >
-                        {uiPrompt?.confirmText || 'OK'}
+                        {uiPrompt.confirmText || 'OK'}
                       </Text>
                     </Pressable>
-                    {uiPrompt?.kind === 'confirm' ? (
+                    {uiPrompt.kind === 'confirm' ? (
                       <Pressable
                         style={[styles.modalButton, isDark ? styles.modalButtonDark : null]}
                         onPress={() => {
-                          const resolve = uiPrompt?.resolve;
+                          const resolve = uiPrompt.resolve;
                           setUiPrompt(null);
-                          resolve?.(false);
+                          resolve(false);
                         }}
                       >
                         <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                          {uiPrompt?.cancelText || 'Cancel'}
+                          {uiPrompt.cancelText || 'Cancel'}
                         </Text>
                       </Pressable>
                     ) : null}
                 </View>
               )}
-            </View>
+              </View>
+            ) : null}
           </View>
         </Modal>
         <Modal visible={promptVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
-              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{promptLabel}</Text>
-              {passphrasePrompt?.mode === 'setup' ? (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                  Make sure you remember your passphrase for future device recovery - we do not
-                  store it.
-                </Text>
-              ) : passphrasePrompt?.mode === 'change' ? (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                  Choose a new passphrase you’ll remember - we do not store it
-                </Text>
-              ) : passphrasePrompt?.mode === 'reset' ? (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                  Set a new recovery passphrase for your account - we do not store it
-                </Text>
-              ) : null}
-              <View style={styles.passphraseFieldWrapper}>
-                <TextInput
-                  style={[
-                    styles.modalInput,
-                    styles.passphraseInput,
-                    isDark ? styles.modalInputDark : styles.modalInputLight,
-                    processing ? styles.modalInputDisabled : null,
-                    isDark && processing ? styles.modalInputDisabledDark : null,
-                  ]}
-                  secureTextEntry={!passphraseVisible}
-                  value={passphraseInput}
-                  onChangeText={(t) => {
-                    setPassphraseInput(t);
-                    if (passphraseError) setPassphraseError(null);
-                  }}
-                  placeholder="Passphrase"
-                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                  selectionColor={isDark ? '#ffffff' : '#111'}
-                  cursorColor={isDark ? '#ffffff' : '#111'}
-                  autoFocus
-                  editable={!processing}
-                />
-                <Pressable
-                  style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
-                  onPress={() => setPassphraseVisible((v) => !v)}
-                  disabled={processing}
-                  accessibilityRole="button"
-                  accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
-                >
-                  <Image
-                    source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
-                    style={{
-                      width: 18,
-                      height: 18,
-                      tintColor: isDark ? '#8f8fa3' : '#777',
-                    }}
-                  />
-                </Pressable>
-              </View>
+            {Platform.OS === 'web' ? (
+              // Web: keep password inputs inside a <form> to satisfy browser heuristics.
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handlePromptSubmit();
+                }}
+                // Center the modal content within the overlay.
+                style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
+              >
+                <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
+                  <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{promptLabel}</Text>
+                  {passphrasePrompt?.mode === 'setup' ? (
+                    <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                      Make sure you remember your passphrase for future device recovery - we do not
+                      store it.
+                    </Text>
+                  ) : passphrasePrompt?.mode === 'change' ? (
+                    <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                      Choose a new passphrase you’ll remember - we do not store it
+                    </Text>
+                  ) : passphrasePrompt?.mode === 'reset' ? (
+                    <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                      Set a new recovery passphrase for your account - we do not store it
+                    </Text>
+                  ) : null}
+                  <View style={styles.passphraseFieldWrapper}>
+                    <TextInput
+                      style={[
+                        styles.modalInput,
+                        styles.passphraseInput,
+                        isDark ? styles.modalInputDark : styles.modalInputLight,
+                        processing ? styles.modalInputDisabled : null,
+                        isDark && processing ? styles.modalInputDisabledDark : null,
+                      ]}
+                      secureTextEntry={!passphraseVisible}
+                      value={passphraseInput}
+                      onChangeText={(t) => {
+                        setPassphraseInput(t);
+                        if (passphraseError) setPassphraseError(null);
+                      }}
+                      placeholder="Passphrase"
+                      placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                      selectionColor={isDark ? '#ffffff' : '#111'}
+                      cursorColor={isDark ? '#ffffff' : '#111'}
+                      autoFocus
+                      editable={!processing}
+                    />
+                    <Pressable
+                      style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
+                      onPress={() => setPassphraseVisible((v) => !v)}
+                      disabled={processing}
+                      accessibilityRole="button"
+                      accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
+                    >
+                      <Image
+                        source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
+                        tintColor={isDark ? '#8f8fa3' : '#777'}
+                        style={{
+                          width: 18,
+                          height: 18,
+                        }}
+                      />
+                    </Pressable>
+                  </View>
 
-              {passphrasePrompt?.mode === 'setup' ||
-              passphrasePrompt?.mode === 'change' ||
-              passphrasePrompt?.mode === 'reset' ? (
+                  {passphrasePrompt?.mode === 'setup' ||
+                  passphrasePrompt?.mode === 'change' ||
+                  passphrasePrompt?.mode === 'reset' ? (
+                    <View style={styles.passphraseFieldWrapper}>
+                      <TextInput
+                        style={[
+                          styles.modalInput,
+                          styles.passphraseInput,
+                          isDark ? styles.modalInputDark : styles.modalInputLight,
+                          processing ? styles.modalInputDisabled : null,
+                          isDark && processing ? styles.modalInputDisabledDark : null,
+                        ]}
+                        secureTextEntry={!passphraseVisible}
+                        value={passphraseConfirmInput}
+                        onChangeText={(t) => {
+                          setPassphraseConfirmInput(t);
+                          if (passphraseError) setPassphraseError(null);
+                        }}
+                        placeholder="Confirm Passphrase"
+                        placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                        selectionColor={isDark ? '#ffffff' : '#111'}
+                        cursorColor={isDark ? '#ffffff' : '#111'}
+                        editable={!processing}
+                      />
+                      <Pressable
+                        style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
+                        onPress={() => setPassphraseVisible((v) => !v)}
+                        disabled={processing}
+                        accessibilityRole="button"
+                        accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
+                      >
+                        <Image
+                          source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
+                          tintColor={isDark ? '#8f8fa3' : '#777'}
+                          style={{
+                            width: 18,
+                            height: 18,
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                  ) : null}
+
+                  {passphraseError ? (
+                    <Text style={[styles.passphraseErrorText, isDark ? styles.passphraseErrorTextDark : null]}>
+                      {passphraseError}
+                    </Text>
+                  ) : null}
+                  <View style={styles.modalButtons}>
+                    {/*
+                      Disable submit until user enters a passphrase (avoid accidental empty submits).
+                      Also avoids showing "Incorrect passphrase" alerts due to empty input.
+                    */}
+                    <Pressable
+                      style={[
+                        styles.modalButton,
+                        styles.modalButtonCta,
+                        isDark ? styles.modalButtonCtaDark : null,
+                        (processing ||
+                          !passphraseInput.trim() ||
+                          ((passphrasePrompt?.mode === 'setup' ||
+                            passphrasePrompt?.mode === 'change' ||
+                            passphrasePrompt?.mode === 'reset') &&
+                            !passphraseConfirmInput.trim())) && { opacity: 0.45 },
+                      ]}
+                      onPress={handlePromptSubmit}
+                      disabled={
+                        processing ||
+                        !passphraseInput.trim() ||
+                        ((passphrasePrompt?.mode === 'setup' ||
+                          passphrasePrompt?.mode === 'change' ||
+                          passphrasePrompt?.mode === 'reset') &&
+                          !passphraseConfirmInput.trim())
+                      }
+                      >
+                        {processing ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                            <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
+                              {passphrasePrompt?.mode === 'restore'
+                                ? 'Decrypting'
+                                : passphrasePrompt?.mode === 'change'
+                                  ? 'Updating backup'
+                                  : passphrasePrompt?.mode === 'reset'
+                                    ? 'Resetting recovery'
+                                    : 'Encrypting backup'}
+                            </Text>
+                            <AnimatedDots color="#fff" size={18} />
+                          </View>
+                        ) : (
+                          <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
+                            Submit
+                          </Text>
+                        )}
+                    </Pressable>
+                    <Pressable
+                      style={[styles.modalButton, isDark ? styles.modalButtonDark : null, processing && { opacity: 0.45 }]}
+                      onPress={() => void handlePromptCancel()}
+                      disabled={processing}
+                    >
+                      <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                        Cancel
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </form>
+            ) : (
+              <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
+                <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{promptLabel}</Text>
+                {passphrasePrompt?.mode === 'setup' ? (
+                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                    Make sure you remember your passphrase for future device recovery - we do not
+                    store it.
+                  </Text>
+                ) : passphrasePrompt?.mode === 'change' ? (
+                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                    Choose a new passphrase you’ll remember - we do not store it
+                  </Text>
+                ) : passphrasePrompt?.mode === 'reset' ? (
+                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                    Set a new recovery passphrase for your account - we do not store it
+                  </Text>
+                ) : null}
                 <View style={styles.passphraseFieldWrapper}>
                   <TextInput
                     style={[
@@ -4198,15 +4336,16 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       isDark && processing ? styles.modalInputDisabledDark : null,
                     ]}
                     secureTextEntry={!passphraseVisible}
-                    value={passphraseConfirmInput}
+                    value={passphraseInput}
                     onChangeText={(t) => {
-                      setPassphraseConfirmInput(t);
+                      setPassphraseInput(t);
                       if (passphraseError) setPassphraseError(null);
                     }}
-                    placeholder="Confirm Passphrase"
+                    placeholder="Passphrase"
                     placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
                     selectionColor={isDark ? '#ffffff' : '#111'}
                     cursorColor={isDark ? '#ffffff' : '#111'}
+                    autoFocus
                     editable={!processing}
                   />
                   <Pressable
@@ -4218,47 +4357,83 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                   >
                     <Image
                       source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
+                      tintColor={isDark ? '#8f8fa3' : '#777'}
                       style={{
                         width: 18,
                         height: 18,
-                        tintColor: isDark ? '#8f8fa3' : '#777',
                       }}
                     />
                   </Pressable>
                 </View>
-              ) : null}
-
-              {passphraseError ? (
-                <Text style={[styles.passphraseErrorText, isDark ? styles.passphraseErrorTextDark : null]}>
-                  {passphraseError}
-                </Text>
-              ) : null}
-              <View style={styles.modalButtons}>
-                {/*
-                  Disable submit until user enters a passphrase (avoid accidental empty submits).
-                  Also avoids showing "Incorrect passphrase" alerts due to empty input.
-                */}
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    styles.modalButtonCta,
-                    isDark ? styles.modalButtonCtaDark : null,
-                    (processing ||
+                {passphrasePrompt?.mode === 'setup' ||
+                passphrasePrompt?.mode === 'change' ||
+                passphrasePrompt?.mode === 'reset' ? (
+                  <View style={styles.passphraseFieldWrapper}>
+                    <TextInput
+                      style={[
+                        styles.modalInput,
+                        styles.passphraseInput,
+                        isDark ? styles.modalInputDark : styles.modalInputLight,
+                        processing ? styles.modalInputDisabled : null,
+                        isDark && processing ? styles.modalInputDisabledDark : null,
+                      ]}
+                      secureTextEntry={!passphraseVisible}
+                      value={passphraseConfirmInput}
+                      onChangeText={(t) => {
+                        setPassphraseConfirmInput(t);
+                        if (passphraseError) setPassphraseError(null);
+                      }}
+                      placeholder="Confirm Passphrase"
+                      placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                      selectionColor={isDark ? '#ffffff' : '#111'}
+                      cursorColor={isDark ? '#ffffff' : '#111'}
+                      editable={!processing}
+                    />
+                    <Pressable
+                      style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
+                      onPress={() => setPassphraseVisible((v) => !v)}
+                      disabled={processing}
+                      accessibilityRole="button"
+                      accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
+                    >
+                      <Image
+                        source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
+                        tintColor={isDark ? '#8f8fa3' : '#777'}
+                        style={{
+                          width: 18,
+                          height: 18,
+                        }}
+                      />
+                    </Pressable>
+                  </View>
+                ) : null}
+                {passphraseError ? (
+                  <Text style={[styles.passphraseErrorText, isDark ? styles.passphraseErrorTextDark : null]}>
+                    {passphraseError}
+                  </Text>
+                ) : null}
+                <View style={styles.modalButtons}>
+                  <Pressable
+                    style={[
+                      styles.modalButton,
+                      styles.modalButtonCta,
+                      isDark ? styles.modalButtonCtaDark : null,
+                      (processing ||
+                        !passphraseInput.trim() ||
+                        ((passphrasePrompt?.mode === 'setup' ||
+                          passphrasePrompt?.mode === 'change' ||
+                          passphrasePrompt?.mode === 'reset') &&
+                          !passphraseConfirmInput.trim())) && { opacity: 0.45 },
+                    ]}
+                    onPress={handlePromptSubmit}
+                    disabled={
+                      processing ||
                       !passphraseInput.trim() ||
                       ((passphrasePrompt?.mode === 'setup' ||
                         passphrasePrompt?.mode === 'change' ||
                         passphrasePrompt?.mode === 'reset') &&
-                        !passphraseConfirmInput.trim())) && { opacity: 0.45 },
-                  ]}
-                  onPress={handlePromptSubmit}
-                  disabled={
-                    processing ||
-                    !passphraseInput.trim() ||
-                    ((passphrasePrompt?.mode === 'setup' ||
-                      passphrasePrompt?.mode === 'change' ||
-                      passphrasePrompt?.mode === 'reset') &&
-                      !passphraseConfirmInput.trim())
-                  }
+                        !passphraseConfirmInput.trim())
+                    }
                   >
                     {processing ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
@@ -4269,27 +4444,24 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                               ? 'Updating backup'
                               : passphrasePrompt?.mode === 'reset'
                                 ? 'Resetting recovery'
-                              : 'Encrypting backup'}
+                                : 'Encrypting backup'}
                         </Text>
                         <AnimatedDots color="#fff" size={18} />
                       </View>
                     ) : (
-                      <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
-                        Submit
-                      </Text>
+                      <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>Submit</Text>
                     )}
-                </Pressable>
-                <Pressable
-                  style={[styles.modalButton, isDark ? styles.modalButtonDark : null, processing && { opacity: 0.45 }]}
-                  onPress={() => void handlePromptCancel()}
-                  disabled={processing}
-                >
-                  <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                    Cancel
-                  </Text>
-                </Pressable>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalButton, isDark ? styles.modalButtonDark : null, processing && { opacity: 0.45 }]}
+                    onPress={() => void handlePromptCancel()}
+                    disabled={processing}
+                  >
+                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            )}
           </View>
         </Modal>
       <View style={{ flex: 1 }}>
@@ -4357,8 +4529,7 @@ function injectCaretColors(
 // after each secure input.
 const HIDDEN_INPUT_PROPS = {
   accessibilityElementsHidden: true,
-  pointerEvents: 'none' as const,
-  style: { backgroundColor: 'transparent', height: 0.1, width: 0.1 },
+  style: { backgroundColor: 'transparent', height: 0.1, width: 0.1, pointerEvents: 'none' as const },
 };
 
 const LinkedConfirmResetPasswordFormFields = ({
@@ -4378,6 +4549,8 @@ const LinkedConfirmResetPasswordFormFields = ({
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
   const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
+  const webFieldFullWidthObj =
+    Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4387,26 +4560,47 @@ const LinkedConfirmResetPasswordFormFields = ({
     const FieldComp =
       isPassword ? TextField : type === 'phone' ? PhoneNumberField : TextField;
 
+    // Web warning fix: prevent <input> from flipping between uncontrolled/controlled
+    // when Amplify initializes `value` as undefined before first change.
+    const valueProp =
+      Object.prototype.hasOwnProperty.call(field, 'value') &&
+      (field?.value == null || typeof field?.value === 'string')
+        ? { value: field.value ?? '' }
+        : null;
+
     const endAccessory = isPassword ? (
-      <IconButton
+      // Web warning fix: Amplify's Icon uses `style.resizeMode` + `style.tintColor` (deprecated on RN-web).
+      // Use our own Image with `resizeMode`/`tintColor` props instead.
+      <Pressable
+        accessibilityRole="button"
         accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
         disabled={isPending}
-        // If `color` is undefined, Amplify's Icon uses `tintColor: undefined`,
-        // which can make the PNG invisible on dark backgrounds.
-        color={isDark ? '#d7d7e0' : '#666'}
-        size={18}
-        source={showPassword ? icons.visibilityOn : icons.visibilityOff}
         onPress={() => setShowPassword((v) => !v)}
-      />
+        style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.8 : 1 }, isPending ? { opacity: 0.5 } : null]}
+      >
+        <Image
+          source={showPassword ? icons.visibilityOn : icons.visibilityOff}
+          resizeMode="contain"
+          tintColor={isDark ? '#d7d7e0' : '#666'}
+          style={{ width: 18, height: 18 }}
+        />
+      </Pressable>
     ) : undefined;
 
     return (
       <React.Fragment key={name}>
         <FieldComp
           {...field}
+          {...(valueProp || {})}
           disabled={isPending}
           error={hasError}
-          fieldStyle={fieldStyle}
+          // On web, Amplify's TextField doesn't always merge style arrays for the underlying <input>.
+          // Provide a single merged object to ensure full-width inputs.
+          fieldStyle={
+            Platform.OS === 'web'
+              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
+              : fieldStyle
+          }
           style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
@@ -4448,6 +4642,8 @@ const LinkedSignUpFormFields = ({
   const [showPassword, setShowPassword] = React.useState(false);
   const MAX_USERNAME_LEN = 21;
   const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
+  const webFieldFullWidthObj =
+    Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4456,21 +4652,36 @@ const LinkedSignUpFormFields = ({
 
     const FieldComp = type === 'phone' ? PhoneNumberField : TextField;
 
+    // Web warning fix: prevent <input> from flipping between uncontrolled/controlled
+    // when Amplify initializes `value` as undefined before first change.
+    const valueProp =
+      Object.prototype.hasOwnProperty.call(field, 'value') &&
+      (field?.value == null || typeof field?.value === 'string')
+        ? { value: field.value ?? '' }
+        : null;
+
     const endAccessory = isPassword ? (
-      <IconButton
+      <Pressable
+        accessibilityRole="button"
         accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
         disabled={isPending}
-        color={isDark ? '#d7d7e0' : '#666'}
-        size={18}
-        source={showPassword ? icons.visibilityOn : icons.visibilityOff}
         onPress={() => setShowPassword((v) => !v)}
-      />
+        style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.8 : 1 }, isPending ? { opacity: 0.5 } : null]}
+      >
+        <Image
+          source={showPassword ? icons.visibilityOn : icons.visibilityOff}
+          resizeMode="contain"
+          tintColor={isDark ? '#d7d7e0' : '#666'}
+          style={{ width: 18, height: 18 }}
+        />
+      </Pressable>
     ) : undefined;
 
     return (
       <React.Fragment key={name}>
         <FieldComp
           {...field}
+          {...(valueProp || {})}
           {...(name === 'preferred_username'
             ? {
                 // Prevent ultra-long usernames; backend enforces too.
@@ -4479,7 +4690,11 @@ const LinkedSignUpFormFields = ({
             : null)}
           disabled={isPending}
           error={hasError}
-          fieldStyle={fieldStyle}
+          fieldStyle={
+            Platform.OS === 'web'
+              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
+              : fieldStyle
+          }
           style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
@@ -4520,6 +4735,8 @@ const LinkedSignInFormFields = ({
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
   const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
+  const webFieldFullWidthObj =
+    Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4528,25 +4745,44 @@ const LinkedSignInFormFields = ({
 
     const FieldComp = type === 'phone' ? PhoneNumberField : TextField;
 
+    // Web warning fix: prevent <input> from flipping between uncontrolled/controlled
+    // when Amplify initializes `value` as undefined before first change.
+    const valueProp =
+      Object.prototype.hasOwnProperty.call(field, 'value') &&
+      (field?.value == null || typeof field?.value === 'string')
+        ? { value: field.value ?? '' }
+        : null;
+
     const endAccessory = isPassword ? (
-      <IconButton
+      <Pressable
+        accessibilityRole="button"
         accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
         disabled={isPending}
-        color={isDark ? '#d7d7e0' : '#666'}
-        size={18}
-        // Reflect current state: "eye open" means visible.
-        source={showPassword ? icons.visibilityOn : icons.visibilityOff}
         onPress={() => setShowPassword((v) => !v)}
-      />
+        style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.8 : 1 }, isPending ? { opacity: 0.5 } : null]}
+      >
+        <Image
+          // Reflect current state: "eye open" means visible.
+          source={showPassword ? icons.visibilityOn : icons.visibilityOff}
+          resizeMode="contain"
+          tintColor={isDark ? '#d7d7e0' : '#666'}
+          style={{ width: 18, height: 18 }}
+        />
+      </Pressable>
     ) : undefined;
 
     return (
       <React.Fragment key={name}>
         <FieldComp
           {...field}
+          {...(valueProp || {})}
           disabled={isPending}
           error={hasError}
-          fieldStyle={fieldStyle}
+          fieldStyle={
+            Platform.OS === 'web'
+              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
+              : fieldStyle
+          }
           style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
@@ -4570,6 +4806,310 @@ const LinkedSignInFormFields = ({
   return <View style={[style, webFullWidth]}>{formFields}</View>;
 };
 
+function useWebAuthFieldValues({
+  componentName,
+  fields = [],
+  handleBlur,
+  handleChange,
+  handleSubmit,
+  validationErrors,
+}: {
+  componentName: string;
+  fields: Array<any>;
+  handleBlur?: (payload: { name: string; value: string }) => void;
+  handleChange?: (payload: { name: string; value: string }) => void;
+  handleSubmit?: (payload: Record<string, any>) => void;
+  validationErrors?: any;
+}): {
+  disableFormSubmit: boolean;
+  fieldsWithHandlers: Array<any>;
+  fieldValidationErrors: any;
+  handleFormSubmit: () => void;
+} {
+  const [values, setValues] = React.useState<Record<string, string>>({});
+  const [touched, setTouched] = React.useState<Record<string, boolean>>({});
+
+  const toStr = (v: any): string => (typeof v === 'string' ? v : v == null ? '' : String(v));
+
+  const fieldsWithHandlers = React.useMemo(() => {
+    const arr = Array.isArray(fields) ? fields : [];
+    return arr.map((field: any) => {
+      if (!field || typeof field !== 'object') return field;
+      const name = String(field.name || '');
+      if (!name) return field;
+
+      const reportChange = (valueRaw: any) => {
+        const value = toStr(valueRaw);
+        handleChange?.({ name, value });
+        setValues((prev) => ({ ...prev, [name]: value }));
+      };
+
+      const onBlur = (event: any) => {
+        const textValue = values[name] ?? toStr(event?.nativeEvent?.text);
+        setTouched((prev) => ({ ...prev, [name]: true }));
+        field.onBlur?.(event);
+        handleBlur?.({ name, value: textValue });
+      };
+
+      const onChangeText = (value: any) => {
+        const v = toStr(value);
+        field.onChangeText?.(v);
+        reportChange(v);
+      };
+
+      const onChange = (event: any) => {
+        field.onChange?.(event);
+        reportChange(event?.nativeEvent?.text ?? '');
+      };
+
+      const value = values[name] ?? '';
+
+      return {
+        ...field,
+        // keep labelHidden semantics from Amplify: if the label is hidden, omit it
+        label: field?.labelHidden ? undefined : field?.label,
+        name,
+        value,
+        onBlur,
+        onChange,
+        onChangeText,
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields, handleBlur, handleChange, values]);
+
+  const disableFormSubmit = React.useMemo(() => {
+    // Minimal behavior: required fields must be non-empty. (Matches Amplify’s default behavior.)
+    return fieldsWithHandlers.some((f: any) => {
+      if (!f || typeof f !== 'object') return false;
+      if (!f.required) return false;
+      const name = String(f.name || '');
+      return !toStr(values[name]).trim();
+    });
+  }, [fieldsWithHandlers, values]);
+
+  const handleFormSubmit = React.useCallback(() => {
+    const submitValue = fieldsWithHandlers.reduce((acc: Record<string, any>, f: any) => {
+      if (!f || typeof f !== 'object') return acc;
+      const name = String(f.name || '');
+      if (!name) return acc;
+      const value = toStr(values[name] ?? f.value ?? '');
+      if (f.type === 'phone') {
+        // Best-effort mimic of Amplify behavior: split dial code.
+        acc.country_code = value.substring(0, 3);
+        acc[name] = value.substring(3);
+      } else {
+        acc[name] = value;
+      }
+      return acc;
+    }, {});
+    handleSubmit?.(submitValue);
+  }, [fieldsWithHandlers, handleSubmit, values]);
+
+  return {
+    disableFormSubmit,
+    fieldsWithHandlers,
+    fieldValidationErrors: { ...(validationErrors || {}) },
+    handleFormSubmit,
+  };
+}
+
+// Web-only Authenticator content: match input insets and make primary CTA full-width.
+// Also avoids Amplify's `ErrorMessage` icon (which triggers RN-web `Image style.*` deprecation warnings).
+const WebAuthContent = ({
+  body,
+  buttons,
+  error,
+  fields,
+  Footer,
+  FormFields,
+  Header,
+  headerText,
+  isDark,
+  isPending,
+  validationErrors,
+}: any & { isDark: boolean }): React.JSX.Element => {
+  const HPAD = 12;
+  const primary = buttons?.primary;
+  const secondary = buttons?.secondary;
+  const links = buttons?.links;
+
+  return (
+    <>
+      <Header style={{ marginVertical: 10, paddingHorizontal: HPAD }}>{headerText}</Header>
+      {body ? (
+        typeof body === 'string' ? (
+          <Text style={{ paddingHorizontal: HPAD, color: isDark ? '#d7d7e0' : '#444' }}>{body}</Text>
+        ) : (
+          body
+        )
+      ) : null}
+
+      <FormFields
+        fieldContainerStyle={{ paddingHorizontal: HPAD }}
+        fieldErrorsContainer={{ paddingHorizontal: HPAD, paddingVertical: 6 }}
+        fieldErrorStyle={{ color: isDark ? '#ff6b6b' : '#b00020', fontWeight: '700' }}
+        fieldLabelStyle={{}}
+        fieldStyle={{}}
+        fields={fields}
+        isPending={isPending}
+        validationErrors={validationErrors}
+        style={{ paddingBottom: 6 }}
+      />
+
+      {error ? (
+        <View style={{ paddingHorizontal: HPAD, paddingBottom: 8 }}>
+          <Text style={{ color: isDark ? '#ff6b6b' : '#b00020', fontWeight: '800' }}>{String(error)}</Text>
+        </View>
+      ) : null}
+
+      {primary ? (
+        <View style={{ paddingHorizontal: HPAD }}>
+          <AmplifyButton {...primary} variant="primary" style={{ width: '100%' }} />
+        </View>
+      ) : null}
+
+      {secondary ? (
+        <View style={{ paddingHorizontal: HPAD, marginTop: 8 }}>
+          <AmplifyButton {...secondary} style={{ width: '100%' }} />
+        </View>
+      ) : null}
+
+      {Array.isArray(links) && links.length ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>
+          {links.map((b: any) => (
+            <AmplifyButton key={`${b.children}`} {...b} variant="link" style={{ minWidth: '50%', marginVertical: 4 }} />
+          ))}
+        </View>
+      ) : null}
+
+      <Footer style={{}} />
+    </>
+  );
+};
+
+const CustomSignIn = ({
+  fields,
+  handleBlur,
+  handleChange,
+  handleSubmit,
+  hideSignUp,
+  isPending,
+  socialProviders,
+  toFederatedSignIn,
+  toForgotPassword,
+  toSignUp,
+  validationErrors,
+  Footer,
+  Header,
+  FormFields,
+  isDark,
+  ...rest
+}: any & { isDark: boolean }): React.JSX.Element => {
+  const { getSignInTabText, getSignInText, getSignUpTabText, getForgotPasswordText } = authenticatorTextUtil;
+  const headerText = getSignInTabText();
+  const forgotPasswordText = getForgotPasswordText(true);
+  const signInText = getSignInText();
+  const signUpText = getSignUpTabText();
+
+  const { disableFormSubmit, fieldsWithHandlers, fieldValidationErrors, handleFormSubmit } =
+    useWebAuthFieldValues({
+      componentName: 'SignIn',
+      fields,
+      handleBlur,
+      handleChange,
+      handleSubmit,
+      validationErrors,
+    });
+
+  const body = socialProviders ? (
+    <FederatedProviderButtons route="signIn" socialProviders={socialProviders} toFederatedSignIn={toFederatedSignIn} />
+  ) : null;
+
+  const buttons = React.useMemo(() => {
+    const forgotPassword = { children: forgotPasswordText, onPress: toForgotPassword };
+    return {
+      primary: { children: signInText, disabled: disableFormSubmit, onPress: () => handleFormSubmit() },
+      links: hideSignUp ? [forgotPassword] : [forgotPassword, { children: signUpText, onPress: toSignUp }],
+    };
+  }, [disableFormSubmit, forgotPasswordText, handleFormSubmit, hideSignUp, signInText, signUpText, toForgotPassword, toSignUp]);
+
+  return Platform.OS === 'web' ? (
+    <WebAuthContent
+      {...rest}
+      isDark={isDark}
+      body={body}
+      buttons={buttons}
+      error={rest?.error}
+      fields={fieldsWithHandlers}
+      Footer={Footer}
+      FormFields={FormFields}
+      Header={Header}
+      headerText={headerText}
+      isPending={isPending}
+      validationErrors={fieldValidationErrors}
+    />
+  ) : (
+    <Authenticator.SignIn {...rest} />
+  );
+};
+
+const CustomForgotPassword = ({
+  fields,
+  handleBlur,
+  handleChange,
+  handleSubmit,
+  isPending,
+  toSignIn,
+  validationErrors,
+  Footer,
+  Header,
+  FormFields,
+  isDark,
+  ...rest
+}: any & { isDark: boolean }): React.JSX.Element => {
+  const { getResetYourPasswordText, getSendCodeText, getSendingText, getBackToSignInText } = authenticatorTextUtil;
+  const headerText = getResetYourPasswordText();
+  const primaryButtonText = isPending ? getSendingText() : getSendCodeText();
+  const secondaryButtonText = getBackToSignInText();
+
+  const { disableFormSubmit, fieldsWithHandlers, fieldValidationErrors, handleFormSubmit } =
+    useWebAuthFieldValues({
+      componentName: 'ForgotPassword',
+      fields,
+      handleBlur,
+      handleChange,
+      handleSubmit,
+      validationErrors,
+    });
+
+  const buttons = React.useMemo(
+    () => ({
+      primary: { children: primaryButtonText, disabled: disableFormSubmit, onPress: () => handleFormSubmit() },
+      links: [{ children: secondaryButtonText, onPress: toSignIn }],
+    }),
+    [disableFormSubmit, handleFormSubmit, primaryButtonText, secondaryButtonText, toSignIn]
+  );
+
+  return Platform.OS === 'web' ? (
+    <WebAuthContent
+      {...rest}
+      isDark={isDark}
+      buttons={buttons}
+      error={rest?.error}
+      fields={fieldsWithHandlers}
+      Footer={Footer}
+      FormFields={FormFields}
+      Header={Header}
+      headerText={headerText}
+      isPending={isPending}
+      validationErrors={fieldValidationErrors}
+    />
+  ) : (
+    <Authenticator.ForgotPassword {...rest} />
+  );
+};
+
 const CustomSignUp = ({
   fields,
   handleBlur,
@@ -4585,6 +5125,7 @@ const CustomSignUp = ({
   Footer,
   Header,
   FormFields,
+  isDark,
   ...rest
 }: any): React.JSX.Element => {
   const {
@@ -4594,14 +5135,15 @@ const CustomSignUp = ({
     getSignUpTabText,
   } = authenticatorTextUtil;
 
-  // NOTE:
-  // We intentionally avoid importing Amplify UI's internal `useFieldValues` from `@aws-amplify/ui-react-native/src/*`
-  // because it pulls TypeScript source files from node_modules into our `tsc` build (causing typecheck failures).
-  // For our usage, Authenticator already provides correctly-wired `fields` + `handleSubmit`.
-  const disableFormSubmit = false;
-  const fieldsWithHandlers = fields;
-  const fieldValidationErrors = validationErrors;
-  const handleFormSubmit = handleSubmit;
+  const { disableFormSubmit, fieldsWithHandlers, fieldValidationErrors, handleFormSubmit } =
+    useWebAuthFieldValues({
+      componentName: 'SignUp',
+      fields,
+      handleBlur,
+      handleChange,
+      handleSubmit,
+      validationErrors,
+    });
 
   const disabled = hasValidationErrors || disableFormSubmit;
   const headerText = getSignUpTabText();
@@ -4621,7 +5163,7 @@ const CustomSignUp = ({
       primary: {
         children: primaryButtonText,
         disabled,
-        onPress: handleFormSubmit,
+        onPress: () => handleFormSubmit(),
       },
       links: hideSignIn ? undefined : [{ children: secondaryButtonText, onPress: toSignIn }],
     }),
@@ -4629,18 +5171,44 @@ const CustomSignUp = ({
   );
 
   return (
-    <DefaultContent
-      body={body}
-      buttons={buttons}
-      error={rest?.error}
-      fields={fieldsWithHandlers}
-      Footer={Footer}
-      FormFields={FormFields}
-      Header={Header}
-      headerText={headerText}
-      isPending={isPending}
-      validationErrors={fieldValidationErrors}
-    />
+    Platform.OS === 'web' ? (
+      // Web warning fix: browsers expect password inputs inside a <form>.
+      // Also allows "Enter" to submit.
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!disabled) handleFormSubmit();
+        }}
+        style={{ width: '100%' }}
+      >
+        <WebAuthContent
+          body={body}
+          buttons={buttons}
+          error={rest?.error}
+          fields={fieldsWithHandlers}
+          Footer={Footer}
+          FormFields={FormFields}
+          Header={Header}
+          headerText={headerText}
+          isPending={isPending}
+          validationErrors={fieldValidationErrors}
+          isDark={!!isDark}
+        />
+      </form>
+    ) : (
+      <DefaultContent
+        body={body}
+        buttons={buttons}
+        error={rest?.error}
+        fields={fieldsWithHandlers}
+        Footer={Footer}
+        FormFields={FormFields}
+        Header={Header}
+        headerText={headerText}
+        isPending={isPending}
+        validationErrors={fieldValidationErrors}
+      />
+    )
   );
 };
 
@@ -4663,6 +5231,22 @@ const ConfirmResetPasswordWithBackToSignIn = ({
     </View>
   );
 };
+
+const WebForm = ({ children }: { children: React.ReactNode }): React.JSX.Element =>
+  Platform.OS === 'web' ? (
+    // Web warning fix: browsers expect password inputs inside a <form>.
+    // We prevent default submit behavior to avoid full-page reloads.
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+      }}
+      style={{ width: '100%' }}
+    >
+      {children}
+    </form>
+  ) : (
+    <>{children}</>
+  );
 
 export default function App(): React.JSX.Element {
   const [booting, setBooting] = React.useState<boolean>(true);
@@ -4835,12 +5419,22 @@ export default function App(): React.JSX.Element {
           containerPrimary: {
             backgroundColor: isDark ? '#2a2a33' : '#111',
             borderWidth: 0,
+            ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
           },
+          // Some Authenticator flows on web use the "variation" style keys directly.
+          // Provide an explicit primary variant override so buttons never fall back to Amplify teal.
+          primary: {
+            backgroundColor: isDark ? '#2a2a33' : '#111',
+            borderWidth: 0,
+            ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
+          },
+          primaryPressed: { opacity: 0.9 },
           containerDefault: {
             // Use a soft off-white fill in light mode (matches our text field backgrounds).
             backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
             borderWidth: 1,
             borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+            ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
           },
           pressed: { opacity: 0.9 },
           // Give descenders (e.g. "g") enough vertical room across devices.
@@ -4857,6 +5451,8 @@ export default function App(): React.JSX.Element {
         }),
         textField: () => ({
           label: { color: isDark ? '#d7d7e0' : '#444', fontWeight: '700' as const },
+          // Ensure full-width fields on web (Authenticator container doesn't force stretch).
+          container: Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : undefined,
           fieldContainer: {
             borderRadius: 12,
             borderWidth: 1,
@@ -4864,10 +5460,12 @@ export default function App(): React.JSX.Element {
             // Off-gray fill in light mode (avoid stark white inputs).
             backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
             paddingHorizontal: 8,
+            ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
           },
           field: {
             color: isDark ? '#fff' : '#111',
             paddingVertical: 12,
+            ...(Platform.OS === 'web' ? ({ width: '100%' } as const) : null),
           },
         }),
         errorMessage: () => ({
@@ -4910,44 +5508,57 @@ export default function App(): React.JSX.Element {
   const authComponents = React.useMemo(
     () => ({
       SignIn: (props: any) => (
-        <Authenticator.SignIn
-          {...props}
-          fields={injectCaretColors(props?.fields, caretProps)}
-          FormFields={signInFormFields}
-        />
+        <WebForm>
+          <CustomSignIn
+            {...props}
+            isDark={isDark}
+            fields={injectCaretColors(props?.fields, caretProps)}
+            FormFields={signInFormFields}
+          />
+        </WebForm>
       ),
       SignUp: (props: any) => (
         <CustomSignUp
           {...props}
+          isDark={isDark}
           fields={injectCaretColors(props?.fields, caretProps)}
           FormFields={signUpFormFields}
         />
       ),
       ForgotPassword: (props: any) => (
-        <Authenticator.ForgotPassword
-          {...props}
-          fields={injectCaretColors(props?.fields, caretProps)}
-        />
+        <WebForm>
+          <CustomForgotPassword
+            {...props}
+            isDark={isDark}
+            fields={injectCaretColors(props?.fields, caretProps)}
+          />
+        </WebForm>
       ),
       ConfirmResetPassword: (props: any) => (
-        <ConfirmResetPasswordWithBackToSignIn
-          {...props}
-          isDark={isDark}
-          fields={injectCaretColors(props?.fields, caretProps)}
-          FormFields={confirmResetFormFields}
-        />
+        <WebForm>
+          <ConfirmResetPasswordWithBackToSignIn
+            {...props}
+            isDark={isDark}
+            fields={injectCaretColors(props?.fields, caretProps)}
+            FormFields={confirmResetFormFields}
+          />
+        </WebForm>
       ),
       ConfirmSignUp: (props: any) => (
-        <Authenticator.ConfirmSignUp
-          {...props}
-          fields={injectCaretColors(props?.fields, caretProps)}
-        />
+        <WebForm>
+          <Authenticator.ConfirmSignUp
+            {...props}
+            fields={injectCaretColors(props?.fields, caretProps)}
+          />
+        </WebForm>
       ),
       ConfirmSignIn: (props: any) => (
-        <Authenticator.ConfirmSignIn
-          {...props}
-          fields={injectCaretColors(props?.fields, caretProps)}
-        />
+        <WebForm>
+          <Authenticator.ConfirmSignIn
+            {...props}
+            fields={injectCaretColors(props?.fields, caretProps)}
+          />
+        </WebForm>
       ),
     }),
     [caretProps, confirmResetFormFields, signInFormFields, signUpFormFields, isDark]
@@ -5176,6 +5787,30 @@ const styles = StyleSheet.create({
   themeToggleDark: {
     backgroundColor: '#14141a',
     borderColor: '#2a2a33',
+  },
+  // Web-only: avoid browser default teal/blue accent that can bleed into the native Switch implementation.
+  webToggleTrack: {
+    width: 44,
+    height: 26,
+    borderRadius: 999,
+    padding: 2,
+    backgroundColor: '#d1d1d6',
+    justifyContent: 'center',
+  },
+  webToggleTrackOn: {
+    // Match mobile: keep the track light; the "on" state is indicated by thumb position.
+    backgroundColor: '#d1d1d6',
+  },
+  webToggleThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    transform: [{ translateX: 0 }],
+  },
+  webToggleThumbOn: {
+    backgroundColor: '#2a2a33',
+    transform: [{ translateX: 18 }],
   },
   menuIconBtn: {
     width: 40,
@@ -5408,7 +6043,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    width: '80%',
+    // Keep generic modals (alerts, recovery passphrase, etc.) reasonably sized on desktop web,
+    // while preserving the refined native sizing.
+    ...(Platform.OS === 'web'
+      ? ({ width: '92%', maxWidth: 520, alignSelf: 'center' } as const)
+      : ({ width: '80%' } as const)),
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 12,
