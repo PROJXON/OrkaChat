@@ -62,7 +62,7 @@ Ensure the Data Safety form matches:
 ## Account deletion behavior (what we promise)
 
 - **In-app deletion**: Menu → Delete account
-- **Web deletion**: https://projxon.github.io/ProjxonApp/delete-account.html
+- **Web deletion**: https://projxon.github.io/OrkaChat/delete-account.html
 - Deletes:
   - Users table row (profile + avatar pointers)
   - Push tokens

@@ -70,13 +70,13 @@ const DM_CLOUDFRONT_PUBLIC_KEY_PEM = String(process.env.DM_CLOUDFRONT_PUBLIC_KEY
 const dmPublicKey = DM_CLOUDFRONT_PUBLIC_KEY_PEM
   ? new cloudfront.PublicKey(cdnScope, 'DmMediaPublicKey', {
       encodedKey: DM_CLOUDFRONT_PUBLIC_KEY_PEM,
-      comment: 'Projxon DM media signer',
+      comment: 'OrkaChat DM media signer',
     })
   : null;
 const dmKeyGroup = dmPublicKey
   ? new cloudfront.KeyGroup(cdnScope, 'DmMediaKeyGroup', {
       items: [dmPublicKey],
-      comment: 'Projxon DM media key group',
+      comment: 'OrkaChat DM media key group',
     })
   : null;
 

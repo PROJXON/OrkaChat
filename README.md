@@ -1,11 +1,11 @@
-# ProjxonApp 📱
+# OrkaChat 📱
 
 Mobile application for Projxon featuring LinkedIn integration, contact forms, ROI calculator, and blog content.
 
 ## 🏗️ Project Structure
 
 ```
-ProjxonApp/
+OrkaChat/
 ├── backend/              # TypeScript + Express API
 │   ├── src/
 │   │   └── server.ts     # Main Express server (TypeScript)
@@ -56,7 +56,7 @@ ProjxonApp/
 
 ## 🔐 CloudFront media (public + DM)
 
-Projxon stores media in **S3**, but serves it via **CloudFront**:
+OrkaChat stores media in **S3**, but serves it via **CloudFront**:
 
 - Public channel media + public avatars: **CloudFront (unsigned)** via `CDN_URL`
 - DM media: **CloudFront (signed URLs)** via the `POST /media/dm/signed-url` signer endpoint
@@ -106,8 +106,8 @@ When working correctly, DM media downloads should use a CloudFront URL that incl
 
 ### 1. Clone and Setup
 ```bash
-git clone https://github.com/PROJXON/ProjxonApp.git
-cd ProjxonApp
+git clone https://github.com/PROJXON/OrkaChat.git
+cd OrkaChat
 ```
 
 ### 2. Backend Setup
