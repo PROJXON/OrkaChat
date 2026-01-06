@@ -6518,6 +6518,19 @@ export default function ChatScreen({
 
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
+        // Friendly quota messaging (theme-appropriate modal via openInfo).
+        if (resp.status === 429) {
+          let msg = 'AI limit reached. Please try again later.';
+          try {
+            const j = JSON.parse(text || '{}');
+            if (j && typeof j.message === 'string' && j.message.trim()) msg = j.message.trim();
+          } catch {
+            // ignore
+          }
+          setSummaryOpen(false);
+          openInfo('AI limit reached', msg);
+          return;
+        }
         throw new Error(`AI summary failed (${resp.status}): ${text || 'no body'}`);
       }
       const data = await resp.json();
@@ -6719,6 +6732,8 @@ export default function ChatScreen({
           } catch {
             // ignore
           }
+          // Revert the optimistic "thinking..." placeholder so the helper UI doesn't get stuck.
+          setHelperThread(threadBefore);
           openInfo('AI limit reached', msg);
           return;
         }

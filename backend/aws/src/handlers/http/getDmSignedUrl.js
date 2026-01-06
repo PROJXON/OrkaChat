@@ -1,8 +1,10 @@
 const crypto = require('crypto');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
+const { enforceAiQuota } = require('../../lib/aiQuota');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const ddbRaw = new DynamoDBClient({});
 
 function urlSafeBase64(inputB64) {
   return String(inputB64 || '')
@@ -71,6 +73,9 @@ function normalizePem(s) {
 // - CDN_URL (required): e.g. https://d123.cloudfront.net
 // - CLOUDFRONT_KEY_PAIR_ID (required)
 // - CLOUDFRONT_PRIVATE_KEY_PEM (required): RSA private key PEM
+// - MEDIA_SIGNER_QUOTA_TABLE (optional): DynamoDB table for abuse caps (schema like AI quota tables: PK=sub, SK=conversationId)
+// - DM_MEDIA_SIGNEDURL_MAX_PER_MINUTE (optional, default 60)
+// - DM_MEDIA_SIGNEDURL_MAX_PER_DAY (optional, default 5000)
 exports.handler = async (event) => {
   try {
     const claims = event.requestContext?.authorizer?.jwt?.claims || {};
@@ -86,6 +91,35 @@ exports.handler = async (event) => {
     }
     if (!PRIVATE_KEY_PEM) {
       return { statusCode: 500, body: JSON.stringify({ message: 'Server misconfigured: CLOUDFRONT_PRIVATE_KEY_PEM missing' }) };
+    }
+
+    // Optional abuse cap: throttles signed URL issuance to reduce scraping / runaway egress spend.
+    // NOTE: This caps the *signing endpoint*, not CloudFront traffic itself (use WAF/budgets for hard egress rails).
+    const quotaTable =
+      String(process.env.MEDIA_SIGNER_QUOTA_TABLE || '').trim() ||
+      String(process.env.AI_HELPER_TABLE || '').trim() ||
+      String(process.env.AI_SUMMARY_TABLE || '').trim();
+    if (quotaTable) {
+      try {
+        await enforceAiQuota({
+          ddb: ddbRaw,
+          tableName: quotaTable,
+          sub,
+          route: 'dmSignedUrl',
+          maxPerMinute: Number(process.env.DM_MEDIA_SIGNEDURL_MAX_PER_MINUTE || 60),
+          maxPerDay: Number(process.env.DM_MEDIA_SIGNEDURL_MAX_PER_DAY || 5000),
+        });
+      } catch (err) {
+        if (err?.name === 'RateLimitExceeded') {
+          const retryAfter = Number(err.retryAfterSeconds || 30);
+          return {
+            statusCode: 429,
+            headers: { 'Retry-After': String(retryAfter) },
+            body: JSON.stringify({ message: 'Too many media URL requests. Please try again shortly.' }),
+          };
+        }
+        console.error('getDmSignedUrl quota check failed (continuing without quota)', err);
+      }
     }
 
     const body = JSON.parse(event.body || '{}');

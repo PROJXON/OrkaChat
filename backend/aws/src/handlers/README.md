@@ -1,6 +1,6 @@
 # Lambda source (tracked in repo)
 
-This folder stores the **source code** for the AWS Lambdas used by ProjxonApp.
+This folder stores the **source code** for the AWS Lambdas used by OrkaChat.
 
 ## Layout
 
@@ -82,11 +82,17 @@ This folder stores the **source code** for the AWS Lambdas used by ProjxonApp.
   - **Auth**: JWT
   - **Body**: `{ conversationId, peer?, messages: [{ user, text, createdAt }] }`
   - **Returns**: `{ summary }`
+  - **Abuse caps** (optional, requires `AI_SUMMARY_TABLE` + `dynamodb:UpdateItem` on that table):
+    - `AI_SUMMARY_MAX_PER_MINUTE` (default: 3)
+    - `AI_SUMMARY_MAX_PER_DAY` (default: 40)
 
 - **POST `/ai/helper`** → `http/aiHelper.js`
   - **Auth**: JWT
   - **Body**: `{ conversationId, peer?, instruction, wantReplies?: boolean, messages: [{ user, text, createdAt }], thread?: [{ role: "user"|"assistant", text }], resetThread?: boolean, attachments?: [{ kind: "image"|"video", thumbKey, thumbUrl, fileName?, size?, user?, createdAt? }] }`
   - **Returns**: `{ answer, suggestions: string[], thread: [{ role, text }] }`
+  - **Abuse caps** (optional, requires `AI_HELPER_TABLE` + `dynamodb:UpdateItem` on that table):
+    - `AI_HELPER_MAX_PER_MINUTE` (default: 10)
+    - `AI_HELPER_MAX_PER_DAY` (default: 250)
 
 - **POST `/push/token`** → `http/registerPushToken.js`
   - **Auth**: JWT
@@ -136,6 +142,10 @@ This folder stores the **source code** for the AWS Lambdas used by ProjxonApp.
   - **Notes**:
     - validates the caller is a participant of the DM (based on `dm#<subA>#<subB>` in the path)
     - signs CloudFront URLs using a trusted key group (canned policy, short TTL)
+  - **Abuse caps** (optional, requires a DynamoDB table with PK=`sub` (S), SK=`conversationId` (S) and `dynamodb:UpdateItem` on that table):
+    - `MEDIA_SIGNER_QUOTA_TABLE` (preferred) or falls back to `AI_HELPER_TABLE` / `AI_SUMMARY_TABLE` if set
+    - `DM_MEDIA_SIGNEDURL_MAX_PER_MINUTE` (default: 60)
+    - `DM_MEDIA_SIGNEDURL_MAX_PER_DAY` (default: 5000)
 
 ### WebSocket API (API Gateway WebSockets)
 
