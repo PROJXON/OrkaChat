@@ -247,6 +247,8 @@ type ChatScreenProps = {
   onKickedFromConversation?: (conversationId: string) => void;
   // Notify the parent (Chats list) that the current conversation's title changed.
   onConversationTitleChanged?: (conversationId: string, title: string) => void;
+  // App-level Settings dropdown can request opening the current channel's About modal (view-only).
+  channelAboutRequestEpoch?: number;
   headerTop?: React.ReactNode;
   theme?: 'light' | 'dark';
   chatBackground?: { mode: 'default' | 'color' | 'image'; color?: string; uri?: string; blur?: number; opacity?: number };
@@ -794,6 +796,7 @@ export default function ChatScreen({
   onNewDmNotification,
   onKickedFromConversation,
   onConversationTitleChanged,
+  channelAboutRequestEpoch,
   headerTop,
   theme = 'light',
   chatBackground,
@@ -1479,6 +1482,30 @@ export default function ChatScreen({
       cancelled = true;
     };
   }, [isChannel, activeConversationId, channelMeta?.aboutText, channelMeta?.aboutVersion]);
+
+  // App Settings dropdown: open About (view-only) for the current channel.
+  const lastAboutReqRef = React.useRef<number>(0);
+  React.useEffect(() => {
+    const epoch = typeof channelAboutRequestEpoch === 'number' && Number.isFinite(channelAboutRequestEpoch) ? channelAboutRequestEpoch : 0;
+    if (!epoch) return;
+    if (epoch === lastAboutReqRef.current) return;
+    lastAboutReqRef.current = epoch;
+
+    if (!isChannel) {
+      // Best-effort hint (e.g. user is currently in a DM).
+      try {
+        const r = promptAlert?.('About', 'Open a channel to view its About.');
+        if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    setChannelAboutDraft(String(channelMeta?.aboutText || ''));
+    setChannelAboutEdit(false);
+    setChannelAboutOpen(true);
+  }, [channelAboutRequestEpoch, isChannel, channelMeta?.aboutText, promptAlert]);
 
   // Fetch channel metadata (title, admin flag) when entering a channel.
   React.useEffect(() => {
@@ -4139,6 +4166,7 @@ export default function ChatScreen({
         try {
           await refreshChannelRoster();
         } catch {}
+        return resp.json;
       } finally {
         setChannelActionBusy(false);
       }
@@ -7076,7 +7104,7 @@ export default function ChatScreen({
             <>
               {channelSettingsOpen ? (
                 <View style={[styles.channelAdminPanel, dmSettingsCompact ? { rowGap: 8 } : null]}>
-                  {/* Row 1: Members + (Name/Leave) */}
+                  {/* Row 1: Members + (About/Name/Leave) */}
                   <View style={[styles.channelAdminRow, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
                     <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
                       <Text
@@ -7105,6 +7133,26 @@ export default function ChatScreen({
                       {channelMeta?.meIsAdmin ? (
                         <Pressable
                           style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
+                          disabled={channelActionBusy}
+                          onPress={() => {
+                            setChannelAboutDraft(String(channelMeta?.aboutText || ''));
+                            setChannelAboutEdit(true);
+                            setChannelAboutOpen(true);
+                          }}
+                        >
+                          <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>About</Text>
+                        </Pressable>
+                      ) : null}
+
+                      {channelMeta?.meIsAdmin ? (
+                        <Pressable
+                          style={[
+                            styles.toolBtn,
+                            isDark ? styles.toolBtnDark : null,
+                            channelActionBusy ? { opacity: 0.6 } : null,
+                            // Some RN versions don't support `gap` reliably; enforce spacing explicitly.
+                            { marginLeft: 10 },
+                          ]}
                           disabled={channelActionBusy}
                           onPress={() => {
                             setChannelNameDraft(channelMeta?.name || '');
@@ -7149,9 +7197,38 @@ export default function ChatScreen({
                           </Text>
                           <Switch
                             value={!!channelMeta?.isPublic}
+                            disabled={channelActionBusy}
                             onValueChange={(v) => {
-                              setChannelMeta((prev) => (prev ? { ...prev, isPublic: !!v } : prev));
-                              void channelUpdate('setPublic', { isPublic: !!v });
+                              (async () => {
+                                if (!channelMeta) return;
+                                const next = !!v;
+                                const prev = !!channelMeta.isPublic;
+                                if (next === prev) return;
+
+                                setChannelActionBusy(true);
+                                try {
+                                  setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
+                                  await channelUpdate('setPublic', { isPublic: next });
+                                  setToast({
+                                    kind: 'success',
+                                    message: next ? 'Channel is now public' : 'Channel is now private',
+                                  });
+                                  // Theme-appropriate FYI modal (not a gate).
+                                  try {
+                                    const r = promptAlert?.(
+                                      next ? 'Channel is public' : 'Channel is Private',
+                                      next
+                                        ? 'This channel is now discoverable in search, and people can join publicly'
+                                        : 'This channel is no longer discoverable in search, and people cannot join it'
+                                    );
+                                    if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
+                                  } catch {
+                                    // ignore
+                                  }
+                                } finally {
+                                  setChannelActionBusy(false);
+                                }
+                              })().catch(() => {});
                             }}
                             trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
                             thumbColor={isDark ? '#2a2a33' : '#ffffff'}
@@ -7216,51 +7293,6 @@ export default function ChatScreen({
                     ) : null}
                   </View>
 
-                  {/* Row 3: About */}
-                  <View style={[styles.channelAdminRow, { marginTop: 8 }, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
-                    <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
-                      <Text
-                        style={[
-                          styles.decryptLabel,
-                          isDark ? styles.decryptLabelDark : null,
-                          styles.dmSettingLabel,
-                          dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        About
-                      </Text>
-                      <Pressable
-                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                        disabled={channelActionBusy}
-                        onPress={() => {
-                          setChannelAboutDraft(String(channelMeta?.aboutText || ''));
-                          setChannelAboutEdit(false);
-                          setChannelAboutOpen(true);
-                        }}
-                      >
-                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                          {channelMeta?.aboutText && String(channelMeta.aboutText).trim() ? 'View' : (channelMeta?.meIsAdmin ? 'Set' : 'None')}
-                        </Text>
-                      </Pressable>
-                    </View>
-
-                    {channelMeta?.meIsAdmin ? (
-                      <View style={styles.channelAdminActions}>
-                        <Pressable
-                          style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                          disabled={channelActionBusy}
-                          onPress={() => {
-                            setChannelAboutDraft(String(channelMeta?.aboutText || ''));
-                            setChannelAboutEdit(true);
-                            setChannelAboutOpen(true);
-                          }}
-                        >
-                          <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Edit</Text>
-                        </Pressable>
-                      </View>
-                    ) : null}
-                  </View>
                 </View>
               ) : null}
             </>
@@ -10171,21 +10203,45 @@ export default function ChatScreen({
         transparent
         animationType="fade"
         onRequestClose={() => {
-          setChannelAboutEdit(false);
-          setChannelAboutOpen(false);
+          // Treat back/escape as "Got it" in view mode (mark seen).
+          (async () => {
+            try {
+              if (!channelAboutEdit) {
+                const cid = String(activeConversationId).slice('ch#'.length).trim();
+                const v = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
+                if (cid && v) await AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
+              }
+            } catch {
+              // ignore
+            }
+            setChannelAboutEdit(false);
+            setChannelAboutOpen(false);
+          })();
         }}
       >
         <View style={styles.modalOverlay}>
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => {
-              setChannelAboutEdit(false);
-              setChannelAboutOpen(false);
+              // Treat tapping outside as "Got it" in view mode (mark seen).
+              (async () => {
+                try {
+                  if (!channelAboutEdit) {
+                    const cid = String(activeConversationId).slice('ch#'.length).trim();
+                    const v = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
+                    if (cid && v) await AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
+                  }
+                } catch {
+                  // ignore
+                }
+                setChannelAboutEdit(false);
+                setChannelAboutOpen(false);
+              })();
             }}
           />
           <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
             <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              {channelMeta?.name ? `${channelMeta.name} · About` : 'About'}
+              {channelMeta?.name ? `${channelMeta.name}` : 'About'}
             </Text>
 
             {channelAboutEdit ? (
@@ -10208,6 +10264,8 @@ export default function ChatScreen({
                   cursorColor={isDark ? '#ffffff' : '#111'}
                   multiline
                   autoFocus
+                  // Android: multiline TextInput defaults to vertically-centered text; force top-left like a real editor.
+                  textAlignVertical="top"
                   style={{
                     width: '100%',
                     minHeight: 160,
@@ -10260,7 +10318,7 @@ export default function ChatScreen({
                     disabled={channelActionBusy}
                     onPress={async () => {
                       const next = String(channelAboutDraft || '').slice(0, 4000);
-                      await channelUpdate('setAbout', { aboutText: next });
+                      const upd: any = await channelUpdate('setAbout', { aboutText: next });
                       // Broadcast an "update" hint so others refresh promptly.
                       try {
                         const ws = wsRef.current;
@@ -10278,12 +10336,14 @@ export default function ChatScreen({
                       } catch {
                         // ignore
                       }
-                      // Refresh local draft from latest meta and mark as seen.
+                      // Mark the *new* version as seen (use server-returned aboutVersion when available).
                       try {
-                        await refreshChannelRosterRef.current?.();
                         const cid = String(activeConversationId).slice('ch#'.length).trim();
-                        const v = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
-                        if (cid && v) void AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
+                        const v =
+                          typeof upd?.aboutVersion === 'number' && Number.isFinite(upd.aboutVersion)
+                            ? upd.aboutVersion
+                            : (typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0);
+                        if (cid && v) await AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
                       } catch {
                         // ignore
                       }

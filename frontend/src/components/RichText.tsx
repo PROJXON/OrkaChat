@@ -3,6 +3,7 @@ import { Alert, Linking, Platform, StyleProp, Text, TextStyle } from 'react-nati
 
 type Segment =
   | { kind: 'text'; text: string; bold?: boolean; italic?: boolean }
+  | { kind: 'code'; text: string }
   | { kind: 'mention'; text: string }
   | { kind: 'link'; text: string; url: string }
   | { kind: 'spoiler'; text: string; spoilerIdx: number; revealed: boolean; bold?: boolean; italic?: boolean };
@@ -88,28 +89,28 @@ function parseInline(text: string, opts: { enableMentions: boolean; spoilerBaseI
   const s = String(text || '');
   if (!s) return [];
 
-  // 1) Spoilers: split on ||...||
-  const spoilerParts: Array<{ kind: 'text' | 'spoiler'; text: string; idx?: number }> = [];
+  // 0) Inline code spans: split on `...` and treat the inner text as literal (no spoilers/links/bold/italic parsing).
+  // This is important for help text like: `*text*` -> *text* (otherwise our emphasis parser eats the asterisks).
+  const codeParts: Array<{ kind: 'text' | 'code'; text: string }> = [];
   let i = 0;
-  let spoilerIdx = opts.spoilerBaseIdx;
   while (i < s.length) {
-    const start = s.indexOf('||', i);
+    const start = s.indexOf('`', i);
     if (start < 0) {
-      spoilerParts.push({ kind: 'text', text: s.slice(i) });
+      codeParts.push({ kind: 'text', text: s.slice(i) });
       break;
     }
-    const end = s.indexOf('||', start + 2);
+    const end = s.indexOf('`', start + 1);
     if (end < 0) {
-      spoilerParts.push({ kind: 'text', text: s.slice(i) });
+      codeParts.push({ kind: 'text', text: s.slice(i) });
       break;
     }
-    if (start > i) spoilerParts.push({ kind: 'text', text: s.slice(i, start) });
-    const inner = s.slice(start + 2, end);
-    spoilerParts.push({ kind: 'spoiler', text: inner, idx: spoilerIdx++ });
-    i = end + 2;
+    if (start > i) codeParts.push({ kind: 'text', text: s.slice(i, start) });
+    const inner = s.slice(start + 1, end);
+    codeParts.push({ kind: 'code', text: inner });
+    i = end + 1;
   }
 
-  // 2) Within each part: parse markdown links, bare URLs, bold/italic, mentions.
+  // 1) Within non-code parts: parse spoilers, markdown links, bare URLs, bold/italic, mentions.
   const out: Segment[] = [];
   // Note: bare-domain links are handled via tryNormalizeUrlCandidate in post-processing.
   const urlRe = /\b(?:https?:\/\/)?(?:www\.)?[^\s<>()]+\.[^\s<>()]+/gi;
@@ -267,14 +268,47 @@ function parseInline(text: string, opts: { enableMentions: boolean; spoilerBaseI
     }
   };
 
-  for (const part of spoilerParts) {
-    if (part.kind === 'spoiler' && typeof part.idx === 'number') {
-      const revealed = opts.revealedSpoilers.has(part.idx);
-      // Note: we still parse inner formatting, but render as spoiler segments so taps reveal them.
-      processPlain(part.text, undefined, { idx: part.idx, revealed });
-    } else {
-      processPlain(part.text);
+  // Spoilers: split on ||...|| within non-code chunks only.
+  let spoilerIdx = opts.spoilerBaseIdx;
+  const processTextWithSpoilers = (chunk: string) => {
+    const str = String(chunk || '');
+    if (!str) return;
+    const spoilerParts: Array<{ kind: 'text' | 'spoiler'; text: string; idx?: number }> = [];
+    let j = 0;
+    while (j < str.length) {
+      const start = str.indexOf('||', j);
+      if (start < 0) {
+        spoilerParts.push({ kind: 'text', text: str.slice(j) });
+        break;
+      }
+      const end = str.indexOf('||', start + 2);
+      if (end < 0) {
+        spoilerParts.push({ kind: 'text', text: str.slice(j) });
+        break;
+      }
+      if (start > j) spoilerParts.push({ kind: 'text', text: str.slice(j, start) });
+      const inner = str.slice(start + 2, end);
+      spoilerParts.push({ kind: 'spoiler', text: inner, idx: spoilerIdx++ });
+      j = end + 2;
     }
+
+    for (const p of spoilerParts) {
+      if (p.kind === 'spoiler' && typeof p.idx === 'number') {
+        const revealed = opts.revealedSpoilers.has(p.idx);
+        // Note: we still parse inner formatting, but render as spoiler segments so taps reveal them.
+        processPlain(p.text, undefined, { idx: p.idx, revealed });
+      } else {
+        processPlain(p.text);
+      }
+    }
+  };
+
+  for (const part of codeParts) {
+    if (part.kind === 'code') {
+      if (part.text) out.push({ kind: 'code', text: part.text });
+      continue;
+    }
+    processTextWithSpoilers(part.text);
   }
 
   return out;
@@ -320,6 +354,13 @@ export function RichText({
       ? { color: 'rgba(255,255,255,0.95)', textDecorationLine: 'underline', fontWeight: '800' }
       : { color: isDark ? '#9dd3ff' : '#0b62d6', textDecorationLine: 'underline', fontWeight: '800' };
   const baseMention: TextStyle = { fontWeight: '900' };
+  const baseCode: TextStyle = {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : Platform.OS === 'android' ? 'monospace' : 'monospace',
+    backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  };
   const baseSpoilerHidden: TextStyle =
     v === 'outgoing'
       ? {
@@ -349,6 +390,13 @@ export function RichText({
   return (
     <Text style={style}>
       {segments.map((seg, idx) => {
+        if (seg.kind === 'code') {
+          return (
+            <Text key={`c:${idx}`} style={baseCode}>
+              {seg.text}
+            </Text>
+          );
+        }
         if (seg.kind === 'link') {
           return (
             <Text

@@ -28,6 +28,7 @@ import { AvatarBubble } from '../components/AvatarBubble';
 import { AnimatedDots } from '../components/AnimatedDots';
 import { RichText } from '../components/RichText';
 import { ConfirmLinkModal } from '../components/ConfirmLinkModal';
+import { GLOBAL_ABOUT_TEXT, GLOBAL_ABOUT_TITLE, GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
 
 type GuestMessage = {
   id: string;
@@ -190,7 +191,12 @@ function FullscreenVideo({ url }: { url: string }): React.JSX.Element {
 async function fetchGuestChannelHistoryPage(opts: {
   conversationId: string;
   before?: number | null;
-}): Promise<{ items: GuestMessage[]; hasMore: boolean; nextCursor: number | null }> {
+}): Promise<{
+  items: GuestMessage[];
+  hasMore: boolean;
+  nextCursor: number | null;
+  channelMeta?: { channelId: string; conversationId: string; name?: string; aboutText?: string; aboutVersion?: number };
+}> {
   if (!API_URL) throw new Error('API_URL is not configured');
   const base = API_URL.replace(/\/$/, '');
   const conversationId = String(opts?.conversationId || 'global').trim() || 'global';
@@ -223,6 +229,20 @@ async function fetchGuestChannelHistoryPage(opts: {
       const json = await res.json();
       const rawItems = Array.isArray(json) ? json : Array.isArray(json?.items) ? json.items : [];
       const items = normalizeGuestMessages(rawItems);
+      const channelMetaRaw = !Array.isArray(json) && json && typeof json === 'object' ? (json as any)?.channel : null;
+      const channelMeta =
+        channelMetaRaw && typeof channelMetaRaw === 'object'
+          ? {
+              channelId: typeof channelMetaRaw.channelId === 'string' ? String(channelMetaRaw.channelId) : '',
+              conversationId: typeof channelMetaRaw.conversationId === 'string' ? String(channelMetaRaw.conversationId) : conversationId,
+              name: typeof channelMetaRaw.name === 'string' ? String(channelMetaRaw.name) : undefined,
+              aboutText: typeof channelMetaRaw.aboutText === 'string' ? String(channelMetaRaw.aboutText) : undefined,
+              aboutVersion:
+                typeof channelMetaRaw.aboutVersion === 'number' && Number.isFinite(channelMetaRaw.aboutVersion)
+                  ? channelMetaRaw.aboutVersion
+                  : undefined,
+            }
+          : undefined;
 
       const hasMoreFromServer = typeof json?.hasMore === 'boolean' ? json.hasMore : null;
       const nextCursorFromServer =
@@ -244,6 +264,7 @@ async function fetchGuestChannelHistoryPage(opts: {
         items,
         hasMore: !!hasMore,
         nextCursor: typeof nextCursor === 'number' && Number.isFinite(nextCursor) ? nextCursor : null,
+        channelMeta: channelMeta && channelMeta.channelId ? channelMeta : undefined,
       };
     } catch (err) {
       errors.push(`GET ${url} threw: ${err instanceof Error ? err.message : String(err)}`);
@@ -262,11 +283,9 @@ export default function GuestGlobalScreen({
   const isDark = theme === 'dark';
 
   // --- Guest onboarding (Option A + C) ---
-  // A: show once per install (versioned key)
-  // C: provide an "About" button to reopen later
-  const ONBOARDING_VERSION = 'v1';
-  const ONBOARDING_KEY = `onboardingSeen:${ONBOARDING_VERSION}`;
-  const [onboardingOpen, setOnboardingOpen] = React.useState<boolean>(false);
+  // Global About is code-defined + versioned. Show once per version; About menu reopens it.
+  const GLOBAL_ABOUT_KEY = `ui:globalAboutSeen:${GLOBAL_ABOUT_VERSION}`;
+  const [globalAboutOpen, setGlobalAboutOpen] = React.useState<boolean>(false);
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
 
   React.useEffect(() => {
@@ -294,11 +313,11 @@ export default function GuestGlobalScreen({
     let mounted = true;
     (async () => {
       try {
-        const seen = await AsyncStorage.getItem(ONBOARDING_KEY);
+        const seen = await AsyncStorage.getItem(GLOBAL_ABOUT_KEY);
         if (!mounted) return;
-        if (!seen) setOnboardingOpen(true);
+        if (!seen) setGlobalAboutOpen(true);
       } catch {
-        if (mounted) setOnboardingOpen(true);
+        if (mounted) setGlobalAboutOpen(true);
       }
     })();
     return () => {
@@ -306,10 +325,10 @@ export default function GuestGlobalScreen({
     };
   }, []);
 
-  const dismissOnboarding = React.useCallback(async () => {
-    setOnboardingOpen(false);
+  const dismissGlobalAbout = React.useCallback(async () => {
+    setGlobalAboutOpen(false);
     try {
-      await AsyncStorage.setItem(ONBOARDING_KEY, '1');
+      await AsyncStorage.setItem(GLOBAL_ABOUT_KEY, '1');
     } catch {
       // ignore
     }
@@ -317,14 +336,26 @@ export default function GuestGlobalScreen({
 
   const [activeConversationId, setActiveConversationId] = React.useState<string>('global');
   const [activeChannelTitle, setActiveChannelTitle] = React.useState<string>('Global');
+  const [activeChannelMeta, setActiveChannelMeta] = React.useState<
+    null | { channelId: string; conversationId: string; name?: string; aboutText?: string; aboutVersion?: number }
+  >(null);
   const [channelPickerOpen, setChannelPickerOpen] = React.useState<boolean>(false);
   const [channelQuery, setChannelQuery] = React.useState<string>('');
   const [channelListLoading, setChannelListLoading] = React.useState<boolean>(false);
   const [channelListError, setChannelListError] = React.useState<string | null>(null);
   const [globalUserCount, setGlobalUserCount] = React.useState<number | null>(null);
   const [channelResults, setChannelResults] = React.useState<
-    Array<{ channelId: string; name: string; activeMemberCount?: number }>
+    Array<{ channelId: string; name: string; activeMemberCount?: number; hasPassword?: boolean }>
   >([]);
+  const [alertOpen, setAlertOpen] = React.useState<boolean>(false);
+  const [alertTitle, setAlertTitle] = React.useState<string>('');
+  const [alertMessage, setAlertMessage] = React.useState<string>('');
+
+  const showAlert = React.useCallback((title: string, message: string) => {
+    setAlertTitle(String(title || ''));
+    setAlertMessage(String(message || ''));
+    setAlertOpen(true);
+  }, []);
 
   const [messages, setMessages] = React.useState<GuestMessage[]>([]);
   const messagesRef = React.useRef<GuestMessage[]>([]);
@@ -392,6 +423,12 @@ export default function GuestGlobalScreen({
       }
     }, 0);
   }, [onSignIn]);
+
+  const isChannel = React.useMemo(() => String(activeConversationId || '').startsWith('ch#'), [activeConversationId]);
+  const activeChannelId = React.useMemo(
+    () => (isChannel ? String(activeConversationId).slice('ch#'.length).trim() : ''),
+    [isChannel, activeConversationId]
+  );
 
   React.useEffect(() => {
     messagesRef.current = messages;
@@ -551,6 +588,11 @@ export default function GuestGlobalScreen({
       try {
         setError(null);
         const page = await fetchGuestChannelHistoryPage({ conversationId: activeConversationId, before });
+        if (String(activeConversationId || '').startsWith('ch#')) {
+          setActiveChannelMeta(page.channelMeta || null);
+        } else {
+          setActiveChannelMeta(null);
+        }
         if (reset) {
           setMessages(page.items);
           setHistoryHasMore(!!page.hasMore);
@@ -589,6 +631,45 @@ export default function GuestGlobalScreen({
     },
     [activeConversationId]
   );
+
+  const [channelAboutOpen, setChannelAboutOpen] = React.useState<boolean>(false);
+  const [channelAboutText, setChannelAboutText] = React.useState<string>('');
+
+  // Auto-popup Channel About for guests on first enter or whenever aboutVersion changes.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!isChannel) return;
+      const cid = String(activeChannelId || '').trim();
+      if (!cid) return;
+      const aboutText = typeof activeChannelMeta?.aboutText === 'string' ? String(activeChannelMeta.aboutText) : '';
+      const aboutVersion =
+        typeof activeChannelMeta?.aboutVersion === 'number' && Number.isFinite(activeChannelMeta.aboutVersion)
+          ? activeChannelMeta.aboutVersion
+          : 0;
+      if (!aboutText.trim()) return;
+      if (!aboutVersion || aboutVersion <= 0) return;
+
+      try {
+        const key = `ui:guestChannelAboutSeen:${cid}`;
+        const seenRaw = await AsyncStorage.getItem(key);
+        if (cancelled) return;
+        const seen = typeof seenRaw === 'string' && seenRaw.trim() ? Number(seenRaw) : 0;
+        if (!Number.isFinite(seen) || seen < aboutVersion) {
+          setChannelAboutText(aboutText);
+          setChannelAboutOpen(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setChannelAboutText(aboutText);
+          setChannelAboutOpen(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isChannel, activeChannelId, activeChannelMeta?.aboutText, activeChannelMeta?.aboutVersion]);
 
   const loadOlderHistory = React.useCallback(() => {
     if (!API_URL) return;
@@ -723,6 +804,7 @@ export default function GuestGlobalScreen({
               channelId: String(c.channelId || '').trim(),
               name: String(c.name || '').trim(),
               activeMemberCount: typeof c.activeMemberCount === 'number' ? c.activeMemberCount : undefined,
+              hasPassword: typeof c.hasPassword === 'boolean' ? c.hasPassword : undefined,
             }))
             .filter((c: any) => c.channelId && c.name);
           if (!cancelled) setChannelResults(normalized);
@@ -802,7 +884,14 @@ export default function GuestGlobalScreen({
             label: 'About',
             onPress: () => {
               setMenuOpen(false);
-              setOnboardingOpen(true);
+              if (isChannel) {
+                // In guest mode, About should reflect the current channel (if any).
+                setChannelAboutText(String(activeChannelMeta?.aboutText || ''));
+                setChannelAboutOpen(true);
+                return;
+              }
+              // Global About
+              setGlobalAboutOpen(true);
             },
           },
           {
@@ -815,6 +904,85 @@ export default function GuestGlobalScreen({
           },
         ]}
       />
+
+      <Modal
+        visible={channelAboutOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          // Treat back/escape as "Got it" (mark seen).
+          (async () => {
+            try {
+              const cid = String(activeChannelId || '').trim();
+              const v =
+                typeof activeChannelMeta?.aboutVersion === 'number' && Number.isFinite(activeChannelMeta.aboutVersion)
+                  ? activeChannelMeta.aboutVersion
+                  : 0;
+              if (cid && v) await AsyncStorage.setItem(`ui:guestChannelAboutSeen:${cid}`, String(v));
+            } catch {
+              // ignore
+            }
+            setChannelAboutOpen(false);
+          })();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              // Treat tapping outside as "Got it" (mark seen).
+              (async () => {
+                try {
+                  const cid = String(activeChannelId || '').trim();
+                  const v =
+                    typeof activeChannelMeta?.aboutVersion === 'number' && Number.isFinite(activeChannelMeta.aboutVersion)
+                      ? activeChannelMeta.aboutVersion
+                      : 0;
+                  if (cid && v) await AsyncStorage.setItem(`ui:guestChannelAboutSeen:${cid}`, String(v));
+                } catch {
+                  // ignore
+                }
+                setChannelAboutOpen(false);
+              })();
+            }}
+          />
+          <View style={[styles.modalCard, isDark ? styles.modalCardDark : null]}>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+              {activeChannelTitle && activeChannelTitle !== 'Global' ? `${activeChannelTitle}` : 'About'}
+            </Text>
+            <ScrollView style={styles.modalScroll}>
+              <RichText
+                text={String(channelAboutText || '')}
+                isDark={isDark}
+                style={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
+                enableMentions={false}
+                variant="neutral"
+                onOpenUrl={requestOpenLink}
+              />
+            </ScrollView>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalBtn, isDark ? styles.modalBtnDark : null]}
+                onPress={async () => {
+                  try {
+                    const cid = String(activeChannelId || '').trim();
+                    const v =
+                      typeof activeChannelMeta?.aboutVersion === 'number' && Number.isFinite(activeChannelMeta.aboutVersion)
+                        ? activeChannelMeta.aboutVersion
+                        : 0;
+                    if (cid && v) await AsyncStorage.setItem(`ui:guestChannelAboutSeen:${cid}`, String(v));
+                  } catch {
+                    // ignore
+                  }
+                  setChannelAboutOpen(false);
+                }}
+              >
+                <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>Got it</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={channelPickerOpen} transparent animationType="fade" onRequestClose={() => setChannelPickerOpen(false)}>
         <View style={styles.modalOverlay}>
@@ -930,6 +1098,10 @@ export default function GuestGlobalScreen({
                       },
                     ]}
                     onPress={() => {
+                      if (c.hasPassword) {
+                        showAlert('Locked Channel', 'This channel is password protected. Please sign in to join.');
+                        return;
+                      }
                       setActiveConversationId(`ch#${c.channelId}`);
                       setActiveChannelTitle(c.name);
                       setChannelPickerOpen(false);
@@ -937,26 +1109,37 @@ export default function GuestGlobalScreen({
                     accessibilityRole="button"
                     accessibilityLabel={`Enter ${c.name}`}
                   >
-                    <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }} numberOfLines={1}>
+                    <Text
+                      style={{ color: isDark ? '#fff' : '#111', fontWeight: '800', flexShrink: 1, minWidth: 0 }}
+                      numberOfLines={1}
+                    >
                       {c.name}
                     </Text>
-                    <View
-                      style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        borderRadius: 999,
-                        backgroundColor: isDark ? '#2a2a33' : '#fff',
-                        borderWidth: StyleSheet.hairlineWidth,
-                        borderColor: isDark ? 'transparent' : '#e3e3e3',
-                        minWidth: 38,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginLeft: 10,
-                      }}
-                    >
-                      <Text style={{ fontWeight: '900', color: isDark ? '#fff' : '#111' }}>
-                        {String(typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0)}
-                      </Text>
+
+                    {/* Keep lock placement consistent with signed-in channel rows: on the RIGHT, near the count pill. */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10 }}>
+                      {c.hasPassword ? (
+                        <View style={{ marginRight: 8 }}>
+                          <Feather name="lock" size={14} color={isDark ? '#a7a7b4' : '#666'} />
+                        </View>
+                      ) : null}
+                      <View
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 999,
+                          backgroundColor: isDark ? '#2a2a33' : '#fff',
+                          borderWidth: StyleSheet.hairlineWidth,
+                          borderColor: isDark ? 'transparent' : '#e3e3e3',
+                          minWidth: 38,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text style={{ fontWeight: '900', color: isDark ? '#fff' : '#111' }}>
+                          {String(typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0)}
+                        </Text>
+                      </View>
                     </View>
                   </Pressable>
                 ))
@@ -975,6 +1158,25 @@ export default function GuestGlobalScreen({
                 style={({ pressed }) => [styles.modalBtn, isDark ? styles.modalBtnDark : null, pressed ? { opacity: 0.92 } : null]}
               >
                 <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Standard app-style alert modal (preferred over native Alert.alert). */}
+      <Modal visible={alertOpen} transparent animationType="fade" onRequestClose={() => setAlertOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAlertOpen(false)} />
+          <View style={[styles.modalCard, isDark ? styles.modalCardDark : null]}>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{alertTitle}</Text>
+            <Text style={[styles.modalRowText, isDark ? styles.modalRowTextDark : null]}>{alertMessage}</Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                onPress={() => setAlertOpen(false)}
+                style={({ pressed }) => [styles.modalBtn, isDark ? styles.modalBtnDark : null, pressed ? { opacity: 0.92 } : null]}
+              >
+                <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>OK</Text>
               </Pressable>
             </View>
           </View>
@@ -1162,43 +1364,33 @@ export default function GuestGlobalScreen({
         </View>
       </Modal>
 
-      <Modal visible={onboardingOpen} transparent animationType="fade">
+      <Modal visible={globalAboutOpen} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, isDark && styles.modalCardDark]}>
-            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>Welcome to Projxon</Text>
+            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>{GLOBAL_ABOUT_TITLE}</Text>
             <ScrollView style={styles.modalScroll}>
               <RichText
-                text="You’re currently viewing a guest preview of Global chat. You can join public channels."
+                text={GLOBAL_ABOUT_TEXT}
                 isDark={isDark}
                 style={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
                 enableMentions={false}
-              />
-              <RichText
-                text="Sign in to send messages, react, utilize AI features, and access direct messages."
-                isDark={isDark}
-                style={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
-                enableMentions={false}
-              />
-              <RichText
-                text="Tip: DMs support end-to-end encryption on signed-in devices."
-                isDark={isDark}
-                style={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
-                enableMentions={false}
+                variant="neutral"
+                onOpenUrl={requestOpenLink}
               />
             </ScrollView>
             <View style={styles.modalButtons}>
               <Pressable
                 style={[styles.modalBtn, isDark && styles.modalBtnDark]}
-                onPress={() => void dismissOnboarding()}
+                onPress={() => void dismissGlobalAbout()}
                 accessibilityRole="button"
-                accessibilityLabel="Dismiss welcome"
+                accessibilityLabel="Dismiss about"
               >
                 <Text style={[styles.modalBtnText, isDark && styles.modalBtnTextDark]}>Got it</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalBtn, isDark && styles.modalBtnDark]}
                 onPress={() => {
-                  void dismissOnboarding();
+                  void dismissGlobalAbout();
                   requestSignIn();
                 }}
                 accessibilityRole="button"
