@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -224,13 +224,16 @@ export function InAppCameraModal({
           ) : (
             <CameraView
               ref={cameraRef}
-              style={styles.preview}
               facing={facing}
               mode={mode === 'video' ? 'video' : 'picture'}
               videoQuality={mode === 'video' ? '1080p' : undefined}
               onCameraReady={() => setCameraReady(true)}
               // On some Android setups the camera surface can swallow touches; ensure overlays stay clickable.
-              pointerEvents="none"
+              pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
+              style={[
+                styles.preview,
+                ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+              ]}
               onMountError={(e: any) => {
                 const msg = e?.nativeEvent?.message ?? e?.message ?? 'Camera failed to start';
                 showAlert('Camera failed', String(msg));
@@ -240,7 +243,10 @@ export function InAppCameraModal({
         </View>
 
         {/* Controls overlay */}
-        <View style={styles.overlay} pointerEvents="box-none">
+        <View
+          style={[styles.overlay, ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : [])]}
+          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+        >
           <View
             style={[
               styles.topBar,
@@ -254,7 +260,10 @@ export function InAppCameraModal({
             <Pressable onPress={closeAndReset} style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}>
               <Text style={styles.topBtnText}>Close</Text>
             </Pressable>
-            <View style={styles.centerTitleWrap} pointerEvents="box-none">
+            <View
+              style={[styles.centerTitleWrap, ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : [])]}
+              pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+            >
               <Text style={styles.title}>Camera</Text>
             </View>
             {!captured ? (
@@ -267,15 +276,16 @@ export function InAppCameraModal({
           </View>
 
           <View
-            pointerEvents="box-none"
             style={[
               styles.bottomBar,
+              ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
               {
                 // Keep the controls comfortably centered; safe-area padding should not shove content upward.
                 paddingTop: 12,
                 paddingBottom: 12 + insets.bottom,
               },
             ]}
+            pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
           >
               <View
               style={[

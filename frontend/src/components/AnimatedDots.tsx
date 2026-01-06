@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Animated, Easing, View } from 'react-native';
+import { Animated, Easing, Platform, View } from 'react-native';
 
 export function AnimatedDots({
   color,
@@ -34,7 +34,7 @@ export function AnimatedDots({
         toValue: 1,
         duration: totalMs,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       { resetBeforeIteration: true }
     );
