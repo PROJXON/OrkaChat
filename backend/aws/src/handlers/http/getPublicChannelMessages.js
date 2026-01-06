@@ -60,7 +60,14 @@ exports.handler = async (event) => {
 
     const ch = await ddb.send(new GetCommand({ TableName: channelsTable, Key: { channelId: parsed.channelId } }));
     const channel = ch.Item;
-    if (!channel || (typeof channel.deletedAt === 'number' && channel.deletedAt > 0) || !channel.isPublic) {
+    // Guests may only read non-deleted, public, non-password channels.
+    // Password-protected channels require an authenticated join flow.
+    if (
+      !channel ||
+      (typeof channel.deletedAt === 'number' && channel.deletedAt > 0) ||
+      !channel.isPublic ||
+      !!channel.hasPassword
+    ) {
       return {
         statusCode: 403,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -148,7 +155,20 @@ exports.handler = async (event) => {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify(
         useCursorResponse
-          ? { items, hasMore, nextCursor: typeof nextCursor === 'number' && Number.isFinite(nextCursor) ? nextCursor : null }
+          ? {
+              items,
+              hasMore,
+              nextCursor: typeof nextCursor === 'number' && Number.isFinite(nextCursor) ? nextCursor : null,
+              // Public-safe channel metadata so guests can show an "About" modal on first join / version changes.
+              channel: {
+                channelId: parsed.channelId,
+                conversationId,
+                name: typeof channel.name === 'string' ? String(channel.name) : '',
+                aboutText: typeof channel.aboutText === 'string' ? String(channel.aboutText) : '',
+                aboutVersion:
+                  typeof channel.aboutVersion === 'number' && Number.isFinite(channel.aboutVersion) ? channel.aboutVersion : 0,
+              },
+            }
           : items
       ),
     };

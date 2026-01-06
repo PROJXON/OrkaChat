@@ -5,6 +5,7 @@
 // - { channelId: string, op: string, ... }
 // Ops:
 // - setName: { name: string }
+// - setAbout: { aboutText: string }  (markdown/plaintext; max 4000 chars; empty clears)
 // - setPublic: { isPublic: boolean }
 // - setPassword: { password: string }
 // - clearPassword: {}
@@ -43,6 +44,11 @@ const { hashPassword, validateChannelName } = channelsLib;
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
 const safeString = (v) => (typeof v === 'string' ? String(v).trim() : '');
+const safeText = (v) => {
+  if (typeof v !== 'string') return '';
+  // Preserve whitespace/newlines for markdown, but normalize line endings.
+  return String(v).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+};
 const json = (statusCode, bodyObj) => ({
   statusCode,
   headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -128,6 +134,8 @@ exports.handler = async (event) => {
 
     const gsiName = safeString(process.env.CHANNELS_NAME_GSI) || 'byNameLower';
 
+    let responseExtras = {};
+
     if (op === 'setName') {
       const name = safeString(body.name);
       const v = validateChannelName(name);
@@ -147,6 +155,43 @@ exports.handler = async (event) => {
           ExpressionAttributeValues: { ':n': displayName, ':nl': nameLower, ':u': nowMs },
         })
       );
+    } else if (op === 'setAbout') {
+      const aboutText = safeText(body.aboutText);
+      if (aboutText.length > 4000) return json(400, { message: 'aboutText too long (max 4000 characters)' });
+      const trimmed = aboutText.trim();
+      const versionExpr = 'aboutVersion = if_not_exists(aboutVersion, :z) + :one';
+      if (trimmed) {
+        const upd = await ddb.send(
+          new UpdateCommand({
+            TableName: channelsTable,
+            Key: { channelId },
+            UpdateExpression: `SET aboutText = :t, aboutUpdatedAt = :u, ${versionExpr}, updatedAt = :u`,
+            ExpressionAttributeValues: { ':t': aboutText, ':u': nowMs, ':z': 0, ':one': 1 },
+            ReturnValues: 'UPDATED_NEW',
+          })
+        );
+        const aboutVersion =
+          typeof upd?.Attributes?.aboutVersion === 'number' && Number.isFinite(upd.Attributes.aboutVersion)
+            ? upd.Attributes.aboutVersion
+            : undefined;
+        if (typeof aboutVersion === 'number') responseExtras.aboutVersion = aboutVersion;
+      } else {
+        // Clearing about still increments version so clients can re-check / auto-popup a "removed" state if desired.
+        const upd = await ddb.send(
+          new UpdateCommand({
+            TableName: channelsTable,
+            Key: { channelId },
+            UpdateExpression: `SET ${versionExpr}, updatedAt = :u REMOVE aboutText, aboutUpdatedAt`,
+            ExpressionAttributeValues: { ':u': nowMs, ':z': 0, ':one': 1 },
+            ReturnValues: 'UPDATED_NEW',
+          })
+        );
+        const aboutVersion =
+          typeof upd?.Attributes?.aboutVersion === 'number' && Number.isFinite(upd.Attributes.aboutVersion)
+            ? upd.Attributes.aboutVersion
+            : undefined;
+        if (typeof aboutVersion === 'number') responseExtras.aboutVersion = aboutVersion;
+      }
     } else if (op === 'setPublic') {
       const isPublic = body.isPublic === true;
       await ddb.send(
@@ -289,7 +334,7 @@ exports.handler = async (event) => {
       return json(400, { message: `Unknown op: ${op}` });
     }
 
-    return json(200, { ok: true });
+    return json(200, { ok: true, ...responseExtras });
   } catch (err) {
     console.error('channelsUpdate error', err);
     if (String(err?.name || '').includes('ConditionalCheckFailed')) return json(404, { message: 'Not found' });

@@ -52,6 +52,8 @@ import {
 } from './utils/pushNotifications';
 import { HeaderMenuModal } from './src/components/HeaderMenuModal';
 import { AVATAR_DEFAULT_COLORS, AvatarBubble, pickDefaultAvatarColor } from './src/components/AvatarBubble';
+import { RichText } from './src/components/RichText';
+import { GLOBAL_ABOUT_TEXT, GLOBAL_ABOUT_TITLE, GLOBAL_ABOUT_VERSION } from './src/utils/globalAbout';
 import Feather from '@expo/vector-icons/Feather';
 import {
   applyTitleOverridesToConversations,
@@ -945,6 +947,8 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isDark = theme === 'dark';
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
+  const [channelAboutRequestEpoch, setChannelAboutRequestEpoch] = React.useState<number>(0);
+  const [globalAboutOpen, setGlobalAboutOpen] = React.useState<boolean>(false);
   const [chatsOpen, setChatsOpen] = React.useState<boolean>(false);
   const [blocklistOpen, setBlocklistOpen] = React.useState<boolean>(false);
   const [recoveryOpen, setRecoveryOpen] = React.useState<boolean>(false);
@@ -957,6 +961,34 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [blocklistCacheAt, setBlocklistCacheAt] = React.useState<number>(0);
 
   const blockedSubs = React.useMemo(() => blockedUsers.map((b) => b.blockedSub).filter(Boolean), [blockedUsers]);
+
+  const GLOBAL_ABOUT_KEY = `ui:globalAboutSeen:${GLOBAL_ABOUT_VERSION}`;
+
+  const dismissGlobalAbout = React.useCallback(async () => {
+    setGlobalAboutOpen(false);
+    try {
+      await AsyncStorage.setItem(GLOBAL_ABOUT_KEY, '1');
+    } catch {
+      // ignore
+    }
+  }, [GLOBAL_ABOUT_KEY]);
+
+  // Auto-popup Global About once per version (shared with guest behavior).
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const seen = await AsyncStorage.getItem(GLOBAL_ABOUT_KEY);
+        if (!mounted) return;
+        if (!seen) setGlobalAboutOpen(true);
+      } catch {
+        if (mounted) setGlobalAboutOpen(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [GLOBAL_ABOUT_KEY]);
 
   // Restore last visited channel on boot (Global or ch#...).
   React.useEffect(() => {
@@ -2478,6 +2510,24 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         }
         items={[
           {
+            key: 'about',
+            label: 'About',
+            onPress: () => {
+              setMenuOpen(false);
+              // About is tied to the Channels-side conversation (Global or a channel),
+              // even if the user is currently looking at a DM.
+              const cid = String(activeChannelConversationId || '').trim() || 'global';
+              if (cid === 'global') {
+                setGlobalAboutOpen(true);
+                return;
+              }
+              if (cid.startsWith('ch#')) {
+                setChannelAboutRequestEpoch((v) => v + 1);
+                return;
+              }
+            },
+          },
+          {
             key: 'chats',
             label: 'Chats',
             onPress: () => {
@@ -2567,6 +2617,44 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
           },
         ]}
       />
+
+      <Modal
+        visible={globalAboutOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          void dismissGlobalAbout();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => void dismissGlobalAbout()} />
+          <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{GLOBAL_ABOUT_TITLE}</Text>
+            <ScrollView style={{ maxHeight: 340 }}>
+              <RichText
+                text={GLOBAL_ABOUT_TEXT}
+                isDark={isDark}
+                style={[
+                  styles.modalHelperText,
+                  ...(isDark ? [styles.modalHelperTextDark] : []),
+                  // Slightly more comfortable reading in the About modal.
+                  { marginBottom: 0 },
+                ]}
+                enableMentions={false}
+                variant="neutral"
+              />
+            </ScrollView>
+            <View style={[styles.modalButtons, { justifyContent: 'flex-end', marginTop: 12 }]}>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                onPress={() => void dismissGlobalAbout()}
+              >
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Got it</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={avatarOpen}
@@ -4218,6 +4306,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
               setPeer(null);
             }}
             onConversationTitleChanged={handleConversationTitleChanged}
+            channelAboutRequestEpoch={channelAboutRequestEpoch}
             headerTop={headerTop}
             theme={theme}
             chatBackground={chatBackground}
@@ -4288,6 +4377,7 @@ const LinkedConfirmResetPasswordFormFields = ({
   caret: { selectionColor: string; cursorColor?: string };
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4317,7 +4407,7 @@ const LinkedConfirmResetPasswordFormFields = ({
           disabled={isPending}
           error={hasError}
           fieldStyle={fieldStyle}
-          style={fieldContainerStyle}
+          style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
           secureTextEntry={isPassword ? !showPassword : undefined}
@@ -4337,7 +4427,7 @@ const LinkedConfirmResetPasswordFormFields = ({
     );
   });
 
-  return <View style={style}>{formFields}</View>;
+  return <View style={[style, webFullWidth]}>{formFields}</View>;
 };
 
 const LinkedSignUpFormFields = ({
@@ -4357,6 +4447,7 @@ const LinkedSignUpFormFields = ({
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
   const MAX_USERNAME_LEN = 21;
+  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4389,7 +4480,7 @@ const LinkedSignUpFormFields = ({
           disabled={isPending}
           error={hasError}
           fieldStyle={fieldStyle}
-          style={fieldContainerStyle}
+          style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
           secureTextEntry={isPassword ? !showPassword : undefined}
@@ -4409,7 +4500,7 @@ const LinkedSignUpFormFields = ({
     );
   });
 
-  return <View style={style}>{formFields}</View>;
+  return <View style={[style, webFullWidth]}>{formFields}</View>;
 };
 
 const LinkedSignInFormFields = ({
@@ -4428,6 +4519,7 @@ const LinkedSignInFormFields = ({
   caret: { selectionColor: string; cursorColor?: string };
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
 
   const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
     const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
@@ -4455,7 +4547,7 @@ const LinkedSignInFormFields = ({
           disabled={isPending}
           error={hasError}
           fieldStyle={fieldStyle}
-          style={fieldContainerStyle}
+          style={[fieldContainerStyle, webFullWidth]}
           selectionColor={caret.selectionColor}
           cursorColor={caret.cursorColor}
           secureTextEntry={isPassword ? !showPassword : undefined}
@@ -4475,7 +4567,7 @@ const LinkedSignInFormFields = ({
     );
   });
 
-  return <View style={style}>{formFields}</View>;
+  return <View style={[style, webFullWidth]}>{formFields}</View>;
 };
 
 const CustomSignUp = ({
@@ -5019,6 +5111,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e3e3e3',
+    // Give it a little breathing room from the top/right edge of the sheet.
+    marginTop: 4,
   },
   authModalCloseCircleDark: {
     backgroundColor: '#1c1c22',
