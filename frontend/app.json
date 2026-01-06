@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "PROJXON",
-    "slug": "PROJXNO",
+    "name": "OrkaChat",
+    "slug": "OrkaChat",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icons/splash-icon-light.png",

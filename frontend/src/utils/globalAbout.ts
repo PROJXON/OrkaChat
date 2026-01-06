@@ -6,7 +6,7 @@ export const GLOBAL_ABOUT_VERSION = 'v6';
 export const GLOBAL_ABOUT_TITLE = 'Global';
 
 export const GLOBAL_ABOUT_TEXT = [
-  'Welcome to Projxon!',
+  'Welcome to OrkaChat',
   '',
   'Global is the main public chat feed. You can also join channels for specific topics.',
   '',
