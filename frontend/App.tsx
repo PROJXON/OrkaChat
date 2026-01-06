@@ -507,17 +507,10 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const checkRecoveryBlobExists = async (token: string): Promise<boolean | null> => {
     if (!API_URL) return null;
     const url = `${API_URL.replace(/\/$/, '')}/users/recovery`;
+    // Web/dev fix: many API Gateway deployments don't enable CORS for HEAD (preflight fails),
+    // so use GET which is already supported by our handlers.
     try {
-      // Prefer HEAD if supported (avoids downloading the blob). Some deployments don't support HEAD
-      // and may return 404/405 even when the resource exists, so only treat HEAD "ok" as authoritative.
-      const headResp = await fetch(url, { method: 'HEAD', headers: { Authorization: `Bearer ${token}` } });
-      if (headResp.ok) return true;
-      // fall through to GET for a definitive answer
-    } catch {
-      // ignore; fallback to GET below
-    }
-    try {
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const resp = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
       if (resp.ok) return true;
       if (resp.status === 404) {
         console.log('recovery blob exists check: 404');

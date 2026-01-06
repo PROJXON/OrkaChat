@@ -11717,8 +11717,10 @@ const styles = StyleSheet.create({
   reportBtnDangerText: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
   summaryModal: {
-    width: '88%',
-    maxHeight: '80%',
+    // On desktop web, constrain width/height so it feels like a modal (not a giant sheet).
+    ...(Platform.OS === 'web'
+      ? ({ width: '92%', maxWidth: 720, maxHeight: 640, alignSelf: 'center' } as const)
+      : ({ width: '88%', maxHeight: '80%' } as const)),
     minHeight: 0,
     // Modals should be white in light mode.
     backgroundColor: '#fff',
@@ -11730,7 +11732,12 @@ const styles = StyleSheet.create({
   summaryLoadingText: { color: '#555', fontWeight: '600' },
   // IMPORTANT: allow scroll areas inside modals to shrink on small screens
   // so footer buttons (Done/Close/Cancel) remain reachable.
-  summaryScroll: { flexGrow: 1, flexShrink: 1, minHeight: 0 },
+  summaryScroll: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+    ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
+  },
   summaryText: { color: '#222', lineHeight: 20 },
   summaryButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
   summaryModalDark: { backgroundColor: '#14141a' },
@@ -11746,6 +11753,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     backgroundColor: '#fafafa',
     color: '#111',
+    ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
   },
   helperInputFollowUp: {
     marginTop: 10,
