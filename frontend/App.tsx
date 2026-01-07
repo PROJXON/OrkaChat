@@ -21,6 +21,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import ChatScreen from './src/screens/ChatScreen';
 import GuestGlobalScreen from './src/screens/GuestGlobalScreen';
 import { AnimatedDots } from './src/components/AnimatedDots';
+import { AppBrandIcon } from './src/components/AppBrandIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -2391,6 +2392,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         </View>
 
         <View style={styles.rightControls}>
+          <AppBrandIcon isDark={isDark} fit="contain" />
           <Pressable
             ref={menuBtnRef}
             onPress={() => {

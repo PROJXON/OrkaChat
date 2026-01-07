@@ -28,6 +28,7 @@
         "backgroundImage": "./assets/icons/android-background.png"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.anonymous.frontend",
       "permissions": [
         "android.permission.CAMERA",

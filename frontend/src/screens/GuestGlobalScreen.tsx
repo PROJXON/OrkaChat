@@ -28,6 +28,7 @@ import { AvatarBubble } from '../components/AvatarBubble';
 import { AnimatedDots } from '../components/AnimatedDots';
 import { RichText } from '../components/RichText';
 import { ConfirmLinkModal } from '../components/ConfirmLinkModal';
+import { AppBrandIcon } from '../components/AppBrandIcon';
 import { GLOBAL_ABOUT_TEXT, GLOBAL_ABOUT_TITLE, GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
 
 type GuestMessage = {
@@ -893,50 +894,53 @@ export default function GuestGlobalScreen({
   return (
     // App.tsx already applies the top safe area. Avoid double top inset here (dead space).
     <SafeAreaView style={[styles.container, isDark && styles.containerDark]} edges={['left', 'right']}>
-      <View style={[styles.headerRow, isWideUi ? styles.contentColumn : null]}>
-        <Pressable
-          onPress={() => {
-            setChannelListError(null);
-            setChannelQuery('');
-            setChannelPickerOpen(true);
-          }}
-          style={({ pressed }) => [
-            { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 2 },
-            pressed ? { opacity: 0.9 } : null,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Browse channels"
-        >
-          <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]} numberOfLines={1}>
-            {activeChannelTitle}
-          </Text>
-          <Feather name="chevron-down" size={16} color={isDark ? '#fff' : '#111'} />
-        </Pressable>
-        <View style={styles.headerRight}>
+      <View style={[styles.headerRow, isDark && styles.headerRowDark]}>
+        <View style={[styles.headerRowContent, isWideUi ? styles.contentColumn : null]}>
           <Pressable
-            ref={menuBtnRef}
             onPress={() => {
-              const node: any = menuBtnRef.current;
-              if (isWideUi && node && typeof node.measureInWindow === 'function') {
-                node.measureInWindow((x: number, y: number, w: number, h: number) => {
-                  setMenuAnchor({ x, y, width: w, height: h });
-                  setMenuOpen(true);
-                });
-                return;
-              }
-              setMenuAnchor(null);
-              setMenuOpen(true);
+              setChannelListError(null);
+              setChannelQuery('');
+              setChannelPickerOpen(true);
             }}
             style={({ pressed }) => [
-              styles.menuIconBtn,
-              isDark && styles.menuIconBtnDark,
-              pressed && { opacity: 0.85 },
+              { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 2 },
+              pressed ? { opacity: 0.9 } : null,
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Open menu"
+            accessibilityLabel="Browse channels"
           >
-            <Feather name="menu" size={18} color={isDark ? '#fff' : '#111'} />
+            <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]} numberOfLines={1}>
+              {activeChannelTitle}
+            </Text>
+            <Feather name="chevron-down" size={16} color={isDark ? '#fff' : '#111'} />
           </Pressable>
+          <View style={styles.headerRight}>
+            <AppBrandIcon isDark={isDark} fit="contain" />
+            <Pressable
+              ref={menuBtnRef}
+              onPress={() => {
+                const node: any = menuBtnRef.current;
+                if (isWideUi && node && typeof node.measureInWindow === 'function') {
+                  node.measureInWindow((x: number, y: number, w: number, h: number) => {
+                    setMenuAnchor({ x, y, width: w, height: h });
+                    setMenuOpen(true);
+                  });
+                  return;
+                }
+                setMenuAnchor(null);
+                setMenuOpen(true);
+              }}
+              style={({ pressed }) => [
+                styles.menuIconBtn,
+                isDark && styles.menuIconBtnDark,
+                pressed && { opacity: 0.85 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Open menu"
+            >
+              <Feather name="menu" size={18} color={isDark ? '#fff' : '#111'} />
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -1281,13 +1285,13 @@ export default function GuestGlobalScreen({
       </Modal>
 
       {error ? (
-        <Text style={[styles.errorText, isDark && styles.errorTextDark]} numberOfLines={3}>
+        <Text style={[styles.errorText, isDark && styles.errorTextDark, isWideUi ? styles.contentColumn : null]} numberOfLines={3}>
           {error}
         </Text>
       ) : null}
 
       {loading && messages.length === 0 ? (
-        <View style={styles.loadingWrap}>
+        <View style={[styles.loadingWrap, isWideUi ? styles.contentColumn : null]}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={{ color: isDark ? '#d7d7e0' : '#555', fontWeight: '700', fontSize: 14 }}>
               Loading
@@ -1969,12 +1973,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 8,
+    zIndex: 10,
+    elevation: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e3e3e3',
+    backgroundColor: '#fafafa',
+  },
+  headerRowDark: {
+    backgroundColor: '#1c1c22',
+    borderBottomColor: '#2a2a33',
+  },
+  headerRowContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    zIndex: 10,
-    elevation: 10,
   },
   contentColumn: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
   headerTitle: {
@@ -2074,6 +2087,10 @@ const styles = StyleSheet.create({
   },
   loadingWrap: {
     paddingVertical: 16,
+    paddingHorizontal: 12,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listContent: {
     paddingHorizontal: 6,
