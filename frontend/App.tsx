@@ -21,6 +21,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import ChatScreen from './src/screens/ChatScreen';
 import GuestGlobalScreen from './src/screens/GuestGlobalScreen';
 import { AnimatedDots } from './src/components/AnimatedDots';
+import { AppBrandIcon } from './src/components/AppBrandIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -2413,7 +2414,13 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
             accessibilityRole="button"
             accessibilityLabel="Open menu"
           >
-            <Feather name="menu" size={18} color={isDark ? '#fff' : '#111'} />
+            <AppBrandIcon
+              isDark={isDark}
+              fit="contain"
+              slotWidth={32}
+              slotHeight={32}
+              accessible={false}
+            />
           </Pressable>
         </View>
       </View>
@@ -5908,15 +5915,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#fff',
-    borderWidth: 1,
+    backgroundColor: '#f2f2f7',
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e3e3e3',
     alignItems: 'center',
     justifyContent: 'center',
   },
   menuIconBtnDark: {
-    backgroundColor: '#14141a',
+    backgroundColor: '#2a2a33',
     borderColor: '#2a2a33',
+    borderWidth: 0,
   },
   segment: {
     flexDirection: 'row',

@@ -868,6 +868,11 @@ export default function ChatScreen({
   const CHAT_MAX_CONTENT_WIDTH_PX = 1040;
   const isWideChatLayout = windowWidth >= CHAT_WIDE_BREAKPOINT_PX;
   const chatViewportWidth = isWideChatLayout ? Math.min(windowWidth, CHAT_MAX_CONTENT_WIDTH_PX) : windowWidth;
+  const composerSafeAreaStyle = React.useMemo(() => ({ paddingBottom: insets.bottom }), [insets.bottom]);
+  const composerHorizontalInsetsStyle = React.useMemo(
+    () => ({ paddingLeft: 12 + insets.left, paddingRight: 12 + insets.right }),
+    [insets.left, insets.right]
+  );
   const dmSettingsCompact = windowWidth < 420;
   const [dmSettingsOpen, setDmSettingsOpen] = React.useState<boolean>(true);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
@@ -6968,6 +6973,8 @@ export default function ChatScreen({
     >
       <KeyboardAvoidingView
         style={styles.container}
+        // iOS: use padding to lift input above keyboard.
+        // Android: rely on `softwareKeyboardLayoutMode: "resize"` (app.json) so the window resizes like Signal.
         behavior={Platform.select({ ios: 'padding', android: undefined })}
       >
         <View style={[styles.header, isDark ? styles.headerDark : null]}>
@@ -8834,10 +8841,17 @@ export default function ChatScreen({
               styles.inputRow,
               isDark ? styles.inputRowDark : null,
               // Fill the safe area with the bar background, but keep the inner content vertically centered.
-              { paddingBottom: insets.bottom },
+              composerSafeAreaStyle,
             ]}
           >
-            <View style={[styles.inputRowInner, isWideChatLayout ? styles.chatContentColumn : null]}>
+            <View
+              style={[
+                styles.inputRowInner,
+                isWideChatLayout ? styles.chatContentColumn : null,
+                // Ensure the content never hugs the screen edges (safe area + consistent gutter).
+                composerHorizontalInsetsStyle,
+              ]}
+            >
               <Pressable
                 style={[
                   styles.pickBtn,
@@ -8857,6 +8871,9 @@ export default function ChatScreen({
                 }}
                 key={`chat-input-${inputEpoch}`}
                 style={[styles.input, isDark ? styles.inputDark : null]}
+                // Keep the composer baseline stable across devices (prevents occasional clipping).
+                allowFontScaling={false}
+                underlineColorAndroid="transparent"
                 placeholder={
                   inlineEditTargetId
                     ? 'Finish editing above…'
@@ -11368,7 +11385,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fafafa',
   },
   headerDark: {
-    backgroundColor: '#121218',
+    backgroundColor: '#1c1c22',
     borderBottomColor: '#2a2a33',
   },
   headerTopSlot: {
@@ -11958,11 +11975,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f2f2f7',
   },
   inputRowInner: {
-    flex: 1,
     flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'stretch',
     width: '100%',
-    paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 8,
   },
@@ -12009,7 +12025,18 @@ const styles = StyleSheet.create({
     flexBasis: 0,
     minWidth: 0,
     height: 44,
+    // Explicit text metrics + vertical alignment to prevent clipping on iOS/Android.
+    fontSize: 15,
+    // Use a lineHeight matching the control height for stable vertical centering.
+    lineHeight: 44,
     paddingHorizontal: 12,
+    paddingVertical: 0,
+    ...(Platform.OS === 'android'
+      ? ({
+          textAlignVertical: 'center',
+          includeFontPadding: false,
+        } as const)
+      : {}),
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
