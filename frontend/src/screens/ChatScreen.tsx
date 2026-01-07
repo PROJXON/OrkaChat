@@ -864,6 +864,10 @@ export default function ChatScreen({
   const insets = useSafeAreaInsets();
   const { user } = useAuthenticator();
   const { width: windowWidth } = useWindowDimensions();
+  const CHAT_WIDE_BREAKPOINT_PX = 900;
+  const CHAT_MAX_CONTENT_WIDTH_PX = 1040;
+  const isWideChatLayout = windowWidth >= CHAT_WIDE_BREAKPOINT_PX;
+  const chatViewportWidth = isWideChatLayout ? Math.min(windowWidth, CHAT_MAX_CONTENT_WIDTH_PX) : windowWidth;
   const dmSettingsCompact = windowWidth < 420;
   const [dmSettingsOpen, setDmSettingsOpen] = React.useState<boolean>(true);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
@@ -3765,7 +3769,8 @@ export default function ChatScreen({
 
   const sendReadReceipt = React.useCallback(
     (messageCreatedAt: number) => {
-      if (!isDm) return;
+      // Read receipts apply to encrypted chats (DM + Group DM), not channels.
+      if (!isEncryptedChat) return;
       if (!Number.isFinite(messageCreatedAt) || messageCreatedAt <= 0) return;
 
       // If user disabled read receipts, remember we've read up to this point so we don't send later.
@@ -3799,11 +3804,11 @@ export default function ChatScreen({
         })
       );
     },
-    [isDm, activeConversationId, displayName, sendReadReceipts]
+    [isEncryptedChat, activeConversationId, displayName, sendReadReceipts]
   );
 
   const flushPendingRead = React.useCallback(() => {
-    if (!isDm) return;
+    if (!isEncryptedChat) return;
     if (!sendReadReceipts) return;
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     const pending = Array.from(pendingReadCreatedAtSetRef.current);
@@ -3833,7 +3838,7 @@ export default function ChatScreen({
         break;
       }
     }
-  }, [isDm, sendReadReceipts, sendReadReceipt]);
+  }, [isEncryptedChat, sendReadReceipts, sendReadReceipt]);
 
   const refreshMyKeys = React.useCallback(async (sub: string) => {
     const kp = await loadKeyPair(sub);
@@ -6966,6 +6971,7 @@ export default function ChatScreen({
         behavior={Platform.select({ ios: 'padding', android: undefined })}
       >
         <View style={[styles.header, isDark ? styles.headerDark : null]}>
+          <View style={isWideChatLayout ? styles.chatContentColumn : null}>
           {headerTop ? <View style={styles.headerTopSlot}>{headerTop}</View> : null}
           <View style={styles.titleRow}>
             <Text style={[styles.title, isDark ? styles.titleDark : null]} numberOfLines={1} ellipsizeMode="tail">
@@ -7410,45 +7416,85 @@ export default function ChatScreen({
                           >
                             Visibility
                           </Text>
-                          <Switch
-                            value={!!channelMeta?.isPublic}
-                            disabled={channelActionBusy}
-                            onValueChange={(v) => {
-                              (async () => {
-                                if (!channelMeta) return;
-                                const next = !!v;
-                                const prev = !!channelMeta.isPublic;
-                                if (next === prev) return;
+                          {Platform.OS === 'web' ? (
+                            <MiniToggle
+                              value={!!channelMeta?.isPublic}
+                              disabled={channelActionBusy}
+                              isDark={isDark}
+                              onValueChange={(v) => {
+                                (async () => {
+                                  if (!channelMeta) return;
+                                  const next = !!v;
+                                  const prev = !!channelMeta.isPublic;
+                                  if (next === prev) return;
 
-                                setChannelActionBusy(true);
-                                try {
-                                  setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
-                                  await channelUpdate('setPublic', { isPublic: next });
-                                  setToast({
-                                    kind: 'success',
-                                    message: next ? 'Channel is now public' : 'Channel is now private',
-                                  });
-                                  // Theme-appropriate FYI modal (not a gate).
+                                  setChannelActionBusy(true);
                                   try {
-                                    const r = promptAlert?.(
-                                      next ? 'Channel is public' : 'Channel is Private',
-                                      next
-                                        ? 'This channel is now discoverable in search, and people can join publicly'
-                                        : 'This channel is no longer discoverable in search, and people cannot join it'
-                                    );
-                                    if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
-                                  } catch {
-                                    // ignore
+                                    setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
+                                    await channelUpdate('setPublic', { isPublic: next });
+                                    setToast({
+                                      kind: 'success',
+                                      message: next ? 'Channel is now public' : 'Channel is now private',
+                                    });
+                                    // Theme-appropriate FYI modal (not a gate).
+                                    try {
+                                      const r = promptAlert?.(
+                                        next ? 'Channel is public' : 'Channel is Private',
+                                        next
+                                          ? 'This channel is now discoverable in search, and people can join publicly'
+                                          : 'This channel is no longer discoverable in search, and people cannot join it'
+                                      );
+                                      if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
+                                    } catch {
+                                      // ignore
+                                    }
+                                  } finally {
+                                    setChannelActionBusy(false);
                                   }
-                                } finally {
-                                  setChannelActionBusy(false);
-                                }
-                              })().catch(() => {});
-                            }}
-                            trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                            thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                            ios_backgroundColor="#d1d1d6"
-                          />
+                                })().catch(() => {});
+                              }}
+                            />
+                          ) : (
+                            <Switch
+                              value={!!channelMeta?.isPublic}
+                              disabled={channelActionBusy}
+                              onValueChange={(v) => {
+                                (async () => {
+                                  if (!channelMeta) return;
+                                  const next = !!v;
+                                  const prev = !!channelMeta.isPublic;
+                                  if (next === prev) return;
+
+                                  setChannelActionBusy(true);
+                                  try {
+                                    setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
+                                    await channelUpdate('setPublic', { isPublic: next });
+                                    setToast({
+                                      kind: 'success',
+                                      message: next ? 'Channel is now public' : 'Channel is now private',
+                                    });
+                                    // Theme-appropriate FYI modal (not a gate).
+                                    try {
+                                      const r = promptAlert?.(
+                                        next ? 'Channel is public' : 'Channel is Private',
+                                        next
+                                          ? 'This channel is now discoverable in search, and people can join publicly'
+                                          : 'This channel is no longer discoverable in search, and people cannot join it'
+                                      );
+                                      if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
+                                    } catch {
+                                      // ignore
+                                    }
+                                  } finally {
+                                    setChannelActionBusy(false);
+                                  }
+                                })().catch(() => {});
+                              }}
+                              trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
+                              thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+                              ios_backgroundColor="#d1d1d6"
+                            />
+                          )}
                           <Text
                             style={[
                               styles.decryptLabel,
@@ -7515,6 +7561,7 @@ export default function ChatScreen({
           {error ? (
             <Text style={[styles.error, isDark ? styles.errorDark : null]}>{error}</Text>
           ) : null}
+          </View>
         </View>
         <View style={styles.chatBody}>
           <View
@@ -7546,6 +7593,9 @@ export default function ChatScreen({
             </View>
           ) : null}
 
+          {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
+              Center the *content* via FlatList.contentContainerStyle instead. */}
+          <View style={styles.chatBodyInner}>
           {/*
             Web note:
             React Native's FlatList `inverted` behavior is implemented differently on web and can render
@@ -7715,7 +7765,7 @@ export default function ChatScreen({
                     style={{
                       color: isDark ? '#a7a7b4' : '#666',
                       fontStyle: 'italic',
-                      fontWeight: '700',
+                      fontWeight: '500',
                       textAlign: 'center',
                       paddingHorizontal: 18,
                     }}
@@ -7824,7 +7874,10 @@ export default function ChatScreen({
             prof?.avatarImagePath ? avatarUrlByPath[String(prof.avatarImagePath)] : undefined;
 
           const rowGutter = !isOutgoing && showAvatarForIncoming ? AVATAR_GUTTER : 0;
-          const capped = getCappedMediaSize(thumbAspect, isOutgoing ? windowWidth : windowWidth - rowGutter);
+          const capped = getCappedMediaSize(
+            thumbAspect,
+            isOutgoing ? chatViewportWidth : chatViewportWidth - rowGutter
+          );
           const hideMetaUntilDecrypted = isStillEncrypted;
           const canReact = !isDeleted && !isStillEncrypted;
           const reactionEntriesVisible = canReact ? reactionEntries : [];
@@ -8645,7 +8698,7 @@ export default function ChatScreen({
               </Pressable>
             );
             }}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, isWideChatLayout ? styles.chatContentColumn : null]}
           />
           {inlineEditTargetId ? (
             <View style={[styles.editingBar, isDark ? styles.editingBarDark : null]}>
@@ -8775,6 +8828,7 @@ export default function ChatScreen({
             </View>
           ) : null}
           {/* Inline edit happens inside the bubble (Signal-style). */}
+          </View>
           <View
             style={[
               styles.inputRow,
@@ -8783,7 +8837,7 @@ export default function ChatScreen({
               { paddingBottom: insets.bottom },
             ]}
           >
-            <View style={styles.inputRowInner}>
+            <View style={[styles.inputRowInner, isWideChatLayout ? styles.chatContentColumn : null]}>
               <Pressable
                 style={[
                   styles.pickBtn,
@@ -11299,7 +11353,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
   safeDark: { backgroundColor: '#0b0b0f' },
   container: { flex: 1 },
+  chatContentColumn: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
   chatBody: { flex: 1, position: 'relative' },
+  chatBodyInner: { flex: 1 },
   chatBgBase: { ...StyleSheet.absoluteFillObject },
   messageList: { flex: 1 },
   header: {
@@ -11421,8 +11477,8 @@ const styles = StyleSheet.create({
   },
   miniToggleTrackDark: { backgroundColor: '#3a3a46' },
   // Theme-neutral: match light/dark UI (no blue/green accent).
-  // Light: ON = near-black. Dark: ON = white.
-  miniToggleTrackOn: { backgroundColor: '#111' },
+  // Light: ON = slightly darker neutral gray. Dark: ON = white.
+  miniToggleTrackOn: { backgroundColor: '#aeb2bb' },
   miniToggleTrackOnDark: { backgroundColor: '#fff' },
   miniToggleThumb: {
     width: 14,
@@ -11895,12 +11951,17 @@ const styles = StyleSheet.create({
   // so use a readable light-mode color.
   seenTextOutgoingOnLightSurface: { color: '#1976d2' },
   inputRow: {
+    width: '100%',
+    alignSelf: 'stretch',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#e3e3e3',
     backgroundColor: '#f2f2f7',
   },
   inputRowInner: {
+    flex: 1,
     flexDirection: 'row',
+    alignSelf: 'stretch',
+    width: '100%',
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 8,
@@ -11945,6 +12006,8 @@ const styles = StyleSheet.create({
   pickTxtDark: { color: '#fff' },
   input: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     height: 44,
     paddingHorizontal: 12,
     borderWidth: 1,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
 
@@ -21,6 +21,7 @@ export function HeaderMenuModal({
   isDark = false,
   cardWidth = 220,
   headerRight,
+  anchor,
 }: {
   open: boolean;
   onClose: () => void;
@@ -29,9 +30,11 @@ export function HeaderMenuModal({
   isDark?: boolean;
   cardWidth?: number;
   headerRight?: React.ReactNode;
+  anchor?: { x: number; y: number; width: number; height: number } | null;
 }): React.JSX.Element {
   const anim = React.useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [mounted, setMounted] = React.useState<boolean>(open);
 
   React.useEffect(() => {
@@ -56,8 +59,8 @@ export function HeaderMenuModal({
   }, [open, anim, mounted]);
 
   const opacity = anim;
-  // Slide in from the right (no diagonal motion).
-  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  // Slide down from above (no diagonal motion).
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] });
 
   // Match ChatScreen/GuestGlobalScreen surface colors.
   const cardBg = isDark ? '#0b0b0f' : '#fff';
@@ -71,19 +74,44 @@ export function HeaderMenuModal({
   const btnBorder = isDark ? '#2a2a33' : '#e3e3e3';
   const btnBorderWidth = isDark ? 0 : StyleSheet.hairlineWidth;
 
+  const hasAnchor = !!anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  // For wide/web, we want the menu to feel like it "belongs" to the hamburger, but not sit
+  // far below it. Position it *on top of* the hamburger area (slightly above), and clamp to
+  // a small safe-area gap from the top.
+  const ANCHOR_OVERLAP_PX = 2;
+  // Guard against weird edge cases (e.g. anchor near/under the status bar).
+  const anchorTopMin = Math.max(2, insets.top + 2);
+  const anchorTop = hasAnchor
+    ? Math.max(anchorTopMin, Math.round(anchor!.y - ANCHOR_OVERLAP_PX))
+    : (insets.top + 10);
+  const cardLeft = hasAnchor
+    ? clamp(anchor!.x + anchor!.width - cardWidth, 10, Math.max(10, windowWidth - cardWidth - 10))
+    : 0;
+  const maxCardH = Math.max(160, Math.floor(windowHeight - anchorTop - 12));
+
   return (
     <Modal visible={mounted} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={[styles.overlay, { paddingTop: insets.top + 10, paddingRight: 10 }]}>
+      <View
+        style={[
+          styles.overlay,
+          hasAnchor ? styles.overlayAnchored : null,
+          hasAnchor ? null : { paddingTop: insets.top + 10, paddingRight: 10 },
+        ]}
+      >
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <Animated.View
           style={[
             styles.card,
             {
               opacity,
-              transform: [{ translateX }],
+              transform: [{ translateY }],
               backgroundColor: cardBg,
               borderColor: border,
               width: cardWidth,
+              ...(hasAnchor
+                ? { position: 'absolute' as const, top: anchorTop, left: cardLeft, maxHeight: maxCardH }
+                : null),
             },
           ]}
         >
@@ -107,11 +135,10 @@ export function HeaderMenuModal({
             </Pressable>
           </View>
           {title ? <Text style={[styles.title, { color: text, borderBottomColor: divider }]}>{title}</Text> : null}
-          <View style={styles.list}>
+          <ScrollView style={styles.listScroll} contentContainerStyle={styles.list} bounces={false}>
             {items.map((it) => (
               it.staticRow ? (
-                // Static rows are used for embedded controls (like the theme toggle).
-                // Keep them visually “in” the menu, but don’t wrap them in a button border.
+                // Static rows are used for embedded controls (like Switch).
                 <View key={it.key} style={styles.row}>
                   {it.label ? (
                     <Text style={[styles.rowText, { color: text }]} numberOfLines={1} ellipsizeMode="tail">
@@ -154,7 +181,7 @@ export function HeaderMenuModal({
                 </Pressable>
               )
             ))}
-          </View>
+          </ScrollView>
         </Animated.View>
       </View>
     </Modal>
@@ -167,6 +194,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.25)',
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
+  },
+  overlayAnchored: {
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
   },
   card: {
     borderRadius: 14,
@@ -198,6 +229,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontWeight: '900',
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  listScroll: {
+    // Limit scrolling region when we have a maxHeight on the card.
+    flexGrow: 0,
   },
   list: {
     padding: 8,

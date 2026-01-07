@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -38,7 +39,6 @@ import { icons } from '@aws-amplify/ui-react-native/src/assets';
 import { Button as AmplifyButton, PhoneNumberField, TextField } from '@aws-amplify/ui-react-native/src/primitives';
 import { authenticatorTextUtil, getErrors } from '@aws-amplify/ui';
 import {
-  DefaultContent,
   FederatedProviderButtons,
 } from '@aws-amplify/ui-react-native/src/Authenticator/common';
 import { deleteUser, fetchUserAttributes } from 'aws-amplify/auth';
@@ -937,6 +937,10 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isDark = theme === 'dark';
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
+  const menuBtnRef = React.useRef<any>(null);
+  const [menuAnchor, setMenuAnchor] = React.useState<null | { x: number; y: number; width: number; height: number }>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  const isWideUi = windowWidth >= 900;
   const [channelAboutRequestEpoch, setChannelAboutRequestEpoch] = React.useState<number>(0);
   const [globalAboutOpen, setGlobalAboutOpen] = React.useState<boolean>(false);
   const [chatsOpen, setChatsOpen] = React.useState<boolean>(false);
@@ -2124,7 +2128,8 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
       const base = API_URL.replace(/\/$/, '');
       const body: any = { name, isPublic: !!createChannelIsPublic };
       const pw = String(createChannelPassword || '').trim();
-      if (pw) body.password = pw;
+      // Passwords only apply to public channels (private channels aren't joinable via password).
+      if (pw && createChannelIsPublic) body.password = pw;
       const resp = await fetch(`${base}/channels/create`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -2386,7 +2391,19 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
 
         <View style={styles.rightControls}>
           <Pressable
-            onPress={() => setMenuOpen(true)}
+            ref={menuBtnRef}
+            onPress={() => {
+              const node: any = menuBtnRef.current;
+              if (isWideUi && node && typeof node.measureInWindow === 'function') {
+                node.measureInWindow((x: number, y: number, w: number, h: number) => {
+                  setMenuAnchor({ x, y, width: w, height: h });
+                  setMenuOpen(true);
+                });
+                return;
+              }
+              setMenuAnchor(null);
+              setMenuOpen(true);
+            }}
             style={({ pressed }) => [
               styles.menuIconBtn,
               isDark && styles.menuIconBtnDark,
@@ -2490,6 +2507,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         title={undefined}
         isDark={isDark}
         cardWidth={160}
+        anchor={isWideUi ? menuAnchor : null}
         headerRight={
           <View style={[styles.themeToggle, isDark && styles.themeToggleDark]}>
             <Feather name={isDark ? 'moon' : 'sun'} size={16} color={isDark ? '#fff' : '#111'} />
@@ -3479,7 +3497,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                   ]}
                 />
 
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 10 }}>
                   <Pressable
                     onPress={() => setCreateChannelIsPublic(true)}
                     style={({ pressed }) => [
@@ -3487,77 +3505,87 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       styles.modalButtonSmall,
                       createChannelIsPublic ? styles.modalButtonCta : null,
                       isDark ? (createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
+                      // Dark-mode selector: make the active choice visibly different.
+                      isDark && createChannelIsPublic ? { backgroundColor: '#3a3a46' } : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
-                    <Text style={[styles.modalButtonText, createChannelIsPublic ? styles.modalButtonCtaText : null]}>
+                    <Text
+                      style={[
+                        styles.modalButtonText,
+                        isDark ? styles.modalButtonTextDark : null,
+                        isDark && !createChannelIsPublic ? { color: '#a7a7b4' } : null,
+                        createChannelIsPublic ? styles.modalButtonCtaText : null,
+                      ]}
+                    >
                       Public
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => setCreateChannelIsPublic(false)}
+                    onPress={() => {
+                      setCreateChannelIsPublic(false);
+                      setCreateChannelPassword('');
+                    }}
                     style={({ pressed }) => [
                       styles.modalButton,
                       styles.modalButtonSmall,
                       !createChannelIsPublic ? styles.modalButtonCta : null,
                       isDark ? (!createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
+                      // Dark-mode selector: make the active choice visibly different.
+                      isDark && !createChannelIsPublic ? { backgroundColor: '#3a3a46' } : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
-                    <Text style={[styles.modalButtonText, !createChannelIsPublic ? styles.modalButtonCtaText : null]}>
+                    <Text
+                      style={[
+                        styles.modalButtonText,
+                        isDark ? styles.modalButtonTextDark : null,
+                        isDark && createChannelIsPublic ? { color: '#a7a7b4' } : null,
+                        !createChannelIsPublic ? styles.modalButtonCtaText : null,
+                      ]}
+                    >
                       Private
                     </Text>
                   </Pressable>
                 </View>
 
-                <TextInput
-                  value={createChannelPassword}
-                  onChangeText={(v) => {
-                    setCreateChannelPassword(v);
-                    setCreateChannelError(null);
-                  }}
-                  placeholder="Password (optional)"
-                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                  selectionColor={isDark ? '#ffffff' : '#111'}
-                  cursorColor={isDark ? '#ffffff' : '#111'}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={[
-                    styles.blocksInput,
-                    isDark ? styles.blocksInputDark : null,
-                    {
-                      flex: 0,
-                      alignSelf: 'stretch',
-                      width: '100%',
-                      height: 44,
-                      fontSize: 16,
-                      lineHeight: 20,
-                      paddingVertical: 10,
-                      textAlignVertical: 'center',
-                      color: isDark ? '#fff' : '#111',
-                    },
-                  ]}
-                />
+                {createChannelIsPublic ? (
+                  <TextInput
+                    value={createChannelPassword}
+                    onChangeText={(v) => {
+                      setCreateChannelPassword(v);
+                      setCreateChannelError(null);
+                    }}
+                    placeholder="Password (optional)"
+                    placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                    selectionColor={isDark ? '#ffffff' : '#111'}
+                    cursorColor={isDark ? '#ffffff' : '#111'}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={[
+                      styles.blocksInput,
+                      isDark ? styles.blocksInputDark : null,
+                      {
+                        flex: 0,
+                        alignSelf: 'stretch',
+                        width: '100%',
+                        height: 44,
+                        fontSize: 16,
+                        lineHeight: 20,
+                        paddingVertical: 10,
+                        textAlignVertical: 'center',
+                        color: isDark ? '#fff' : '#111',
+                      },
+                    ]}
+                  />
+                ) : null}
 
                 {createChannelError ? (
                   <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{createChannelError}</Text>
                 ) : null}
 
-                <View style={[styles.modalButtons, { justifyContent: 'flex-end' }]}>
-                  <Pressable
-                    style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
-                    onPress={() => {
-                      setCreateChannelOpen(false);
-                      setCreateChannelError(null);
-                      setCreateChannelLoading(false);
-                      setCreateChannelName('');
-                      setCreateChannelPassword('');
-                      setCreateChannelIsPublic(true);
-                    }}
-                  >
-                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
-                  </Pressable>
+                <View style={[styles.modalButtons, { justifyContent: 'flex-end', marginTop: 12 }]}>
                   <Pressable
                     style={[
                       styles.modalButton,
@@ -3571,6 +3599,19 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                     <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
                       {createChannelLoading ? 'Creating…' : 'Create'}
                     </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                    onPress={() => {
+                      setCreateChannelOpen(false);
+                      setCreateChannelError(null);
+                      setCreateChannelLoading(false);
+                      setCreateChannelName('');
+                      setCreateChannelPassword('');
+                      setCreateChannelIsPublic(true);
+                    }}
+                  >
+                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
                   </Pressable>
                 </View>
               </>
@@ -5020,9 +5061,14 @@ const CustomSignIn = ({
       validationErrors,
     });
 
-  const body = socialProviders ? (
-    <FederatedProviderButtons route="signIn" socialProviders={socialProviders} toFederatedSignIn={toFederatedSignIn} />
-  ) : null;
+  const body =
+    Platform.OS === 'web' && socialProviders ? (
+      <FederatedProviderButtons
+        route="signIn"
+        socialProviders={socialProviders}
+        toFederatedSignIn={toFederatedSignIn}
+      />
+    ) : null;
 
   const buttons = React.useMemo(() => {
     const forgotPassword = { children: forgotPasswordText, onPress: toForgotPassword };
@@ -5048,7 +5094,25 @@ const CustomSignIn = ({
       validationErrors={fieldValidationErrors}
     />
   ) : (
-    <Authenticator.SignIn {...rest} />
+    // Native: pass through the full Authenticator-provided props.
+    // If we omit Header/Footer/FormFields here, Amplify's DefaultContent will crash.
+    <Authenticator.SignIn
+      {...rest}
+      fields={fields}
+      handleBlur={handleBlur}
+      handleChange={handleChange}
+      handleSubmit={handleSubmit}
+      hideSignUp={hideSignUp}
+      isPending={isPending}
+      socialProviders={socialProviders}
+      toFederatedSignIn={toFederatedSignIn}
+      toForgotPassword={toForgotPassword}
+      toSignUp={toSignUp}
+      validationErrors={validationErrors}
+      Footer={Footer}
+      Header={Header}
+      FormFields={FormFields}
+    />
   );
 };
 
@@ -5104,7 +5168,20 @@ const CustomForgotPassword = ({
       validationErrors={fieldValidationErrors}
     />
   ) : (
-    <Authenticator.ForgotPassword {...rest} />
+    // Native: pass through the full Authenticator-provided props (incl. Header/Footer/FormFields).
+    <Authenticator.ForgotPassword
+      {...rest}
+      fields={fields}
+      handleBlur={handleBlur}
+      handleChange={handleChange}
+      handleSubmit={handleSubmit}
+      isPending={isPending}
+      toSignIn={toSignIn}
+      validationErrors={validationErrors}
+      Footer={Footer}
+      Header={Header}
+      FormFields={FormFields}
+    />
   );
 };
 
@@ -5148,13 +5225,14 @@ const CustomSignUp = ({
   const primaryButtonText = isPending ? getCreatingAccountText() : getCreateAccountText();
   const secondaryButtonText = getBackToSignInText();
 
-  const body = socialProviders ? (
-    <FederatedProviderButtons
-      route="signUp"
-      socialProviders={socialProviders}
-      toFederatedSignIn={toFederatedSignIn}
-    />
-  ) : null;
+  const body =
+    Platform.OS === 'web' && socialProviders ? (
+      <FederatedProviderButtons
+        route="signUp"
+        socialProviders={socialProviders}
+        toFederatedSignIn={toFederatedSignIn}
+      />
+    ) : null;
 
   const buttons = React.useMemo(
     () => ({
@@ -5194,17 +5272,23 @@ const CustomSignUp = ({
         />
       </form>
     ) : (
-      <DefaultContent
-        body={body}
-        buttons={buttons}
-        error={rest?.error}
-        fields={fieldsWithHandlers}
-        Footer={Footer}
-        FormFields={FormFields}
-        Header={Header}
-        headerText={headerText}
+      // Native: use Amplify's built-in screen (DefaultContent is a web-oriented helper and can break on RN).
+      <Authenticator.SignUp
+        {...rest}
+        fields={fields}
+        handleBlur={handleBlur}
+        handleChange={handleChange}
+        handleSubmit={handleSubmit}
+        hasValidationErrors={hasValidationErrors}
+        hideSignIn={hideSignIn}
         isPending={isPending}
-        validationErrors={fieldValidationErrors}
+        socialProviders={socialProviders}
+        toFederatedSignIn={toFederatedSignIn}
+        toSignIn={toSignIn}
+        validationErrors={validationErrors}
+        Footer={Footer}
+        Header={Header}
+        FormFields={FormFields}
       />
     )
   );
@@ -6138,6 +6222,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     // Neutral "tool button" style (avoid blue default buttons in light mode).
     borderColor: '#e3e3e3',
+    // Web: avoid browser default focus ring tint (can appear green/blue on some platforms).
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none', boxShadow: 'none' } : null),
   },
   modalButtonSmall: {
     paddingHorizontal: 12,

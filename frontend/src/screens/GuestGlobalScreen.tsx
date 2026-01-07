@@ -279,6 +279,11 @@ export default function GuestGlobalScreen({
   onSignIn: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const WIDE_BREAKPOINT_PX = 900;
+  const MAX_CONTENT_WIDTH_PX = 1040;
+  const isWideUi = windowWidth >= WIDE_BREAKPOINT_PX;
+  const viewportWidth = isWideUi ? Math.min(windowWidth, MAX_CONTENT_WIDTH_PX) : windowWidth;
   const [theme, setTheme] = React.useState<'light' | 'dark'>('light');
   const isDark = theme === 'dark';
 
@@ -287,6 +292,8 @@ export default function GuestGlobalScreen({
   const GLOBAL_ABOUT_KEY = `ui:globalAboutSeen:${GLOBAL_ABOUT_VERSION}`;
   const [globalAboutOpen, setGlobalAboutOpen] = React.useState<boolean>(false);
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
+  const menuBtnRef = React.useRef<any>(null);
+  const [menuAnchor, setMenuAnchor] = React.useState<null | { x: number; y: number; width: number; height: number }>(null);
 
   React.useEffect(() => {
     (async () => {
@@ -886,7 +893,7 @@ export default function GuestGlobalScreen({
   return (
     // App.tsx already applies the top safe area. Avoid double top inset here (dead space).
     <SafeAreaView style={[styles.container, isDark && styles.containerDark]} edges={['left', 'right']}>
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, isWideUi ? styles.contentColumn : null]}>
         <Pressable
           onPress={() => {
             setChannelListError(null);
@@ -907,7 +914,19 @@ export default function GuestGlobalScreen({
         </Pressable>
         <View style={styles.headerRight}>
           <Pressable
-            onPress={() => setMenuOpen(true)}
+            ref={menuBtnRef}
+            onPress={() => {
+              const node: any = menuBtnRef.current;
+              if (isWideUi && node && typeof node.measureInWindow === 'function') {
+                node.measureInWindow((x: number, y: number, w: number, h: number) => {
+                  setMenuAnchor({ x, y, width: w, height: h });
+                  setMenuOpen(true);
+                });
+                return;
+              }
+              setMenuAnchor(null);
+              setMenuOpen(true);
+            }}
             style={({ pressed }) => [
               styles.menuIconBtn,
               isDark && styles.menuIconBtnDark,
@@ -929,6 +948,7 @@ export default function GuestGlobalScreen({
         title={undefined}
         isDark={isDark}
         cardWidth={160}
+        anchor={isWideUi ? menuAnchor : null}
         headerRight={
           <View style={[styles.themeToggle, isDark && styles.themeToggleDark]}>
             <Feather name={isDark ? 'moon' : 'sun'} size={16} color={isDark ? '#fff' : '#111'} />
@@ -1282,6 +1302,8 @@ export default function GuestGlobalScreen({
         FlatList `inverted` can render upside-down on web in some environments.
         Keep native inverted behavior, but render non-inverted on web and reverse data.
       */}
+      {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
+          Center the *content* via FlatList.contentContainerStyle instead. */}
       <View
         style={{ flex: 1 }}
         {...(Platform.OS === 'web'
@@ -1378,7 +1400,7 @@ export default function GuestGlobalScreen({
                   </View>
                 ) : null)
           }
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, isWideUi ? styles.contentColumn : null]}
           // For web (non-inverted), load older history when the user scrolls to the top.
           onScroll={
             Platform.OS === 'web'
@@ -1444,6 +1466,7 @@ export default function GuestGlobalScreen({
               avatarBgColor={prof?.avatarBgColor ?? item.avatarBgColor}
               avatarTextColor={prof?.avatarTextColor ?? item.avatarTextColor}
               showAvatar={showAvatar}
+              viewportWidth={viewportWidth}
             />
           );
           }}
@@ -1459,7 +1482,7 @@ export default function GuestGlobalScreen({
           { paddingBottom: insets.bottom },
         ]}
       >
-        <View style={styles.bottomBarInner}>
+        <View style={[styles.bottomBarInner, isWideUi ? styles.contentColumn : null]}>
           <Pressable
             onPress={requestSignIn}
             style={({ pressed }) => [
@@ -1620,6 +1643,7 @@ function GuestMessageRow({
   avatarBgColor,
   avatarTextColor,
   showAvatar,
+  viewportWidth,
 }: {
   item: GuestMessage;
   isDark: boolean;
@@ -1634,9 +1658,29 @@ function GuestMessageRow({
   avatarBgColor?: string;
   avatarTextColor?: string;
   showAvatar: boolean;
+  viewportWidth: number;
 }) {
+  const isSystem =
+    String(item?.user || '').trim().toLowerCase() === 'system';
+  if (isSystem) {
+    return (
+      <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+        <Text
+          style={{
+            color: isDark ? '#a7a7b4' : '#666',
+            fontStyle: 'italic',
+            fontWeight: '700',
+            textAlign: 'center',
+            paddingHorizontal: 18,
+          }}
+        >
+          {String(item?.text || '').trim() || '-'}
+        </Text>
+      </View>
+    );
+  }
+
   const AVATAR_TOP_OFFSET = 4;
-  const { width: windowWidth } = useWindowDimensions();
   const [thumbUrl, setThumbUrl] = React.useState<string | null>(null);
   const [usedFullUrl, setUsedFullUrl] = React.useState<boolean>(false);
   const [thumbAspect, setThumbAspect] = React.useState<number | null>(null);
@@ -1711,7 +1755,7 @@ function GuestMessageRow({
   // Match ChatScreen-ish thumbnail sizing: capped max size, preserve aspect ratio, no crop.
   const CHAT_MEDIA_MAX_HEIGHT = 240;
   const CHAT_MEDIA_MAX_WIDTH_FRACTION = 0.86;
-  const maxW = Math.max(220, Math.floor((windowWidth - Math.max(0, avatarGutter)) * CHAT_MEDIA_MAX_WIDTH_FRACTION));
+  const maxW = Math.max(220, Math.floor((viewportWidth - Math.max(0, avatarGutter)) * CHAT_MEDIA_MAX_WIDTH_FRACTION));
   const maxH = CHAT_MEDIA_MAX_HEIGHT;
   const aspect = typeof thumbAspect === 'number' ? thumbAspect : 1;
   const capped = (() => {
@@ -1726,7 +1770,7 @@ function GuestMessageRow({
   const TEXT_BUBBLE_MAX_WIDTH_FRACTION = 0.96;
   const textMaxW = Math.max(
     220,
-    Math.floor((windowWidth - Math.max(0, avatarGutter)) * TEXT_BUBBLE_MAX_WIDTH_FRACTION)
+    Math.floor((viewportWidth - Math.max(0, avatarGutter)) * TEXT_BUBBLE_MAX_WIDTH_FRACTION)
   );
 
   return (
@@ -1932,6 +1976,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     elevation: 10,
   },
+  contentColumn: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
