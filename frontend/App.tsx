@@ -2124,7 +2124,8 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
       const base = API_URL.replace(/\/$/, '');
       const body: any = { name, isPublic: !!createChannelIsPublic };
       const pw = String(createChannelPassword || '').trim();
-      if (pw) body.password = pw;
+      // Passwords only apply to public channels (private channels aren't joinable via password).
+      if (pw && createChannelIsPublic) body.password = pw;
       const resp = await fetch(`${base}/channels/create`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -3479,7 +3480,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                   ]}
                 />
 
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 10 }}>
                   <Pressable
                     onPress={() => setCreateChannelIsPublic(true)}
                     style={({ pressed }) => [
@@ -3487,77 +3488,87 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       styles.modalButtonSmall,
                       createChannelIsPublic ? styles.modalButtonCta : null,
                       isDark ? (createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
+                      // Dark-mode selector: make the active choice visibly different.
+                      isDark && createChannelIsPublic ? { backgroundColor: '#3a3a46' } : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
-                    <Text style={[styles.modalButtonText, createChannelIsPublic ? styles.modalButtonCtaText : null]}>
+                    <Text
+                      style={[
+                        styles.modalButtonText,
+                        isDark ? styles.modalButtonTextDark : null,
+                        isDark && !createChannelIsPublic ? { color: '#a7a7b4' } : null,
+                        createChannelIsPublic ? styles.modalButtonCtaText : null,
+                      ]}
+                    >
                       Public
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => setCreateChannelIsPublic(false)}
+                    onPress={() => {
+                      setCreateChannelIsPublic(false);
+                      setCreateChannelPassword('');
+                    }}
                     style={({ pressed }) => [
                       styles.modalButton,
                       styles.modalButtonSmall,
                       !createChannelIsPublic ? styles.modalButtonCta : null,
                       isDark ? (!createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
+                      // Dark-mode selector: make the active choice visibly different.
+                      isDark && !createChannelIsPublic ? { backgroundColor: '#3a3a46' } : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
-                    <Text style={[styles.modalButtonText, !createChannelIsPublic ? styles.modalButtonCtaText : null]}>
+                    <Text
+                      style={[
+                        styles.modalButtonText,
+                        isDark ? styles.modalButtonTextDark : null,
+                        isDark && createChannelIsPublic ? { color: '#a7a7b4' } : null,
+                        !createChannelIsPublic ? styles.modalButtonCtaText : null,
+                      ]}
+                    >
                       Private
                     </Text>
                   </Pressable>
                 </View>
 
-                <TextInput
-                  value={createChannelPassword}
-                  onChangeText={(v) => {
-                    setCreateChannelPassword(v);
-                    setCreateChannelError(null);
-                  }}
-                  placeholder="Password (optional)"
-                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                  selectionColor={isDark ? '#ffffff' : '#111'}
-                  cursorColor={isDark ? '#ffffff' : '#111'}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  style={[
-                    styles.blocksInput,
-                    isDark ? styles.blocksInputDark : null,
-                    {
-                      flex: 0,
-                      alignSelf: 'stretch',
-                      width: '100%',
-                      height: 44,
-                      fontSize: 16,
-                      lineHeight: 20,
-                      paddingVertical: 10,
-                      textAlignVertical: 'center',
-                      color: isDark ? '#fff' : '#111',
-                    },
-                  ]}
-                />
+                {createChannelIsPublic ? (
+                  <TextInput
+                    value={createChannelPassword}
+                    onChangeText={(v) => {
+                      setCreateChannelPassword(v);
+                      setCreateChannelError(null);
+                    }}
+                    placeholder="Password (optional)"
+                    placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                    selectionColor={isDark ? '#ffffff' : '#111'}
+                    cursorColor={isDark ? '#ffffff' : '#111'}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={[
+                      styles.blocksInput,
+                      isDark ? styles.blocksInputDark : null,
+                      {
+                        flex: 0,
+                        alignSelf: 'stretch',
+                        width: '100%',
+                        height: 44,
+                        fontSize: 16,
+                        lineHeight: 20,
+                        paddingVertical: 10,
+                        textAlignVertical: 'center',
+                        color: isDark ? '#fff' : '#111',
+                      },
+                    ]}
+                  />
+                ) : null}
 
                 {createChannelError ? (
                   <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{createChannelError}</Text>
                 ) : null}
 
-                <View style={[styles.modalButtons, { justifyContent: 'flex-end' }]}>
-                  <Pressable
-                    style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
-                    onPress={() => {
-                      setCreateChannelOpen(false);
-                      setCreateChannelError(null);
-                      setCreateChannelLoading(false);
-                      setCreateChannelName('');
-                      setCreateChannelPassword('');
-                      setCreateChannelIsPublic(true);
-                    }}
-                  >
-                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
-                  </Pressable>
+                <View style={[styles.modalButtons, { justifyContent: 'flex-end', marginTop: 12 }]}>
                   <Pressable
                     style={[
                       styles.modalButton,
@@ -3571,6 +3582,19 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                     <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
                       {createChannelLoading ? 'Creating…' : 'Create'}
                     </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                    onPress={() => {
+                      setCreateChannelOpen(false);
+                      setCreateChannelError(null);
+                      setCreateChannelLoading(false);
+                      setCreateChannelName('');
+                      setCreateChannelPassword('');
+                      setCreateChannelIsPublic(true);
+                    }}
+                  >
+                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
                   </Pressable>
                 </View>
               </>
@@ -6138,6 +6162,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     // Neutral "tool button" style (avoid blue default buttons in light mode).
     borderColor: '#e3e3e3',
+    // Web: avoid browser default focus ring tint (can appear green/blue on some platforms).
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none', boxShadow: 'none' } : null),
   },
   modalButtonSmall: {
     paddingHorizontal: 12,

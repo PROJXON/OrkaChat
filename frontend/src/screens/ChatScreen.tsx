@@ -7410,45 +7410,85 @@ export default function ChatScreen({
                           >
                             Visibility
                           </Text>
-                          <Switch
-                            value={!!channelMeta?.isPublic}
-                            disabled={channelActionBusy}
-                            onValueChange={(v) => {
-                              (async () => {
-                                if (!channelMeta) return;
-                                const next = !!v;
-                                const prev = !!channelMeta.isPublic;
-                                if (next === prev) return;
+                          {Platform.OS === 'web' ? (
+                            <MiniToggle
+                              value={!!channelMeta?.isPublic}
+                              disabled={channelActionBusy}
+                              isDark={isDark}
+                              onValueChange={(v) => {
+                                (async () => {
+                                  if (!channelMeta) return;
+                                  const next = !!v;
+                                  const prev = !!channelMeta.isPublic;
+                                  if (next === prev) return;
 
-                                setChannelActionBusy(true);
-                                try {
-                                  setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
-                                  await channelUpdate('setPublic', { isPublic: next });
-                                  setToast({
-                                    kind: 'success',
-                                    message: next ? 'Channel is now public' : 'Channel is now private',
-                                  });
-                                  // Theme-appropriate FYI modal (not a gate).
+                                  setChannelActionBusy(true);
                                   try {
-                                    const r = promptAlert?.(
-                                      next ? 'Channel is public' : 'Channel is Private',
-                                      next
-                                        ? 'This channel is now discoverable in search, and people can join publicly'
-                                        : 'This channel is no longer discoverable in search, and people cannot join it'
-                                    );
-                                    if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
-                                  } catch {
-                                    // ignore
+                                    setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
+                                    await channelUpdate('setPublic', { isPublic: next });
+                                    setToast({
+                                      kind: 'success',
+                                      message: next ? 'Channel is now public' : 'Channel is now private',
+                                    });
+                                    // Theme-appropriate FYI modal (not a gate).
+                                    try {
+                                      const r = promptAlert?.(
+                                        next ? 'Channel is public' : 'Channel is Private',
+                                        next
+                                          ? 'This channel is now discoverable in search, and people can join publicly'
+                                          : 'This channel is no longer discoverable in search, and people cannot join it'
+                                      );
+                                      if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
+                                    } catch {
+                                      // ignore
+                                    }
+                                  } finally {
+                                    setChannelActionBusy(false);
                                   }
-                                } finally {
-                                  setChannelActionBusy(false);
-                                }
-                              })().catch(() => {});
-                            }}
-                            trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                            thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                            ios_backgroundColor="#d1d1d6"
-                          />
+                                })().catch(() => {});
+                              }}
+                            />
+                          ) : (
+                            <Switch
+                              value={!!channelMeta?.isPublic}
+                              disabled={channelActionBusy}
+                              onValueChange={(v) => {
+                                (async () => {
+                                  if (!channelMeta) return;
+                                  const next = !!v;
+                                  const prev = !!channelMeta.isPublic;
+                                  if (next === prev) return;
+
+                                  setChannelActionBusy(true);
+                                  try {
+                                    setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
+                                    await channelUpdate('setPublic', { isPublic: next });
+                                    setToast({
+                                      kind: 'success',
+                                      message: next ? 'Channel is now public' : 'Channel is now private',
+                                    });
+                                    // Theme-appropriate FYI modal (not a gate).
+                                    try {
+                                      const r = promptAlert?.(
+                                        next ? 'Channel is public' : 'Channel is Private',
+                                        next
+                                          ? 'This channel is now discoverable in search, and people can join publicly'
+                                          : 'This channel is no longer discoverable in search, and people cannot join it'
+                                      );
+                                      if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
+                                    } catch {
+                                      // ignore
+                                    }
+                                  } finally {
+                                    setChannelActionBusy(false);
+                                  }
+                                })().catch(() => {});
+                              }}
+                              trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
+                              thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+                              ios_backgroundColor="#d1d1d6"
+                            />
+                          )}
                           <Text
                             style={[
                               styles.decryptLabel,
@@ -7715,7 +7755,7 @@ export default function ChatScreen({
                     style={{
                       color: isDark ? '#a7a7b4' : '#666',
                       fontStyle: 'italic',
-                      fontWeight: '700',
+                      fontWeight: '400',
                       textAlign: 'center',
                       paddingHorizontal: 18,
                     }}
@@ -11421,8 +11461,8 @@ const styles = StyleSheet.create({
   },
   miniToggleTrackDark: { backgroundColor: '#3a3a46' },
   // Theme-neutral: match light/dark UI (no blue/green accent).
-  // Light: ON = near-black. Dark: ON = white.
-  miniToggleTrackOn: { backgroundColor: '#111' },
+  // Light: ON = slightly darker neutral gray. Dark: ON = white.
+  miniToggleTrackOn: { backgroundColor: '#aeb2bb' },
   miniToggleTrackOnDark: { backgroundColor: '#fff' },
   miniToggleThumb: {
     width: 14,
