@@ -167,6 +167,20 @@ This folder stores the **source code** for the AWS Lambdas used by OrkaChat.
     - **`delete`**: delete a message (sender-only)
     - **`react`**: reactions (single-reaction-per-user model)
 
+  - **Media upload cost caps** (optional, enforced when a message references media paths)
+    - **What it does**:
+      - For DMs/group DMs, uses `mediaPaths` provided by the client.
+      - For global/channels, parses `{type:"chat", media:[{path, thumbPath}]}` out of the stored `text`.
+      - Looks up actual object sizes via S3 `HeadObject`, then increments a DynamoDB bytes/day counter.
+      - If over quota, rejects the message (HTTP 429) and enqueues best-effort deletes for the referenced objects.
+    - **Env**:
+      - `MEDIA_BUCKET_NAME` (required for enforcement)
+      - `MEDIA_UPLOAD_MAX_BYTES_PER_DAY` (required; set to 0/unset to disable)
+      - `MEDIA_UPLOAD_QUOTA_TABLE` (preferred) or falls back to `MEDIA_SIGNER_QUOTA_TABLE` / `AI_SUMMARY_TABLE` / `AI_HELPER_TABLE`
+    - **IAM**:
+      - `s3:GetObject` on `arn:aws:s3:::<MEDIA_BUCKET_NAME>/*` (needed for HeadObject)
+      - `dynamodb:UpdateItem` on the chosen quota table
+
 - **Authorizer** → `ws/wsAuthorizer.js`
   - Validates Cognito JWT and injects `{ sub, usernameLower, displayName }` into authorizer context
 

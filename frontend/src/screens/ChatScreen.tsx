@@ -4719,6 +4719,26 @@ export default function ChatScreen({
           }
         }
 
+        // Server-side quota / error events (theme-appropriate modal).
+        // IMPORTANT: This is preferred over relying on WS Lambda status codes, which don't consistently reach UI.
+        if (payload && payload.type === 'error') {
+          const code = typeof payload.code === 'string' ? String(payload.code) : '';
+          if (code === 'media_quota') {
+            const title = typeof payload.title === 'string' ? String(payload.title) : 'Upload limit reached';
+            const msg =
+              typeof payload.message === 'string'
+                ? String(payload.message)
+                : 'You’ve reached your daily upload limit. Please try again tomorrow.';
+            try {
+              openInfo(title, msg);
+            } catch {
+              // fallback
+              showAlert(title, msg);
+            }
+            return;
+          }
+        }
+
         // Presence hints (server-authored, not persisted): e.g. someone joined the room.
         // Use these to refresh rosters/counts promptly without adding extra system messages.
         if (payload && payload.type === 'presence' && payload.conversationId === activeConv) {
@@ -9824,10 +9844,10 @@ export default function ChatScreen({
                 </View>
               ) : null}
 
-              {messageActionTarget?.encrypted ? (
+              {messageActionTarget?.encrypted || messageActionTarget?.groupEncrypted ? (
                 <Pressable
                   onPress={() => {
-                    setCipherText(messageActionTarget?.rawText ?? '');
+                    setCipherText(String(messageActionTarget?.rawText ?? messageActionTarget?.text ?? ''));
                     setCipherOpen(true);
                     closeMessageActions();
                   }}
