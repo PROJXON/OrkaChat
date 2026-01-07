@@ -1635,6 +1635,26 @@ function GuestMessageRow({
   avatarTextColor?: string;
   showAvatar: boolean;
 }) {
+  const isSystem =
+    String(item?.user || '').trim().toLowerCase() === 'system';
+  if (isSystem) {
+    return (
+      <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+        <Text
+          style={{
+            color: isDark ? '#a7a7b4' : '#666',
+            fontStyle: 'italic',
+            fontWeight: '700',
+            textAlign: 'center',
+            paddingHorizontal: 18,
+          }}
+        >
+          {String(item?.text || '').trim() || '-'}
+        </Text>
+      </View>
+    );
+  }
+
   const AVATAR_TOP_OFFSET = 4;
   const { width: windowWidth } = useWindowDimensions();
   const [thumbUrl, setThumbUrl] = React.useState<string | null>(null);

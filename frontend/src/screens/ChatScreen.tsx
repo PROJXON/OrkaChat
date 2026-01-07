@@ -3765,7 +3765,8 @@ export default function ChatScreen({
 
   const sendReadReceipt = React.useCallback(
     (messageCreatedAt: number) => {
-      if (!isDm) return;
+      // Read receipts apply to encrypted chats (DM + Group DM), not channels.
+      if (!isEncryptedChat) return;
       if (!Number.isFinite(messageCreatedAt) || messageCreatedAt <= 0) return;
 
       // If user disabled read receipts, remember we've read up to this point so we don't send later.
@@ -3799,11 +3800,11 @@ export default function ChatScreen({
         })
       );
     },
-    [isDm, activeConversationId, displayName, sendReadReceipts]
+    [isEncryptedChat, activeConversationId, displayName, sendReadReceipts]
   );
 
   const flushPendingRead = React.useCallback(() => {
-    if (!isDm) return;
+    if (!isEncryptedChat) return;
     if (!sendReadReceipts) return;
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     const pending = Array.from(pendingReadCreatedAtSetRef.current);
@@ -3833,7 +3834,7 @@ export default function ChatScreen({
         break;
       }
     }
-  }, [isDm, sendReadReceipts, sendReadReceipt]);
+  }, [isEncryptedChat, sendReadReceipts, sendReadReceipt]);
 
   const refreshMyKeys = React.useCallback(async (sub: string) => {
     const kp = await loadKeyPair(sub);
@@ -7755,7 +7756,7 @@ export default function ChatScreen({
                     style={{
                       color: isDark ? '#a7a7b4' : '#666',
                       fontStyle: 'italic',
-                      fontWeight: '400',
+                      fontWeight: '500',
                       textAlign: 'center',
                       paddingHorizontal: 18,
                     }}

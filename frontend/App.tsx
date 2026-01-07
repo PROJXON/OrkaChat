@@ -38,7 +38,6 @@ import { icons } from '@aws-amplify/ui-react-native/src/assets';
 import { Button as AmplifyButton, PhoneNumberField, TextField } from '@aws-amplify/ui-react-native/src/primitives';
 import { authenticatorTextUtil, getErrors } from '@aws-amplify/ui';
 import {
-  DefaultContent,
   FederatedProviderButtons,
 } from '@aws-amplify/ui-react-native/src/Authenticator/common';
 import { deleteUser, fetchUserAttributes } from 'aws-amplify/auth';
@@ -5044,9 +5043,14 @@ const CustomSignIn = ({
       validationErrors,
     });
 
-  const body = socialProviders ? (
-    <FederatedProviderButtons route="signIn" socialProviders={socialProviders} toFederatedSignIn={toFederatedSignIn} />
-  ) : null;
+  const body =
+    Platform.OS === 'web' && socialProviders ? (
+      <FederatedProviderButtons
+        route="signIn"
+        socialProviders={socialProviders}
+        toFederatedSignIn={toFederatedSignIn}
+      />
+    ) : null;
 
   const buttons = React.useMemo(() => {
     const forgotPassword = { children: forgotPasswordText, onPress: toForgotPassword };
@@ -5072,7 +5076,25 @@ const CustomSignIn = ({
       validationErrors={fieldValidationErrors}
     />
   ) : (
-    <Authenticator.SignIn {...rest} />
+    // Native: pass through the full Authenticator-provided props.
+    // If we omit Header/Footer/FormFields here, Amplify's DefaultContent will crash.
+    <Authenticator.SignIn
+      {...rest}
+      fields={fields}
+      handleBlur={handleBlur}
+      handleChange={handleChange}
+      handleSubmit={handleSubmit}
+      hideSignUp={hideSignUp}
+      isPending={isPending}
+      socialProviders={socialProviders}
+      toFederatedSignIn={toFederatedSignIn}
+      toForgotPassword={toForgotPassword}
+      toSignUp={toSignUp}
+      validationErrors={validationErrors}
+      Footer={Footer}
+      Header={Header}
+      FormFields={FormFields}
+    />
   );
 };
 
@@ -5128,7 +5150,20 @@ const CustomForgotPassword = ({
       validationErrors={fieldValidationErrors}
     />
   ) : (
-    <Authenticator.ForgotPassword {...rest} />
+    // Native: pass through the full Authenticator-provided props (incl. Header/Footer/FormFields).
+    <Authenticator.ForgotPassword
+      {...rest}
+      fields={fields}
+      handleBlur={handleBlur}
+      handleChange={handleChange}
+      handleSubmit={handleSubmit}
+      isPending={isPending}
+      toSignIn={toSignIn}
+      validationErrors={validationErrors}
+      Footer={Footer}
+      Header={Header}
+      FormFields={FormFields}
+    />
   );
 };
 
@@ -5172,13 +5207,14 @@ const CustomSignUp = ({
   const primaryButtonText = isPending ? getCreatingAccountText() : getCreateAccountText();
   const secondaryButtonText = getBackToSignInText();
 
-  const body = socialProviders ? (
-    <FederatedProviderButtons
-      route="signUp"
-      socialProviders={socialProviders}
-      toFederatedSignIn={toFederatedSignIn}
-    />
-  ) : null;
+  const body =
+    Platform.OS === 'web' && socialProviders ? (
+      <FederatedProviderButtons
+        route="signUp"
+        socialProviders={socialProviders}
+        toFederatedSignIn={toFederatedSignIn}
+      />
+    ) : null;
 
   const buttons = React.useMemo(
     () => ({
@@ -5218,17 +5254,23 @@ const CustomSignUp = ({
         />
       </form>
     ) : (
-      <DefaultContent
-        body={body}
-        buttons={buttons}
-        error={rest?.error}
-        fields={fieldsWithHandlers}
-        Footer={Footer}
-        FormFields={FormFields}
-        Header={Header}
-        headerText={headerText}
+      // Native: use Amplify's built-in screen (DefaultContent is a web-oriented helper and can break on RN).
+      <Authenticator.SignUp
+        {...rest}
+        fields={fields}
+        handleBlur={handleBlur}
+        handleChange={handleChange}
+        handleSubmit={handleSubmit}
+        hasValidationErrors={hasValidationErrors}
+        hideSignIn={hideSignIn}
         isPending={isPending}
-        validationErrors={fieldValidationErrors}
+        socialProviders={socialProviders}
+        toFederatedSignIn={toFederatedSignIn}
+        toSignIn={toSignIn}
+        validationErrors={validationErrors}
+        Footer={Footer}
+        Header={Header}
+        FormFields={FormFields}
       />
     )
   );
