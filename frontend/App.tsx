@@ -60,6 +60,7 @@ import {
   applyTitleOverridesToUnreadMap,
   setTitleOverride,
 } from './src/utils/conversationTitles';
+import { formatChatActivityDate } from './src/utils/chatDates';
 
 import {
   generateKeypair,
@@ -3411,6 +3412,15 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
                       </Text>
                     </View>
                     <View style={styles.chatRowRight}>
+                        {t.lastActivityAt ? (
+                          <Text
+                            style={[styles.chatRowDate, isDark ? styles.chatRowDateDark : null]}
+                            numberOfLines={1}
+                            accessibilityLabel="Last message date"
+                          >
+                            {formatChatActivityDate(t.lastActivityAt)}
+                          </Text>
+                        ) : null}
                       {t.unreadCount > 0 ? (
                         <View style={[styles.unreadChip, isDark ? styles.unreadChipDark : null]}>
                           <Text style={[styles.unreadChipText, isDark ? styles.unreadChipTextDark : null]}>
@@ -6416,6 +6426,8 @@ const styles = StyleSheet.create({
   chatRowRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   chatRowName: { fontWeight: '800', color: '#111', flexGrow: 1, flexShrink: 1, minWidth: 0 },
   chatRowNameDark: { color: '#fff' },
+  chatRowDate: { fontWeight: '800', fontSize: 13, color: '#111' },
+  chatRowDateDark: { color: '#fff' },
   chatRowCount: { fontWeight: '900', color: '#1976d2' },
   chatRowCountDark: { color: '#fff' },
   memberChip: {
