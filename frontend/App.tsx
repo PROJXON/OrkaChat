@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as NavigationBar from 'expo-navigation-bar';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -5407,6 +5408,41 @@ export default function App(): React.JSX.Element {
     };
   }, []);
 
+  // Keep Android system nav bar in sync with our theme (fixes "light bar" in dark mode).
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const bg = isDark ? '#0b0b0f' : '#ffffff';
+    const buttons = isDark ? 'light' : 'dark';
+    (async () => {
+      try {
+        await NavigationBar.setBackgroundColorAsync(bg);
+        await NavigationBar.setButtonStyleAsync(buttons as any);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [isDark]);
+
+  // Keep the mobile browser UI bar (theme-color) in sync with in-app theme on web.
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    try {
+      const head = document.head || document.getElementsByTagName('head')[0];
+      let meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = 'theme-color';
+        head.appendChild(meta);
+      }
+      meta.content = isDark ? '#0b0b0f' : '#ffffff';
+
+      // Hint to the UA about supported color schemes (helps form controls, scrollbars, etc).
+      document.documentElement.style.colorScheme = 'dark light';
+    } catch {
+      // ignore
+    }
+  }, [isDark]);
+
   // Hide the native splash once we’re ready and the root view has laid out.
   React.useEffect(() => {
     if (!appReady || !rootLayoutDone) return;
@@ -5751,7 +5787,10 @@ export default function App(): React.JSX.Element {
           )}
         </Authenticator.Provider>
 
-        <StatusBar style="auto" />
+        <StatusBar
+          style={isDark ? 'light' : 'dark'}
+          backgroundColor={isDark ? '#0b0b0f' : '#ffffff'}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
   );
