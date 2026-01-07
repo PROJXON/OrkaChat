@@ -4,11 +4,16 @@
 // - OPENAI_MODEL (optional, default: gpt-4o-mini)
 // - AI_SUMMARY_TABLE (optional but recommended for caching/throttling)
 // - SUMMARY_THROTTLE_SECONDS (optional, default: 30)
+// - AI_SUMMARY_MAX_PER_MINUTE (optional, default: 3) per-user quota (only enforced when calling OpenAI)
+// - AI_SUMMARY_MAX_PER_DAY (optional, default: 40) per-user quota (only enforced when calling OpenAI)
 //
 // NOTE: This is a demo-quality summarizer. It receives plaintext message history from the client.
 
 const { DynamoDBClient, GetItemCommand, PutItemCommand } = require('@aws-sdk/client-dynamodb');
 const crypto = require('crypto');
+// NOTE: kept as a relative import so this file can be pasted into AWS Lambda as index.js
+// alongside a local ./lib/aiquota.js file.
+const { enforceAiQuota } = require('./lib/aiquota');
 
 const ddb = new DynamoDBClient({});
 
@@ -84,6 +89,33 @@ exports.handler = async (event) => {
         }
       } catch (err) {
         console.error('AI cache get failed (continuing without cache)', err);
+      }
+    }
+
+    // Quota: only apply when we are about to call OpenAI (i.e. cache/throttle didn't return).
+    // This requires dynamodb:UpdateItem on AI_SUMMARY_TABLE.
+    if (tableName) {
+      try {
+        await enforceAiQuota({
+          ddb,
+          tableName,
+          sub,
+          route: 'summary',
+          maxPerMinute: Number(process.env.AI_SUMMARY_MAX_PER_MINUTE || 3),
+          maxPerDay: Number(process.env.AI_SUMMARY_MAX_PER_DAY || 40),
+        });
+      } catch (err) {
+        if (err?.name === 'RateLimitExceeded') {
+          const retryAfter = Number(err.retryAfterSeconds || 30);
+          return {
+            statusCode: 429,
+            headers: { 'Retry-After': String(retryAfter) },
+            body: JSON.stringify({
+              message: 'AI limit reached (summary). Please try again later.',
+            }),
+          };
+        }
+        console.error('AI summary quota check failed (continuing without quota)', err);
       }
     }
 

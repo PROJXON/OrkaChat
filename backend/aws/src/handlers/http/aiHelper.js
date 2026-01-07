@@ -4,12 +4,17 @@
 // - OPENAI_MODEL (optional, default: gpt-4o-mini)
 // - AI_HELPER_TABLE (optional but recommended for caching/throttling)
 // - HELPER_THROTTLE_SECONDS (optional, default: 15)
+// - AI_HELPER_MAX_PER_MINUTE (optional, default: 10) per-user quota (only enforced when calling OpenAI)
+// - AI_HELPER_MAX_PER_DAY (optional, default: 250) per-user quota (only enforced when calling OpenAI)
 //
 // NOTE: This is a demo-quality assistant. It receives plaintext message history from the client.
 // It should be invoked behind the same JWT authorizer as other authenticated routes.
 
 const { DynamoDBClient, GetItemCommand, PutItemCommand } = require('@aws-sdk/client-dynamodb');
 const crypto = require('crypto');
+// NOTE: kept as a relative import so this file can be pasted into AWS Lambda as index.js
+// alongside a local ./lib/aiquota.js file.
+const { enforceAiQuota } = require('./lib/aiquota');
 
 const ddb = new DynamoDBClient({});
 
@@ -293,6 +298,33 @@ exports.handler = async (event) => {
     };
 
     const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    // Quota: only apply when we are about to call OpenAI (i.e. cache/throttle didn't return).
+    // This requires dynamodb:UpdateItem on AI_HELPER_TABLE.
+    if (tableName) {
+      try {
+        await enforceAiQuota({
+          ddb,
+          tableName,
+          sub,
+          route: 'helper',
+          maxPerMinute: Number(process.env.AI_HELPER_MAX_PER_MINUTE || 10),
+          maxPerDay: Number(process.env.AI_HELPER_MAX_PER_DAY || 250),
+        });
+      } catch (err) {
+        if (err?.name === 'RateLimitExceeded') {
+          const retryAfter = Number(err.retryAfterSeconds || 30);
+          return {
+            statusCode: 429,
+            headers: { 'Retry-After': String(retryAfter) },
+            body: JSON.stringify({
+              message: 'AI limit reached (helper). Please try again later.',
+            }),
+          };
+        }
+        console.error('AI helper quota check failed (continuing without quota)', err);
+      }
+    }
 
     // Don't let the OpenAI call run forever (or until Lambda timeout).
     // Keep this comfortably below your configured Lambda timeout.

@@ -11,8 +11,37 @@ const {
   ApiGatewayManagementApiClient,
   PostToConnectionCommand,
 } = require('@aws-sdk/client-apigatewaymanagementapi');
+const { enforceMediaBytesPerDay } = require('../../lib/mediaQuota');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const ddbRaw = new DynamoDBClient({});
+
+// Best-effort S3 HeadObject (v3 preferred, v2 fallback) for size-based quotas.
+const headObjectSize = async ({ bucket, key }) => {
+  const b = typeof bucket === 'string' ? bucket.trim() : '';
+  const k = typeof key === 'string' ? key.trim().replace(/^\/+/, '') : '';
+  if (!b || !k) return null;
+  try {
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    const { S3Client, HeadObjectCommand } = require('@aws-sdk/client-s3');
+    const s3 = new S3Client({});
+    const resp = await s3.send(new HeadObjectCommand({ Bucket: b, Key: k }));
+    const n = Number(resp && resp.ContentLength);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  } catch {
+    // ignore; try v2
+  }
+  try {
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    const AWS = require('aws-sdk');
+    const s3 = new AWS.S3();
+    const resp = await s3.headObject({ Bucket: b, Key: k }).promise();
+    const n = Number(resp && resp.ContentLength);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  } catch {
+    return null;
+  }
+};
 
 // Self-contained best-effort SQS enqueue (so this Lambda can be copy/pasted into AWS).
 const DEFAULT_DELETE_ALLOWED_PREFIXES = ['uploads/public/avatars/', 'uploads/channels/', 'uploads/dm/'];
@@ -1566,6 +1595,89 @@ exports.handler = async (event) => {
     const incomingMediaPaths = Object.prototype.hasOwnProperty.call(body, 'mediaPaths')
       ? normalizeMediaPaths(body.mediaPaths)
       : undefined;
+
+    // ---- Upload cost safety rail (optional) ----
+    // Enforce a per-user bytes/day quota for media referenced in messages.
+    // This does NOT prevent direct-to-S3 uploads, but it prevents users from "making uploads stick"
+    // by attaching them to messages, and cleans up over-quota objects best-effort.
+    const mediaQuotaTable =
+      String(process.env.MEDIA_UPLOAD_QUOTA_TABLE || '').trim() ||
+      String(process.env.MEDIA_SIGNER_QUOTA_TABLE || '').trim() ||
+      String(process.env.AI_SUMMARY_TABLE || '').trim() ||
+      String(process.env.AI_HELPER_TABLE || '').trim();
+    const mediaBucket = String(process.env.MEDIA_BUCKET_NAME || '').trim();
+    const maxBytesPerDay = Number(process.env.MEDIA_UPLOAD_MAX_BYTES_PER_DAY || 0); // 0 => disabled
+    const shouldEnforceMediaQuota = !!(mediaQuotaTable && mediaBucket && Number.isFinite(maxBytesPerDay) && maxBytesPerDay > 0);
+
+    if (shouldEnforceMediaQuota) {
+      // DM/group: client supplies mediaPaths out-of-band.
+      // Global/channel: media is embedded in the JSON envelope stored in `text`.
+      const isEncryptedChat = isDm || isGroup;
+      const mediaPaths = isEncryptedChat
+        ? normalizeMediaPaths(incomingMediaPaths)
+        : extractChatMediaPathsFromText(text);
+
+      // Only count known prefixes (avoid counting arbitrary keys).
+      const allowedPrefixes = isEncryptedChat ? ['uploads/dm/'] : ['uploads/channels/'];
+      const safeMediaKeys = uniqStrings(mediaPaths).filter((k) => allowedPrefixes.some((p) => String(k).startsWith(p)));
+
+      if (safeMediaKeys.length) {
+        // HeadObject is best-effort. If we can't fetch sizes (missing perms, transient errors),
+        // we do NOT block the message (fail-open).
+        const sizes = await Promise.all(
+          safeMediaKeys.map(async (k) => {
+            const n = await headObjectSize({ bucket: mediaBucket, key: k });
+            return Number.isFinite(n) && n >= 0 ? n : 0;
+          })
+        ).catch(() => []);
+        const totalBytes = Array.isArray(sizes) ? sizes.reduce((a, b) => a + (Number(b) || 0), 0) : 0;
+
+        if (totalBytes > 0) {
+          try {
+            await enforceMediaBytesPerDay({
+              ddb: ddbRaw,
+              tableName: mediaQuotaTable,
+              sub: senderSub,
+              route: isEncryptedChat ? 'dm' : 'channel',
+              addBytes: totalBytes,
+              maxBytesPerDay,
+            });
+          } catch (err) {
+            if (err?.name === 'MediaQuotaExceeded') {
+              // Best-effort cleanup: delete the over-quota uploads so they don't accumulate.
+              enqueueMediaDeletes({
+                keys: safeMediaKeys,
+                reason: 'media_quota_exceeded',
+                allowedPrefixes,
+                context: { conversationId, messageId, bytes: totalBytes },
+              }).catch(() => {});
+              const retryAfter = Number(err.retryAfterSeconds || 60);
+
+              // WebSocket UX: send an explicit error payload to the sender so the client can show
+              // a theme-appropriate modal (works on web + native). Returning an HTTP 429 alone is
+              // not reliably surfaced to the UI in WS flows.
+              try {
+                await broadcast(mgmt, [connectionId], {
+                  type: 'error',
+                  code: 'media_quota',
+                  title: 'Upload limit reached',
+                  message: 'You’ve reached your daily upload limit. Please try again tomorrow.',
+                  retryAfterSeconds: retryAfter,
+                  bytesAttempted: totalBytes,
+                  conversationId,
+                });
+              } catch {
+                // ignore
+              }
+
+              // Do not persist/broadcast the message.
+              return { statusCode: 200, body: 'Media quota exceeded.' };
+            }
+            console.warn('media quota check failed (continuing without quota)', err);
+          }
+        }
+      }
+    }
 
     // Mentions + replies (plaintext chats: global + channels)
     let mentions = undefined;

@@ -4719,6 +4719,26 @@ export default function ChatScreen({
           }
         }
 
+        // Server-side quota / error events (theme-appropriate modal).
+        // IMPORTANT: This is preferred over relying on WS Lambda status codes, which don't consistently reach UI.
+        if (payload && payload.type === 'error') {
+          const code = typeof payload.code === 'string' ? String(payload.code) : '';
+          if (code === 'media_quota') {
+            const title = typeof payload.title === 'string' ? String(payload.title) : 'Upload limit reached';
+            const msg =
+              typeof payload.message === 'string'
+                ? String(payload.message)
+                : 'You’ve reached your daily upload limit. Please try again tomorrow.';
+            try {
+              openInfo(title, msg);
+            } catch {
+              // fallback
+              showAlert(title, msg);
+            }
+            return;
+          }
+        }
+
         // Presence hints (server-authored, not persisted): e.g. someone joined the room.
         // Use these to refresh rosters/counts promptly without adding extra system messages.
         if (payload && payload.type === 'presence' && payload.conversationId === activeConv) {
@@ -6518,6 +6538,19 @@ export default function ChatScreen({
 
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
+        // Friendly quota messaging (theme-appropriate modal via openInfo).
+        if (resp.status === 429) {
+          let msg = 'AI limit reached. Please try again later.';
+          try {
+            const j = JSON.parse(text || '{}');
+            if (j && typeof j.message === 'string' && j.message.trim()) msg = j.message.trim();
+          } catch {
+            // ignore
+          }
+          setSummaryOpen(false);
+          openInfo('AI limit reached', msg);
+          return;
+        }
         throw new Error(`AI summary failed (${resp.status}): ${text || 'no body'}`);
       }
       const data = await resp.json();
@@ -6719,6 +6752,8 @@ export default function ChatScreen({
           } catch {
             // ignore
           }
+          // Revert the optimistic "thinking..." placeholder so the helper UI doesn't get stuck.
+          setHelperThread(threadBefore);
           openInfo('AI limit reached', msg);
           return;
         }
@@ -9809,10 +9844,10 @@ export default function ChatScreen({
                 </View>
               ) : null}
 
-              {messageActionTarget?.encrypted ? (
+              {messageActionTarget?.encrypted || messageActionTarget?.groupEncrypted ? (
                 <Pressable
                   onPress={() => {
-                    setCipherText(messageActionTarget?.rawText ?? '');
+                    setCipherText(String(messageActionTarget?.rawText ?? messageActionTarget?.text ?? ''));
                     setCipherOpen(true);
                     closeMessageActions();
                   }}
