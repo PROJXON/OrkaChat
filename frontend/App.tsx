@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -936,6 +937,10 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isDark = theme === 'dark';
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
+  const menuBtnRef = React.useRef<any>(null);
+  const [menuAnchor, setMenuAnchor] = React.useState<null | { x: number; y: number; width: number; height: number }>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  const isWideUi = windowWidth >= 900;
   const [channelAboutRequestEpoch, setChannelAboutRequestEpoch] = React.useState<number>(0);
   const [globalAboutOpen, setGlobalAboutOpen] = React.useState<boolean>(false);
   const [chatsOpen, setChatsOpen] = React.useState<boolean>(false);
@@ -2386,7 +2391,19 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
 
         <View style={styles.rightControls}>
           <Pressable
-            onPress={() => setMenuOpen(true)}
+            ref={menuBtnRef}
+            onPress={() => {
+              const node: any = menuBtnRef.current;
+              if (isWideUi && node && typeof node.measureInWindow === 'function') {
+                node.measureInWindow((x: number, y: number, w: number, h: number) => {
+                  setMenuAnchor({ x, y, width: w, height: h });
+                  setMenuOpen(true);
+                });
+                return;
+              }
+              setMenuAnchor(null);
+              setMenuOpen(true);
+            }}
             style={({ pressed }) => [
               styles.menuIconBtn,
               isDark && styles.menuIconBtnDark,
@@ -2490,6 +2507,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         title={undefined}
         isDark={isDark}
         cardWidth={160}
+        anchor={isWideUi ? menuAnchor : null}
         headerRight={
           <View style={[styles.themeToggle, isDark && styles.themeToggleDark]}>
             <Feather name={isDark ? 'moon' : 'sun'} size={16} color={isDark ? '#fff' : '#111'} />

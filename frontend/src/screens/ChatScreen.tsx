@@ -864,6 +864,10 @@ export default function ChatScreen({
   const insets = useSafeAreaInsets();
   const { user } = useAuthenticator();
   const { width: windowWidth } = useWindowDimensions();
+  const CHAT_WIDE_BREAKPOINT_PX = 900;
+  const CHAT_MAX_CONTENT_WIDTH_PX = 1040;
+  const isWideChatLayout = windowWidth >= CHAT_WIDE_BREAKPOINT_PX;
+  const chatViewportWidth = isWideChatLayout ? Math.min(windowWidth, CHAT_MAX_CONTENT_WIDTH_PX) : windowWidth;
   const dmSettingsCompact = windowWidth < 420;
   const [dmSettingsOpen, setDmSettingsOpen] = React.useState<boolean>(true);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
@@ -6967,6 +6971,7 @@ export default function ChatScreen({
         behavior={Platform.select({ ios: 'padding', android: undefined })}
       >
         <View style={[styles.header, isDark ? styles.headerDark : null]}>
+          <View style={isWideChatLayout ? styles.chatContentColumn : null}>
           {headerTop ? <View style={styles.headerTopSlot}>{headerTop}</View> : null}
           <View style={styles.titleRow}>
             <Text style={[styles.title, isDark ? styles.titleDark : null]} numberOfLines={1} ellipsizeMode="tail">
@@ -7556,6 +7561,7 @@ export default function ChatScreen({
           {error ? (
             <Text style={[styles.error, isDark ? styles.errorDark : null]}>{error}</Text>
           ) : null}
+          </View>
         </View>
         <View style={styles.chatBody}>
           <View
@@ -7587,6 +7593,9 @@ export default function ChatScreen({
             </View>
           ) : null}
 
+          {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
+              Center the *content* via FlatList.contentContainerStyle instead. */}
+          <View style={styles.chatBodyInner}>
           {/*
             Web note:
             React Native's FlatList `inverted` behavior is implemented differently on web and can render
@@ -7865,7 +7874,10 @@ export default function ChatScreen({
             prof?.avatarImagePath ? avatarUrlByPath[String(prof.avatarImagePath)] : undefined;
 
           const rowGutter = !isOutgoing && showAvatarForIncoming ? AVATAR_GUTTER : 0;
-          const capped = getCappedMediaSize(thumbAspect, isOutgoing ? windowWidth : windowWidth - rowGutter);
+          const capped = getCappedMediaSize(
+            thumbAspect,
+            isOutgoing ? chatViewportWidth : chatViewportWidth - rowGutter
+          );
           const hideMetaUntilDecrypted = isStillEncrypted;
           const canReact = !isDeleted && !isStillEncrypted;
           const reactionEntriesVisible = canReact ? reactionEntries : [];
@@ -8686,7 +8698,7 @@ export default function ChatScreen({
               </Pressable>
             );
             }}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, isWideChatLayout ? styles.chatContentColumn : null]}
           />
           {inlineEditTargetId ? (
             <View style={[styles.editingBar, isDark ? styles.editingBarDark : null]}>
@@ -8816,6 +8828,7 @@ export default function ChatScreen({
             </View>
           ) : null}
           {/* Inline edit happens inside the bubble (Signal-style). */}
+          </View>
           <View
             style={[
               styles.inputRow,
@@ -8824,7 +8837,7 @@ export default function ChatScreen({
               { paddingBottom: insets.bottom },
             ]}
           >
-            <View style={styles.inputRowInner}>
+            <View style={[styles.inputRowInner, isWideChatLayout ? styles.chatContentColumn : null]}>
               <Pressable
                 style={[
                   styles.pickBtn,
@@ -11340,7 +11353,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
   safeDark: { backgroundColor: '#0b0b0f' },
   container: { flex: 1 },
+  chatContentColumn: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
   chatBody: { flex: 1, position: 'relative' },
+  chatBodyInner: { flex: 1 },
   chatBgBase: { ...StyleSheet.absoluteFillObject },
   messageList: { flex: 1 },
   header: {
@@ -11936,12 +11951,17 @@ const styles = StyleSheet.create({
   // so use a readable light-mode color.
   seenTextOutgoingOnLightSurface: { color: '#1976d2' },
   inputRow: {
+    width: '100%',
+    alignSelf: 'stretch',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#e3e3e3',
     backgroundColor: '#f2f2f7',
   },
   inputRowInner: {
+    flex: 1,
     flexDirection: 'row',
+    alignSelf: 'stretch',
+    width: '100%',
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 8,
@@ -11986,6 +12006,8 @@ const styles = StyleSheet.create({
   pickTxtDark: { color: '#fff' },
   input: {
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
     height: 44,
     paddingHorizontal: 12,
     borderWidth: 1,
