@@ -915,7 +915,6 @@ export default function GuestGlobalScreen({
             <Feather name="chevron-down" size={16} color={isDark ? '#fff' : '#111'} />
           </Pressable>
           <View style={styles.headerRight}>
-            <AppBrandIcon isDark={isDark} fit="contain" />
             <Pressable
               ref={menuBtnRef}
               onPress={() => {
@@ -938,7 +937,13 @@ export default function GuestGlobalScreen({
               accessibilityRole="button"
               accessibilityLabel="Open menu"
             >
-              <Feather name="menu" size={18} color={isDark ? '#fff' : '#111'} />
+              <AppBrandIcon
+                isDark={isDark}
+                fit="contain"
+                slotWidth={32}
+                slotHeight={32}
+                accessible={false}
+              />
             </Pressable>
           </View>
         </View>
@@ -2046,15 +2051,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#fff',
-    borderWidth: 1,
+    backgroundColor: '#f2f2f7',
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e3e3e3',
     alignItems: 'center',
     justifyContent: 'center',
   },
   menuIconBtnDark: {
-    backgroundColor: '#14141a',
+    backgroundColor: '#2a2a33',
     borderColor: '#2a2a33',
+    borderWidth: 0,
   },
   signInPill: {
     paddingHorizontal: 12,

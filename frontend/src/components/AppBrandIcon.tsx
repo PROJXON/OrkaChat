@@ -20,6 +20,8 @@ export function AppBrandIcon({
   containZoom,
   containZoomLight = 1.7,
   containZoomDark = 1.25,
+  accessible = true,
+  accessibilityLabel = 'App icon',
   style,
 }: {
   isDark: boolean;
@@ -41,6 +43,8 @@ export function AppBrandIcon({
   containZoom?: number;
   containZoomLight?: number;
   containZoomDark?: number;
+  accessible?: boolean;
+  accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 }): React.JSX.Element {
   // Default to clipping inside a round slot so the icon doesn't bleed into the header row.
@@ -71,8 +75,8 @@ export function AppBrandIcon({
         style,
       ]}
       pointerEvents="none"
-      accessible
-      accessibilityLabel="App icon"
+      accessible={accessible}
+      accessibilityLabel={accessibilityLabel}
     >
       <Image
         source={isDark ? ICON_DARK : ICON_LIGHT}

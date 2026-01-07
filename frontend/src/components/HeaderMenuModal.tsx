@@ -2,6 +2,7 @@ import React from 'react';
 import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
+import { AppBrandIcon } from './AppBrandIcon';
 
 export type HeaderMenuItem = {
   key: string;
@@ -131,7 +132,7 @@ export function HeaderMenuModal({
               accessibilityRole="button"
               accessibilityLabel="Close menu"
             >
-              <Feather name="menu" size={18} color={text} />
+              <AppBrandIcon isDark={isDark} fit="contain" slotWidth={32} slotHeight={32} accessible={false} />
             </Pressable>
           </View>
           {title ? <Text style={[styles.title, { color: text, borderBottomColor: divider }]}>{title}</Text> : null}
