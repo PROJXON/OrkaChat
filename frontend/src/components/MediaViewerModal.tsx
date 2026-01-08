@@ -52,6 +52,33 @@ export function MediaViewerModal({
   const chromeOpacity = React.useRef(new Animated.Value(1)).current;
   const chromeLastPointerAtRef = React.useRef<number>(0);
 
+  const getItemAt = React.useCallback(
+    (vs: MediaViewerState, i: number): ViewerItem | null => {
+      if (!vs) return null;
+      if (vs.mode === 'global') return vs.globalItems?.[i] ?? null;
+      if (vs.mode === 'dm') {
+        const it = vs.dmItems?.[i];
+        const key = it?.media?.path;
+        if (!key) return null;
+        const url = (dmFileUriByPath?.[key] || '') as string;
+        const k = it?.media?.kind;
+        const kind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
+        return { url, kind, fileName: it?.media?.fileName };
+      }
+      if (vs.mode === 'gdm') {
+        const it = vs.gdmItems?.[i];
+        const key = it?.media?.path;
+        if (!key) return null;
+        const url = (dmFileUriByPath?.[key] || '') as string;
+        const k = it?.media?.kind;
+        const kind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
+        return { url, kind, fileName: it?.media?.fileName };
+      }
+      return null;
+    },
+    [dmFileUriByPath]
+  );
+
   const getCount = React.useCallback((vs: MediaViewerState) => {
     if (!vs) return 0;
     return vs.mode === 'global'
@@ -129,6 +156,9 @@ export function MediaViewerModal({
 
   // On open, ensure we start on the requested index.
   React.useEffect(() => {
+    // On web, horizontal paging ScrollView can steal pointer events from native <video> controls.
+    // We render a translated row View on web (no scroll sync needed).
+    if (Platform.OS === 'web') return;
     if (!open) return;
     const vs = viewerState;
     if (!vs) return;
@@ -210,15 +240,91 @@ export function MediaViewerModal({
               const count = getCount(vs);
               if (!count) return <Text style={styles.viewerFallback}>No preview available.</Text>;
 
+              const pageW = Dimensions.get('window').width;
+              const pageH = Dimensions.get('window').height - (52 + insets.top);
+
+              if (Platform.OS === 'web') {
+                // Render all pages in a translated row so we don't remount media on each index change.
+                // This avoids "reload flashes" and keeps native <video> controls clickable.
+                const idx = Math.max(0, Math.min(count - 1, vs.index || 0));
+                return (
+                  <View style={{ width: pageW, height: pageH, overflow: 'hidden' }}>
+                    <View
+                      style={{
+                        width: pageW * count,
+                        height: pageH,
+                        flexDirection: 'row',
+                        transform: [{ translateX: -pageW * idx }],
+                      }}
+                    >
+                      {Array.from({ length: count }).map((_, i) => {
+                        const item = getItemAt(vs, i);
+                        const url = item?.url || '';
+                        const kind = item?.kind;
+
+                        if (!url) {
+                          return (
+                            <View
+                              key={`viewer:web:${i}`}
+                              style={[
+                                styles.viewerTapArea,
+                                { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' },
+                              ]}
+                            >
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Loading</Text>
+                                <AnimatedDots color="#fff" size={18} />
+                              </View>
+                            </View>
+                          );
+                        }
+
+                        if (kind === 'image') {
+                          return (
+                            <Pressable
+                              key={`viewer:web:${i}`}
+                              style={[styles.viewerTapArea, { width: pageW, height: pageH }]}
+                              onPress={() => setChromeVisible((v) => !v)}
+                              accessibilityRole="button"
+                              accessibilityLabel="Toggle controls"
+                            >
+                              <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
+                            </Pressable>
+                          );
+                        }
+
+                        if (kind === 'video') {
+                          // IMPORTANT: don't attach responder capture handlers on web; they can block native <video> controls.
+                          return (
+                            <View key={`viewer:web:${i}`} style={[styles.viewerTapArea, { width: pageW, height: pageH }]}>
+                              <FullscreenVideo url={url} style={styles.viewerVideo} />
+                            </View>
+                          );
+                        }
+
+                        return (
+                          <View
+                            key={`viewer:web:${i}`}
+                            style={[
+                              styles.viewerTapArea,
+                              { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' },
+                            ]}
+                          >
+                            <Text style={styles.viewerFallback}>No preview available.</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              }
+
               const onMomentumEnd = (e: any) => {
                 const x = Number(e?.nativeEvent?.contentOffset?.x ?? 0);
                 const w = Number(Dimensions.get('window')?.width ?? 1);
                 const next = Math.max(0, Math.min(count - 1, Math.round(x / Math.max(1, w))));
                 setViewerState((prev) => (prev ? { ...prev, index: next } : prev));
               };
-
-              const pageW = Dimensions.get('window').width;
-              const pageH = Dimensions.get('window').height - (52 + insets.top);
 
               return (
                 <ScrollView
@@ -231,30 +337,7 @@ export function MediaViewerModal({
                   style={{ width: pageW, height: pageH }}
                 >
                   {Array.from({ length: count }).map((_, i) => {
-                    const item: ViewerItem | null =
-                      vs.mode === 'global'
-                        ? vs.globalItems?.[i] ?? null
-                        : vs.mode === 'dm'
-                          ? (() => {
-                              const it = vs.dmItems?.[i];
-                              const key = it?.media?.path;
-                              if (!key) return null;
-                              const url = (dmFileUriByPath?.[key] || '') as string;
-                              const k = it?.media?.kind;
-                              const kind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
-                              return { url, kind, fileName: it?.media?.fileName };
-                            })()
-                          : vs.mode === 'gdm'
-                            ? (() => {
-                                const it = vs.gdmItems?.[i];
-                                const key = it?.media?.path;
-                                if (!key) return null;
-                                const url = (dmFileUriByPath?.[key] || '') as string;
-                                const k = it?.media?.kind;
-                                const kind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
-                                return { url, kind, fileName: it?.media?.fileName };
-                              })()
-                            : null;
+                    const item: ViewerItem | null = getItemAt(vs, i);
 
                     const url = item?.url || '';
                     const kind = item?.kind;
@@ -331,11 +414,6 @@ export function MediaViewerModal({
                   const go = (dir: -1 | 1) => {
                     const next = (idx + dir + count) % count;
                     setViewerState((prev) => (prev ? { ...prev, index: next } : prev));
-                    const w = Dimensions.get('window').width;
-                    // Give ScrollView a tick to render, then scroll.
-                    setTimeout(() => {
-                      (viewerScrollRef.current as any)?.scrollTo?.({ x: w * next, y: 0, animated: true });
-                    }, 0);
                   };
                   return (
                     <Animated.View
@@ -343,12 +421,9 @@ export function MediaViewerModal({
                         // IMPORTANT: fill the viewer so absolute-positioned buttons hug the edges.
                         // (Without this, their absolute positioning becomes relative to a small wrapper.)
                         StyleSheet.absoluteFillObject,
-                        ...(Platform.OS === 'web'
-                          ? [{ pointerEvents: (chromeVisible ? 'auto' : 'none') as 'auto' | 'none' }]
-                          : []),
                         { opacity: chromeOpacity, zIndex: 11 },
                       ]}
-                      pointerEvents={Platform.OS === 'web' ? undefined : chromeVisible ? 'auto' : 'none'}
+                      pointerEvents="box-none"
                     >
                       <Pressable
                         style={[styles.viewerNavBtn, styles.viewerNavLeft]}
