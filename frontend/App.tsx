@@ -18,7 +18,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaFrameContext,
+  SafeAreaInsetsContext,
+  SafeAreaProvider,
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 import ChatScreen from './src/screens/ChatScreen';
 import GuestGlobalScreen from './src/screens/GuestGlobalScreen';
 import { AnimatedDots } from './src/components/AnimatedDots';
@@ -109,6 +114,26 @@ const toCdnUrl = (path: string): string => {
     return '';
   }
 };
+
+function AppSafeAreaProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  // Web: ignore safe-area insets entirely.
+  // On some mobile browsers (esp Android/Chrome), `react-native-safe-area-context` can report large left/right
+  // insets (e.g. ~42px) that flip with rotation, causing visible side "gaps". We prefer consistent full-bleed
+  // layout on web.
+  const { width, height } = useWindowDimensions();
+
+  if (Platform.OS === 'web') {
+    return (
+      <SafeAreaInsetsContext.Provider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+        <SafeAreaFrameContext.Provider value={{ x: 0, y: 0, width, height }}>
+          {children}
+        </SafeAreaFrameContext.Provider>
+      </SafeAreaInsetsContext.Provider>
+    );
+  }
+
+  return <SafeAreaProvider>{children}</SafeAreaProvider>;
+}
 
 const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const { user } = useAuthenticator();
@@ -5708,7 +5733,7 @@ export default function App(): React.JSX.Element {
   );
 
   return (
-    <SafeAreaProvider>
+    <AppSafeAreaProvider>
       {/* Apply TOP safe-area globally. Screens manage left/right/bottom insets themselves (chat input / CTAs). */}
       <SafeAreaView
         style={[styles.container, styles.appSafe, isDark && styles.appSafeDark]}
@@ -5800,7 +5825,7 @@ export default function App(): React.JSX.Element {
           backgroundColor={isDark ? '#0b0b0f' : '#ffffff'}
         />
       </SafeAreaView>
-    </SafeAreaProvider>
+    </AppSafeAreaProvider>
   );
 }
 
