@@ -280,7 +280,7 @@ export default function GuestGlobalScreen({
   onSignIn: () => void;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const WIDE_BREAKPOINT_PX = 900;
   const MAX_CONTENT_WIDTH_PX = 1040;
   const isWideUi = windowWidth >= WIDE_BREAKPOINT_PX;
@@ -406,7 +406,13 @@ export default function GuestGlobalScreen({
   const [reactionInfoNamesBySub, setReactionInfoNamesBySub] = React.useState<Record<string, string>>({});
 
   const [viewerOpen, setViewerOpen] = React.useState<boolean>(false);
-  const [viewerMedia, setViewerMedia] = React.useState<null | { url: string; kind: 'image' | 'video' | 'file'; fileName?: string }>(null);
+  const viewerScrollRef = React.useRef<any>(null);
+  const [viewerState, setViewerState] = React.useState<
+    null | {
+      index: number;
+      items: Array<{ url: string; kind: 'image' | 'video' | 'file'; fileName?: string }>;
+    }
+  >(null);
 
   const [linkConfirmOpen, setLinkConfirmOpen] = React.useState<boolean>(false);
   const [linkConfirmUrl, setLinkConfirmUrl] = React.useState<string>('');
@@ -431,6 +437,7 @@ export default function GuestGlobalScreen({
     setChannelPickerOpen(false);
     setReactionInfoOpen(false);
     setViewerOpen(false);
+    setViewerState(null);
     setLinkConfirmOpen(false);
     // Defer so modal close animations/state flush first.
     setTimeout(() => {
@@ -615,25 +622,38 @@ export default function GuestGlobalScreen({
   }, []);
 
   const openViewer = React.useCallback(
-    async (media: GuestMessage['media']) => {
-      if (!media?.path) return;
-      const url = await resolvePathUrl(media.path);
-      if (!url) return;
+    async (mediaList: GuestMediaItem[], startIndex: number) => {
+      const list = Array.isArray(mediaList) ? mediaList.filter((m) => !!m?.path) : [];
+      if (!list.length) return;
+      const idx = Math.max(0, Math.min(list.length - 1, Math.floor(Number(startIndex) || 0)));
 
-      // For files, keep the existing behavior (open externally).
-      if (media.kind === 'file') {
-        await Linking.openURL(url.toString());
+      // If it's a single file attachment, keep existing guest behavior (open externally).
+      if (list.length === 1 && list[0]?.kind === 'file') {
+        const url = await resolvePathUrl(list[0].path);
+        if (url) await Linking.openURL(url.toString());
         return;
       }
 
-      setViewerMedia({
-        url: url.toString(),
-        kind: media.kind,
-        fileName: media.fileName,
-      });
+      const urls = await Promise.all(list.map((m) => resolvePathUrl(m.path)));
+      const items = list.map((m, i) => ({
+        url: String(urls[i] || ''),
+        kind: m.kind,
+        fileName: m.fileName,
+      }));
+
+      setViewerState({ index: idx, items });
       setViewerOpen(true);
+
+      // Ensure the ScrollView lands on the requested page on open.
+      setTimeout(() => {
+        try {
+          viewerScrollRef.current?.scrollTo?.({ x: windowWidth * idx, y: 0, animated: false });
+        } catch {
+          // ignore
+        }
+      }, 0);
     },
-    [resolvePathUrl]
+    [resolvePathUrl, windowWidth]
   );
 
   const fetchHistoryPage = React.useCallback(
@@ -1583,36 +1603,109 @@ export default function GuestGlobalScreen({
         </View>
       </Modal>
 
-      <Modal visible={viewerOpen} transparent animationType="fade">
+      <Modal
+        visible={viewerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setViewerOpen(false);
+          setViewerState(null);
+        }}
+      >
         <View style={styles.viewerOverlay}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => {
-              setViewerOpen(false);
-              setViewerMedia(null);
-            }}
-          />
           <View style={styles.viewerCard}>
-            <View style={styles.viewerTopBar}>
-              <Text style={styles.viewerTitle}>{viewerMedia?.fileName || 'Attachment'}</Text>
+            <View style={[styles.viewerTopBar, { paddingTop: insets.top, height: 52 + insets.top }]}>
+              {(() => {
+                const vs = viewerState;
+                const count = vs?.items?.length ?? 0;
+                const idx = vs?.index ?? 0;
+                const title =
+                  count > 1 ? `Attachment ${idx + 1}/${count}` : (vs?.items?.[idx]?.fileName || 'Attachment');
+                return <Text style={styles.viewerTitle}>{title}</Text>;
+              })()}
               <Pressable
                 style={styles.viewerCloseBtn}
                 onPress={() => {
                   setViewerOpen(false);
-                  setViewerMedia(null);
+                  setViewerState(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close viewer"
               >
                 <Text style={styles.viewerCloseText}>Close</Text>
               </Pressable>
             </View>
             <View style={styles.viewerBody}>
-              {viewerMedia?.kind === 'image' && viewerMedia?.url ? (
-                <Image source={{ uri: viewerMedia.url }} style={styles.viewerImage} resizeMode="contain" />
-              ) : viewerMedia?.kind === 'video' && viewerMedia?.url ? (
-                <FullscreenVideo url={viewerMedia.url} />
-              ) : (
-                <Text style={styles.viewerFallback}>No preview available.</Text>
-              )}
+              {(() => {
+                const vs = viewerState;
+                const count = vs?.items?.length ?? 0;
+                if (!vs || !count) return <Text style={styles.viewerFallback}>No preview available.</Text>;
+
+                const pageW = windowWidth;
+                const pageH = Math.max(1, windowHeight - (52 + insets.top));
+                const onMomentumEnd = (e: any) => {
+                  const x = Number(e?.nativeEvent?.contentOffset?.x ?? 0);
+                  const next = Math.max(0, Math.min(count - 1, Math.round(x / Math.max(1, pageW))));
+                  setViewerState((prev) => (prev ? { ...prev, index: next } : prev));
+                };
+
+                return (
+                  <ScrollView
+                    ref={viewerScrollRef}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onMomentumScrollEnd={onMomentumEnd}
+                    contentOffset={{ x: pageW * (vs.index || 0), y: 0 }}
+                    style={{ width: pageW, height: pageH }}
+                  >
+                    {Array.from({ length: count }).map((_, i) => {
+                      const item = vs.items[i];
+                      const url = String(item?.url || '');
+                      const kind = item?.kind;
+
+                      if (!url) {
+                        return (
+                          <View
+                            key={`guest-viewer:${i}`}
+                            style={[styles.viewerTapArea, { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' }]}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Loading</Text>
+                              <AnimatedDots color="#fff" size={18} />
+                            </View>
+                          </View>
+                        );
+                      }
+
+                      if (kind === 'image') {
+                        return (
+                          <View key={`guest-viewer:${i}`} style={[styles.viewerTapArea, { width: pageW, height: pageH }]}>
+                            <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
+                          </View>
+                        );
+                      }
+
+                      if (kind === 'video') {
+                        return (
+                          <View key={`guest-viewer:${i}`} style={[styles.viewerTapArea, { width: pageW, height: pageH }]}>
+                            <FullscreenVideo url={url} />
+                          </View>
+                        );
+                      }
+
+                      return (
+                        <View
+                          key={`guest-viewer:${i}`}
+                          style={[styles.viewerTapArea, { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' }]}
+                        >
+                          <Text style={styles.viewerFallback}>No preview available.</Text>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                );
+              })()}
             </View>
           </View>
         </View>
@@ -1659,7 +1752,7 @@ function GuestMessageRow({
   onOpenUrl: (url: string) => void;
   resolvePathUrl: (path: string) => Promise<string | null>;
   onOpenReactionInfo: (emoji: string, subs: string[], namesBySub?: Record<string, string>) => void;
-  onOpenViewer: (media: GuestMediaItem) => void;
+  onOpenViewer: (mediaList: GuestMediaItem[], startIndex: number) => void;
   avatarSize: number;
   avatarGutter: number;
   avatarSeed: string;
@@ -1693,10 +1786,17 @@ function GuestMessageRow({
   const [thumbUrl, setThumbUrl] = React.useState<string | null>(null);
   const [usedFullUrl, setUsedFullUrl] = React.useState<boolean>(false);
   const [thumbAspect, setThumbAspect] = React.useState<number | null>(null);
+  const [thumbUrlByKey, setThumbUrlByKey] = React.useState<Record<string, string | null>>({});
+  const [carouselIdx, setCarouselIdx] = React.useState<number>(0);
+  const carouselRef = React.useRef<any>(null);
 
   const mediaList = item.mediaList ?? (item.media ? [item.media] : []);
   const primaryMedia = mediaList.length ? mediaList[0] : null;
   const extraCount = Math.max(0, mediaList.length - 1);
+  const mediaKey = React.useMemo(
+    () => mediaList.map((m) => `${String(m?.thumbPath || '')}|${String(m?.path || '')}|${String(m?.kind || '')}`).join(','),
+    [mediaList]
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1710,6 +1810,32 @@ function GuestMessageRow({
       cancelled = true;
     };
   }, [primaryMedia?.path, primaryMedia?.thumbPath, resolvePathUrl]);
+
+  // Resolve thumb URLs for *all* attachments so multi-attachment messages can swipe like signed-in.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!mediaList.length) return;
+      const next: Record<string, string | null> = {};
+      for (const m of mediaList) {
+        const key = String(m?.thumbPath || m?.path || '');
+        if (!key) continue;
+        if (thumbUrlByKey[key]) continue;
+        const preferred = m?.thumbPath || m?.path;
+        if (!preferred) continue;
+        const u = await resolvePathUrl(preferred);
+        next[key] = u;
+      }
+      if (cancelled) return;
+      if (Object.keys(next).length) {
+        setThumbUrlByKey((prev) => ({ ...prev, ...next }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaKey, resolvePathUrl]);
 
   React.useEffect(() => {
     if (!thumbUrl) return;
@@ -1840,41 +1966,99 @@ function GuestMessageRow({
               ) : null}
             </View>
 
-            <Pressable
-              onPress={() => {
-                if (primaryMedia) onOpenViewer(primaryMedia);
-              }}
-              style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
-              accessibilityRole="button"
-              accessibilityLabel="Open media"
-            >
-              {primaryMedia?.kind === 'image' && thumbUrl ? (
-                <Image
-                  source={{ uri: thumbUrl }}
+            {mediaList.length > 1 ? (
+              <View style={{ width: capped.w, height: capped.h }}>
+                <ScrollView
+                  ref={carouselRef}
+                  horizontal
+                  pagingEnabled
+                  nestedScrollEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(e: any) => {
+                    const x = Number(e?.nativeEvent?.contentOffset?.x ?? 0);
+                    const next = Math.max(0, Math.min(mediaList.length - 1, Math.round(x / Math.max(1, capped.w))));
+                    setCarouselIdx(next);
+                  }}
                   style={{ width: capped.w, height: capped.h }}
-                  resizeMode="contain"
-                  onError={() => void onThumbError()}
-                />
-              ) : primaryMedia?.kind === 'video' && thumbUrl ? (
-                <View style={{ width: capped.w, height: capped.h }}>
+                >
+                  {mediaList.map((m, i) => {
+                    const key = String(m?.thumbPath || m?.path || '');
+                    const u = key ? thumbUrlByKey[key] : null;
+                    const looksImage =
+                      m.kind === 'image' || (m.kind === 'file' && String(m.contentType || '').startsWith('image/'));
+                    const looksVideo =
+                      m.kind === 'video' || (m.kind === 'file' && String(m.contentType || '').startsWith('video/'));
+                    return (
+                      <Pressable
+                        key={`guest-media:${item.id}:${m.path}:${i}`}
+                        onPress={() => onOpenViewer(mediaList, i)}
+                        style={({ pressed }) => [{ width: capped.w, height: capped.h, opacity: pressed ? 0.92 : 1 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Open attachment"
+                      >
+                        {u && (looksImage || looksVideo) ? (
+                          looksImage ? (
+                            <Image source={{ uri: u }} style={{ width: capped.w, height: capped.h }} resizeMode="contain" />
+                          ) : (
+                            <View style={{ width: capped.w, height: capped.h }}>
+                              <Image source={{ uri: u }} style={styles.mediaFill} resizeMode="cover" />
+                              <View style={styles.guestMediaPlayOverlay}>
+                                <Text style={styles.guestMediaPlayOverlayText}>▶</Text>
+                              </View>
+                            </View>
+                          )
+                        ) : (
+                          <View style={[styles.guestMediaFileChip, isDark && styles.guestMediaFileChipDark]}>
+                            <Text style={[styles.guestMediaFileText, isDark && styles.guestMediaFileTextDark]} numberOfLines={1}>
+                              {m?.fileName ? m.fileName : looksVideo ? 'Video' : looksImage ? 'Image' : 'File'}
+                            </Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.guestMediaCountBadge}>
+                  <Text style={styles.guestMediaCountBadgeText}>{`${carouselIdx + 1}/${mediaList.length}`}</Text>
+                </View>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  if (primaryMedia) onOpenViewer([primaryMedia], 0);
+                }}
+                style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Open media"
+              >
+                {primaryMedia?.kind === 'image' && thumbUrl ? (
                   <Image
                     source={{ uri: thumbUrl }}
-                    style={styles.mediaFill}
-                    resizeMode="cover"
+                    style={{ width: capped.w, height: capped.h }}
+                    resizeMode="contain"
                     onError={() => void onThumbError()}
                   />
-                  <View style={styles.guestMediaPlayOverlay}>
-                    <Text style={styles.guestMediaPlayOverlayText}>▶</Text>
+                ) : primaryMedia?.kind === 'video' && thumbUrl ? (
+                  <View style={{ width: capped.w, height: capped.h }}>
+                    <Image
+                      source={{ uri: thumbUrl }}
+                      style={styles.mediaFill}
+                      resizeMode="cover"
+                      onError={() => void onThumbError()}
+                    />
+                    <View style={styles.guestMediaPlayOverlay}>
+                      <Text style={styles.guestMediaPlayOverlayText}>▶</Text>
+                    </View>
                   </View>
-                </View>
-              ) : (
-                <View style={[styles.guestMediaFileChip, isDark && styles.guestMediaFileChipDark]}>
-                  <Text style={[styles.guestMediaFileText, isDark && styles.guestMediaFileTextDark]} numberOfLines={1}>
-                    {primaryMedia?.fileName ? primaryMedia.fileName : primaryMedia?.kind === 'video' ? 'Video' : 'File'}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
+                ) : (
+                  <View style={[styles.guestMediaFileChip, isDark && styles.guestMediaFileChipDark]}>
+                    <Text style={[styles.guestMediaFileText, isDark && styles.guestMediaFileTextDark]} numberOfLines={1}>
+                      {primaryMedia?.fileName ? primaryMedia.fileName : primaryMedia?.kind === 'video' ? 'Video' : 'File'}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            )}
 
             {extraCount ? (
               <View style={styles.guestExtraMediaRow}>
@@ -2378,17 +2562,35 @@ const styles = StyleSheet.create({
   modalBtnText: { color: '#111', fontWeight: '800' },
   modalBtnTextDark: { color: '#fff' },
 
-  viewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 12 },
-  viewerCard: { width: '96%', maxWidth: 720, height: '78%', backgroundColor: '#111', borderRadius: 14, overflow: 'hidden' },
-  viewerTopBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)' },
+  viewerOverlay: { flex: 1, backgroundColor: '#000' },
+  viewerCard: { flex: 1, backgroundColor: '#000' },
+  viewerTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.14)',
+  },
   viewerTitle: { color: '#fff', fontWeight: '700', flex: 1, marginRight: 12 },
   viewerCloseBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.12)' },
   viewerCloseText: { color: '#fff', fontWeight: '800' },
   viewerBody: { flex: 1 },
+  viewerTapArea: { backgroundColor: '#000' },
   // RN-web deprecates `style.resizeMode`; use the Image prop instead.
   viewerImage: { width: '100%', height: '100%' },
   viewerVideo: { width: '100%', height: '100%' },
   viewerFallback: { color: '#fff', padding: 14 },
+
+  guestMediaCountBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  guestMediaCountBadgeText: { color: '#fff', fontWeight: '900', fontSize: 12 },
 });
 
 
