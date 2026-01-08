@@ -1008,7 +1008,11 @@ export default function GuestGlobalScreen({
 
   return (
     // App.tsx already applies the top safe area. Avoid double top inset here (dead space).
-    <SafeAreaView style={[styles.container, isDark && styles.containerDark]} edges={['left', 'right']}>
+    <SafeAreaView
+      style={[styles.container, isDark && styles.containerDark]}
+      // Web: ignore safe-area left/right insets (they can be misreported as ~42px and flip with rotation).
+      edges={Platform.OS === 'web' ? [] : ['left', 'right']}
+    >
       <View style={[styles.headerRow, isDark && styles.headerRowDark]}>
         <View style={[styles.headerRowContent, isWideUi ? styles.contentColumn : null]}>
           <Pressable

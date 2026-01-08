@@ -6872,7 +6872,8 @@ export default function ChatScreen({
   return (
     <SafeAreaView
       style={[styles.safe, isDark ? styles.safeDark : null]}
-      edges={['left', 'right']}
+      // Web: ignore safe-area left/right insets (they can be misreported as ~42px and flip with rotation).
+      edges={Platform.OS === 'web' ? [] : ['left', 'right']}
     >
       <KeyboardAvoidingView
         style={styles.container}
