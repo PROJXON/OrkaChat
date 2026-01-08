@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { AnimatedDots } from './AnimatedDots';
 import { FullscreenVideo } from './FullscreenVideo';
+import { isWebCoarsePointer } from '../utils/responsive';
 
 type ViewerItem = { url: string; kind: 'image' | 'video' | 'file'; fileName?: string };
 
@@ -51,6 +52,7 @@ export function MediaViewerModal({
   const chromeHideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const chromeOpacity = React.useRef(new Animated.Value(1)).current;
   const chromeLastPointerAtRef = React.useRef<number>(0);
+  const isTouchWeb = Platform.OS === 'web' && isWebCoarsePointer();
 
   const getItemAt = React.useCallback(
     (vs: MediaViewerState, i: number): ViewerItem | null => {
@@ -91,10 +93,18 @@ export function MediaViewerModal({
   }, []);
 
   const showChromeBriefly = React.useCallback(() => {
+    // On touch/mobile web, hiding chrome makes it hard to recover controls (especially over <video>).
+    // Keep chrome visible; the user can still dismiss the modal or navigate attachments.
+    if (isTouchWeb) {
+      setChromeVisible(true);
+      if (chromeHideTimerRef.current) clearTimeout(chromeHideTimerRef.current);
+      chromeHideTimerRef.current = null;
+      return;
+    }
     setChromeVisible(true);
     if (chromeHideTimerRef.current) clearTimeout(chromeHideTimerRef.current);
     chromeHideTimerRef.current = setTimeout(() => setChromeVisible(false), 1500);
-  }, []);
+  }, [isTouchWeb]);
 
   // Allow rotating the device while the fullscreen media viewer is open,
   // but keep the rest of the app portrait-locked.
@@ -133,12 +143,16 @@ export function MediaViewerModal({
     }
     setChromeVisible(true);
     if (chromeHideTimerRef.current) clearTimeout(chromeHideTimerRef.current);
-    chromeHideTimerRef.current = setTimeout(() => setChromeVisible(false), 1500);
+    if (isTouchWeb) {
+      chromeHideTimerRef.current = null;
+    } else {
+      chromeHideTimerRef.current = setTimeout(() => setChromeVisible(false), 1500);
+    }
     return () => {
       if (chromeHideTimerRef.current) clearTimeout(chromeHideTimerRef.current);
       chromeHideTimerRef.current = null;
     };
-  }, [open]);
+  }, [open, isTouchWeb]);
 
   // If the user taps Save, keep chrome visible while saving.
   React.useEffect(() => {
@@ -192,6 +206,18 @@ export function MediaViewerModal({
               }
             : {})}
         >
+          {/* Web: when chrome is hidden, capture a tap/click to bring it back.
+              Keep pointerEvents disabled when chrome is visible so native <video> controls remain usable. */}
+          {Platform.OS === 'web' ? (
+            <Pressable
+              style={[StyleSheet.absoluteFillObject, { zIndex: 9 }]}
+              pointerEvents={chromeVisible ? 'none' : 'auto'}
+              onPress={() => showChromeBriefly()}
+              accessibilityRole="button"
+              accessibilityLabel="Show viewer controls"
+            />
+          ) : null}
+
           <Animated.View
             style={[
               styles.viewerTopBar,
@@ -480,7 +506,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
   },
-  viewerTitle: { color: '#fff', fontWeight: '700', flex: 1, marginRight: 12 },
+  viewerTitle: { color: '#fff', fontWeight: '700', fontSize: 14, flex: 1, marginRight: 12 },
   viewerCloseBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -489,7 +515,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.18)',
   },
-  viewerCloseText: { color: '#fff', fontWeight: '700' },
+  viewerCloseText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   viewerBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   viewerTapArea: { flex: 1, width: '100%', height: '100%' },
   viewerNavBtn: {
