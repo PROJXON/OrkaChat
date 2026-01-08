@@ -21,15 +21,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../config/env';
 import { CDN_URL } from '../config/env';
-import { VideoView, useVideoPlayer } from 'expo-video';
 import Feather from '@expo/vector-icons/Feather';
 import { HeaderMenuModal } from '../components/HeaderMenuModal';
 import { AvatarBubble } from '../components/AvatarBubble';
 import { AnimatedDots } from '../components/AnimatedDots';
+import { MediaViewerModal } from '../components/MediaViewerModal';
+import { MediaStackCarousel } from '../components/MediaStackCarousel';
 import { RichText } from '../components/RichText';
 import { ConfirmLinkModal } from '../components/ConfirmLinkModal';
 import { AppBrandIcon } from '../components/AppBrandIcon';
 import { GLOBAL_ABOUT_TEXT, GLOBAL_ABOUT_TITLE, GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
+import * as MediaLibrary from 'expo-media-library';
 
 type GuestMessage = {
   id: string;
@@ -177,16 +179,6 @@ function normalizeGuestMessages(items: any[]): GuestMessage[] {
   // Deduplicate by id (in case of overlapping history windows)
   const seen = new Set<string>();
   return out.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
-}
-
-function FullscreenVideo({ url }: { url: string }): React.JSX.Element {
-  const player = useVideoPlayer(url, (p: any) => {
-    try {
-      p.play();
-    } catch {}
-  });
-
-  return <VideoView player={player} style={styles.viewerVideo} contentFit="contain" nativeControls />;
 }
 
 async function fetchGuestChannelHistoryPage(opts: {
@@ -406,7 +398,15 @@ export default function GuestGlobalScreen({
   const [reactionInfoNamesBySub, setReactionInfoNamesBySub] = React.useState<Record<string, string>>({});
 
   const [viewerOpen, setViewerOpen] = React.useState<boolean>(false);
-  const [viewerMedia, setViewerMedia] = React.useState<null | { url: string; kind: 'image' | 'video' | 'file'; fileName?: string }>(null);
+  const [viewerState, setViewerState] = React.useState<
+    | null
+    | {
+        mode: 'global';
+        index: number;
+        globalItems: Array<{ url: string; kind: 'image' | 'video' | 'file'; fileName?: string }>;
+      }
+  >(null);
+  const [viewerSaving, setViewerSaving] = React.useState<boolean>(false);
 
   const [linkConfirmOpen, setLinkConfirmOpen] = React.useState<boolean>(false);
   const [linkConfirmUrl, setLinkConfirmUrl] = React.useState<string>('');
@@ -431,6 +431,7 @@ export default function GuestGlobalScreen({
     setChannelPickerOpen(false);
     setReactionInfoOpen(false);
     setViewerOpen(false);
+    setViewerState(null);
     setLinkConfirmOpen(false);
     // Defer so modal close animations/state flush first.
     setTimeout(() => {
@@ -615,26 +616,140 @@ export default function GuestGlobalScreen({
   }, []);
 
   const openViewer = React.useCallback(
-    async (media: GuestMessage['media']) => {
-      if (!media?.path) return;
-      const url = await resolvePathUrl(media.path);
-      if (!url) return;
+    async (mediaList: GuestMediaItem[], startIdx: number) => {
+      const list = Array.isArray(mediaList) ? mediaList.filter(Boolean) : [];
+      if (!list.length) return;
 
-      // For files, keep the existing behavior (open externally).
-      if (media.kind === 'file') {
-        await Linking.openURL(url.toString());
+      // Match signed-in behavior: treat file attachments as image/video when contentType indicates it.
+      const derivedKinds = list.map((m) => {
+        const ct = String(m?.contentType || '');
+        if (m.kind === 'file' && ct.startsWith('image/')) return 'image' as const;
+        if (m.kind === 'file' && ct.startsWith('video/')) return 'video' as const;
+        return m.kind;
+      });
+
+      const tappedIdx = Math.max(0, Math.min(list.length - 1, Math.floor(startIdx || 0)));
+      const tapped = list[tappedIdx];
+      const tappedKind = derivedKinds[tappedIdx];
+
+      // If the tapped item is a non-previewable file, keep existing behavior (open externally).
+      if (tapped?.path && tappedKind === 'file') {
+        const url = await resolvePathUrl(tapped.path);
+        if (url) await Linking.openURL(url.toString());
         return;
       }
 
-      setViewerMedia({
-        url: url.toString(),
-        kind: media.kind,
-        fileName: media.fileName,
-      });
+      // Build previewable items list (images/videos only).
+      const previewIdxByOriginalIdx: number[] = [];
+      const previewList: GuestMediaItem[] = [];
+      for (let i = 0; i < list.length; i++) {
+        if (derivedKinds[i] === 'image' || derivedKinds[i] === 'video') {
+          previewIdxByOriginalIdx[i] = previewList.length;
+          previewList.push(list[i]);
+        }
+      }
+      if (!previewList.length) return;
+
+      const urls = await Promise.all(previewList.map((m) => (m?.path ? resolvePathUrl(m.path) : Promise.resolve(null))));
+      const items: Array<{ url: string; kind: 'image' | 'video' | 'file'; fileName?: string }> = [];
+      for (let i = 0; i < previewList.length; i++) {
+        const url = urls[i];
+        if (!url) continue;
+        const m = previewList[i];
+        const ct = String(m?.contentType || '');
+        const kind =
+          m.kind === 'file' && ct.startsWith('image/')
+            ? 'image'
+            : m.kind === 'file' && ct.startsWith('video/')
+              ? 'video'
+              : (m.kind as any);
+        items.push({ url: url.toString(), kind, fileName: m.fileName });
+      }
+      if (!items.length) return;
+
+      const start = previewIdxByOriginalIdx[tappedIdx] ?? 0;
+      const idx = Math.max(0, Math.min(items.length - 1, start));
+      setViewerState({ mode: 'global', index: idx, globalItems: items });
       setViewerOpen(true);
     },
     [resolvePathUrl]
   );
+
+  const saveViewerMediaToDevice = React.useCallback(async () => {
+    const vs = viewerState;
+    if (!vs || vs.mode !== 'global') return;
+    const vm = vs.globalItems?.[vs.index] ?? null;
+    if (!vm?.url) return;
+    if (viewerSaving) return;
+    setViewerSaving(true);
+    try {
+      const perm = await MediaLibrary.requestPermissionsAsync();
+      if (!perm.granted) return;
+
+      // Download to cache first.
+      const safeNameWithExt = (vm.fileName || `attachment-${Date.now()}`)
+        .replace(/[^\w.\-() ]+/g, '_')
+        .slice(0, 120);
+      const extFromName = (() => {
+        const m = safeNameWithExt.match(/\.([a-zA-Z0-9]{1,8})$/);
+        return m ? m[1].toLowerCase() : '';
+      })();
+      const ext = extFromName || (vm.kind === 'image' ? 'jpg' : vm.kind === 'video' ? 'mp4' : 'bin');
+      const baseName = safeNameWithExt.replace(/\.[^.]+$/, '') || `attachment-${Date.now()}`;
+
+      // Handle data URIs.
+      if (vm.url.startsWith('data:')) {
+        const comma = vm.url.indexOf(',');
+        if (comma < 0) throw new Error('Invalid data URI');
+        const header = vm.url.slice(0, comma);
+        const b64 = vm.url.slice(comma + 1);
+        const isBase64 = /;base64/i.test(header);
+        if (!isBase64) throw new Error('Unsupported data URI encoding');
+        const fsAny: any = require('expo-file-system');
+        const Paths = fsAny?.Paths;
+        const File = fsAny?.File;
+        const root = (Paths?.cache || Paths?.document) as any;
+        if (!root) throw new Error('No writable cache directory');
+        if (!File) throw new Error('File API not available');
+        const dest = new File(root, `${baseName}.${ext}`);
+        if (typeof dest?.write !== 'function') throw new Error('File write API not available');
+        await dest.write(b64, { encoding: 'base64' });
+        await MediaLibrary.saveToLibraryAsync(dest.uri);
+        return;
+      }
+
+      // If it's already a local file, save it directly.
+      if (vm.url.startsWith('file:')) {
+        await MediaLibrary.saveToLibraryAsync(vm.url);
+        return;
+      }
+
+      // Modern Expo FileSystem API (SDK 54+).
+      const fsAny: any = require('expo-file-system');
+      const Paths = fsAny?.Paths;
+      const File = fsAny?.File;
+      const root = (Paths?.cache || Paths?.document) as any;
+      if (!root) throw new Error('No writable cache directory');
+      if (!File) throw new Error('File API not available');
+      const dest = new File(root, `${baseName}.${ext}`);
+      if (typeof dest?.downloadFileAsync === 'function') {
+        await dest.downloadFileAsync(vm.url);
+      } else if (typeof File?.downloadFileAsync === 'function') {
+        await File.downloadFileAsync(vm.url, dest);
+      } else {
+        throw new Error('File download API not available');
+      }
+
+      await MediaLibrary.saveToLibraryAsync(dest.uri);
+    } catch (e: any) {
+      // Keep UX aligned with signed-in viewer: don't interrupt with alerts.
+      try {
+        console.warn('Guest save failed', e?.message || e);
+      } catch {}
+    } finally {
+      setViewerSaving(false);
+    }
+  }, [viewerState, viewerSaving]);
 
   const fetchHistoryPage = React.useCallback(
     async (opts?: { reset?: boolean; before?: number | null; isManual?: boolean }) => {
@@ -1583,40 +1698,17 @@ export default function GuestGlobalScreen({
         </View>
       </Modal>
 
-      <Modal visible={viewerOpen} transparent animationType="fade">
-        <View style={styles.viewerOverlay}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => {
-              setViewerOpen(false);
-              setViewerMedia(null);
-            }}
-          />
-          <View style={styles.viewerCard}>
-            <View style={styles.viewerTopBar}>
-              <Text style={styles.viewerTitle}>{viewerMedia?.fileName || 'Attachment'}</Text>
-              <Pressable
-                style={styles.viewerCloseBtn}
-                onPress={() => {
-                  setViewerOpen(false);
-                  setViewerMedia(null);
-                }}
-              >
-                <Text style={styles.viewerCloseText}>Close</Text>
-              </Pressable>
-            </View>
-            <View style={styles.viewerBody}>
-              {viewerMedia?.kind === 'image' && viewerMedia?.url ? (
-                <Image source={{ uri: viewerMedia.url }} style={styles.viewerImage} resizeMode="contain" />
-              ) : viewerMedia?.kind === 'video' && viewerMedia?.url ? (
-                <FullscreenVideo url={viewerMedia.url} />
-              ) : (
-                <Text style={styles.viewerFallback}>No preview available.</Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <MediaViewerModal
+        open={viewerOpen}
+        viewerState={viewerState as any}
+        setViewerState={setViewerState as any}
+        saving={viewerSaving}
+        onSave={() => void saveViewerMediaToDevice()}
+        onClose={() => {
+          setViewerOpen(false);
+          setViewerState(null);
+        }}
+      />
 
       {linkConfirmOpen ? (
         <ConfirmLinkModal
@@ -1659,7 +1751,7 @@ function GuestMessageRow({
   onOpenUrl: (url: string) => void;
   resolvePathUrl: (path: string) => Promise<string | null>;
   onOpenReactionInfo: (emoji: string, subs: string[], namesBySub?: Record<string, string>) => void;
-  onOpenViewer: (media: GuestMediaItem) => void;
+  onOpenViewer: (mediaList: GuestMediaItem[], startIdx: number) => void;
   avatarSize: number;
   avatarGutter: number;
   avatarSeed: string;
@@ -1693,10 +1785,38 @@ function GuestMessageRow({
   const [thumbUrl, setThumbUrl] = React.useState<string | null>(null);
   const [usedFullUrl, setUsedFullUrl] = React.useState<boolean>(false);
   const [thumbAspect, setThumbAspect] = React.useState<number | null>(null);
+  const [thumbUriByPath, setThumbUriByPath] = React.useState<Record<string, string>>({});
 
   const mediaList = item.mediaList ?? (item.media ? [item.media] : []);
   const primaryMedia = mediaList.length ? mediaList[0] : null;
   const extraCount = Math.max(0, mediaList.length - 1);
+
+  // For multi-media previews, resolve thumb URLs for each page so the carousel can render immediately.
+  React.useEffect(() => {
+    if (!Array.isArray(mediaList) || mediaList.length <= 1) return;
+    let cancelled = false;
+    (async () => {
+      for (const m of mediaList) {
+        if (cancelled) return;
+        const preferredPath = m?.thumbPath || m?.path;
+        if (!preferredPath) continue;
+        if (thumbUriByPath[preferredPath]) continue;
+        let u = await resolvePathUrl(preferredPath);
+        if (!u && m?.path && preferredPath !== m.path) {
+          u = await resolvePathUrl(m.path);
+        }
+        if (!u) continue;
+        if (cancelled) return;
+        setThumbUriByPath((prev) => (prev[preferredPath] ? prev : { ...prev, [preferredPath]: u }));
+        if (m?.path && m.path !== preferredPath) {
+          setThumbUriByPath((prev) => (prev[m.path] ? prev : { ...prev, [m.path]: u! }));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaList, resolvePathUrl, thumbUriByPath]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1840,49 +1960,62 @@ function GuestMessageRow({
               ) : null}
             </View>
 
-            <Pressable
-              onPress={() => {
-                if (primaryMedia) onOpenViewer(primaryMedia);
-              }}
-              style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
-              accessibilityRole="button"
-              accessibilityLabel="Open media"
-            >
-              {primaryMedia?.kind === 'image' && thumbUrl ? (
-                <Image
-                  source={{ uri: thumbUrl }}
-                  style={{ width: capped.w, height: capped.h }}
-                  resizeMode="contain"
-                  onError={() => void onThumbError()}
-                />
-              ) : primaryMedia?.kind === 'video' && thumbUrl ? (
-                <View style={{ width: capped.w, height: capped.h }}>
-                  <Image
-                    source={{ uri: thumbUrl }}
-                    style={styles.mediaFill}
-                    resizeMode="cover"
-                    onError={() => void onThumbError()}
-                  />
-                  <View style={styles.guestMediaPlayOverlay}>
-                    <Text style={styles.guestMediaPlayOverlayText}>▶</Text>
+            {mediaList.length > 1 ? (
+              <MediaStackCarousel
+                messageId={item.id}
+                mediaList={mediaList as any}
+                width={capped.w}
+                height={capped.h}
+                isDark={isDark}
+                uriByPath={thumbUriByPath}
+                onOpen={(idx) => onOpenViewer(mediaList, idx)}
+              />
+            ) : (
+              <>
+                <Pressable
+                  onPress={() => {
+                    if (primaryMedia) onOpenViewer(mediaList, 0);
+                  }}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open media"
+                >
+                  {primaryMedia?.kind === 'image' && thumbUrl ? (
+                    <Image
+                      source={{ uri: thumbUrl }}
+                      style={{ width: capped.w, height: capped.h }}
+                      resizeMode="contain"
+                      onError={() => void onThumbError()}
+                    />
+                  ) : primaryMedia?.kind === 'video' && thumbUrl ? (
+                    <View style={{ width: capped.w, height: capped.h }}>
+                      <Image
+                        source={{ uri: thumbUrl }}
+                        style={styles.mediaFill}
+                        resizeMode="cover"
+                        onError={() => void onThumbError()}
+                      />
+                      <View style={styles.guestMediaPlayOverlay}>
+                        <Text style={styles.guestMediaPlayOverlayText}>▶</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={[styles.guestMediaFileChip, isDark && styles.guestMediaFileChipDark]}>
+                      <Text style={[styles.guestMediaFileText, isDark && styles.guestMediaFileTextDark]} numberOfLines={1}>
+                        {primaryMedia?.fileName ? primaryMedia.fileName : primaryMedia?.kind === 'video' ? 'Video' : 'File'}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+                {extraCount ? (
+                  <View style={styles.guestExtraMediaRow}>
+                    <Text style={[styles.guestExtraMediaText, isDark ? styles.guestExtraMediaTextDark : null]}>
+                      +{extraCount} more
+                    </Text>
                   </View>
-                </View>
-              ) : (
-                <View style={[styles.guestMediaFileChip, isDark && styles.guestMediaFileChipDark]}>
-                  <Text style={[styles.guestMediaFileText, isDark && styles.guestMediaFileTextDark]} numberOfLines={1}>
-                    {primaryMedia?.fileName ? primaryMedia.fileName : primaryMedia?.kind === 'video' ? 'Video' : 'File'}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-
-            {extraCount ? (
-              <View style={styles.guestExtraMediaRow}>
-                <Text style={[styles.guestExtraMediaText, isDark ? styles.guestExtraMediaTextDark : null]}>
-                  +{extraCount} more
-                </Text>
-              </View>
-            ) : null}
+                ) : null}
+              </>
+            )}
           </View>
 
           {reactionEntriesVisible.length ? (

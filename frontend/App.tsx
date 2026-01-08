@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import * as NavigationBar from 'expo-navigation-bar';
 import {
   ActivityIndicator,
+  processColor,
   StyleSheet,
   Text,
   View,
@@ -27,6 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 
 import { Amplify } from "aws-amplify";
 import {
@@ -5415,8 +5416,15 @@ export default function App(): React.JSX.Element {
     const buttons = isDark ? 'light' : 'dark';
     (async () => {
       try {
-        await NavigationBar.setBackgroundColorAsync(bg);
-        await NavigationBar.setButtonStyleAsync(buttons as any);
+        // Avoid hard dependency on `expo-navigation-bar` (dev clients / emulators can be out of sync).
+        // Using an optional native module prevents a hard crash when `ExpoNavigationBar` isn't installed.
+        const ExpoNavigationBar = requireOptionalNativeModule('ExpoNavigationBar') as any;
+        if (!ExpoNavigationBar?.setBackgroundColorAsync || !ExpoNavigationBar?.setButtonStyleAsync) return;
+        const bgNumber = processColor(bg);
+        if (typeof bgNumber === 'number') {
+          await ExpoNavigationBar.setBackgroundColorAsync(bgNumber);
+        }
+        await ExpoNavigationBar.setButtonStyleAsync(buttons);
       } catch {
         // ignore
       }

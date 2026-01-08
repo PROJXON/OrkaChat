@@ -28,6 +28,7 @@ import { AnimatedDots } from '../components/AnimatedDots';
 import { AvatarBubble } from '../components/AvatarBubble';
 import { GroupMembersSectionList } from '../components/GroupMembersSectionList';
 import { ChannelMembersSectionList } from '../components/ChannelMembersSectionList';
+import { MediaViewerModal } from '../components/MediaViewerModal';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WS_URL, API_URL, CDN_URL } from '../config/env';
 // const API_URL = "https://828bp5ailc.execute-api.us-east-2.amazonaws.com"
@@ -57,7 +58,6 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as MediaLibrary from 'expo-media-library';
 import Feather from '@expo/vector-icons/Feather';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { fromByteArray, toByteArray } from 'base64-js';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { gcm } from '@noble/ciphers/aes.js';
@@ -177,26 +177,6 @@ function InlineVideoThumb({
         </View>
       </View>
     </Pressable>
-  );
-}
-
-function FullscreenVideo({ url }: { url: string }): React.JSX.Element {
-  const player = useVideoPlayer(url, (p: any) => {
-    try {
-      p.play();
-    } catch {}
-  });
-
-  return (
-    <VideoView
-      player={player}
-      style={styles.viewerVideo}
-      contentFit="contain"
-      nativeControls
-      // On Android, SurfaceView can ignore zIndex and cover overlays (like our Save/Close chrome).
-      // TextureView keeps the video in the normal view hierarchy so overlays render correctly.
-      {...(Platform.OS === 'android' ? ({ surfaceType: 'textureView' } as any) : null)}
-    />
   );
 }
 
@@ -609,14 +589,6 @@ function MediaStackCarousel({
           }
         : {})}
     >
-      {/* Stacked-card hint behind the top attachment */}
-      {n > 1 ? (
-        <>
-          <View style={[styles.mediaStackCard, { width, height, top: 10, left: 10 }]} />
-          <View style={[styles.mediaStackCard, { width, height, top: 5, left: 5 }]} />
-        </>
-      ) : null}
-
       <ScrollView
         ref={(r) => {
           scrollRef.current = r;
@@ -1265,15 +1237,10 @@ export default function ChatScreen({
         gdmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
       }
   >(null);
-  const viewerScrollRef = React.useRef<ScrollView | null>(null);
   const [dmThumbUriByPath, setDmThumbUriByPath] = React.useState<Record<string, string>>({});
   const [dmFileUriByPath, setDmFileUriByPath] = React.useState<Record<string, string>>({});
   const inFlightDmViewerDecryptRef = React.useRef<Set<string>>(new Set());
   const [viewerSaving, setViewerSaving] = React.useState<boolean>(false);
-  const [viewerChromeVisible, setViewerChromeVisible] = React.useState<boolean>(true);
-  const viewerChromeHideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const viewerChromeOpacity = React.useRef(new Animated.Value(1)).current;
-  const viewerChromeLastPointerAtRef = React.useRef<number>(0);
   const [toast, setToast] = React.useState<null | { message: string; kind: 'success' | 'error' }>(null);
   const toastAnim = React.useRef(new Animated.Value(0)).current;
   const toastTimerRef = React.useRef<any>(null);
@@ -1736,70 +1703,6 @@ export default function ChatScreen({
     }
     return { mode: 'default' as const };
   }, [chatBackground]);
-
-  // Allow rotating the device while the fullscreen media viewer is open,
-  // but keep the rest of the app portrait-locked.
-  React.useEffect(() => {
-    if (!viewerOpen) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        await ScreenOrientation.unlockAsync();
-      } catch {
-        // ignore (some platforms/devices may not support it)
-      }
-    })();
-    return () => {
-      cancelled = true;
-      (async () => {
-        if (cancelled) {
-          // no-op marker; keep structure symmetrical
-        }
-        try {
-          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-        } catch {
-          // ignore
-        }
-      })();
-    };
-  }, [viewerOpen]);
-
-  // Fullscreen viewer chrome: show briefly on open, then hide for a clean view.
-  React.useEffect(() => {
-    if (!viewerOpen) {
-      if (viewerChromeHideTimerRef.current) clearTimeout(viewerChromeHideTimerRef.current);
-      viewerChromeHideTimerRef.current = null;
-      setViewerChromeVisible(true);
-      return;
-    }
-    setViewerChromeVisible(true);
-    if (viewerChromeHideTimerRef.current) clearTimeout(viewerChromeHideTimerRef.current);
-    viewerChromeHideTimerRef.current = setTimeout(() => setViewerChromeVisible(false), 1500);
-    return () => {
-      if (viewerChromeHideTimerRef.current) clearTimeout(viewerChromeHideTimerRef.current);
-      viewerChromeHideTimerRef.current = null;
-    };
-  }, [viewerOpen]);
-
-  // If the user taps Save, keep chrome visible while saving.
-  React.useEffect(() => {
-    if (viewerSaving) setViewerChromeVisible(true);
-  }, [viewerSaving]);
-
-  // Animate viewer chrome (fast fade in/out).
-  React.useEffect(() => {
-    Animated.timing(viewerChromeOpacity, {
-      toValue: viewerChromeVisible ? 1 : 0,
-      duration: 160,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-  }, [viewerChromeVisible, viewerChromeOpacity]);
-
-  const showViewerChromeBriefly = React.useCallback(() => {
-    setViewerChromeVisible(true);
-    if (viewerChromeHideTimerRef.current) clearTimeout(viewerChromeHideTimerRef.current);
-    viewerChromeHideTimerRef.current = setTimeout(() => setViewerChromeVisible(false), 1500);
-  }, []);
 
   React.useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -11078,252 +10981,18 @@ export default function ChatScreen({
         </View>
       </Modal>
 
-      <Modal
-        visible={viewerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
+      <MediaViewerModal
+        open={viewerOpen}
+        viewerState={viewerState as any}
+        setViewerState={setViewerState as any}
+        dmFileUriByPath={dmFileUriByPath}
+        saving={viewerSaving}
+        onSave={() => void saveViewerMediaToDevice()}
+        onClose={() => {
           setViewerOpen(false);
           setViewerState(null);
         }}
-      >
-        <View style={styles.viewerOverlay}>
-          <View
-            style={styles.viewerCard}
-            {...(Platform.OS === 'web'
-              ? {
-                  onMouseMove: () => {
-                    const now = Date.now();
-                    if (now - (viewerChromeLastPointerAtRef.current || 0) < 120) return;
-                    viewerChromeLastPointerAtRef.current = now;
-                    showViewerChromeBriefly();
-                  },
-                }
-              : {})}
-          >
-            <Animated.View
-              style={[
-                styles.viewerTopBar,
-                ...(Platform.OS === 'web'
-                  ? [{ pointerEvents: (viewerChromeVisible ? 'auto' : 'none') as 'auto' | 'none' }]
-                  : []),
-                { height: 52 + insets.top, paddingTop: insets.top, opacity: viewerChromeOpacity },
-              ]}
-              pointerEvents={Platform.OS === 'web' ? undefined : viewerChromeVisible ? 'auto' : 'none'}
-            >
-              {(() => {
-                const vs = viewerState;
-                const count =
-                  vs?.mode === 'global'
-                    ? (vs.globalItems?.length ?? 0)
-                    : vs?.mode === 'dm'
-                      ? (vs.dmItems?.length ?? 0)
-                      : vs?.mode === 'gdm'
-                        ? (vs.gdmItems?.length ?? 0)
-                      : 0;
-                const idx = vs ? vs.index : 0;
-                const name =
-                  vs?.mode === 'global'
-                    ? vs.globalItems?.[idx]?.fileName
-                    : vs?.mode === 'dm'
-                      ? vs.dmItems?.[idx]?.media?.fileName
-                      : vs?.mode === 'gdm'
-                        ? vs.gdmItems?.[idx]?.media?.fileName
-                      : undefined;
-                const title = name || (count > 1 ? `Attachment ${idx + 1}/${count}` : 'Attachment');
-                return <Text style={styles.viewerTitle}>{title}</Text>;
-              })()}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Pressable
-                  style={[styles.viewerCloseBtn, viewerSaving ? { opacity: 0.6 } : null]}
-                  disabled={viewerSaving}
-                  onPress={() => void saveViewerMediaToDevice()}
-                >
-                  <Text style={styles.viewerCloseText}>{viewerSaving ? 'Saving…' : 'Save'}</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.viewerCloseBtn}
-                  onPress={() => {
-                    setViewerOpen(false);
-                    setViewerState(null);
-                  }}
-                >
-                  <Text style={styles.viewerCloseText}>Close</Text>
-                </Pressable>
-              </View>
-            </Animated.View>
-            <View style={styles.viewerBody}>
-              {(() => {
-                const vs = viewerState;
-                if (!vs) return <Text style={styles.viewerFallback}>No preview available.</Text>;
-                const count =
-                  vs.mode === 'global'
-                    ? (vs.globalItems?.length ?? 0)
-                    : vs.mode === 'dm'
-                      ? (vs.dmItems?.length ?? 0)
-                      : vs.mode === 'gdm'
-                        ? (vs.gdmItems?.length ?? 0)
-                      : 0;
-                if (!count) return <Text style={styles.viewerFallback}>No preview available.</Text>;
-
-                const onMomentumEnd = (e: any) => {
-                  const x = Number(e?.nativeEvent?.contentOffset?.x ?? 0);
-                  const w = Number(Dimensions.get('window')?.width ?? 1);
-                  const next = Math.max(0, Math.min(count - 1, Math.round(x / Math.max(1, w))));
-                  setViewerState((prev) => (prev ? { ...prev, index: next } : prev));
-                };
-
-                const pageW = Dimensions.get('window').width;
-                const pageH = Dimensions.get('window').height - (52 + insets.top);
-
-                return (
-                  <ScrollView
-                    ref={viewerScrollRef}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    onMomentumScrollEnd={onMomentumEnd}
-                    contentOffset={{ x: pageW * (vs.index || 0), y: 0 }}
-                    style={{ width: pageW, height: pageH }}
-                  >
-                    {Array.from({ length: count }).map((_, i) => {
-                      const item =
-                        vs.mode === 'global'
-                          ? vs.globalItems?.[i]
-                          : vs.mode === 'dm'
-                            ? (() => {
-                                const it = vs.dmItems?.[i];
-                                if (!it?.media?.path) return null;
-                                const url = dmFileUriByPath[it.media.path] || '';
-                                const kind =
-                                  it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
-                                return { url, kind, fileName: it.media.fileName };
-                              })()
-                            : vs.mode === 'gdm'
-                              ? (() => {
-                                  const it = vs.gdmItems?.[i];
-                                  if (!it?.media?.path) return null;
-                                  const url = dmFileUriByPath[it.media.path] || '';
-                                  const kind =
-                                    it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
-                                  return { url, kind, fileName: it.media.fileName };
-                                })()
-                            : null;
-
-                      const url = item?.url || '';
-                      const kind = item?.kind;
-                      if (!url) {
-                        return (
-                          <View
-                            key={`viewer:${i}`}
-                            style={[styles.viewerTapArea, { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' }]}
-                          >
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Loading</Text>
-                              <AnimatedDots color="#fff" size={18} />
-                            </View>
-                          </View>
-                        );
-                      }
-
-                      if (kind === 'image') {
-                        return (
-                          <Pressable
-                            key={`viewer:${i}`}
-                            style={[styles.viewerTapArea, { width: pageW, height: pageH }]}
-                            onPress={() => setViewerChromeVisible((v) => !v)}
-                            accessibilityRole="button"
-                            accessibilityLabel="Toggle controls"
-                          >
-                          <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
-                          </Pressable>
-                        );
-                      }
-
-                      if (kind === 'video') {
-                        return (
-                          <View
-                            key={`viewer:${i}`}
-                            style={[styles.viewerTapArea, { width: pageW, height: pageH }]}
-                            // IMPORTANT: don't steal taps from native controls
-                            onStartShouldSetResponderCapture={() => {
-                              if (!viewerChromeVisible) showViewerChromeBriefly();
-                              return false;
-                            }}
-                          >
-                            <FullscreenVideo url={url} />
-                          </View>
-                        );
-                      }
-
-                      return (
-                        <View key={`viewer:${i}`} style={[styles.viewerTapArea, { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' }]}>
-                          <Text style={styles.viewerFallback}>No preview available.</Text>
-                        </View>
-                      );
-                    })}
-                  </ScrollView>
-                );
-              })()}
-
-              {/* Web: swipe/drag paging can be flaky; provide explicit nav controls for multi-media. */}
-              {Platform.OS === 'web' && viewerState ? (() => {
-                const vs = viewerState;
-                const count =
-                  vs.mode === 'global'
-                    ? (vs.globalItems?.length ?? 0)
-                    : vs.mode === 'dm'
-                      ? (vs.dmItems?.length ?? 0)
-                      : vs.mode === 'gdm'
-                        ? (vs.gdmItems?.length ?? 0)
-                        : 0;
-                if (count <= 1) return null;
-                const idx = vs.index || 0;
-                const go = (dir: -1 | 1) => {
-                  const next = (idx + dir + count) % count;
-                  setViewerState((prev) => (prev ? { ...prev, index: next } : prev));
-                  const w = Dimensions.get('window').width;
-                  // Give ScrollView a tick to render, then scroll.
-                  setTimeout(() => {
-                    (viewerScrollRef.current as any)?.scrollTo?.({ x: w * next, y: 0, animated: true });
-                  }, 0);
-                };
-                return (
-                  <Animated.View
-                    style={[
-                      // IMPORTANT: fill the viewer so absolute-positioned buttons hug the edges.
-                      // (Without this, their absolute positioning becomes relative to a small wrapper.)
-                      StyleSheet.absoluteFillObject,
-                      ...(Platform.OS === 'web'
-                        ? [{ pointerEvents: (viewerChromeVisible ? 'auto' : 'none') as 'auto' | 'none' }]
-                        : []),
-                      { opacity: viewerChromeOpacity, zIndex: 11 },
-                    ]}
-                    pointerEvents={Platform.OS === 'web' ? undefined : viewerChromeVisible ? 'auto' : 'none'}
-                  >
-                    <Pressable
-                      style={[styles.viewerNavBtn, styles.viewerNavLeft]}
-                      onPress={() => go(-1)}
-                      accessibilityRole="button"
-                      accessibilityLabel="Previous attachment"
-                    >
-                      <Text style={styles.viewerNavText}>‹</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.viewerNavBtn, styles.viewerNavRight]}
-                      onPress={() => go(1)}
-                      accessibilityRole="button"
-                      accessibilityLabel="Next attachment"
-                    >
-                      <Text style={styles.viewerNavText}>›</Text>
-                    </Pressable>
-                  </Animated.View>
-                );
-              })() : null}
-            </View>
-          </View>
-        </View>
-      </Modal>
+      />
 
       {toast ? (
         <Animated.View
@@ -11890,13 +11559,6 @@ const styles = StyleSheet.create({
   },
   extraThumbPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   extraThumbPlaceholderText: { fontSize: 12, fontWeight: '800', color: '#444' },
-  mediaStackCard: {
-    position: 'absolute',
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
   mediaCountBadge: {
     position: 'absolute',
     top: 10,
