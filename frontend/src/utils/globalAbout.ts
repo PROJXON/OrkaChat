@@ -8,7 +8,7 @@ export const GLOBAL_ABOUT_TITLE = 'Global';
 export const GLOBAL_ABOUT_TEXT = [
   'Welcome to OrkaChat!',
   '',
-  'A real-time chat platform with chatrooms, End-to-End Encryption, and AI features',
+  'A real-time chat platform with chatrooms, End-to-End Encryption, and AI features.',
   '',
   'Global is the main public chat feed. You can also join channels for specific topics. DMs and Group DMs support End-to-End Encryption.',
   '',
