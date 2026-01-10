@@ -231,6 +231,7 @@ export function renderChatListItem(args: {
         width={capped.w}
         height={capped.h}
         isDark={isDark}
+        cornerRadius={0}
         loop
         uriByPath={isEncryptedChat ? EMPTY_URI_BY_PATH : mediaUrlByPath}
         thumbUriByPath={isEncryptedChat ? dmThumbUriByPath : undefined}

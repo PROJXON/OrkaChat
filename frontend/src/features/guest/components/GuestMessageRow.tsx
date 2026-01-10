@@ -238,6 +238,7 @@ export function GuestMessageRow({
                 width={capped.w}
                 height={capped.h}
                 isDark={isDark}
+                cornerRadius={0}
                 uriByPath={thumbUriByPath}
                 onOpen={(idx) => onOpenViewer(mediaList, idx)}
               />

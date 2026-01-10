@@ -13,6 +13,7 @@ export function MediaStackCarousel({
   isDark,
   uriByPath,
   thumbUriByPath,
+  cornerRadius = 16,
   loop = false,
   loadingTextColor,
   loadingDotsColor,
@@ -27,6 +28,9 @@ export function MediaStackCarousel({
   // Optional alternate mapping for thumbnail paths (e.g., DM thumbnails).
   // If provided and an item has `thumbPath`, this map is preferred.
   thumbUriByPath?: Record<string, string>;
+  // Controls rounding for the media container itself.
+  // In chat/guest message bubbles we want square media (0).
+  cornerRadius?: number;
   // If true, enables "infinite" paging by duplicating first/last items.
   loop?: boolean;
   // Optional overrides for the "Loading" placeholder tint.
@@ -185,11 +189,11 @@ export function MediaStackCarousel({
                 looksImage ? (
                   <Image
                     source={{ uri: thumbUri }}
-                    style={[styles.mediaCappedImage, { width, height }]}
+                    style={[styles.mediaCappedImage, { width, height, borderRadius: cornerRadius }]}
                     resizeMode="contain"
                   />
                 ) : (
-                  <View style={[styles.videoThumbWrap, { width, height }]}>
+                  <View style={[styles.videoThumbWrap, { width, height, borderRadius: cornerRadius }]}>
                     <Image source={{ uri: thumbUri }} style={styles.mediaFill} resizeMode="cover" />
                     <View style={styles.videoPlayOverlay}>
                       <Text style={styles.videoPlayText}>▶</Text>
@@ -198,7 +202,10 @@ export function MediaStackCarousel({
                 )
               ) : looksImage || looksVideo ? (
                 <View
-                  style={[styles.imageThumbWrap, { width, height, justifyContent: 'center', alignItems: 'center' }]}
+                  style={[
+                    styles.imageThumbWrap,
+                    { width, height, justifyContent: 'center', alignItems: 'center', borderRadius: cornerRadius },
+                  ]}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Text style={{ color: loadingText, fontWeight: '800', fontSize: 14 }}>Loading</Text>
@@ -207,7 +214,10 @@ export function MediaStackCarousel({
                 </View>
               ) : (
                 <View
-                  style={[styles.imageThumbWrap, { width, height, justifyContent: 'center', alignItems: 'center' }]}
+                  style={[
+                    styles.imageThumbWrap,
+                    { width, height, justifyContent: 'center', alignItems: 'center', borderRadius: cornerRadius },
+                  ]}
                 >
                   <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }}>
                     {m2.fileName ? m2.fileName : 'Attachment'}
@@ -279,9 +289,9 @@ export function MediaStackCarousel({
 
 const styles = StyleSheet.create({
   mediaFill: { width: '100%', height: '100%' },
-  videoThumbWrap: { position: 'relative', overflow: 'hidden', borderRadius: 16 },
-  mediaCappedImage: { borderRadius: 16, backgroundColor: 'transparent' },
-  imageThumbWrap: { borderRadius: 16, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.06)' },
+  videoThumbWrap: { position: 'relative', overflow: 'hidden' },
+  mediaCappedImage: { backgroundColor: 'transparent' },
+  imageThumbWrap: { overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.06)' },
   videoPlayOverlay: {
     position: 'absolute',
     top: 0,

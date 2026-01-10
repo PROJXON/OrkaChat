@@ -463,8 +463,8 @@ export const styles = StyleSheet.create({
   mediaCardOuter: { position: 'relative', overflow: 'visible' },
   mediaCardIncoming: { backgroundColor: '#f1f1f1' },
   mediaCardIncomingDark: { backgroundColor: '#1c1c22' },
-  // Outgoing media uses "contain" sometimes → avoid blue letterbox edges by using neutral bg.
-  mediaCardOutgoing: { backgroundColor: '#000' },
+  // Outgoing media uses "contain" sometimes → match outgoing bubble background behind letterbox.
+  mediaCardOutgoing: { backgroundColor: '#1976d2' },
   mediaHeader: {
     paddingHorizontal: 12,
     paddingTop: 6,
