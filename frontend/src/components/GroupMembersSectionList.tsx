@@ -1,16 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { AvatarBubble } from './AvatarBubble';
-
-type MemberRow = {
-  memberSub: string;
-  displayName?: string;
-  isAdmin?: boolean;
-  status?: 'active' | 'banned' | 'left';
-  avatarBgColor?: string;
-  avatarTextColor?: string;
-  avatarImagePath?: string;
-};
+import type { MemberRow } from '../types/members';
 
 export function GroupMembersSectionList({
   members,
@@ -39,7 +30,9 @@ export function GroupMembersSectionList({
   onUnban: (memberSub: string) => void;
   onToggleAdmin: (member: { memberSub: string; isAdmin: boolean }) => void;
 }) {
-  const visible = (Array.isArray(members) ? members : []).filter((m) => m && (m.status === 'active' || m.status === 'banned'));
+  const visible = (Array.isArray(members) ? members : []).filter(
+    (m) => m && (m.status === 'active' || m.status === 'banned'),
+  );
 
   const nameKey = (m: MemberRow) => String(m.displayName || m.memberSub || '').trim();
   const cmpWithinSection = (a: MemberRow, b: MemberRow) => {
@@ -53,9 +46,18 @@ export function GroupMembersSectionList({
     return String(a.memberSub || '').localeCompare(String(b.memberSub || ''));
   };
 
-  const admins = visible.filter((m) => m.status === 'active' && !!m.isAdmin).slice().sort(cmpWithinSection);
-  const normalMembers = visible.filter((m) => m.status === 'active' && !m.isAdmin).slice().sort(cmpWithinSection);
-  const banned = visible.filter((m) => m.status === 'banned').slice().sort(cmpWithinSection);
+  const admins = visible
+    .filter((m) => m.status === 'active' && !!m.isAdmin)
+    .slice()
+    .sort(cmpWithinSection);
+  const normalMembers = visible
+    .filter((m) => m.status === 'active' && !m.isAdmin)
+    .slice()
+    .sort(cmpWithinSection);
+  const banned = visible
+    .filter((m) => m.status === 'banned')
+    .slice()
+    .sort(cmpWithinSection);
 
   const renderSection = (title: string, list: MemberRow[]) => {
     if (!list.length) return null;
@@ -72,7 +74,7 @@ export function GroupMembersSectionList({
         </Text>
         {list.map((m) => {
           const isMe = !!mySub && String(m.memberSub) === mySub;
-          const label = isMe ? 'You' : (m.displayName || String(m.memberSub || '').slice(0, 10));
+          const label = isMe ? 'You' : m.displayName || String(m.memberSub || '').slice(0, 10);
           const canAdmin = !!meIsAdmin && !isMe;
           const canKick = canAdmin && m.status === 'active';
           const kickCoolingDown =
@@ -123,7 +125,7 @@ export function GroupMembersSectionList({
                         style={[
                           styles.toolBtn,
                           isDark ? styles.toolBtnDark : null,
-                          (groupActionBusy || kickCoolingDown) ? { opacity: 0.6 } : null,
+                          groupActionBusy || kickCoolingDown ? { opacity: 0.6 } : null,
                         ]}
                         disabled={groupActionBusy || kickCoolingDown}
                         onPress={() => onKick(m.memberSub)}
@@ -134,7 +136,11 @@ export function GroupMembersSectionList({
 
                     {isBanned ? (
                       <Pressable
-                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, groupActionBusy ? { opacity: 0.6 } : null]}
+                        style={[
+                          styles.toolBtn,
+                          isDark ? styles.toolBtnDark : null,
+                          groupActionBusy ? { opacity: 0.6 } : null,
+                        ]}
                         disabled={groupActionBusy}
                         onPress={() => onUnban(m.memberSub)}
                       >
@@ -142,7 +148,11 @@ export function GroupMembersSectionList({
                       </Pressable>
                     ) : (
                       <Pressable
-                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, groupActionBusy ? { opacity: 0.6 } : null]}
+                        style={[
+                          styles.toolBtn,
+                          isDark ? styles.toolBtnDark : null,
+                          groupActionBusy ? { opacity: 0.6 } : null,
+                        ]}
                         disabled={groupActionBusy}
                         onPress={() => onBan({ memberSub: m.memberSub, label: String(label || '') })}
                       >
@@ -152,7 +162,11 @@ export function GroupMembersSectionList({
 
                     {m.status === 'active' ? (
                       <Pressable
-                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, groupActionBusy ? { opacity: 0.6 } : null]}
+                        style={[
+                          styles.toolBtn,
+                          isDark ? styles.toolBtnDark : null,
+                          groupActionBusy ? { opacity: 0.6 } : null,
+                        ]}
                         disabled={groupActionBusy}
                         onPress={() => onToggleAdmin({ memberSub: m.memberSub, isAdmin: !!m.isAdmin })}
                       >
@@ -179,4 +193,3 @@ export function GroupMembersSectionList({
     </View>
   );
 }
-

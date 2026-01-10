@@ -17,7 +17,27 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
+import { styles } from './App.styles';
 import Slider from '@react-native-community/slider';
+
+// Development-only: print global error stacks to Metro logs.
+// This helps chase down redbox errors that otherwise show only a short message in the terminal.
+declare const __DEV__: boolean;
+try {
+  const eu: any = (globalThis as any)?.ErrorUtils;
+  if (__DEV__ && eu && typeof eu.getGlobalHandler === 'function' && typeof eu.setGlobalHandler === 'function') {
+    const prev = eu.getGlobalHandler();
+    eu.setGlobalHandler((error: any, isFatal: boolean) => {
+      try {
+        console.log('[global error]', { message: error?.message, stack: error?.stack, isFatal });
+      } catch {}
+      try {
+        prev?.(error, isFatal);
+      } catch {}
+    });
+  }
+} catch {}
+
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -39,36 +59,43 @@ import {
   Authenticator,
   ThemeProvider,
   useAuthenticator,
-} from "@aws-amplify/ui-react-native/src";
-// IMPORTANT: use the React-Native entrypoint (`src/*`) so these primitives share the same ThemeContext
-// as our `ThemeProvider` and Authenticator defaults. Importing from `dist/*` creates a separate context,
-// causing mismatched colors/borders (especially in dark mode).
-import { icons } from '@aws-amplify/ui-react-native/src/assets';
-import { Button as AmplifyButton, PhoneNumberField, TextField } from '@aws-amplify/ui-react-native/src/primitives';
-import { authenticatorTextUtil, getErrors } from '@aws-amplify/ui';
-import {
-  FederatedProviderButtons,
-} from '@aws-amplify/ui-react-native/src/Authenticator/common';
+} from "@aws-amplify/ui-react-native/dist";
+// IMPORTANT:
+// Import Amplify UI from `dist/*` (compiled JS + .d.ts) so TypeScript does NOT compile Amplify's internal TS
+// sources during `tsc --watch`. Keep all Amplify UI imports on the same `dist/*` path to avoid ThemeContext
+// duplication/mismatches.
+import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 import { deleteUser, fetchUserAttributes } from 'aws-amplify/auth';
 import { fetchAuthSession } from '@aws-amplify/auth';
-import { getUrl, uploadData } from 'aws-amplify/storage';
+import { uploadData } from 'aws-amplify/storage';
 import { API_URL, CDN_URL } from './src/config/env';
+import { searchChannels } from './src/utils/channelSearch';
+import { useCdnUrlCache } from './src/hooks/useCdnUrlCache';
+import { useDebouncedValue } from './src/hooks/useDebouncedValue';
+import { useStoredTheme } from './src/hooks/useStoredTheme';
 import {
   registerForDmPushNotifications,
   setForegroundNotificationPolicy,
   unregisterDmPushNotifications,
-} from './utils/pushNotifications';
+} from './src/utils/pushNotifications';
 import { HeaderMenuModal } from './src/components/HeaderMenuModal';
 import { AVATAR_DEFAULT_COLORS, AvatarBubble, pickDefaultAvatarColor } from './src/components/AvatarBubble';
-import { RichText } from './src/components/RichText';
-import { GLOBAL_ABOUT_TEXT, GLOBAL_ABOUT_TITLE, GLOBAL_ABOUT_VERSION } from './src/utils/globalAbout';
+import { GLOBAL_ABOUT_VERSION } from './src/utils/globalAbout';
 import Feather from '@expo/vector-icons/Feather';
+import { ThemeToggleRow } from './src/components/ThemeToggleRow';
 import {
   applyTitleOverridesToConversations,
   applyTitleOverridesToUnreadMap,
   setTitleOverride,
 } from './src/utils/conversationTitles';
 import { formatChatActivityDate } from './src/utils/chatDates';
+import { UiPromptProvider, useUiPrompt } from './src/providers/UiPromptProvider';
+import { AuthModal } from './src/components/modals/AuthModal';
+import { useAmplifyAuthenticatorConfig } from './src/features/auth/amplifyAuthenticator';
+import { useGlobalAboutOncePerVersion } from './src/features/globalAbout/useGlobalAboutOncePerVersion';
+import { GlobalAboutContent } from './src/components/globalAbout/GlobalAboutContent';
+import { useViewportWidth } from './src/hooks/useViewportWidth';
+import { useMenuAnchor } from './src/hooks/useMenuAnchor';
 
 import {
   generateKeypair,
@@ -76,9 +103,9 @@ import {
   loadKeyPair,
   decryptPrivateKey,
   derivePublicKey,
-  BackupBlob,
   encryptPrivateKey,
-} from './utils/crypto';
+} from './src/utils/crypto';
+import type { BackupBlob } from './src/types/crypto';
 
 import 'react-native-get-random-values'
 import 'react-native-url-polyfill/auto'
@@ -103,17 +130,25 @@ try {
   // amplify_outputs.json not present yet; run `npx ampx sandbox` to generate it.
 }
 
-const toCdnUrl = (path: string): string => {
-  const base = (CDN_URL || '').trim();
-  const p = String(path || '').replace(/^\/+/, '');
-  if (!base || !p) return '';
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'unknown error';
+  if (typeof err === 'string') return err || 'unknown error';
+  if (!err) return 'unknown error';
   try {
-    const b = base.endsWith('/') ? base : `${base}/`;
-    return new URL(p, b).toString();
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'unknown error';
   } catch {
-    return '';
+    return 'unknown error';
   }
-};
+}
+
+function getUsernameFromAuthenticatorUser(user: unknown): string | undefined {
+  if (!user || typeof user !== 'object') return undefined;
+  const rec = user as Record<string, unknown>;
+  const u = rec.username;
+  return typeof u === 'string' && u.trim() ? u.trim() : undefined;
+}
 
 function AppSafeAreaProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   // Web: ignore safe-area insets entirely.
@@ -138,6 +173,8 @@ function AppSafeAreaProvider({ children }: { children: React.ReactNode }): React
 const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const { user } = useAuthenticator();
   const { signOut } = useAuthenticator();
+  const { alert: promptAlert, confirm: promptConfirm, choice3: promptChoice3, isOpen: uiPromptOpen } = useUiPrompt();
+  const cdn = useCdnUrlCache(CDN_URL);
   const [displayName, setDisplayName] = useState<string>('anon');
   const [myUserSub, setMyUserSub] = React.useState<string | null>(null);
   // Bump this whenever we change/recover/reset keys so ChatScreen reloads them from storage.
@@ -177,7 +214,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [passphrasePrompt, setPassphrasePrompt] = useState<{
     mode: 'setup' | 'restore' | 'change' | 'reset';
     resolve: (value: string) => void;
-    reject: (reason?: any) => void;
+    reject: (reason?: unknown) => void;
   } | null>(null);
   const [passphraseInput, setPassphraseInput] = useState('');
   const [passphraseConfirmInput, setPassphraseConfirmInput] = useState('');
@@ -188,30 +225,6 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [recoveryBlobKnown, setRecoveryBlobKnown] = useState(false);
   const [recoveryLocked, setRecoveryLocked] = React.useState<boolean>(false);
   const [processing, setProcessing] = useState(false);
-  const [uiPrompt, setUiPrompt] = useState<
-    | null
-    | {
-        kind: 'alert' | 'confirm';
-        title: string;
-        message: string;
-        confirmText?: string;
-        cancelText?: string;
-        destructive?: boolean;
-        resolve: (value: any) => void;
-      }
-    | {
-        kind: 'choice3';
-        title: string;
-        message: string;
-        primaryText: string;
-        secondaryText: string;
-        tertiaryText: string;
-        primaryVariant?: 'default' | 'primary' | 'danger';
-        secondaryVariant?: 'default' | 'primary' | 'danger';
-        tertiaryVariant?: 'default' | 'primary' | 'danger';
-        resolve: (value: 'primary' | 'secondary' | 'tertiary') => void;
-      }
-  >(null);
 
   // Initialize draft state when opening the Avatar modal.
   React.useEffect(() => {
@@ -279,60 +292,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
       setPassphrasePrompt({ mode, resolve, reject });
     });
 
-  const promptAlert = (title: string, message: string): Promise<void> =>
-    new Promise<void>((resolve) => {
-      setUiPrompt({
-        kind: 'alert',
-        title,
-        message,
-        confirmText: 'OK',
-        resolve,
-      });
-    });
-
-  const promptConfirm = (
-    title: string,
-    message: string,
-    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean }
-  ): Promise<boolean> =>
-    new Promise<boolean>((resolve) => {
-      setUiPrompt({
-        kind: 'confirm',
-        title,
-        message,
-        confirmText: opts?.confirmText ?? 'OK',
-        cancelText: opts?.cancelText ?? 'Cancel',
-        destructive: !!opts?.destructive,
-        resolve,
-      });
-    });
-
-  const promptChoice3 = (
-    title: string,
-    message: string,
-    opts: {
-      primaryText: string;
-      secondaryText: string;
-      tertiaryText: string;
-      primaryVariant?: 'default' | 'primary' | 'danger';
-      secondaryVariant?: 'default' | 'primary' | 'danger';
-      tertiaryVariant?: 'default' | 'primary' | 'danger';
-    }
-  ): Promise<'primary' | 'secondary' | 'tertiary'> =>
-    new Promise((resolve) => {
-      setUiPrompt({
-        kind: 'choice3',
-        title,
-        message,
-        primaryText: opts.primaryText,
-        secondaryText: opts.secondaryText,
-        tertiaryText: opts.tertiaryText,
-        primaryVariant: opts.primaryVariant,
-        secondaryVariant: opts.secondaryVariant,
-        tertiaryVariant: opts.tertiaryVariant,
-        resolve,
-      });
-    });
+  // promptAlert / promptConfirm / promptChoice3 come from the global UiPromptProvider.
 
   const closePrompt = () => {
     setPassphrasePrompt(null);
@@ -396,8 +356,8 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         const text = await res.text().catch(() => '');
         throw new Error(text || `Backend deletion failed (${res.status})`);
       }
-    } catch (e: any) {
-      await promptAlert('Delete failed', e?.message ?? 'Failed to delete account data.');
+    } catch (e: unknown) {
+      await promptAlert('Delete failed', getErrorMessage(e) || 'Failed to delete account data.');
       return;
     }
 
@@ -441,16 +401,15 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     const isRestore = passphrasePrompt.mode === 'restore';
     if (isRestore) {
       // Restore flow: allow reset, try again immediately, or try again later.
-      const choice = await promptChoice3(
-        'Forgot your recovery passphrase?',
-        "If you reset recovery, you’ll create a new keypair and recovery passphrase on this device.\n\nOld encrypted direct messages will become unrecoverable.\n\nIf you might remember it later, you can try again later and you’ll be prompted again the next time you sign in.",
-        {
-          primaryText: 'Try Again',
-          secondaryText: 'Try Later',
-          tertiaryText: 'Reset recovery',
-          tertiaryVariant: 'danger',
-        }
-      );
+      const choice = await promptChoice3({
+        title: 'Forgot your recovery passphrase?',
+        message:
+          "If you reset recovery, you’ll create a new keypair and recovery passphrase on this device.\n\nOld encrypted direct messages will become unrecoverable.\n\nIf you might remember it later, you can try again later and you’ll be prompted again the next time you sign in.",
+        primaryText: 'Try Again',
+        secondaryText: 'Try Later',
+        tertiaryText: 'Reset recovery',
+        tertiaryVariant: 'danger',
+      });
       if (choice === 'primary') {
         // Keep the prompt open; just clear input so they can re-enter immediately.
         setPassphraseInput('');
@@ -606,7 +565,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         const name =
           (attrs.preferred_username as string | undefined) ||
           (attrs.email as string | undefined) ||
-          (user as any)?.username ||
+          getUsernameFromAuthenticatorUser(user as unknown) ||
           'anon';
         const userId = attrs.sub as string;
         if (mounted) setMyUserSub(userId);
@@ -759,7 +718,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
           }
         }
       } catch {
-        if (mounted) setDisplayName((user as any)?.username || 'anon');
+        if (mounted) setDisplayName(getUsernameFromAuthenticatorUser(user as unknown) || 'anon');
       }
     })();
 
@@ -831,18 +790,13 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     (async () => {
       if (!myAvatar?.imagePath) return;
       if (myAvatar.imageUri) return;
-      try {
-        const s = toCdnUrl(myAvatar.imagePath);
-        if (s && !cancelled) setMyAvatar((prev) => ({ ...prev, imageUri: s }));
-      } catch (e: any) {
-        // eslint-disable-next-line no-console
-        console.log('avatar preview getUrl failed', myAvatar?.imagePath, e?.message || String(e));
-      }
+      const s = cdn.resolve(myAvatar.imagePath);
+      if (s && !cancelled) setMyAvatar((prev) => ({ ...prev, imageUri: s }));
     })();
     return () => {
       cancelled = true;
     };
-  }, [myAvatar?.imagePath, myAvatar?.imageUri]);
+  }, [cdn, myAvatar?.imagePath, myAvatar?.imageUri]);
 
   const saveAvatarToStorageAndServer = React.useCallback(
     async (next: { bgColor?: string; textColor?: string; imagePath?: string }) => {
@@ -895,10 +849,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     };
   }, [user]);
 
-  const currentUsername =
-    (displayName.length ? displayName : (
-      (user as any)?.username as string | undefined || 'anon'
-    ));
+  const currentUsername = displayName.length ? displayName : getUsernameFromAuthenticatorUser(user as unknown) || 'anon';
 
   const [conversationId, setConversationId] = useState<string>('global');
   const [channelRestoreDone, setChannelRestoreDone] = React.useState<boolean>(false);
@@ -963,15 +914,13 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const [createChannelIsPublic, setCreateChannelIsPublic] = React.useState<boolean>(true);
   const [createChannelLoading, setCreateChannelLoading] = React.useState<boolean>(false);
   const [createChannelError, setCreateChannelError] = React.useState<string | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const isDark = theme === 'dark';
+  const { theme, setTheme, isDark } = useStoredTheme({ storageKey: 'ui:theme', defaultTheme: 'light' });
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
-  const menuBtnRef = React.useRef<any>(null);
-  const [menuAnchor, setMenuAnchor] = React.useState<null | { x: number; y: number; width: number; height: number }>(null);
+  const menu = useMenuAnchor<React.ElementRef<typeof Pressable>>();
   const { width: windowWidth } = useWindowDimensions();
-  const isWideUi = windowWidth >= 900;
+  const { isWide: isWideUi } = useViewportWidth(windowWidth, { wideBreakpointPx: 900, maxContentWidthPx: 1040 });
   const [channelAboutRequestEpoch, setChannelAboutRequestEpoch] = React.useState<number>(0);
-  const [globalAboutOpen, setGlobalAboutOpen] = React.useState<boolean>(false);
+  const { globalAboutOpen, setGlobalAboutOpen, dismissGlobalAbout } = useGlobalAboutOncePerVersion(GLOBAL_ABOUT_VERSION);
   const [chatsOpen, setChatsOpen] = React.useState<boolean>(false);
   const [blocklistOpen, setBlocklistOpen] = React.useState<boolean>(false);
   const [recoveryOpen, setRecoveryOpen] = React.useState<boolean>(false);
@@ -985,33 +934,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
 
   const blockedSubs = React.useMemo(() => blockedUsers.map((b) => b.blockedSub).filter(Boolean), [blockedUsers]);
 
-  const GLOBAL_ABOUT_KEY = `ui:globalAboutSeen:${GLOBAL_ABOUT_VERSION}`;
-
-  const dismissGlobalAbout = React.useCallback(async () => {
-    setGlobalAboutOpen(false);
-    try {
-      await AsyncStorage.setItem(GLOBAL_ABOUT_KEY, '1');
-    } catch {
-      // ignore
-    }
-  }, [GLOBAL_ABOUT_KEY]);
-
-  // Auto-popup Global About once per version (shared with guest behavior).
-  React.useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const seen = await AsyncStorage.getItem(GLOBAL_ABOUT_KEY);
-        if (!mounted) return;
-        if (!seen) setGlobalAboutOpen(true);
-      } catch {
-        if (mounted) setGlobalAboutOpen(true);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [GLOBAL_ABOUT_KEY]);
+  // Global About is code-defined + versioned. Show once per version; About menu reopens it.
 
   // Restore last visited channel on boot (Global or ch#...).
   React.useEffect(() => {
@@ -1631,26 +1554,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     return dmThreadsList;
   }, [dmThreadsList, serverConversations, unreadDmMap]);
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const stored = await AsyncStorage.getItem('ui:theme');
-        if (stored === 'dark' || stored === 'light') setTheme(stored);
-      } catch {
-        // ignore
-      }
-    })();
-  }, []);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        await AsyncStorage.setItem('ui:theme', theme);
-      } catch {
-        // ignore
-      }
-    })();
-  }, [theme]);
+  // theme persistence handled by useStoredTheme
 
   // Load persisted DM threads (best-effort).
   React.useEffect(() => {
@@ -1899,47 +1803,31 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
           setChannelsError('Unable to authenticate');
           return;
         }
-        const base = API_URL.replace(/\/$/, '');
         const q = String(query || '').trim();
-        const url = `${base}/channels/search?limit=50${q ? `&q=${encodeURIComponent(q)}` : ''}`;
-        const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (!resp.ok) {
-          const text = await resp.text().catch(() => '');
-          let msg = `Channel search failed (${resp.status})`;
-          try {
-            const parsed = text ? JSON.parse(text) : null;
-            if (parsed && typeof parsed.message === 'string') msg = parsed.message;
-          } catch {
-            if (text.trim()) msg = `${msg}: ${text.trim()}`;
-          }
-          setChannelsError(msg);
-          return;
-        }
-        const data = await resp.json().catch(() => ({}));
-        if (typeof data?.globalUserCount === 'number' && Number.isFinite(data.globalUserCount) && data.globalUserCount >= 0) {
-          setGlobalUserCount(Math.floor(data.globalUserCount));
+        const r = await searchChannels({
+          apiUrl: API_URL,
+          query: q,
+          limit: 50,
+          token,
+          preferPublic: false,
+          includePublic: false,
+          includeAuthed: true,
+        });
+        if (typeof r.globalUserCount === 'number') {
+          setGlobalUserCount(r.globalUserCount);
         } else if (!q) {
           // When opening the modal with empty search, prefer clearing stale counts if not provided.
           setGlobalUserCount(null);
         }
-        const list = Array.isArray(data?.channels) ? data.channels : [];
-        const normalized = list
-          .map((c: any) => ({
-            channelId: String(c.channelId || '').trim(),
-            name: String(c.name || '').trim(),
-            nameLower: typeof c.nameLower === 'string' ? String(c.nameLower) : undefined,
-            isPublic: !!c.isPublic,
-            hasPassword: typeof c.hasPassword === 'boolean' ? c.hasPassword : undefined,
-            activeMemberCount: typeof c.activeMemberCount === 'number' ? c.activeMemberCount : undefined,
-            isMember: typeof c.isMember === 'boolean' ? c.isMember : undefined,
-          }))
-          .filter((c: any) => c.channelId && c.name);
+        const normalized = r.channels.map((c) => ({ ...c, isPublic: !!(c as any).isPublic }));
         setChannelsResults(normalized);
         setChannelNameById((prev) => {
           const next = { ...prev };
           for (const c of normalized) next[c.channelId] = c.name;
           return next;
         });
+      } catch (e: any) {
+        setChannelsError(String(e?.message || 'Channel search failed'));
       } finally {
         setChannelsLoading(false);
       }
@@ -1947,13 +1835,13 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     [API_URL, getIdToken]
   );
 
+  const debouncedChannelsQuery = useDebouncedValue(channelsQuery, 150, channelSearchOpen);
+
   React.useEffect(() => {
     if (!channelSearchOpen) return;
-    const id = setTimeout(() => {
-      void fetchChannelsSearch(channelsQuery);
-    }, 150);
-    return () => clearTimeout(id);
-  }, [channelSearchOpen, channelsQuery, fetchChannelsSearch]);
+    const q = debouncedChannelsQuery;
+    void fetchChannelsSearch(q);
+  }, [channelSearchOpen, debouncedChannelsQuery, fetchChannelsSearch]);
 
   const joinChannel = React.useCallback(
     async (channel: { channelId: string; name: string; isMember?: boolean; hasPassword?: boolean }) => {
@@ -2063,25 +1951,18 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         setMyChannelsError('Unable to authenticate');
         return;
       }
-      const base = API_URL.replace(/\/$/, '');
-      const resp = await fetch(`${base}/channels/search?limit=100`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        let msg = `Failed to load channels (${resp.status})`;
-        try {
-          const parsed = text ? JSON.parse(text) : null;
-          if (parsed && typeof parsed.message === 'string') msg = parsed.message;
-        } catch {
-          if (text.trim()) msg = `${msg}: ${text.trim()}`;
-        }
-        setMyChannelsError(msg);
-        return;
-      }
-      const data = await resp.json().catch(() => ({}));
-      const list = Array.isArray(data?.channels) ? data.channels : [];
-      const joined = list
-        .filter((c: any) => c && c.isMember === true)
-        .map((c: any) => ({ channelId: String(c.channelId || '').trim(), name: String(c.name || '').trim() }))
+      const r = await searchChannels({
+        apiUrl: API_URL,
+        query: '',
+        limit: 100,
+        token,
+        preferPublic: false,
+        includePublic: false,
+        includeAuthed: true,
+      });
+      const joined = r.channels
+        .filter((c) => c && c.isMember === true)
+        .map((c) => ({ channelId: String(c.channelId || '').trim(), name: String(c.name || '').trim() }))
         .filter((c: any) => c.channelId && c.name)
         .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
       setMyChannels(joined);
@@ -2090,6 +1971,8 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         for (const c of joined) next[c.channelId] = c.name;
         return next;
       });
+    } catch (e: any) {
+      setMyChannelsError(String(e?.message || 'Failed to load channels'));
     } finally {
       setMyChannelsLoading(false);
     }
@@ -2155,7 +2038,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
     setCreateChannelError(null);
     try {
       const base = API_URL.replace(/\/$/, '');
-      const body: any = { name, isPublic: !!createChannelIsPublic };
+      const body: { name: string; isPublic: boolean; password?: string } = { name, isPublic: !!createChannelIsPublic };
       const pw = String(createChannelPassword || '').trim();
       // Passwords only apply to public channels (private channels aren't joinable via password).
       if (pw && createChannelIsPublic) body.password = pw;
@@ -2343,7 +2226,7 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   // Avoid stacking multiple React Native `Modal`s at once on web:
   // when we show a confirm/choice prompt (uiPrompt), hide the passphrase modal so
   // the confirm/choice isn't rendered "behind" it.
-  const promptVisible = !!passphrasePrompt && !uiPrompt;
+  const promptVisible = !!passphrasePrompt && !uiPromptOpen;
   const promptLabel =
     passphrasePrompt?.mode === 'restore'
       ? 'Enter your Recovery Passphrase'
@@ -2420,18 +2303,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
 
         <View style={styles.rightControls}>
           <Pressable
-            ref={menuBtnRef}
+            ref={menu.ref}
             onPress={() => {
-              const node: any = menuBtnRef.current;
-              if (isWideUi && node && typeof node.measureInWindow === 'function') {
-                node.measureInWindow((x: number, y: number, w: number, h: number) => {
-                  setMenuAnchor({ x, y, width: w, height: h });
-                  setMenuOpen(true);
-                });
-                return;
-              }
-              setMenuAnchor(null);
-              setMenuOpen(true);
+              menu.openFromRef({ enabled: isWideUi, onOpen: () => setMenuOpen(true) });
             }}
             style={({ pressed }) => [
               styles.menuIconBtn,
@@ -2542,32 +2416,9 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         title={undefined}
         isDark={isDark}
         cardWidth={160}
-        anchor={isWideUi ? menuAnchor : null}
+        anchor={isWideUi ? menu.anchor : null}
         headerRight={
-          <View style={[styles.themeToggle, isDark && styles.themeToggleDark]}>
-            <Feather name={isDark ? 'moon' : 'sun'} size={16} color={isDark ? '#fff' : '#111'} />
-            {Platform.OS === 'web' ? (
-              <Pressable
-                onPress={() => setTheme(isDark ? 'light' : 'dark')}
-                accessibilityRole="button"
-                accessibilityLabel="Toggle theme"
-                style={({ pressed }) => [
-                  styles.webToggleTrack,
-                  isDark ? styles.webToggleTrackOn : null,
-                  pressed ? { opacity: 0.9 } : null,
-                ]}
-              >
-                <View style={[styles.webToggleThumb, isDark ? styles.webToggleThumbOn : null]} />
-              </Pressable>
-            ) : (
-              <Switch
-                value={isDark}
-                onValueChange={(v) => setTheme(v ? 'dark' : 'light')}
-                trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-              />
-            )}
-          </View>
+          <ThemeToggleRow isDark={isDark} onSetTheme={setTheme} styles={styles} />
         }
         items={[
           {
@@ -2690,19 +2541,16 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => void dismissGlobalAbout()} />
           <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
-            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{GLOBAL_ABOUT_TITLE}</Text>
             <ScrollView style={{ maxHeight: 340 }}>
-              <RichText
-                text={GLOBAL_ABOUT_TEXT}
+              <GlobalAboutContent
                 isDark={isDark}
-                style={[
+                titleStyle={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}
+                bodyStyle={[
                   styles.modalHelperText,
                   ...(isDark ? [styles.modalHelperTextDark] : []),
                   // Slightly more comfortable reading in the About modal.
                   { marginBottom: 0 },
                 ]}
-                enableMentions={false}
-                variant="neutral"
               />
             </ScrollView>
             <View style={[styles.modalButtons, { justifyContent: 'flex-end', marginTop: 12 }]}>
@@ -4072,152 +3920,6 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
           </View>
         </View>
       </Modal>
-        <Modal visible={!!uiPrompt} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            {/* Prevent "empty modal + OK button" flash during fade-out when uiPrompt has been cleared. */}
-            {uiPrompt ? (
-              <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
-                <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
-                  {uiPrompt.title || ''}
-                </Text>
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-                  {uiPrompt.message || ''}
-                </Text>
-                {uiPrompt.kind === 'choice3' ? (
-                <View style={{ alignSelf: 'stretch', gap: 10 }}>
-                  <Pressable
-                    style={[
-                      styles.modalButton,
-                      { alignSelf: 'stretch' },
-                      uiPrompt?.primaryVariant === 'primary' ? styles.modalButtonPrimary : null,
-                      uiPrompt?.primaryVariant === 'danger' ? styles.modalButtonDanger : null,
-                      isDark ? styles.modalButtonDark : null,
-                      isDark && uiPrompt?.primaryVariant === 'primary' ? styles.modalButtonPrimaryDark : null,
-                      isDark && uiPrompt?.primaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
-                    ]}
-                    onPress={() => {
-                      const resolve = uiPrompt.resolve;
-                      setUiPrompt(null);
-                      resolve('primary');
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.modalButtonText,
-                        uiPrompt?.primaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
-                        uiPrompt?.primaryVariant === 'danger' ? styles.modalButtonDangerText : null,
-                        isDark ? styles.modalButtonTextDark : null,
-                      ]}
-                    >
-                      {uiPrompt.primaryText}
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.modalButton,
-                      { alignSelf: 'stretch' },
-                      uiPrompt?.secondaryVariant === 'primary' ? styles.modalButtonPrimary : null,
-                      uiPrompt?.secondaryVariant === 'danger' ? styles.modalButtonDanger : null,
-                      isDark ? styles.modalButtonDark : null,
-                      isDark && uiPrompt?.secondaryVariant === 'primary' ? styles.modalButtonPrimaryDark : null,
-                      isDark && uiPrompt?.secondaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
-                    ]}
-                    onPress={() => {
-                      const resolve = uiPrompt.resolve;
-                      setUiPrompt(null);
-                      resolve('secondary');
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.modalButtonText,
-                        uiPrompt?.secondaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
-                        uiPrompt?.secondaryVariant === 'danger' ? styles.modalButtonDangerText : null,
-                        isDark ? styles.modalButtonTextDark : null,
-                      ]}
-                    >
-                      {uiPrompt.secondaryText}
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.modalButton,
-                      { alignSelf: 'stretch' },
-                      uiPrompt?.tertiaryVariant === 'primary' ? styles.modalButtonPrimary : null,
-                      uiPrompt?.tertiaryVariant === 'danger' ? styles.modalButtonDanger : null,
-                      isDark ? styles.modalButtonDark : null,
-                      isDark && uiPrompt?.tertiaryVariant === 'primary' ? styles.modalButtonPrimaryDark : null,
-                      isDark && uiPrompt?.tertiaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
-                    ]}
-                    onPress={() => {
-                      const resolve = uiPrompt.resolve;
-                      setUiPrompt(null);
-                      resolve('tertiary');
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.modalButtonText,
-                        uiPrompt?.tertiaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
-                        uiPrompt?.tertiaryVariant === 'danger' ? styles.modalButtonDangerText : null,
-                        isDark ? styles.modalButtonTextDark : null,
-                      ]}
-                    >
-                      {uiPrompt.tertiaryText}
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <View style={styles.modalButtons}>
-                    <Pressable
-                      style={[
-                        styles.modalButton,
-                        uiPrompt.kind === 'alert' ? styles.modalButtonPrimary : null,
-                        uiPrompt.destructive ? styles.modalButtonDanger : null,
-                        isDark ? styles.modalButtonDark : null,
-                        isDark && uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
-                        isDark && uiPrompt.destructive ? styles.modalButtonDangerDark : null,
-                      ]}
-                      onPress={() => {
-                        const resolve = uiPrompt.resolve;
-                        const kind = uiPrompt.kind;
-                        setUiPrompt(null);
-                        resolve(kind === 'confirm' ? true : undefined);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.modalButtonText,
-                          uiPrompt?.kind === 'alert' ? styles.modalButtonPrimaryText : null,
-                          uiPrompt?.destructive ? styles.modalButtonDangerText : null,
-                          isDark ? styles.modalButtonTextDark : null,
-                        ]}
-                      >
-                        {uiPrompt.confirmText || 'OK'}
-                      </Text>
-                    </Pressable>
-                    {uiPrompt.kind === 'confirm' ? (
-                      <Pressable
-                        style={[styles.modalButton, isDark ? styles.modalButtonDark : null]}
-                        onPress={() => {
-                          const resolve = uiPrompt.resolve;
-                          setUiPrompt(null);
-                          resolve(false);
-                        }}
-                      >
-                        <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                          {uiPrompt.cancelText || 'Cancel'}
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                </View>
-              )}
-              </View>
-            ) : null}
-          </View>
-        </Modal>
         <Modal visible={promptVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             {Platform.OS === 'web' ? (
@@ -4567,8 +4269,6 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
             chatBackground={chatBackground}
             blockedUserSubs={blockedSubs}
             keyEpoch={keyEpoch}
-            promptAlert={promptAlert}
-            promptConfirm={promptConfirm}
             onBlockUserSub={addBlockBySub}
           />
         ) : (
@@ -4581,807 +4281,17 @@ const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   );
 };
 
-const AuthModalGate = ({
-  onAuthed,
-}: {
-  onAuthed: () => void;
-}): React.JSX.Element => {
-  const { user } = useAuthenticator();
-
-  React.useEffect(() => {
-    if (user) onAuthed();
-  }, [user, onAuthed]);
-
-  // While unauthenticated, the Authenticator will render its own UI.
-  // When authenticated, this component renders nothing and the parent closes the modal.
-  return <View />;
-};
-
-function injectCaretColors(
-  fields: Array<any>,
-  caret: { selectionColor: string; cursorColor?: string }
-): Array<any> {
-  return (Array.isArray(fields) ? fields : []).map((f) => ({
-    ...f,
-    selectionColor: caret.selectionColor,
-    cursorColor: caret.cursorColor,
-  }));
-}
-
-// iOS workaround: multiple secureTextEntry inputs can glitch unless we insert a hidden TextInput
-// after each secure input.
-const HIDDEN_INPUT_PROPS = {
-  accessibilityElementsHidden: true,
-  style: { backgroundColor: 'transparent', height: 0.1, width: 0.1, pointerEvents: 'none' as const },
-};
-
-const LinkedConfirmResetPasswordFormFields = ({
-  isDark,
-  caret,
-  fieldContainerStyle,
-  fieldErrorsContainer,
-  fieldErrorStyle,
-  fieldStyle,
-  fields,
-  isPending = false,
-  style,
-  validationErrors,
-}: any & {
-  isDark: boolean;
-  caret: { selectionColor: string; cursorColor?: string };
-}): React.JSX.Element => {
-  const [showPassword, setShowPassword] = React.useState(false);
-  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
-  const webFieldFullWidthObj =
-    Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const) : null;
-
-  const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
-    const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
-    const hasError = errors?.length > 0;
-    const isPassword = type === 'password';
-
-    const FieldComp =
-      isPassword ? TextField : type === 'phone' ? PhoneNumberField : TextField;
-
-    // Web warning fix: prevent <input> from flipping between uncontrolled/controlled
-    // when Amplify initializes `value` as undefined before first change.
-    const valueProp =
-      Object.prototype.hasOwnProperty.call(field, 'value') &&
-      (field?.value == null || typeof field?.value === 'string')
-        ? { value: field.value ?? '' }
-        : null;
-
-    const endAccessory = isPassword ? (
-      // Web warning fix: Amplify's Icon uses `style.resizeMode` + `style.tintColor` (deprecated on RN-web).
-      // Use our own Image with `resizeMode`/`tintColor` props instead.
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-        disabled={isPending}
-        onPress={() => setShowPassword((v) => !v)}
-        style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.8 : 1 }, isPending ? { opacity: 0.5 } : null]}
-      >
-        <Image
-          source={showPassword ? icons.visibilityOn : icons.visibilityOff}
-          resizeMode="contain"
-          tintColor={isDark ? '#d7d7e0' : '#666'}
-          style={{ width: 18, height: 18 }}
-        />
-      </Pressable>
-    ) : undefined;
-
-    return (
-      <React.Fragment key={name}>
-        <FieldComp
-          {...field}
-          {...(valueProp || {})}
-          disabled={isPending}
-          error={hasError}
-          // On web, Amplify's TextField doesn't always merge style arrays for the underlying <input>.
-          // Provide a single merged object to ensure full-width inputs.
-          fieldStyle={
-            Platform.OS === 'web'
-              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
-              : fieldStyle
-          }
-          style={[fieldContainerStyle, webFullWidth]}
-          selectionColor={caret.selectionColor}
-          cursorColor={caret.cursorColor}
-          secureTextEntry={isPassword ? !showPassword : undefined}
-          endAccessory={endAccessory}
-        />
-        {Platform.OS === 'ios' && isPassword ? <TextInput {...HIDDEN_INPUT_PROPS} /> : null}
-        {errors?.length ? (
-          <View style={fieldErrorsContainer}>
-            {errors.map((e: string) => (
-              <Text key={`${name}:${e}`} style={fieldErrorStyle}>
-                {e}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-      </React.Fragment>
-    );
-  });
-
-  return <View style={[style, webFullWidth]}>{formFields}</View>;
-};
-
-const LinkedSignUpFormFields = ({
-  isDark,
-  caret,
-  fieldContainerStyle,
-  fieldErrorsContainer,
-  fieldErrorStyle,
-  fieldStyle,
-  fields,
-  isPending = false,
-  style,
-  validationErrors,
-}: any & {
-  isDark: boolean;
-  caret: { selectionColor: string; cursorColor?: string };
-}): React.JSX.Element => {
-  const [showPassword, setShowPassword] = React.useState(false);
-  const MAX_USERNAME_LEN = 21;
-  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
-  const webFieldFullWidthObj =
-    Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const) : null;
-
-  const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
-    const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
-    const hasError = errors?.length > 0;
-    const isPassword = type === 'password';
-
-    const FieldComp = type === 'phone' ? PhoneNumberField : TextField;
-
-    // Web warning fix: prevent <input> from flipping between uncontrolled/controlled
-    // when Amplify initializes `value` as undefined before first change.
-    const valueProp =
-      Object.prototype.hasOwnProperty.call(field, 'value') &&
-      (field?.value == null || typeof field?.value === 'string')
-        ? { value: field.value ?? '' }
-        : null;
-
-    const endAccessory = isPassword ? (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-        disabled={isPending}
-        onPress={() => setShowPassword((v) => !v)}
-        style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.8 : 1 }, isPending ? { opacity: 0.5 } : null]}
-      >
-        <Image
-          source={showPassword ? icons.visibilityOn : icons.visibilityOff}
-          resizeMode="contain"
-          tintColor={isDark ? '#d7d7e0' : '#666'}
-          style={{ width: 18, height: 18 }}
-        />
-      </Pressable>
-    ) : undefined;
-
-    return (
-      <React.Fragment key={name}>
-        <FieldComp
-          {...field}
-          {...(valueProp || {})}
-          {...(name === 'preferred_username'
-            ? {
-                // Prevent ultra-long usernames; backend enforces too.
-                maxLength: MAX_USERNAME_LEN,
-              }
-            : null)}
-          disabled={isPending}
-          error={hasError}
-          fieldStyle={
-            Platform.OS === 'web'
-              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
-              : fieldStyle
-          }
-          style={[fieldContainerStyle, webFullWidth]}
-          selectionColor={caret.selectionColor}
-          cursorColor={caret.cursorColor}
-          secureTextEntry={isPassword ? !showPassword : undefined}
-          endAccessory={endAccessory}
-        />
-        {Platform.OS === 'ios' && isPassword ? <TextInput {...HIDDEN_INPUT_PROPS} /> : null}
-        {errors?.length ? (
-          <View style={fieldErrorsContainer}>
-            {errors.map((e: string) => (
-              <Text key={`${name}:${e}`} style={fieldErrorStyle}>
-                {e}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-      </React.Fragment>
-    );
-  });
-
-  return <View style={[style, webFullWidth]}>{formFields}</View>;
-};
-
-const LinkedSignInFormFields = ({
-  isDark,
-  caret,
-  fieldContainerStyle,
-  fieldErrorsContainer,
-  fieldErrorStyle,
-  fieldStyle,
-  fields,
-  isPending = false,
-  style,
-  validationErrors,
-}: any & {
-  isDark: boolean;
-  caret: { selectionColor: string; cursorColor?: string };
-}): React.JSX.Element => {
-  const [showPassword, setShowPassword] = React.useState(false);
-  const webFullWidth = Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
-  const webFieldFullWidthObj =
-    Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const) : null;
-
-  const formFields = (fields ?? []).map(({ name, type, ...field }: any) => {
-    const errors = validationErrors ? getErrors(validationErrors?.[name]) : [];
-    const hasError = errors?.length > 0;
-    const isPassword = type === 'password';
-
-    const FieldComp = type === 'phone' ? PhoneNumberField : TextField;
-
-    // Web warning fix: prevent <input> from flipping between uncontrolled/controlled
-    // when Amplify initializes `value` as undefined before first change.
-    const valueProp =
-      Object.prototype.hasOwnProperty.call(field, 'value') &&
-      (field?.value == null || typeof field?.value === 'string')
-        ? { value: field.value ?? '' }
-        : null;
-
-    const endAccessory = isPassword ? (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-        disabled={isPending}
-        onPress={() => setShowPassword((v) => !v)}
-        style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.8 : 1 }, isPending ? { opacity: 0.5 } : null]}
-      >
-        <Image
-          // Reflect current state: "eye open" means visible.
-          source={showPassword ? icons.visibilityOn : icons.visibilityOff}
-          resizeMode="contain"
-          tintColor={isDark ? '#d7d7e0' : '#666'}
-          style={{ width: 18, height: 18 }}
-        />
-      </Pressable>
-    ) : undefined;
-
-    return (
-      <React.Fragment key={name}>
-        <FieldComp
-          {...field}
-          {...(valueProp || {})}
-          disabled={isPending}
-          error={hasError}
-          fieldStyle={
-            Platform.OS === 'web'
-              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
-              : fieldStyle
-          }
-          style={[fieldContainerStyle, webFullWidth]}
-          selectionColor={caret.selectionColor}
-          cursorColor={caret.cursorColor}
-          secureTextEntry={isPassword ? !showPassword : undefined}
-          endAccessory={endAccessory}
-        />
-        {Platform.OS === 'ios' && isPassword ? <TextInput {...HIDDEN_INPUT_PROPS} /> : null}
-        {errors?.length ? (
-          <View style={fieldErrorsContainer}>
-            {errors.map((e: string) => (
-              <Text key={`${name}:${e}`} style={fieldErrorStyle}>
-                {e}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-      </React.Fragment>
-    );
-  });
-
-  return <View style={[style, webFullWidth]}>{formFields}</View>;
-};
-
-function useWebAuthFieldValues({
-  componentName,
-  fields = [],
-  handleBlur,
-  handleChange,
-  handleSubmit,
-  validationErrors,
-}: {
-  componentName: string;
-  fields: Array<any>;
-  handleBlur?: (payload: { name: string; value: string }) => void;
-  handleChange?: (payload: { name: string; value: string }) => void;
-  handleSubmit?: (payload: Record<string, any>) => void;
-  validationErrors?: any;
-}): {
-  disableFormSubmit: boolean;
-  fieldsWithHandlers: Array<any>;
-  fieldValidationErrors: any;
-  handleFormSubmit: () => void;
-} {
-  const [values, setValues] = React.useState<Record<string, string>>({});
-  const [touched, setTouched] = React.useState<Record<string, boolean>>({});
-
-  const toStr = (v: any): string => (typeof v === 'string' ? v : v == null ? '' : String(v));
-
-  const fieldsWithHandlers = React.useMemo(() => {
-    const arr = Array.isArray(fields) ? fields : [];
-    return arr.map((field: any) => {
-      if (!field || typeof field !== 'object') return field;
-      const name = String(field.name || '');
-      if (!name) return field;
-
-      const reportChange = (valueRaw: any) => {
-        const value = toStr(valueRaw);
-        handleChange?.({ name, value });
-        setValues((prev) => ({ ...prev, [name]: value }));
-      };
-
-      const onBlur = (event: any) => {
-        const textValue = values[name] ?? toStr(event?.nativeEvent?.text);
-        setTouched((prev) => ({ ...prev, [name]: true }));
-        field.onBlur?.(event);
-        handleBlur?.({ name, value: textValue });
-      };
-
-      const onChangeText = (value: any) => {
-        const v = toStr(value);
-        field.onChangeText?.(v);
-        reportChange(v);
-      };
-
-      const onChange = (event: any) => {
-        field.onChange?.(event);
-        reportChange(event?.nativeEvent?.text ?? '');
-      };
-
-      const value = values[name] ?? '';
-
-      return {
-        ...field,
-        // keep labelHidden semantics from Amplify: if the label is hidden, omit it
-        label: field?.labelHidden ? undefined : field?.label,
-        name,
-        value,
-        onBlur,
-        onChange,
-        onChangeText,
-      };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fields, handleBlur, handleChange, values]);
-
-  const disableFormSubmit = React.useMemo(() => {
-    // Minimal behavior: required fields must be non-empty. (Matches Amplify’s default behavior.)
-    return fieldsWithHandlers.some((f: any) => {
-      if (!f || typeof f !== 'object') return false;
-      if (!f.required) return false;
-      const name = String(f.name || '');
-      return !toStr(values[name]).trim();
-    });
-  }, [fieldsWithHandlers, values]);
-
-  const handleFormSubmit = React.useCallback(() => {
-    const submitValue = fieldsWithHandlers.reduce((acc: Record<string, any>, f: any) => {
-      if (!f || typeof f !== 'object') return acc;
-      const name = String(f.name || '');
-      if (!name) return acc;
-      const value = toStr(values[name] ?? f.value ?? '');
-      if (f.type === 'phone') {
-        // Best-effort mimic of Amplify behavior: split dial code.
-        acc.country_code = value.substring(0, 3);
-        acc[name] = value.substring(3);
-      } else {
-        acc[name] = value;
-      }
-      return acc;
-    }, {});
-    handleSubmit?.(submitValue);
-  }, [fieldsWithHandlers, handleSubmit, values]);
-
-  return {
-    disableFormSubmit,
-    fieldsWithHandlers,
-    fieldValidationErrors: { ...(validationErrors || {}) },
-    handleFormSubmit,
-  };
-}
-
-// Web-only Authenticator content: match input insets and make primary CTA full-width.
-// Also avoids Amplify's `ErrorMessage` icon (which triggers RN-web `Image style.*` deprecation warnings).
-const WebAuthContent = ({
-  body,
-  buttons,
-  error,
-  fields,
-  Footer,
-  FormFields,
-  Header,
-  headerText,
-  isDark,
-  isPending,
-  validationErrors,
-}: any & { isDark: boolean }): React.JSX.Element => {
-  const HPAD = 12;
-  const primary = buttons?.primary;
-  const secondary = buttons?.secondary;
-  const links = buttons?.links;
-
-  return (
-    <>
-      <Header style={{ marginVertical: 10, paddingHorizontal: HPAD }}>{headerText}</Header>
-      {body ? (
-        typeof body === 'string' ? (
-          <Text style={{ paddingHorizontal: HPAD, color: isDark ? '#d7d7e0' : '#444' }}>{body}</Text>
-        ) : (
-          body
-        )
-      ) : null}
-
-      <FormFields
-        fieldContainerStyle={{ paddingHorizontal: HPAD }}
-        fieldErrorsContainer={{ paddingHorizontal: HPAD, paddingVertical: 6 }}
-        fieldErrorStyle={{ color: isDark ? '#ff6b6b' : '#b00020', fontWeight: '700' }}
-        fieldLabelStyle={{}}
-        fieldStyle={{}}
-        fields={fields}
-        isPending={isPending}
-        validationErrors={validationErrors}
-        style={{ paddingBottom: 6 }}
-      />
-
-      {error ? (
-        <View style={{ paddingHorizontal: HPAD, paddingBottom: 8 }}>
-          <Text style={{ color: isDark ? '#ff6b6b' : '#b00020', fontWeight: '800' }}>{String(error)}</Text>
-        </View>
-      ) : null}
-
-      {primary ? (
-        <View style={{ paddingHorizontal: HPAD }}>
-          <AmplifyButton {...primary} variant="primary" style={{ width: '100%' }} />
-        </View>
-      ) : null}
-
-      {secondary ? (
-        <View style={{ paddingHorizontal: HPAD, marginTop: 8 }}>
-          <AmplifyButton {...secondary} style={{ width: '100%' }} />
-        </View>
-      ) : null}
-
-      {Array.isArray(links) && links.length ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>
-          {links.map((b: any) => (
-            <AmplifyButton key={`${b.children}`} {...b} variant="link" style={{ minWidth: '50%', marginVertical: 4 }} />
-          ))}
-        </View>
-      ) : null}
-
-      <Footer style={{}} />
-    </>
-  );
-};
-
-const CustomSignIn = ({
-  fields,
-  handleBlur,
-  handleChange,
-  handleSubmit,
-  hideSignUp,
-  isPending,
-  socialProviders,
-  toFederatedSignIn,
-  toForgotPassword,
-  toSignUp,
-  validationErrors,
-  Footer,
-  Header,
-  FormFields,
-  isDark,
-  ...rest
-}: any & { isDark: boolean }): React.JSX.Element => {
-  const { getSignInTabText, getSignInText, getSignUpTabText, getForgotPasswordText } = authenticatorTextUtil;
-  const headerText = getSignInTabText();
-  const forgotPasswordText = getForgotPasswordText(true);
-  const signInText = getSignInText();
-  const signUpText = getSignUpTabText();
-
-  const { disableFormSubmit, fieldsWithHandlers, fieldValidationErrors, handleFormSubmit } =
-    useWebAuthFieldValues({
-      componentName: 'SignIn',
-      fields,
-      handleBlur,
-      handleChange,
-      handleSubmit,
-      validationErrors,
-    });
-
-  const body =
-    Platform.OS === 'web' && socialProviders ? (
-      <FederatedProviderButtons
-        route="signIn"
-        socialProviders={socialProviders}
-        toFederatedSignIn={toFederatedSignIn}
-      />
-    ) : null;
-
-  const buttons = React.useMemo(() => {
-    const forgotPassword = { children: forgotPasswordText, onPress: toForgotPassword };
-    return {
-      primary: { children: signInText, disabled: disableFormSubmit, onPress: () => handleFormSubmit() },
-      links: hideSignUp ? [forgotPassword] : [forgotPassword, { children: signUpText, onPress: toSignUp }],
-    };
-  }, [disableFormSubmit, forgotPasswordText, handleFormSubmit, hideSignUp, signInText, signUpText, toForgotPassword, toSignUp]);
-
-  return Platform.OS === 'web' ? (
-    <WebAuthContent
-      {...rest}
-      isDark={isDark}
-      body={body}
-      buttons={buttons}
-      error={rest?.error}
-      fields={fieldsWithHandlers}
-      Footer={Footer}
-      FormFields={FormFields}
-      Header={Header}
-      headerText={headerText}
-      isPending={isPending}
-      validationErrors={fieldValidationErrors}
-    />
-  ) : (
-    // Native: pass through the full Authenticator-provided props.
-    // If we omit Header/Footer/FormFields here, Amplify's DefaultContent will crash.
-    <Authenticator.SignIn
-      {...rest}
-      fields={fields}
-      handleBlur={handleBlur}
-      handleChange={handleChange}
-      handleSubmit={handleSubmit}
-      hideSignUp={hideSignUp}
-      isPending={isPending}
-      socialProviders={socialProviders}
-      toFederatedSignIn={toFederatedSignIn}
-      toForgotPassword={toForgotPassword}
-      toSignUp={toSignUp}
-      validationErrors={validationErrors}
-      Footer={Footer}
-      Header={Header}
-      FormFields={FormFields}
-    />
-  );
-};
-
-const CustomForgotPassword = ({
-  fields,
-  handleBlur,
-  handleChange,
-  handleSubmit,
-  isPending,
-  toSignIn,
-  validationErrors,
-  Footer,
-  Header,
-  FormFields,
-  isDark,
-  ...rest
-}: any & { isDark: boolean }): React.JSX.Element => {
-  const { getResetYourPasswordText, getSendCodeText, getSendingText, getBackToSignInText } = authenticatorTextUtil;
-  const headerText = getResetYourPasswordText();
-  const primaryButtonText = isPending ? getSendingText() : getSendCodeText();
-  const secondaryButtonText = getBackToSignInText();
-
-  const { disableFormSubmit, fieldsWithHandlers, fieldValidationErrors, handleFormSubmit } =
-    useWebAuthFieldValues({
-      componentName: 'ForgotPassword',
-      fields,
-      handleBlur,
-      handleChange,
-      handleSubmit,
-      validationErrors,
-    });
-
-  const buttons = React.useMemo(
-    () => ({
-      primary: { children: primaryButtonText, disabled: disableFormSubmit, onPress: () => handleFormSubmit() },
-      links: [{ children: secondaryButtonText, onPress: toSignIn }],
-    }),
-    [disableFormSubmit, handleFormSubmit, primaryButtonText, secondaryButtonText, toSignIn]
-  );
-
-  return Platform.OS === 'web' ? (
-    <WebAuthContent
-      {...rest}
-      isDark={isDark}
-      buttons={buttons}
-      error={rest?.error}
-      fields={fieldsWithHandlers}
-      Footer={Footer}
-      FormFields={FormFields}
-      Header={Header}
-      headerText={headerText}
-      isPending={isPending}
-      validationErrors={fieldValidationErrors}
-    />
-  ) : (
-    // Native: pass through the full Authenticator-provided props (incl. Header/Footer/FormFields).
-    <Authenticator.ForgotPassword
-      {...rest}
-      fields={fields}
-      handleBlur={handleBlur}
-      handleChange={handleChange}
-      handleSubmit={handleSubmit}
-      isPending={isPending}
-      toSignIn={toSignIn}
-      validationErrors={validationErrors}
-      Footer={Footer}
-      Header={Header}
-      FormFields={FormFields}
-    />
-  );
-};
-
-const CustomSignUp = ({
-  fields,
-  handleBlur,
-  handleChange,
-  handleSubmit,
-  hasValidationErrors,
-  hideSignIn,
-  isPending,
-  socialProviders,
-  toFederatedSignIn,
-  toSignIn,
-  validationErrors,
-  Footer,
-  Header,
-  FormFields,
-  isDark,
-  ...rest
-}: any): React.JSX.Element => {
-  const {
-    getCreateAccountText,
-    getCreatingAccountText,
-    getBackToSignInText,
-    getSignUpTabText,
-  } = authenticatorTextUtil;
-
-  const { disableFormSubmit, fieldsWithHandlers, fieldValidationErrors, handleFormSubmit } =
-    useWebAuthFieldValues({
-      componentName: 'SignUp',
-      fields,
-      handleBlur,
-      handleChange,
-      handleSubmit,
-      validationErrors,
-    });
-
-  const disabled = hasValidationErrors || disableFormSubmit;
-  const headerText = getSignUpTabText();
-  const primaryButtonText = isPending ? getCreatingAccountText() : getCreateAccountText();
-  const secondaryButtonText = getBackToSignInText();
-
-  const body =
-    Platform.OS === 'web' && socialProviders ? (
-      <FederatedProviderButtons
-        route="signUp"
-        socialProviders={socialProviders}
-        toFederatedSignIn={toFederatedSignIn}
-      />
-    ) : null;
-
-  const buttons = React.useMemo(
-    () => ({
-      primary: {
-        children: primaryButtonText,
-        disabled,
-        onPress: () => handleFormSubmit(),
-      },
-      links: hideSignIn ? undefined : [{ children: secondaryButtonText, onPress: toSignIn }],
-    }),
-    [disabled, handleFormSubmit, hideSignIn, primaryButtonText, secondaryButtonText, toSignIn]
-  );
-
-  return (
-    Platform.OS === 'web' ? (
-      // Web warning fix: browsers expect password inputs inside a <form>.
-      // Also allows "Enter" to submit.
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!disabled) handleFormSubmit();
-        }}
-        style={{ width: '100%' }}
-      >
-        <WebAuthContent
-          body={body}
-          buttons={buttons}
-          error={rest?.error}
-          fields={fieldsWithHandlers}
-          Footer={Footer}
-          FormFields={FormFields}
-          Header={Header}
-          headerText={headerText}
-          isPending={isPending}
-          validationErrors={fieldValidationErrors}
-          isDark={!!isDark}
-        />
-      </form>
-    ) : (
-      // Native: use Amplify's built-in screen (DefaultContent is a web-oriented helper and can break on RN).
-      <Authenticator.SignUp
-        {...rest}
-        fields={fields}
-        handleBlur={handleBlur}
-        handleChange={handleChange}
-        handleSubmit={handleSubmit}
-        hasValidationErrors={hasValidationErrors}
-        hideSignIn={hideSignIn}
-        isPending={isPending}
-        socialProviders={socialProviders}
-        toFederatedSignIn={toFederatedSignIn}
-        toSignIn={toSignIn}
-        validationErrors={validationErrors}
-        Footer={Footer}
-        Header={Header}
-        FormFields={FormFields}
-      />
-    )
-  );
-};
-
-const ConfirmResetPasswordWithBackToSignIn = ({
-  isDark,
-  ...props
-}: any & { isDark: boolean }): React.JSX.Element => {
-  const { toSignIn } = useAuthenticator();
-  return (
-    <View>
-      <Authenticator.ConfirmResetPassword {...props} />
-      <AmplifyButton
-        onPress={() => toSignIn()}
-        variant="link"
-        style={styles.authBackLinkBtn}
-        accessibilityLabel="Back to Sign In"
-      >
-        Back to Sign In
-      </AmplifyButton>
-    </View>
-  );
-};
-
-const WebForm = ({ children }: { children: React.ReactNode }): React.JSX.Element =>
-  Platform.OS === 'web' ? (
-    // Web warning fix: browsers expect password inputs inside a <form>.
-    // We prevent default submit behavior to avoid full-page reloads.
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-      }}
-      style={{ width: '100%' }}
-    >
-      {children}
-    </form>
-  ) : (
-    <>{children}</>
-  );
-
 export default function App(): React.JSX.Element {
   const [booting, setBooting] = React.useState<boolean>(true);
   const [rootMode, setRootMode] = React.useState<'guest' | 'app'>('guest');
   const [authModalOpen, setAuthModalOpen] = React.useState<boolean>(false);
-  const [uiTheme, setUiTheme] = React.useState<'light' | 'dark'>('light');
-  const [themeReady, setThemeReady] = React.useState<boolean>(false);
   const [rootLayoutDone, setRootLayoutDone] = React.useState<boolean>(false);
-  const isDark = uiTheme === 'dark';
+  const { theme: uiTheme, setTheme: setUiTheme, isDark, ready: themeReady } = useStoredTheme({
+    storageKey: 'ui:theme',
+    defaultTheme: 'light',
+    // Re-read theme when opening the auth modal in case the user toggled it on the guest screen.
+    reloadDeps: [authModalOpen ? 1 : 0],
+  });
   const appReady = !booting && themeReady;
 
   // Keep the app portrait by default, but allow camera UI to temporarily unlock orientation.
@@ -5408,25 +4318,6 @@ export default function App(): React.JSX.Element {
         if (mounted) setRootMode(hasToken ? 'app' : 'guest');
       } finally {
         if (mounted) setBooting(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // Read the stored theme so the auth modal matches the rest of the app.
-  React.useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const stored = await AsyncStorage.getItem('ui:theme');
-        if (!mounted) return;
-        if (stored === 'dark' || stored === 'light') setUiTheme(stored);
-      } catch {
-        // ignore
-      } finally {
-        if (mounted) setThemeReady(true);
       }
     })();
     return () => {
@@ -5488,249 +4379,9 @@ export default function App(): React.JSX.Element {
     })();
   }, [appReady, rootLayoutDone]);
 
-  // Re-read theme when opening the auth modal in case the user toggled it on the guest screen.
-  React.useEffect(() => {
-    if (!authModalOpen) return;
-    (async () => {
-      try {
-        const stored = await AsyncStorage.getItem('ui:theme');
-        if (stored === 'dark' || stored === 'light') setUiTheme(stored);
-      } catch {
-        // ignore
-      }
-    })();
-  }, [authModalOpen]);
+  // theme persistence handled by useStoredTheme
 
-  const amplifyTheme = React.useMemo(
-    () => ({
-      // Light defaults (match app)
-      tokens: {
-        colors: {
-          background: {
-            primary: '#ffffff',
-            secondary: '#f2f2f7',
-            tertiary: '#ffffff',
-          },
-          border: {
-            primary: '#e3e3e3',
-            secondary: '#ddd',
-          },
-          font: {
-            primary: '#111',
-            secondary: '#444',
-            tertiary: '#666',
-            interactive: '#111',
-            error: '#b00020',
-          },
-          // Kill the teal/blue brand colors for this app; keep it neutral.
-          primary: {
-            10: '#f2f2f7',
-            20: '#e3e3e3',
-            40: '#c7c7cc',
-            60: '#8e8e93',
-            80: '#2a2a33',
-            90: '#111',
-            100: '#000',
-          },
-        },
-      },
-      // Dark mode override tokens to ensure the authenticator background never goes "bluish".
-      overrides: [
-        {
-          colorMode: 'dark' as const,
-          tokens: {
-            colors: {
-              background: {
-                primary: '#14141a',
-                secondary: '#1c1c22',
-                tertiary: '#14141a',
-                // Used by the `ErrorMessage` primitive container.
-                error: '#2a1a1a',
-              },
-              border: {
-                primary: '#2a2a33',
-                secondary: '#2a2a33',
-              },
-              font: {
-                primary: '#ffffff',
-                secondary: '#d7d7e0',
-                tertiary: '#a7a7b4',
-                interactive: '#ffffff',
-                // Validation errors ("Please enter a valid email", etc).
-                // This is the main fix for readability on dark backgrounds.
-                error: '#ff6b6b',
-              },
-              primary: {
-                10: '#2a2a33',
-                20: '#2a2a33',
-                40: '#444',
-                60: '#666',
-                80: '#d7d7e0',
-                90: '#ffffff',
-                100: '#ffffff',
-              },
-            },
-          },
-        },
-      ],
-      components: {
-        button: () => ({
-          container: {
-            borderRadius: 12,
-            // Avoid text clipping on Android devices (varies with font scale / OEM fonts).
-            minHeight: 44,
-            paddingVertical: 12,
-            paddingHorizontal: 12,
-            alignItems: 'center' as const,
-            justifyContent: 'center' as const,
-          },
-          containerPrimary: {
-            backgroundColor: isDark ? '#2a2a33' : '#111',
-            borderWidth: 0,
-            ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
-          },
-          // Some Authenticator flows on web use the "variation" style keys directly.
-          // Provide an explicit primary variant override so buttons never fall back to Amplify teal.
-          primary: {
-            backgroundColor: isDark ? '#2a2a33' : '#111',
-            borderWidth: 0,
-            ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
-          },
-          primaryPressed: { opacity: 0.9 },
-          containerDefault: {
-            // Use a soft off-white fill in light mode (matches our text field backgrounds).
-            backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
-            borderWidth: 1,
-            borderColor: isDark ? '#2a2a33' : '#e3e3e3',
-            ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
-          },
-          pressed: { opacity: 0.9 },
-          // Give descenders (e.g. "g") enough vertical room across devices.
-          text: { fontWeight: '800' as const, fontSize: 15, lineHeight: 20 },
-          textPrimary: { color: '#fff' },
-          textDefault: { color: isDark ? '#fff' : '#111' },
-          containerLink: { backgroundColor: 'transparent' },
-          textLink: {
-            color: isDark ? '#fff' : '#111',
-            fontWeight: '800' as const,
-            fontSize: 15,
-            lineHeight: 20,
-          },
-        }),
-        textField: () => ({
-          label: { color: isDark ? '#d7d7e0' : '#444', fontWeight: '700' as const },
-          // Ensure full-width fields on web (Authenticator container doesn't force stretch).
-          container: Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : undefined,
-          fieldContainer: {
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: isDark ? '#2a2a33' : '#e3e3e3',
-            // Off-gray fill in light mode (avoid stark white inputs).
-            backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
-            paddingHorizontal: 8,
-            ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
-          },
-          field: {
-            color: isDark ? '#fff' : '#111',
-            paddingVertical: 12,
-            ...(Platform.OS === 'web' ? ({ width: '100%' } as const) : null),
-          },
-        }),
-        errorMessage: () => ({
-          label: {
-            // Higher-contrast error color for dark backgrounds.
-            color: isDark ? '#ff6b6b' : '#b00020',
-            fontWeight: '700' as const,
-          },
-        }),
-      },
-    }),
-    [isDark]
-  );
-
-  const caretProps = React.useMemo(
-    () => ({
-      selectionColor: isDark ? '#ffffff' : '#111',
-      cursorColor: isDark ? '#ffffff' : '#111',
-    }),
-    [isDark]
-  );
-
-  const confirmResetFormFields = React.useCallback(
-    (ffProps: any) => (
-      <LinkedConfirmResetPasswordFormFields {...ffProps} isDark={isDark} caret={caretProps} />
-    ),
-    [isDark, caretProps]
-  );
-
-  const signInFormFields = React.useCallback(
-    (ffProps: any) => <LinkedSignInFormFields {...ffProps} isDark={isDark} caret={caretProps} />,
-    [isDark, caretProps]
-  );
-
-  const signUpFormFields = React.useCallback(
-    (ffProps: any) => <LinkedSignUpFormFields {...ffProps} isDark={isDark} caret={caretProps} />,
-    [isDark, caretProps]
-  );
-
-  const authComponents = React.useMemo(
-    () => ({
-      SignIn: (props: any) => (
-        <WebForm>
-          <CustomSignIn
-            {...props}
-            isDark={isDark}
-            fields={injectCaretColors(props?.fields, caretProps)}
-            FormFields={signInFormFields}
-          />
-        </WebForm>
-      ),
-      SignUp: (props: any) => (
-        <CustomSignUp
-          {...props}
-          isDark={isDark}
-          fields={injectCaretColors(props?.fields, caretProps)}
-          FormFields={signUpFormFields}
-        />
-      ),
-      ForgotPassword: (props: any) => (
-        <WebForm>
-          <CustomForgotPassword
-            {...props}
-            isDark={isDark}
-            fields={injectCaretColors(props?.fields, caretProps)}
-          />
-        </WebForm>
-      ),
-      ConfirmResetPassword: (props: any) => (
-        <WebForm>
-          <ConfirmResetPasswordWithBackToSignIn
-            {...props}
-            isDark={isDark}
-            fields={injectCaretColors(props?.fields, caretProps)}
-            FormFields={confirmResetFormFields}
-          />
-        </WebForm>
-      ),
-      ConfirmSignUp: (props: any) => (
-        <WebForm>
-          <Authenticator.ConfirmSignUp
-            {...props}
-            fields={injectCaretColors(props?.fields, caretProps)}
-          />
-        </WebForm>
-      ),
-      ConfirmSignIn: (props: any) => (
-        <WebForm>
-          <Authenticator.ConfirmSignIn
-            {...props}
-            fields={injectCaretColors(props?.fields, caretProps)}
-          />
-        </WebForm>
-      ),
-    }),
-    [caretProps, confirmResetFormFields, signInFormFields, signUpFormFields, isDark]
-  );
+  const { amplifyTheme, authComponents } = useAmplifyAuthenticatorConfig(isDark);
 
   return (
     <AppSafeAreaProvider>
@@ -5740,6 +4391,7 @@ export default function App(): React.JSX.Element {
         edges={['top']}
         onLayout={() => setRootLayoutDone(true)}
       >
+        <UiPromptProvider isDark={isDark}>
         <Authenticator.Provider>
           {booting ? (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -5749,63 +4401,17 @@ export default function App(): React.JSX.Element {
             <>
               <GuestGlobalScreen onSignIn={() => setAuthModalOpen(true)} />
 
-              <Modal
-                visible={authModalOpen}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setAuthModalOpen(false)}
-              >
-                <View style={styles.authModalOverlay}>
-                  <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={styles.authModalOverlayInner}
-                  >
-                    <View style={[styles.authModalSheet, isDark && styles.authModalSheetDark]}>
-                      <View style={[styles.authModalTopRow, isDark && styles.authModalTopRowDark]}>
-                        <View style={{ width: 44 }} />
-                        <Text style={[styles.authModalTitle, isDark && styles.authModalTitleDark]}>
-                          Sign in
-                        </Text>
-                        <Pressable
-                          onPress={() => setAuthModalOpen(false)}
-                          style={({ pressed }) => [
-                            styles.authModalCloseCircle,
-                            isDark && styles.authModalCloseCircleDark,
-                            pressed && { opacity: 0.85 },
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel="Close sign in"
-                        >
-                          <Text style={[styles.authModalCloseX, isDark && styles.authModalCloseXDark]}>
-                            ×
-                          </Text>
-                        </Pressable>
-                      </View>
-
-                      <ThemeProvider theme={amplifyTheme} colorMode={isDark ? 'dark' : 'light'}>
-                        <ScrollView
-                          style={styles.authModalBody}
-                          contentContainerStyle={styles.authModalBodyContent}
-                          keyboardShouldPersistTaps="handled"
-                        >
-                          <Authenticator
-                            loginMechanisms={['email']}
-                            signUpAttributes={['preferred_username']}
-                            components={authComponents}
-                          >
-                            <AuthModalGate
-                              onAuthed={() => {
-                                setAuthModalOpen(false);
-                                setRootMode('app');
-                              }}
-                            />
-                          </Authenticator>
-                        </ScrollView>
-                      </ThemeProvider>
-                    </View>
-                  </KeyboardAvoidingView>
-                </View>
-              </Modal>
+              <AuthModal
+                open={authModalOpen}
+                onClose={() => setAuthModalOpen(false)}
+                isDark={isDark}
+                amplifyTheme={amplifyTheme}
+                authComponents={authComponents}
+                onAuthed={() => {
+                  setAuthModalOpen(false);
+                  setRootMode('app');
+                }}
+              />
             </>
           ) : (
             <ThemeProvider theme={amplifyTheme} colorMode={isDark ? 'dark' : 'light'}>
@@ -5819,6 +4425,7 @@ export default function App(): React.JSX.Element {
             </ThemeProvider>
           )}
         </Authenticator.Provider>
+        </UiPromptProvider>
 
         <StatusBar
           style={isDark ? 'light' : 'dark'}
@@ -5828,804 +4435,3 @@ export default function App(): React.JSX.Element {
     </AppSafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
-  },
-  appSafe: {
-    backgroundColor: '#fff',
-  },
-  appSafeDark: {
-    backgroundColor: '#0b0b0f',
-  },
-  authModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    padding: 12,
-    justifyContent: 'center',
-  },
-  authModalOverlayInner: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  authModalSheet: {
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    // Keep it feeling like a popup, not a full screen.
-    // ScrollView inside will handle overflow on small screens.
-    maxHeight: 640,
-    minHeight: 360,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-  },
-  authModalSheetDark: {
-    backgroundColor: '#14141a',
-  },
-  authModalTopRow: {
-    paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  authModalTopRowDark: {
-    backgroundColor: '#14141a',
-  },
-  authModalBody: {
-    paddingHorizontal: 12,
-  },
-  authModalBodyContent: {
-    paddingBottom: 18,
-  },
-  authModalCloseCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f2f2f7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    // Give it a little breathing room from the top/right edge of the sheet.
-    marginTop: 4,
-  },
-  authModalCloseCircleDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-  },
-  authModalCloseX: {
-    fontSize: 22,
-    lineHeight: 22,
-    fontWeight: '900',
-    color: '#111',
-    marginTop: -1,
-  },
-  authModalCloseXDark: {
-    color: '#fff',
-  },
-  authModalTitle: {
-    fontWeight: '900',
-    fontSize: 16,
-    color: '#111',
-  },
-  authModalTitleDark: {
-    color: '#fff',
-  },
-  authBackLinkBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 4,
-    marginTop: 6,
-  },
-  authBackLinkText: {
-    fontWeight: '800',
-    color: '#111',
-    textDecorationLine: 'none',
-  },
-  authBackLinkTextDark: {
-    color: '#fff',
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  rightControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  themeToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e3e3e3',
-  },
-  themeToggleDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
-  },
-  // Web-only: avoid browser default teal/blue accent that can bleed into the native Switch implementation.
-  webToggleTrack: {
-    width: 44,
-    height: 26,
-    borderRadius: 999,
-    padding: 2,
-    backgroundColor: '#d1d1d6',
-    justifyContent: 'center',
-  },
-  webToggleTrackOn: {
-    // Match mobile: keep the track light; the "on" state is indicated by thumb position.
-    backgroundColor: '#d1d1d6',
-  },
-  webToggleThumb: {
-    width: 22,
-    height: 22,
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    transform: [{ translateX: 0 }],
-  },
-  webToggleThumbOn: {
-    backgroundColor: '#2a2a33',
-    transform: [{ translateX: 18 }],
-  },
-  menuIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIconBtnDark: {
-    backgroundColor: '#2a2a33',
-    borderColor: '#2a2a33',
-    borderWidth: 0,
-  },
-  segment: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f2f2f7',
-    padding: 3,
-    borderRadius: 12,
-    gap: 4,
-  },
-  segmentDark: {
-    backgroundColor: '#1c1c22',
-  },
-  segmentBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    minWidth: 84,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segmentBtnActive: {
-    backgroundColor: '#fff',
-  },
-  segmentBtnActiveDark: {
-    backgroundColor: '#2a2a33',
-  },
-  segmentBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#666',
-  },
-  segmentBtnTextDark: {
-    color: '#b7b7c2',
-  },
-  segmentBtnTextActive: {
-    color: '#111',
-  },
-  segmentBtnTextActiveDark: {
-    color: '#fff',
-  },
-  dmPillInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#1976d2',
-  },
-  unreadChip: {
-    minWidth: 26,
-    height: 22,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-    backgroundColor: '#1976d2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unreadChipDark: {
-    backgroundColor: '#1976d2',
-  },
-  unreadChipText: {
-    color: '#fff',
-    fontWeight: '900',
-    fontSize: 12,
-    lineHeight: 14,
-  },
-  unreadChipTextDark: {
-    color: '#fff',
-  },
-  signOutPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e3e3e3',
-  },
-  signOutPillDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
-  },
-  signOutPillText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111',
-  },
-  signOutPillTextDark: {
-    color: '#fff',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 0,
-    gap: 8,
-    zIndex: 1,
-  },
-  searchWrapper: {
-    marginTop: 6,
-    marginBottom: 0,
-  },
-  searchInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    // Keep compact, but make sure text/placeholder are vertically centered (esp. Android).
-    height: 36,
-    paddingVertical: 0,
-    textAlignVertical: 'center',
-    // Light mode: make the entry field white.
-    backgroundColor: '#fff',
-    color: '#111',
-    fontSize: 13,
-    lineHeight: 16,
-  },
-  searchInputDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
-    color: '#fff',
-  },
-  startDmBtn: {
-    minHeight: 36,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ddd',
-  },
-  startDmBtnDark: {
-    backgroundColor: '#2a2a33',
-    borderColor: '#2a2a33',
-  },
-  startDmBtnText: {
-    color: '#111',
-    fontWeight: '700',
-    fontSize: 13,
-    lineHeight: 16,
-  },
-  startDmBtnTextDark: {
-    color: '#fff',
-  },
-  cancelBtn: {
-    minHeight: 36,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ddd',
-    backgroundColor: '#fff',
-  },
-  cancelBtnDark: {
-    backgroundColor: '#2a2a33',
-    borderColor: '#2a2a33',
-  },
-  cancelBtnText: {
-    color: '#111',
-    fontWeight: '700',
-    fontSize: 13,
-    lineHeight: 16,
-  },
-  cancelBtnTextDark: {
-    color: '#fff',
-  },
-  unreadList: {
-    paddingHorizontal: 4,
-    paddingTop: 4,
-  },
-  unreadHintWrapper: {
-    paddingVertical: 0,
-  },
-  unreadHint: {
-    color: '#555',
-    fontSize: 13,
-    marginTop: 0,
-    paddingHorizontal: 4,
-  },
-  unreadHintDark: {
-    color: '#b7b7c2',
-  },
-  unreadHintBold: {
-    fontWeight: '700',
-    // Keep unread sender highlight neutral in light mode (avoid bright blue).
-    color: '#111',
-  },
-  unreadHintBoldDark: {
-    color: '#fff',
-  },
-  errorText: {
-    color: '#b00020',
-    marginBottom: 8,
-  },
-  errorTextDark: {
-    color: '#ff6b6b',
-  },
-  appContent: {
-    flex: 1,
-    alignSelf: 'stretch',
-    position: 'relative',
-  },
-  appContentDark: {
-    backgroundColor: '#0b0b0f',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    // Keep generic modals (alerts, recovery passphrase, etc.) reasonably sized on desktop web,
-    // while preserving the refined native sizing.
-    ...(Platform.OS === 'web'
-      ? ({ width: '92%', maxWidth: 520, alignSelf: 'center' } as const)
-      : ({ width: '80%' } as const)),
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    elevation: 6,
-    position: 'relative',
-  },
-  modalContentDark: {
-    backgroundColor: '#1c1c22',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  modalTitleDark: {
-    color: '#fff',
-  },
-  modalHelperText: {
-    color: '#555',
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  modalHelperTextDark: {
-    color: '#b7b7c2',
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    marginBottom: 12,
-  },
-  passphraseFieldWrapper: {
-    position: 'relative',
-    width: '100%',
-    marginBottom: 12,
-  },
-  passphraseInput: {
-    paddingRight: 40, // room for the eye icon (match sign-in tighter inset)
-    marginBottom: 0,
-  },
-  passphraseEyeBtn: {
-    position: 'absolute',
-    right: 8,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 32,
-  },
-  passphraseErrorText: {
-    color: '#b00020',
-    marginTop: -4,
-    marginBottom: 12,
-    fontWeight: '700',
-  },
-  passphraseErrorTextDark: {
-    color: '#ff6b6b',
-  },
-  modalInputLight: {
-    color: '#111',
-    backgroundColor: '#fff',
-  },
-  modalInputDark: {
-    borderColor: '#2a2a33',
-    backgroundColor: '#14141a',
-    color: '#fff',
-  },
-  modalInputDisabled: {
-    backgroundColor: '#f5f5f5',
-    color: '#999',
-  },
-  modalInputDisabledDark: {
-    backgroundColor: '#14141a',
-    color: '#8f8fa3',
-    opacity: 0.7,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  modalButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    // Light mode: neutral buttons should be off-gray (modal backgrounds are white).
-    backgroundColor: '#f2f2f7',
-    borderWidth: 1,
-    // Neutral "tool button" style (avoid blue default buttons in light mode).
-    borderColor: '#e3e3e3',
-    // Web: avoid browser default focus ring tint (can appear green/blue on some platforms).
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none', boxShadow: 'none' } : null),
-  },
-  modalButtonSmall: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  modalButtonDark: {
-    backgroundColor: '#2a2a33',
-    borderColor: 'transparent',
-    borderWidth: 0,
-  },
-  // Primary button for generic in-app alerts/confirmations (avoid bright blue; match app theme).
-  modalButtonPrimary: {
-    backgroundColor: '#111',
-    borderColor: 'transparent',
-  },
-  modalButtonPrimaryDark: {
-    backgroundColor: '#2a2a33',
-    borderColor: 'transparent',
-  },
-  // CTA button for our in-app prompts (avoid bright blue in light mode).
-  modalButtonCta: {
-    backgroundColor: '#111',
-    borderColor: 'transparent',
-  },
-  modalButtonCtaDark: {
-    backgroundColor: '#2a2a33',
-    borderColor: 'transparent',
-  },
-  modalButtonDanger: {
-    backgroundColor: '#b00020',
-    borderColor: 'transparent',
-  },
-  modalButtonDangerDark: {
-    backgroundColor: '#ff6b6b',
-    borderColor: 'transparent',
-  },
-  modalButtonText: {
-    color: '#111',
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  modalButtonTextDark: {
-    color: '#fff',
-  },
-  modalButtonPrimaryText: {
-    color: '#fff',
-  },
-  modalButtonCtaText: {
-    color: '#fff',
-  },
-  recoveryActionList: {
-    marginTop: 12,
-    gap: 10,
-    alignSelf: 'stretch',
-  },
-  modalButtonDangerText: {
-    color: '#fff',
-  },
-  chatsCard: {
-    width: '92%',
-    maxWidth: 520,
-    // Modals should be white in light mode.
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    maxHeight: '70%',
-    // Ensure the card sits above the modal backdrop Pressable for touch handling on Android.
-    position: 'relative',
-    zIndex: 2,
-    elevation: 8,
-  },
-  chatsCardDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
-  },
-  profileCard: {
-    width: '92%',
-    maxWidth: 520,
-    // Modals should be white in light mode.
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    maxHeight: '70%',
-    // Ensure the card sits above the modal backdrop Pressable for touch handling on Android.
-    position: 'relative',
-    zIndex: 2,
-    elevation: 8,
-  },
-  profileCardDark: { backgroundColor: '#14141a', borderColor: '#2a2a33' },
-  profilePreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
-  profilePreviewMeta: { flex: 1 },
-  bgPreviewBox: {
-    width: 72,
-    height: 54,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-  },
-  bgPreviewImage: { width: '100%', height: '100%' },
-  profileSectionTitle: { marginTop: 10, marginBottom: 6, fontWeight: '900' },
-  avatarPaletteRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  avatarColorDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0,0,0,0.25)',
-  },
-  avatarColorDotSelected: { borderWidth: 2, borderColor: '#111', transform: [{ scale: 1.05 }] },
-  avatarColorDotSelectedDark: { borderWidth: 2, borderColor: '#fff', transform: [{ scale: 1.05 }] },
-  avatarTextColorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatarTextColorBtn: {
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarTextColorBtnDark: { backgroundColor: '#1c1c22', borderColor: '#2a2a33' },
-  avatarTextColorBtnSelected: { borderWidth: 2, borderColor: '#111' },
-  avatarTextColorBtnSelectedDark: { borderWidth: 2, borderColor: '#fff' },
-  avatarTextColorLabel: { fontWeight: '800', color: '#111' },
-  avatarTextColorLabelDark: { color: '#fff' },
-  profileActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  toolBtn: {
-    flex: 1,
-    height: 40,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toolBtnDark: { backgroundColor: '#1c1c22', borderColor: '#2a2a33' },
-  toolBtnText: { fontWeight: '800', color: '#111' },
-  toolBtnTextDark: { color: '#fff' },
-  bgEffectsHeaderRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginTop: 10 },
-  bgEffectsResetBtn: { paddingHorizontal: 6, paddingVertical: 4 },
-  bgEffectsResetText: { fontWeight: '900', color: '#111', opacity: 0.7 },
-  bgEffectsResetTextDark: { fontWeight: '900', color: '#fff', opacity: 0.75 },
-  // Keep sliders comfortably narrow (about ~2/3 modal width).
-  bgSliderSection: { marginTop: 10, alignSelf: 'center', width: '64%', maxWidth: 320 },
-  bgSliderLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 },
-  bgSliderLabel: { fontWeight: '900', color: '#111' },
-  bgSliderLabelDark: { color: '#fff' },
-  bgSliderValue: { fontWeight: '900', color: '#111', opacity: 0.75 },
-  bgSliderValueDark: { color: '#fff', opacity: 0.8 },
-  bgSlider: { width: '100%', height: 34, marginLeft: 4, marginRight: 4 },
-  chatsTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  chatsCloseBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-  },
-  chatsCloseBtnDark: { backgroundColor: '#2a2a33', borderWidth: 0, borderColor: 'transparent' },
-  chatsCloseText: { color: '#111', fontWeight: '800' },
-  chatsCloseTextDark: { color: '#fff' },
-  chatsScroll: { maxHeight: 420, marginTop: 8 },
-  chatsLoadingRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, paddingVertical: 6, paddingHorizontal: 2 },
-  chatsLoadingText: { lineHeight: 18 },
-  chatsLoadingDotsWrap: { marginBottom: 1 },
-  chatRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    minHeight: 44,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  chatRowDark: { backgroundColor: '#1c1c22', borderColor: '#2a2a33' },
-  chatRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  chatRowRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  chatRowName: { fontWeight: '800', color: '#111', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  chatRowNameDark: { color: '#fff' },
-  chatRowDate: { fontWeight: '800', fontSize: 13, color: '#111' },
-  chatRowDateDark: { color: '#fff' },
-  chatRowCount: { fontWeight: '900', color: '#1976d2' },
-  chatRowCountDark: { color: '#fff' },
-  memberChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: '#fff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    minWidth: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  memberChipDark: { backgroundColor: '#2a2a33', borderColor: 'transparent' },
-  memberChipText: { fontWeight: '900', color: '#111' },
-  memberChipTextDark: { color: '#fff' },
-  leaveChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#ffebee',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ffcdd2',
-  },
-  leaveChipDark: { backgroundColor: '#2a2a33', borderColor: 'transparent' },
-  leaveChipText: { color: '#c62828', fontWeight: '900' },
-  leaveChipTextDark: { color: '#ff6b6b' },
-  defaultChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-  },
-  defaultChipDark: { backgroundColor: '#2a2a33', borderColor: 'transparent' },
-  defaultChipText: { color: '#666', fontWeight: '900' },
-  defaultChipTextDark: { color: '#a7a7b4' },
-  chatDeleteBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chatDeleteBtnDark: { backgroundColor: '#2a2a33', borderWidth: 0, borderColor: 'transparent' },
-
-  blocksCard: {
-    width: '92%',
-    maxWidth: 520,
-    // Modals should be white in light mode.
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    maxHeight: '70%',
-    // Ensure the card sits above the modal backdrop Pressable for touch handling on Android.
-    position: 'relative',
-    zIndex: 2,
-    elevation: 8,
-  },
-  blocksCardDark: { backgroundColor: '#14141a', borderColor: '#2a2a33' },
-  blocksTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  blocksSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 10 },
-  blocksInput: {
-    flex: 1,
-    height: 40,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    backgroundColor: '#f2f2f7',
-    paddingHorizontal: 12,
-    color: '#111',
-  },
-  blocksInputDark: { backgroundColor: '#1c1c22', borderColor: '#2a2a33', color: '#fff' },
-  blocksBtn: {
-    height: 40,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  blocksBtnDark: { backgroundColor: '#2a2a33', borderColor: 'transparent' },
-  blocksBtnText: { color: '#111', fontWeight: '800' },
-  blocksBtnTextDark: { color: '#fff' },
-  blocksScroll: { maxHeight: 420, marginTop: 2 },
-  blockRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    marginBottom: 8,
-  },
-  blockRowDark: { backgroundColor: '#1c1c22', borderColor: '#2a2a33' },
-  blockRowName: { fontWeight: '800', color: '#111', flexShrink: 1 },
-  blockRowNameDark: { color: '#fff' },
-  blockActionBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  blockActionBtnDark: { backgroundColor: '#2a2a33', borderWidth: 0, borderColor: 'transparent' },
-});

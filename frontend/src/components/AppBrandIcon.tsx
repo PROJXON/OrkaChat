@@ -52,11 +52,7 @@ export function AppBrandIcon({
   const resolvedRounded = typeof rounded === 'boolean' ? rounded : true;
 
   const resolvedZoom =
-    typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0
-      ? zoom
-      : isDark
-        ? zoomDark
-        : zoomLight;
+    typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0 ? zoom : isDark ? zoomDark : zoomLight;
 
   const resolvedContainZoom =
     typeof containZoom === 'number' && Number.isFinite(containZoom) && containZoom > 0
@@ -110,4 +106,3 @@ const styles = StyleSheet.create({
   iconCrop: { resizeMode: 'cover' },
   iconContain: { resizeMode: 'contain' },
 });
-

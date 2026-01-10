@@ -6,7 +6,7 @@ function startOfLocalDayMs(d: Date): number {
 
 function formatParts(
   d: Date,
-  opts: Intl.DateTimeFormatOptions
+  opts: Intl.DateTimeFormatOptions,
 ): { month?: string; day?: string; year?: string; weekday?: string } {
   const parts = new Intl.DateTimeFormat('en-US', opts).formatToParts(d);
   const get = (type: string) => parts.find((p) => p.type === type)?.value;
@@ -39,4 +39,3 @@ export function formatChatActivityDate(epochMs: number, nowMs: number = Date.now
   const { month, day } = formatParts(d, { month: 'short', day: 'numeric' });
   return [month, day].filter(Boolean).join(' ');
 }
-

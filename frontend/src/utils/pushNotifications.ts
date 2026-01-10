@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { fetchAuthSession } from '@aws-amplify/auth';
-import { API_URL } from '../src/config/env';
+import { API_URL } from '../config/env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
@@ -224,5 +224,3 @@ export async function setForegroundNotificationPolicy(): Promise<void> {
     }),
   });
 }
-
-

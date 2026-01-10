@@ -55,7 +55,7 @@ export function AvatarBubble({
   imageBgColor?: string;
   style?: ViewStyle;
 }): React.JSX.Element {
-  const bg = imageUri ? imageBgColor : (backgroundColor || pickDefaultAvatarColor(seed));
+  const bg = imageUri ? imageBgColor : backgroundColor || pickDefaultAvatarColor(seed);
   const letter = firstLetter(label);
   const [imageFailed, setImageFailed] = React.useState<boolean>(false);
   const fontSize = Math.max(14, Math.floor(size * 0.58));
@@ -111,5 +111,3 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 });
-
-

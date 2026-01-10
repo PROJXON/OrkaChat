@@ -27,5 +27,3 @@ export async function markWelcomeSeen(opts: { conversationId: string; welcomeVer
     // ignore
   }
 }
-
-

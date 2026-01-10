@@ -7,18 +7,15 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { pbkdf2 } from '@noble/hashes/pbkdf2.js';
 import { gcm } from '@noble/ciphers/aes.js';
+import type { BackupBlob, EncryptedChatPayloadV1, KeyPair } from '../types/crypto';
+export type { BackupBlob, EncryptedChatPayloadV1, KeyPair } from '../types/crypto';
 
 const PRIVATE_KEY_STORAGE_KEY = '@private_key';
 const PUBLIC_KEY_STORAGE_KEY = '@public_key';
 
-export interface KeyPair {
-  privateKey: string;
-  publicKey: string;
-}
-
 export const generateKeypair = async (): Promise<KeyPair> => {
   try {
-    console.log('Generating new cryptography keypair...')
+    console.log('Generating new cryptography keypair...');
     const privateKeyBytes = getRandomBytes(32);
     let attempts = 0;
     let validPrivatekey = privateKeyBytes;
@@ -27,11 +24,10 @@ export const generateKeypair = async (): Promise<KeyPair> => {
       try {
         const publicKeyPoint = secp256k1.getPublicKey(validPrivatekey, false);
 
-
         return {
           privateKey: bytesToHex(validPrivatekey),
           publicKey: bytesToHex(publicKeyPoint),
-        }
+        };
       } catch (error) {
         validPrivatekey = getRandomBytes(32);
         attempts++;
@@ -61,7 +57,7 @@ export const storeKeyPair = async (userId: string, keypair: KeyPair) => {
   }
 };
 
-export const loadKeyPair = async(userId: string): Promise<KeyPair | null> => {
+export const loadKeyPair = async (userId: string): Promise<KeyPair | null> => {
   try {
     const storageKey = `crypto_keys_${userId}`;
     // SecureStore is not reliably supported on web. Use AsyncStorage (localStorage-backed) instead.
@@ -79,23 +75,6 @@ export const derivePublicKey = (privateKeyHex: string): string => {
   const privateKeyBytes = hexToBytes(privateKeyHex);
   const publicKeyPoint = secp256k1.getPublicKey(privateKeyBytes, false);
   return bytesToHex(publicKeyPoint);
-};
-
-export interface BackupBlob {
-  ciphertext: string;
-  iv: string;
-  salt: string;
-}
-
-export type EncryptedChatPayloadV1 = {
-  v: 1;
-  alg: 'secp256k1-ecdh+aes-256-gcm';
-  iv: string; // hex (12 bytes)
-  ciphertext: string; // hex (ciphertext + authTag)
-  senderPublicKey: string; // hex (uncompressed or compressed)
-  // New (optional): store the recipient public key used during encryption.
-  // This makes old *sent* messages decryptable even if the peer rotates keys later.
-  recipientPublicKey?: string; // hex
 };
 
 const deriveBackupKey = (passphrase: string, salt: Uint8Array) =>
@@ -160,7 +139,7 @@ export const aesGcmDecryptBytes = (key: Uint8Array, ivHex: string, ciphertextHex
 export const encryptChatMessageV1 = (
   plaintext: string,
   senderPrivateKeyHex: string,
-  recipientPublicKeyHex: string
+  recipientPublicKeyHex: string,
 ): EncryptedChatPayloadV1 => {
   const key = deriveChatKey(senderPrivateKeyHex, recipientPublicKeyHex);
   const iv = getRandomBytes(12);
@@ -181,7 +160,7 @@ export const encryptChatMessageV1 = (
 export const decryptChatMessageV1 = (
   payload: EncryptedChatPayloadV1,
   recipientPrivateKeyHex: string,
-  senderPublicKeyHexOverride?: string
+  senderPublicKeyHexOverride?: string,
 ): string => {
   const theirPub = senderPublicKeyHexOverride ?? payload.senderPublicKey;
   const key = deriveChatKey(recipientPrivateKeyHex, theirPub);

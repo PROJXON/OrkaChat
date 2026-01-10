@@ -18,6 +18,5 @@ export const GLOBAL_ABOUT_TEXT = [
   '- **Bold:** wrap text with two asterisks',
   '- Links: paste a URL',
   '',
-  '**Powered by PROJXON**'
+  '**Powered by PROJXON**',
 ].join('\n');
-

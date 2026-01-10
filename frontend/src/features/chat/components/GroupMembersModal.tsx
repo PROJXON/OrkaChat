@@ -1,0 +1,127 @@
+import React from 'react';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { GroupMembersSectionList } from '../../../components/GroupMembersSectionList';
+
+type Props = {
+  visible: boolean;
+  isDark: boolean;
+  styles: Record<string, any>;
+  busy: boolean;
+
+  meIsAdmin: boolean;
+  addMembersDraft: string;
+  onChangeAddMembersDraft: (t: string) => void;
+  onAddMembers: () => void | Promise<void>;
+  addMembersInputRef: React.MutableRefObject<TextInput | null>;
+
+  members: any[];
+  mySub: string;
+  kickCooldownUntilBySub: Record<string, number>;
+  avatarUrlByPath: Record<string, string>;
+
+  onKick: (memberSub: string) => void;
+  onUnban: (memberSub: string) => void;
+  onToggleAdmin: (args: { memberSub: string; isAdmin: boolean }) => void;
+  onBan: (args: { memberSub: string; label: string }) => void | Promise<void>;
+
+  onClose: () => void;
+};
+
+export function GroupMembersModal({
+  visible,
+  isDark,
+  styles,
+  busy,
+  meIsAdmin,
+  addMembersDraft,
+  onChangeAddMembersDraft,
+  onAddMembers,
+  addMembersInputRef,
+  members,
+  mySub,
+  kickCooldownUntilBySub,
+  avatarUrlByPath,
+  onKick,
+  onUnban,
+  onToggleAdmin,
+  onBan,
+  onClose,
+}: Props) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
+          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Members</Text>
+
+          {meIsAdmin ? (
+            <View style={{ marginTop: 10 }}>
+              <TextInput
+                ref={(r) => {
+                  addMembersInputRef.current = r;
+                }}
+                value={addMembersDraft}
+                onChangeText={onChangeAddMembersDraft}
+                placeholder="Add usernames (comma/space separated)"
+                placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+                selectionColor={isDark ? '#ffffff' : '#111'}
+                cursorColor={isDark ? '#ffffff' : '#111'}
+                // Use a fully explicit style here (avoid theme/style collisions in Android modals).
+                style={{
+                  width: '100%',
+                  height: 48,
+                  paddingHorizontal: 12,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  // Off-color (so it stands out from the modal background).
+                  backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+                  borderColor: isDark ? '#3a3a46' : '#e3e3e3',
+                  color: isDark ? '#ffffff' : '#111',
+                  fontSize: 16,
+                }}
+                // Keep focusable even while requests are running; only the Add button is disabled.
+                editable
+                returnKeyType="done"
+              />
+              <View style={[styles.summaryButtons, { justifyContent: 'flex-end' }]}>
+                <Pressable
+                  style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, busy ? { opacity: 0.6 } : null]}
+                  disabled={busy}
+                  onPress={() => void Promise.resolve(onAddMembers())}
+                >
+                  <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Add</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          <ScrollView
+            style={{ marginTop: 0, maxHeight: 360 }}
+            contentContainerStyle={{ paddingTop: 0 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <GroupMembersSectionList
+              members={members as any}
+              mySub={mySub}
+              isDark={!!isDark}
+              styles={styles}
+              meIsAdmin={!!meIsAdmin}
+              groupActionBusy={!!busy}
+              kickCooldownUntilBySub={kickCooldownUntilBySub}
+              avatarUrlByPath={avatarUrlByPath}
+              onKick={onKick}
+              onUnban={onUnban}
+              onToggleAdmin={onToggleAdmin}
+              onBan={onBan}
+            />
+          </ScrollView>
+
+          <View style={styles.summaryButtons}>
+            <Pressable style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]} onPress={onClose}>
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}

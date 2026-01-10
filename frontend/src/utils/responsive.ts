@@ -54,4 +54,3 @@ export function computeIsWideLayout({
   const coarse = isWebCoarsePointer();
   return w >= wideBreakpointPx && !shortHeight && !coarse;
 }
-

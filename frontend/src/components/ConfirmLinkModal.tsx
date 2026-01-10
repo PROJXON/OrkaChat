@@ -88,4 +88,3 @@ const styles = StyleSheet.create({
   btnText: { color: '#111', fontWeight: '800', fontSize: 15 },
   btnTextDark: { color: '#fff' },
 });
-

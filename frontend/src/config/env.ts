@@ -42,5 +42,3 @@ try {
 
 export const CDN_URL: string = extra.CDN_URL || outputsCdnUrl || '';
 export const SIGNER_API_URL: string = extra.SIGNER_API_URL || outputsSignerApiUrl || '';
-
-

@@ -36,7 +36,7 @@ export function AnimatedDots({
         easing: Easing.linear,
         useNativeDriver: Platform.OS !== 'web',
       }),
-      { resetBeforeIteration: true }
+      { resetBeforeIteration: true },
     );
 
     loop.start();
@@ -64,18 +64,12 @@ export function AnimatedDots({
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       <Animated.Text
-        style={[
-          { color, fontSize: size, fontWeight: '900', lineHeight: size },
-          { opacity: makeOpacity(0) },
-        ]}
+        style={[{ color, fontSize: size, fontWeight: '900', lineHeight: size }, { opacity: makeOpacity(0) }]}
       >
         {dot}
       </Animated.Text>
       <Animated.Text
-        style={[
-          { color, fontSize: size, fontWeight: '900', lineHeight: size },
-          { opacity: makeOpacity(staggerMs) },
-        ]}
+        style={[{ color, fontSize: size, fontWeight: '900', lineHeight: size }, { opacity: makeOpacity(staggerMs) }]}
       >
         {dot}
       </Animated.Text>
@@ -90,5 +84,3 @@ export function AnimatedDots({
     </View>
   );
 }
-
-

@@ -1,5 +1,15 @@
 import React from 'react';
-import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, ScrollView } from 'react-native';
+import {
+  Animated,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  ScrollView,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
 import { AppBrandIcon } from './AppBrandIcon';
@@ -83,9 +93,7 @@ export function HeaderMenuModal({
   const ANCHOR_OVERLAP_PX = 2;
   // Guard against weird edge cases (e.g. anchor near/under the status bar).
   const anchorTopMin = Math.max(2, insets.top + 2);
-  const anchorTop = hasAnchor
-    ? Math.max(anchorTopMin, Math.round(anchor!.y - ANCHOR_OVERLAP_PX))
-    : (insets.top + 10);
+  const anchorTop = hasAnchor ? Math.max(anchorTopMin, Math.round(anchor!.y - ANCHOR_OVERLAP_PX)) : insets.top + 10;
   const cardLeft = hasAnchor
     ? clamp(anchor!.x + anchor!.width - cardWidth, 10, Math.max(10, windowWidth - cardWidth - 10))
     : 0;
@@ -137,7 +145,7 @@ export function HeaderMenuModal({
           </View>
           {title ? <Text style={[styles.title, { color: text, borderBottomColor: divider }]}>{title}</Text> : null}
           <ScrollView style={styles.listScroll} contentContainerStyle={styles.list} bounces={false}>
-            {items.map((it) => (
+            {items.map((it) =>
               it.staticRow ? (
                 // Static rows are used for embedded controls (like Switch).
                 <View key={it.key} style={styles.row}>
@@ -168,11 +176,7 @@ export function HeaderMenuModal({
                   accessibilityLabel={it.label}
                 >
                   <Text
-                    style={[
-                      styles.rowText,
-                      { color: text },
-                      !it.right ? styles.rowTextCenter : null,
-                    ]}
+                    style={[styles.rowText, { color: text }, !it.right ? styles.rowTextCenter : null]}
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
@@ -180,8 +184,8 @@ export function HeaderMenuModal({
                   </Text>
                   {it.right ? <View style={styles.rowRight}>{it.right}</View> : null}
                 </Pressable>
-              )
-            ))}
+              ),
+            )}
           </ScrollView>
         </Animated.View>
       </View>
@@ -256,5 +260,3 @@ const styles = StyleSheet.create({
   rowTextCenter: { textAlign: 'center' },
   rowRight: { marginLeft: 12, flexShrink: 0 },
 });
-
-

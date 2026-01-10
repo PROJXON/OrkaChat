@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, Linking, Platform, StyleProp, Text, TextStyle } from 'react-native';
+import { Linking, Platform, StyleProp, Text, TextStyle } from 'react-native';
+import { useUiPromptOptional } from '../providers/UiPromptProvider';
 
 type Segment =
   | { kind: 'text'; text: string; bold?: boolean; italic?: boolean }
@@ -33,8 +34,7 @@ function tryNormalizeUrlCandidate(raw: string): string | null {
 
   // Heuristic: bare domains / www.* (exclude emails).
   if (s0.includes('@')) return null;
-  const looksLikeDomain =
-    /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d{2,5})?(?:\/[^\s]*)?$/i.test(s0);
+  const looksLikeDomain = /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d{2,5})?(?:\/[^\s]*)?$/i.test(s0);
   if (!looksLikeDomain) return null;
   // Default to https.
   return tryParseHttpUrl(`https://${s0}`);
@@ -60,38 +60,9 @@ function insertSoftBreaksForUrlDisplay(s: string): string {
 }
 
 async function defaultConfirmAndOpenUrl(url: string): Promise<void> {
-  const safe = tryNormalizeUrlCandidate(url);
-  if (!safe) return;
-  const domain = getDomain(safe);
-  const title = 'Open External Link?';
-  const body = domain ? `${domain}\n\n${safe}` : safe;
-
-  if (Platform.OS === 'web') {
-    // eslint-disable-next-line no-alert
-    const ok = typeof window !== 'undefined' ? window.confirm(`${title}\n\n${body}`) : false;
-    if (!ok) return;
-    try {
-      await Linking.openURL(safe);
-    } catch {
-      // ignore
-    }
-    return;
-  }
-
-  // Open/Cancel order (as requested).
-  await new Promise<void>((resolve) => {
-    Alert.alert(title, body, [
-      {
-        text: 'Open',
-        style: 'default',
-        onPress: () => {
-          void Linking.openURL(safe).catch(() => {});
-          resolve();
-        },
-      },
-      { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
-    ]);
-  });
+  // Legacy no-op: kept only to preserve call sites in older builds.
+  // In current app flows, RichText is always rendered under UiPromptProvider so this shouldn't run.
+  void url;
 }
 
 function parseInline(text: string, opts: { enableMentions: boolean }): Segment[] {
@@ -274,12 +245,49 @@ export function RichText({
   linkStyle?: StyleProp<TextStyle>;
   onOpenUrl?: (url: string) => void | Promise<void>;
 }): React.JSX.Element {
+  const ui = useUiPromptOptional();
+
+  const confirmAndOpenUrl = React.useCallback(
+    async (url: string): Promise<void> => {
+      const safe = tryNormalizeUrlCandidate(url);
+      if (!safe) return;
+      const domain = getDomain(safe);
+      const title = 'Open External Link?';
+      const body = domain ? `${domain}\n\n${safe}` : safe;
+
+      // Prefer our themed, app-wide prompt if available.
+      if (ui) {
+        const ok = await ui.confirm(title, body, { confirmText: 'Open', cancelText: 'Cancel' });
+        if (!ok) return;
+        try {
+          await Linking.openURL(safe);
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      // Fallback: legacy behavior for isolated renders outside UiPromptProvider.
+      if (Platform.OS === 'web') {
+        // eslint-disable-next-line no-alert
+        const ok = typeof window !== 'undefined' ? window.confirm(`${title}\n\n${body}`) : false;
+        if (!ok) return;
+      }
+      try {
+        await Linking.openURL(safe);
+      } catch {
+        // ignore
+      }
+    },
+    [ui],
+  );
+
   const segments = React.useMemo(
     () =>
       parseInline(text, {
         enableMentions: enableMentions !== false,
       }),
-    [text, enableMentions]
+    [text, enableMentions],
   );
 
   const v = variant || 'neutral';
@@ -300,7 +308,7 @@ export function RichText({
               style={[baseLink, linkStyle]}
               onPress={() => {
                 if (typeof onOpenUrl === 'function') void Promise.resolve(onOpenUrl(seg.url)).catch(() => {});
-                else void defaultConfirmAndOpenUrl(seg.url);
+                else void confirmAndOpenUrl(seg.url);
               }}
               accessibilityRole="link"
               accessibilityLabel={`Open link ${seg.url}`}
@@ -319,10 +327,7 @@ export function RichText({
         return (
           <Text
             key={`t:${idx}`}
-            style={[
-              seg.bold ? { fontWeight: '900' } : null,
-              seg.italic ? { fontStyle: 'italic' } : null,
-            ]}
+            style={[seg.bold ? { fontWeight: '900' } : null, seg.italic ? { fontStyle: 'italic' } : null]}
           >
             {seg.text}
           </Text>
@@ -331,4 +336,3 @@ export function RichText({
     </Text>
   );
 }
-

@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useUiPromptOptional } from '../providers/UiPromptProvider';
 
 export type InAppCameraMode = 'photo' | 'video';
 
@@ -35,6 +36,7 @@ export function InAppCameraModal({
   onAlert?: (title: string, message: string) => void | Promise<void>;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const ui = useUiPromptOptional();
   const cameraRef = React.useRef<any>(null);
   const [facing, setFacing] = React.useState<'back' | 'front'>('back');
   const [captured, setCaptured] = React.useState<InAppCameraCapture | null>(null);
@@ -54,9 +56,17 @@ export function InAppCameraModal({
           // fall through to native alert
         }
       }
+      if (ui) {
+        try {
+          void ui.alert(title, message);
+          return;
+        } catch {
+          // fall through
+        }
+      }
       Alert.alert(title, message);
     },
-    [onAlert]
+    [onAlert, ui],
   );
 
   React.useEffect(() => {
@@ -75,7 +85,7 @@ export function InAppCameraModal({
             // Keep permission prompts as a native system alert (more appropriate than themed modals).
             Alert.alert(
               'Permission needed',
-              'Please allow camera access to capture media.\n\nIf you previously denied this permission, enable it in Settings.'
+              'Please allow camera access to capture media.\n\nIf you previously denied this permission, enable it in Settings.',
             );
             onClose();
             return;
@@ -151,7 +161,7 @@ export function InAppCameraModal({
         // Keep permission prompts as a native system alert (more appropriate than themed modals).
         Alert.alert(
           'Permission needed',
-          'Please allow microphone access to record video.\n\nIf you previously denied this permission, enable it in Settings.'
+          'Please allow microphone access to record video.\n\nIf you previously denied this permission, enable it in Settings.',
         );
         return;
       }
@@ -200,14 +210,14 @@ export function InAppCameraModal({
           // Keep permission prompts as a native system alert (more appropriate than themed modals).
           Alert.alert(
             'Permission needed',
-            'Please allow microphone access to record video.\n\nIf you previously denied this permission, enable it in Settings.'
+            'Please allow microphone access to record video.\n\nIf you previously denied this permission, enable it in Settings.',
           );
           return;
         }
       }
       setMode(next);
     },
-    [ensureMicPerm, isRecording, mode, stopVideo, showAlert]
+    [ensureMicPerm, isRecording, mode, stopVideo, showAlert],
   );
 
   return (
@@ -230,10 +240,7 @@ export function InAppCameraModal({
               onCameraReady={() => setCameraReady(true)}
               // On some Android setups the camera surface can swallow touches; ensure overlays stay clickable.
               pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
-              style={[
-                styles.preview,
-                ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
-              ]}
+              style={[styles.preview, ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : [])]}
               onMountError={(e: any) => {
                 const msg = e?.nativeEvent?.message ?? e?.message ?? 'Camera failed to start';
                 showAlert('Camera failed', String(msg));
@@ -261,7 +268,10 @@ export function InAppCameraModal({
               <Text style={styles.topBtnText}>Close</Text>
             </Pressable>
             <View
-              style={[styles.centerTitleWrap, ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : [])]}
+              style={[
+                styles.centerTitleWrap,
+                ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+              ]}
               pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
             >
               <Text style={styles.title}>Camera</Text>
@@ -287,7 +297,7 @@ export function InAppCameraModal({
             ]}
             pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
           >
-              <View
+            <View
               style={[
                 styles.bottomContent,
                 // When previewing a video with native controls, the scrubber can overlap the very bottom.
@@ -297,10 +307,7 @@ export function InAppCameraModal({
             >
               {captured ? (
                 <>
-                  <Pressable
-                    onPress={retake}
-                    style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.9 }]}
-                  >
+                  <Pressable onPress={retake} style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.9 }]}>
                     <Text style={styles.actionBtnText}>Retake</Text>
                   </Pressable>
                   <Pressable
@@ -467,5 +474,3 @@ const styles = StyleSheet.create({
   },
   actionBtnPrimaryText: { color: '#fff', fontWeight: '900' },
 });
-
-
