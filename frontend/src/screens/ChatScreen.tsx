@@ -5,11 +5,9 @@ import {
   AppStateStatus,
   Easing,
   findNodeHandle,
-  LayoutAnimation,
   UIManager,
   useWindowDimensions,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -23,12 +21,7 @@ import { WS_URL, API_URL, CDN_URL } from '../config/env';
 import { useAuthenticator } from '@aws-amplify/ui-react-native/dist';
 import { useCdnUrlCache } from '../hooks/useCdnUrlCache';
 import { useMessageActionMenu } from '../features/chat/useMessageActionMenu';
-import { ChannelSettingsPanel } from '../features/chat/components/ChannelSettingsPanel';
-import { DmSettingsPanel } from '../features/chat/components/DmSettingsPanel';
-import { ChatHeaderStatusRow } from '../features/chat/components/ChatHeaderStatusRow';
-import { ChatHeaderTitleRow } from '../features/chat/components/ChatHeaderTitleRow';
-import { ChatMessageList } from '../features/chat/components/ChatMessageList';
-import { ChatBackgroundLayer } from '../features/chat/components/ChatBackgroundLayer';
+import { ChatScreenMain } from '../features/chat/components/ChatScreenMain';
 import Constants from 'expo-constants';
 import { fetchAuthSession } from '@aws-amplify/auth';
 import {
@@ -82,14 +75,11 @@ import {
 import { useChatAttachments } from '../features/chat/useChatAttachments';
 import { useDisplayNameBySub } from '../features/chat/useDisplayNameBySub';
 import { useUiPromptHelpers } from '../hooks/useUiPromptHelpers';
-import { ChatComposer } from '../features/chat/components/ChatComposer';
-import { getNativeEventNumber } from '../utils/nativeEvent';
 import { renderChatListItem } from '../features/chat/renderChatListItem';
 import { getChatHeaderTitle } from '../utils/conversationTitles';
 import { useConfirmLinkModal } from '../hooks/useConfirmLinkModal';
 import { useModalState } from '../hooks/useModalState';
 import { useViewportWidth } from '../hooks/useViewportWidth';
-import { useWebPinnedList } from '../hooks/useWebPinnedList';
 import { usePublicAvatarProfiles } from '../hooks/usePublicAvatarProfiles';
 import { getChannelAboutSeenVersion, markChannelAboutSeen } from '../utils/channelAboutSeen';
 import { useAutoPopupChannelAbout } from '../hooks/useAutoPopupChannelAbout';
@@ -116,7 +106,6 @@ import { sortReactionSubs } from '../features/chat/reactionsUi';
 import { usePersistedNumberMinMap } from '../hooks/usePersistedNumberMinMap';
 import { usePersistedBool } from '../hooks/usePersistedBool';
 import { usePersistedNumber } from '../hooks/usePersistedNumber';
-import { copyToClipboardSafe } from '../utils/clipboard';
 import { useTtlNowSec } from '../hooks/useTtlNowSec';
 import { formatRemaining } from '../utils/formatRemaining';
 import { usePruneExpiredMessages } from '../hooks/usePruneExpiredMessages';
@@ -129,6 +118,7 @@ import { usePrefetchDmDecryptedThumbs, usePrefetchGroupDecryptedThumbs } from '.
 import { useLazyDecryptDmViewerPages, useLazyDecryptGroupViewerPages } from '../features/chat/useLazyDecryptViewerPages';
 import { useChatMyKeys } from '../features/chat/useChatMyKeys';
 import { useHydratePeerPublicKey } from '../features/chat/usePeerPublicKey';
+import { buildChatScreenRenderProps } from '../features/chat/buildChatScreenRenderProps';
 import { type GroupMember, type GroupMeta, useHydrateGroupRoster } from '../features/chat/useHydrateGroupRoster';
 import { useGroupReadOnlyRefreshTicker, useRefreshGroupRosterOnMembersModalOpen } from '../features/chat/useGroupRefreshTriggers';
 import { throttleByRef } from '../utils/throttled';
@@ -149,7 +139,6 @@ import { useChatHistory } from '../features/chat/useChatHistory';
 import { useChatWsConnection } from '../features/chat/useChatWsConnection';
 import { useChatTyping } from '../features/chat/useChatTyping';
 import { useChatAdminOps } from '../features/chat/useChatAdminOps';
-import { useWebSafeInvertedListData } from '../hooks/useWebSafeInvertedListData';
 import { type ChannelMember, type ChannelMeta, useChannelRoster } from '../features/chat/useChannelRoster';
 import { useMentions } from '../features/chat/useMentions';
 import { useChatReport } from '../features/chat/useChatReport';
@@ -176,6 +165,13 @@ import { useChatTtlPickerState } from '../features/chat/useChatTtlPickerState';
 import { useChatChannelUiState } from '../features/chat/useChatChannelUiState';
 import { useChatGroupUiState } from '../features/chat/useChatGroupUiState';
 import { useChatCipherState } from '../features/chat/useChatCipherState';
+import { useChatMessageListState } from '../features/chat/useChatMessageListState';
+import { useChatConversationJoin } from '../features/chat/useChatConversationJoin';
+import { useChatComposerInput } from '../features/chat/useChatComposerInput';
+import { useChatCopyToClipboard } from '../features/chat/useChatCopyToClipboard';
+import { usePushGroupTitleToParent } from '../features/chat/usePushGroupTitleToParent';
+import { useFocusGroupAddMembersInputOnOpen } from '../features/chat/useFocusGroupAddMembersInputOnOpen';
+import { useChatScreenRefSync } from '../features/chat/useChatScreenRefSync';
 
 type ChatScreenProps = {
   conversationId?: string | null;
@@ -241,18 +237,7 @@ export default function ChatScreen({
   const [dmSettingsOpen, setDmSettingsOpen] = React.useState<boolean>(true);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const blockedSubsSet = React.useMemo(() => new Set((blockedUserSubs || []).filter(Boolean)), [blockedUserSubs]);
-  const visibleMessages = React.useMemo(
-    () => messages.filter((m) => !(m.userSub && blockedSubsSet.has(String(m.userSub)))),
-    [messages, blockedSubsSet],
-  );
-  const messageListData = useWebSafeInvertedListData(visibleMessages);
-  // Web-only: since we render a non-inverted list (and reverse data), explicitly start at the bottom.
-  const messageListRef = React.useRef<any>(null);
-  const webPinned = useWebPinnedList({
-    enabled: Platform.OS === 'web',
-    itemCount: visibleMessages.length,
-    // ChatScreen does its own "near top" handler below (it needs API_URL/history guards).
-  });
+  const { visibleMessages, messageListData, webPinned } = useChatMessageListState({ messages, blockedSubsSet });
   const AVATAR_SIZE = 44;
   const AVATAR_GAP = 8;
   const AVATAR_GUTTER = AVATAR_SIZE + AVATAR_GAP;
@@ -670,24 +655,13 @@ export default function ChatScreen({
     },
   });
 
-  // Keep parent Chats list/unreads in sync whenever the effective group title changes
-  // (e.g. another admin renamed the group and we refreshed group meta).
-  const lastPushedTitleRef = React.useRef<string>('');
-  React.useEffect(() => {
-    if (!isGroup) return;
-    const effective =
-      groupMeta?.groupName && String(groupMeta.groupName).trim()
-        ? String(groupMeta.groupName).trim()
-        : computeDefaultGroupTitleForMe();
-    if (!effective) return;
-    if (effective === lastPushedTitleRef.current) return;
-    lastPushedTitleRef.current = effective;
-    try {
-      onConversationTitleChanged?.(activeConversationId, effective);
-    } catch {
-      // ignore
-    }
-  }, [isGroup, activeConversationId, groupMeta?.groupName, computeDefaultGroupTitleForMe, onConversationTitleChanged]);
+  usePushGroupTitleToParent({
+    enabled: isGroup,
+    activeConversationId,
+    groupName: groupMeta?.groupName,
+    computeDefaultTitle: computeDefaultGroupTitleForMe,
+    onConversationTitleChanged,
+  });
   const resolvedChatBg = React.useMemo(() => {
     const bg = chatBackground;
     if (!bg || bg.mode === 'default') return { mode: 'default' as const };
@@ -714,32 +688,23 @@ export default function ChatScreen({
     });
   }, [isChannel, channelMeta?.name, peer, isGroup, groupMeta?.groupName]);
 
-  React.useEffect(() => {
-    activeConversationIdRef.current = activeConversationId;
-  }, [activeConversationId]);
-
-  React.useEffect(() => {
-    cdnAvatar.reset();
-  }, [activeConversationId]);
-  React.useEffect(() => {
-    displayNameRef.current = displayName;
-  }, [displayName]);
-
-  React.useEffect(() => {
-    inputRef.current = input;
-  }, [input]);
+  useChatScreenRefSync({
+    activeConversationId,
+    activeConversationIdRef,
+    cdnAvatarReset: cdnAvatar.reset,
+    displayName,
+    displayNameRef,
+    input,
+    inputRef,
+    myPublicKey,
+    myPublicKeyRef,
+    onNewDmNotification,
+    onNewDmNotificationRef,
+    onKickedFromConversation,
+    onKickedFromConversationRef,
+  });
 
   // Avatar profiles are fetched via shared hook (usePublicAvatarProfiles).
-
-  React.useEffect(() => {
-    myPublicKeyRef.current = myPublicKey;
-  }, [myPublicKey]);
-  React.useEffect(() => {
-    onNewDmNotificationRef.current = onNewDmNotification;
-  }, [onNewDmNotification]);
-  React.useEffect(() => {
-    onKickedFromConversationRef.current = onKickedFromConversation;
-  }, [onKickedFromConversation]);
 
   const latestOutgoingMessageId = useLatestOutgoingMessageId({ messages, myUserId, myPublicKey, displayName, normalizeUser });
 
@@ -977,19 +942,13 @@ export default function ChatScreen({
   });
   // group UI state comes from useChatGroupUiState()
 
-  // Focus the "Add usernames" input when Members modal opens (admin-only).
-  React.useEffect(() => {
-    if (!groupMembersOpen) return;
-    if (!groupMeta?.meIsAdmin) return;
-    const t = setTimeout(() => {
-      try {
-        groupAddMembersInputRef.current?.focus?.();
-      } catch {
-        // ignore
-      }
-    }, 150);
-    return () => clearTimeout(t);
-  }, [groupMembersOpen, groupMeta?.meIsAdmin]);
+  useFocusGroupAddMembersInputOnOpen({
+    enabled: isGroup,
+    groupMembersOpen,
+    meIsAdmin: !!groupMeta?.meIsAdmin,
+    inputRef: groupAddMembersInputRef,
+    delayMs: 150,
+  });
 
   useRefreshGroupRosterOnMembersModalOpen({
     enabled: isGroup,
@@ -1204,58 +1163,10 @@ export default function ChatScreen({
     showAlert,
   });
 
-  const sendJoin = React.useCallback((conversationIdToJoin: string) => {
-    if (!conversationIdToJoin) return;
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      pendingJoinConversationIdRef.current = conversationIdToJoin;
-      return;
-    }
-    try {
-      wsRef.current.send(
-        JSON.stringify({
-          action: 'join',
-          conversationId: conversationIdToJoin,
-          createdAt: Date.now(),
-        }),
-      );
-      pendingJoinConversationIdRef.current = null;
-    } catch {
-      pendingJoinConversationIdRef.current = conversationIdToJoin;
-    }
-  }, []);
+  useChatConversationJoin({ activeConversationId, wsRef, pendingJoinConversationIdRef });
 
-  // Notify backend whenever user switches conversations (enables Query-by-conversation routing).
-  React.useEffect(() => {
-    sendJoin(activeConversationId);
-  }, [activeConversationId, sendJoin]);
-
-  const onChangeInput = React.useCallback(
-    (next: string) => {
-      setInput(next);
-      inputRef.current = next;
-      const nextHasText = next.trim().length > 0;
-      if (nextHasText) sendTyping(true);
-      else if (isTypingRef.current) sendTyping(false);
-    },
-    [sendTyping],
-  );
-
-  // Some dev builds may not have expo-clipboard compiled in yet.
-  // Lazy-load so the app doesn't crash; show a friendly modal instead.
-  const copyToClipboard = React.useCallback(
-    async (text: string) => {
-      await copyToClipboardSafe({
-        text,
-        onUnavailable: () => {
-          openInfo(
-            'Copy unavailable',
-            'Your current build does not include clipboard support yet. Rebuild the dev client to enable Copy.',
-          );
-        },
-      });
-    },
-    [openInfo],
-  );
+  const { onChangeInput } = useChatComposerInput({ setInput, inputRef, isTypingRef, sendTyping });
+  const { copyToClipboard } = useChatCopyToClipboard({ openInfo });
 
   const onPressMessage = useChatPressToDecrypt({
     isDm,
@@ -1352,367 +1263,213 @@ export default function ChatScreen({
 
   const getSeenLabelFor = React.useCallback(getSeenLabelForCreatedAt, []);
 
+  const { mainProps, overlaysProps } = buildChatScreenRenderProps({
+    // presentation + layout
+    styles,
+    isDark,
+    isWideChatLayout,
+    insets,
+    headerTop,
+    headerTitle,
+    // AI / info
+    aiSummary,
+    aiConsentGate,
+    aiHelper,
+    runAiAction,
+    infoOpen,
+    infoTitle,
+    infoBody,
+    setInfoOpen,
+    // identity + connection
+    displayName,
+    myUserId,
+    myPublicKey,
+    myPrivateKey,
+    isConnecting,
+    isConnected,
+    // chat kind + settings
+    isEncryptedChat,
+    isChannel,
+    isDm,
+    isGroup,
+    dmSettingsOpen,
+    setDmSettingsOpen,
+    dmSettingsCompact,
+    channelSettingsOpen,
+    setChannelSettingsOpen,
+    // header actions / state
+    autoDecrypt,
+    setAutoDecrypt,
+    TTL_OPTIONS,
+    ttlIdx,
+    setTtlIdxDraft,
+    setTtlPickerOpen,
+    sendReadReceipts,
+    onToggleReadReceipts,
+    groupMembersActiveCount,
+    groupActionBusy,
+    groupMeta,
+    setGroupMembersOpen,
+    setGroupNameDraft,
+    setGroupNameEditOpen,
+    groupLeave,
+    channelActionBusy,
+    channelMeta,
+    channelMembersCountLabel,
+    setChannelMembersOpen,
+    setChannelAboutDraft,
+    setChannelAboutEdit,
+    setChannelAboutOpen,
+    setChannelNameDraft,
+    setChannelNameEditOpen,
+    channelLeave,
+    channelSettingsPanelActions,
+    error,
+    // message list / rendering
+    API_URL,
+    resolvedChatBg,
+    visibleMessages,
+    messageListData,
+    webPinned,
+    historyHasMore,
+    historyLoading,
+    loadOlderHistory,
+    renderChatListItem,
+    peerSeenAtByCreatedAt,
+    getSeenLabelFor,
+    normalizeUser,
+    nowSec,
+    formatRemaining,
+    mediaUrlByPath,
+    dmThumbUriByPath,
+    imageAspectByPath,
+    EMPTY_URI_BY_PATH,
+    AVATAR_GUTTER,
+    chatViewportWidth,
+    getCappedMediaSize,
+    inlineEditTargetId,
+    inlineEditDraft,
+    setInlineEditDraft,
+    inlineEditUploading,
+    inlineEditAttachmentMode,
+    pendingMedia,
+    commitInlineEdit,
+    cancelInlineEdit,
+    openReactionInfo,
+    sendReaction,
+    openViewer,
+    openDmMediaViewer,
+    openGroupMediaViewer,
+    requestOpenLink,
+    onPressMessage,
+    openMessageActions,
+    latestOutgoingMessageId,
+    retryFailedMessage,
+    // composer
+    isUploading,
+    replyTarget,
+    setReplyTarget,
+    messages,
+    typingIndicatorText,
+    TypingIndicator,
+    mentionSuggestions,
+    insertMention,
+    composerSafeAreaStyle,
+    composerHorizontalInsetsStyle,
+    textInputRef,
+    inputEpoch,
+    input,
+    onChangeInput,
+    isTypingRef,
+    sendTyping,
+    sendMessage,
+    handlePickMedia,
+    setPendingMediaItems,
+    // overlays
+    attachOpen,
+    setAttachOpen,
+    pickFromLibrary,
+    openCamera,
+    pickDocument,
+    cameraOpen,
+    setCameraOpen,
+    showAlert,
+    handleInAppCameraCaptured,
+    copyToClipboard,
+    setInput,
+    chatReport,
+    cdnMedia,
+    messageActionMenu,
+    ENCRYPTED_PLACEHOLDER,
+    QUICK_REACTIONS,
+    blockedSubsSet,
+    onBlockUserSub,
+    uiConfirm,
+    deleteForMe,
+    sendDelete,
+    openReactionPicker,
+    setCipherText,
+    setCipherOpen,
+    beginReply,
+    beginInlineEdit,
+    setInlineEditAttachmentMode,
+    clearPendingMedia,
+    reactionPickerOpen,
+    reactionPickerTarget,
+    MORE_REACTIONS,
+    closeReactionPicker,
+    cipherOpen,
+    cipherText,
+    reactionInfo,
+    nameBySub,
+    ttlPickerOpen,
+    ttlIdxDraft,
+    setTtlIdx,
+    groupNameEditOpen,
+    groupNameDraft,
+    groupNameModalActions,
+    groupMembersOpen,
+    groupAddMembersDraft,
+    setGroupAddMembersDraft,
+    groupMembersModalActions,
+    groupAddMembersInputRef,
+    groupMembersVisible,
+    kickCooldownUntilBySub,
+    groupKick,
+    groupUpdate,
+    channelMembersOpen,
+    channelMembersVisible,
+    channelMembersModalActions,
+    channelUpdate,
+    channelKick,
+    channelAboutOpen,
+    channelAboutEdit,
+    channelAboutDraft,
+    channelAboutModalActions,
+    channelNameEditOpen,
+    channelNameDraft,
+    channelNameModalActions,
+    channelPasswordEditOpen,
+    channelPasswordDraft,
+    setChannelPasswordDraft,
+    channelPasswordModalActions,
+    viewer,
+    dmFileUriByPath,
+    confirmLinkModal,
+    toast,
+    toastAnim,
+    avatarProfileBySub,
+    avatarUrlByPath,
+  });
+
   return (
     <SafeAreaView
       style={[styles.safe, isDark ? styles.safeDark : null]}
       // Web: ignore safe-area left/right insets (they can be misreported as ~42px and flip with rotation).
       edges={Platform.OS === 'web' ? [] : ['left', 'right']}
     >
-      <KeyboardAvoidingView
-        style={styles.container}
-        // iOS: use padding to lift input above keyboard.
-        // Android: rely on `softwareKeyboardLayoutMode: "resize"` (app.json) so the window resizes like Signal.
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-      >
-        <View style={[styles.header, isDark ? styles.headerDark : null]}>
-          <View style={isWideChatLayout ? styles.chatContentColumn : null}>
-            {headerTop ? <View style={styles.headerTopSlot}>{headerTop}</View> : null}
-            <ChatHeaderTitleRow
-              styles={styles}
-              isDark={isDark}
-              title={headerTitle}
-                onPressSummarize={() => aiConsentGate.request('summary', runAiAction)}
-                onPressAiHelper={() => aiConsentGate.request('helper', runAiAction)}
-            />
-            <ChatHeaderStatusRow
-              styles={styles}
-              isDark={isDark}
-              displayName={displayName}
-              myUserId={myUserId}
-              avatarProfileBySub={avatarProfileBySub}
-              avatarUrlByPath={avatarUrlByPath}
-              isConnecting={isConnecting}
-              isConnected={isConnected}
-              showCaret={!!(isEncryptedChat || isChannel)}
-              caretExpanded={!!(isEncryptedChat ? dmSettingsOpen : channelSettingsOpen)}
-              caretA11yLabel={
-                isEncryptedChat
-                  ? dmSettingsOpen
-                    ? 'Hide message options'
-                    : 'Show message options'
-                  : channelSettingsOpen
-                    ? 'Hide channel options'
-                    : 'Show channel options'
-              }
-              onPressCaret={() => {
-                try {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                } catch {
-                  // ignore
-                }
-                if (isEncryptedChat) setDmSettingsOpen((v) => !v);
-                else setChannelSettingsOpen((v) => !v);
-              }}
-            />
-
-            {isEncryptedChat ? (
-              <>
-                {dmSettingsOpen ? (
-                  <>
-                    <DmSettingsPanel
-                      isDark={isDark}
-                      styles={styles}
-                      compact={!!dmSettingsCompact}
-                      isDm={isDm}
-                      isGroup={isGroup}
-                      myPrivateKeyReady={!!myPrivateKey}
-                      autoDecrypt={autoDecrypt}
-                      onToggleAutoDecrypt={setAutoDecrypt}
-                      ttlLabel={TTL_OPTIONS[ttlIdx]?.label ?? 'Off'}
-                      onOpenTtlPicker={() => {
-                        setTtlIdxDraft(ttlIdx);
-                        setTtlPickerOpen(true);
-                      }}
-                      sendReadReceipts={sendReadReceipts}
-                      onToggleReadReceipts={(v) => {
-                        onToggleReadReceipts(!!v);
-                      }}
-                      groupMembersCountLabel={`${groupMembersActiveCount || 0}`}
-                      groupActionBusy={!!groupActionBusy}
-                      groupMeIsAdmin={!!groupMeta?.meIsAdmin}
-                      onOpenGroupMembers={() => setGroupMembersOpen(true)}
-                      onOpenGroupName={() => {
-                        setGroupNameDraft(groupMeta?.groupName || '');
-                        setGroupNameEditOpen(true);
-                      }}
-                      onLeaveGroup={() => void groupLeave()}
-                    />
-                  </>
-                ) : null}
-              </>
-            ) : isChannel ? (
-              <>
-                {channelSettingsOpen ? (
-                  <ChannelSettingsPanel
-                    isDark={isDark}
-                    styles={styles}
-                    compact={!!dmSettingsCompact}
-                    busy={!!channelActionBusy}
-                    meIsAdmin={!!channelMeta?.meIsAdmin}
-                    isPublic={!!channelMeta?.isPublic}
-                    hasPassword={!!channelMeta?.hasPassword}
-                    membersCountLabel={channelMembersCountLabel}
-                    onOpenMembers={() => setChannelMembersOpen(true)}
-                    onOpenAbout={() => {
-                      setChannelAboutDraft(String(channelMeta?.aboutText || ''));
-                      setChannelAboutEdit(true);
-                      setChannelAboutOpen(true);
-                    }}
-                    onOpenName={() => {
-                      setChannelNameDraft(channelMeta?.name || '');
-                      setChannelNameEditOpen(true);
-                    }}
-                    onLeave={() => void channelLeave()}
-                    onTogglePublic={channelSettingsPanelActions.onTogglePublic}
-                    onPressPassword={channelSettingsPanelActions.onPressPassword}
-                  />
-                ) : null}
-              </>
-            ) : null}
-            {error ? <Text style={[styles.error, isDark ? styles.errorDark : null]}>{error}</Text> : null}
-          </View>
-        </View>
-        <View style={styles.chatBody}>
-          <ChatBackgroundLayer styles={styles} isDark={isDark} resolvedChatBg={resolvedChatBg as any} />
-
-          {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
-              Center the *content* via FlatList.contentContainerStyle instead. */}
-          <View style={styles.chatBodyInner}>
-            {/*
-            Web note:
-            React Native's FlatList `inverted` behavior is implemented differently on web and can render
-            list content upside-down in some environments. We render a non-inverted list on web and
-            reverse the data, while keeping the same UX semantics (bottom = newest, top = older).
-          */}
-            <ChatMessageList
-              styles={styles}
-              isDark={isDark}
-              isWideChatLayout={isWideChatLayout}
-              API_URL={API_URL}
-              isGroup={isGroup}
-              groupStatus={groupMeta?.meStatus}
-              visibleMessagesCount={visibleMessages.length}
-              messageListData={messageListData as any}
-              webReady={webPinned.ready}
-              webOnLayout={webPinned.onLayout}
-              webOnContentSizeChange={webPinned.onContentSizeChange}
-              webOnScrollSync={(e: unknown) => {
-                if (webPinned.onScroll) webPinned.onScroll(e);
-                if (!API_URL) return;
-                if (!historyHasMore) return;
-                if (historyLoading) return;
-                const y = getNativeEventNumber(e, ['nativeEvent', 'contentOffset', 'y']);
-                if (y <= 40) loadOlderHistory();
-              }}
-              setListRef={(r) => {
-                messageListRef.current = r;
-                webPinned.listRef.current = r;
-              }}
-              historyHasMore={historyHasMore}
-              historyLoading={historyLoading}
-              loadOlderHistory={loadOlderHistory}
-              renderItem={({ item, index }) =>
-                renderChatListItem({
-                  styles,
-                  item,
-                  index,
-                  messageListData,
-                  visibleMessages,
-                  isDark,
-                  isDm,
-                  isGroup,
-                  isEncryptedChat,
-                  myUserId,
-                  myPublicKey,
-                  displayName,
-                  nameBySub,
-                  avatarProfileBySub,
-                  avatarUrlByPath,
-                  peerSeenAtByCreatedAt,
-                  getSeenLabelFor,
-                  normalizeUser,
-                  nowSec,
-                  formatRemaining,
-                  mediaUrlByPath,
-                  dmThumbUriByPath,
-                  imageAspectByPath,
-                  EMPTY_URI_BY_PATH,
-                  AVATAR_GUTTER,
-                  chatViewportWidth,
-                  getCappedMediaSize,
-                  inlineEditTargetId,
-                  inlineEditDraft,
-                  setInlineEditDraft,
-                  inlineEditUploading,
-                  inlineEditAttachmentMode,
-                  pendingMedia,
-                  commitInlineEdit,
-                  cancelInlineEdit,
-                  openReactionInfo,
-                  sendReaction,
-                  openViewer,
-                  openDmMediaViewer,
-                  openGroupMediaViewer,
-                  requestOpenLink,
-                  onPressMessage,
-                  openMessageActions,
-                  latestOutgoingMessageId,
-                  retryFailedMessage,
-                })
-              }
-            />
-            <ChatComposer
-              styles={styles}
-              isDark={isDark}
-              isDm={isDm}
-              isGroup={isGroup}
-              isEncryptedChat={isEncryptedChat}
-              groupMeta={groupMeta}
-              inlineEditTargetId={inlineEditTargetId}
-              inlineEditUploading={inlineEditUploading}
-              cancelInlineEdit={cancelInlineEdit}
-              pendingMedia={pendingMedia}
-              setPendingMedia={setPendingMediaItems}
-              isUploading={isUploading}
-              replyTarget={replyTarget}
-              setReplyTarget={setReplyTarget}
-              messages={messages}
-              openViewer={openViewer}
-              typingIndicatorText={typingIndicatorText}
-              TypingIndicator={TypingIndicator}
-              typingColor={isDark ? styles.typingTextDark.color : styles.typingText.color}
-              mentionSuggestions={mentionSuggestions}
-              insertMention={insertMention}
-              composerSafeAreaStyle={composerSafeAreaStyle}
-              composerHorizontalInsetsStyle={composerHorizontalInsetsStyle}
-              isWideChatLayout={isWideChatLayout}
-              textInputRef={textInputRef}
-              inputEpoch={inputEpoch}
-              input={input}
-              onChangeInput={onChangeInput}
-              isTypingRef={isTypingRef}
-              sendTyping={sendTyping}
-              sendMessage={sendMessage}
-              handlePickMedia={handlePickMedia}
-            />
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-      <ChatScreenOverlays
-        isDark={isDark}
-        styles={styles}
-        insets={{ top: insets.top, bottom: insets.bottom }}
-        aiSummary={aiSummary as any}
-        aiConsentGate={aiConsentGate as any}
-        runAiAction={runAiAction}
-        attach={{
-          open: attachOpen,
-          setOpen: setAttachOpen,
-          pickFromLibrary,
-          openCamera,
-          pickDocument,
-        }}
-        camera={{
-          open: cameraOpen,
-          setOpen: setCameraOpen,
-          showAlert,
-          onCaptured: handleInAppCameraCaptured,
-        }}
-        aiHelper={aiHelper as any}
-        copyToClipboard={copyToClipboard}
-        setInput={setInput}
-        report={chatReport as any}
-        cdnMedia={cdnMedia}
-        messageActionMenu={messageActionMenu as any}
-        myUserId={myUserId}
-        myPublicKey={myPublicKey}
-        displayName={displayName}
-        isDm={isDm}
-        encryptedPlaceholder={ENCRYPTED_PLACEHOLDER}
-        normalizeUser={normalizeUser}
-        mediaUrlByPath={mediaUrlByPath}
-        dmThumbUriByPath={dmThumbUriByPath}
-        quickReactions={[...QUICK_REACTIONS]}
-        blockedSubsSet={blockedSubsSet}
-        onBlockUserSub={onBlockUserSub}
-        uiConfirm={uiConfirm}
-        messageOps={
-          {
-            deleteForMe: deleteForMe,
-            sendDeleteForEveryone: sendDelete,
-            sendReaction,
-            openReactionPicker,
-            setCipherText,
-            setCipherOpen,
-            beginReply,
-            beginInlineEdit,
-            setInlineEditAttachmentMode,
-            handlePickMedia,
-            clearPendingMedia,
-            openReportModalForMessage: chatReport.openReportModalForMessage,
-          } as any
-        }
-        reactionPickerOpen={reactionPickerOpen}
-        reactionPickerTarget={reactionPickerTarget}
-        emojis={[...MORE_REACTIONS]}
-        closeReactionPicker={closeReactionPicker}
-        cipher={{ open: cipherOpen, text: cipherText, setOpen: setCipherOpen, setText: setCipherText }}
-        reactionInfo={reactionInfo as any}
-        nameBySub={nameBySub}
-        info={{ infoOpen, infoTitle, infoBody, setInfoOpen }}
-        ttl={{
-          ttlPickerOpen,
-          TTL_OPTIONS,
-          ttlIdx,
-          ttlIdxDraft,
-          setTtlIdxDraft,
-          setTtlPickerOpen,
-          setTtlIdx,
-        }}
-        groupNameEditOpen={groupNameEditOpen}
-        groupActionBusy={groupActionBusy}
-        groupNameDraft={groupNameDraft}
-        setGroupNameDraft={setGroupNameDraft}
-        groupNameModalActions={groupNameModalActions as any}
-        groupMembersOpen={groupMembersOpen}
-        groupMeta={groupMeta as any}
-        groupAddMembersDraft={groupAddMembersDraft}
-        setGroupAddMembersDraft={setGroupAddMembersDraft}
-        groupMembersModalActions={groupMembersModalActions as any}
-        groupAddMembersInputRef={groupAddMembersInputRef}
-        groupMembersVisible={groupMembersVisible as any}
-        kickCooldownUntilBySub={kickCooldownUntilBySub}
-        avatarUrlByPath={avatarUrlByPath}
-        groupKick={groupKick}
-        groupUpdate={groupUpdate}
-        channelMembersOpen={channelMembersOpen}
-        channelMembersVisible={channelMembersVisible as any}
-        channelMeta={channelMeta as any}
-        channelActionBusy={channelActionBusy}
-        channelMembersModalActions={channelMembersModalActions as any}
-        channelUpdate={channelUpdate}
-        channelKick={channelKick}
-        channelAboutOpen={channelAboutOpen}
-        channelAboutEdit={channelAboutEdit}
-        channelAboutDraft={channelAboutDraft}
-        setChannelAboutDraft={setChannelAboutDraft}
-        setChannelAboutEdit={setChannelAboutEdit}
-        channelAboutModalActions={channelAboutModalActions as any}
-        requestOpenLink={requestOpenLink}
-        channelNameEditOpen={channelNameEditOpen}
-        channelNameDraft={channelNameDraft}
-        setChannelNameDraft={setChannelNameDraft}
-        channelNameModalActions={channelNameModalActions as any}
-        channelPasswordEditOpen={channelPasswordEditOpen}
-        channelPasswordDraft={channelPasswordDraft}
-        setChannelPasswordDraft={setChannelPasswordDraft}
-        channelPasswordModalActions={channelPasswordModalActions as any}
-        viewer={viewer as any}
-        dmFileUriByPath={dmFileUriByPath}
-        confirmLinkModal={confirmLinkModal}
-        toast={toast}
-        toastAnim={toastAnim as any}
-      />
+      <ChatScreenMain {...(mainProps as any)} />
+      <ChatScreenOverlays {...(overlaysProps as any)} />
     </SafeAreaView>
   );
 }

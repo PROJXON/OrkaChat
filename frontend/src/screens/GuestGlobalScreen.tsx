@@ -1,14 +1,8 @@
 import React from 'react';
 import {
-  FlatList,
   Linking,
-  Modal,
   Platform,
-  RefreshControl,
   Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -23,27 +17,15 @@ import { useMenuAnchor } from '../hooks/useMenuAnchor';
 import { useWebPinnedList } from '../hooks/useWebPinnedList';
 import { usePublicAvatarProfiles } from '../hooks/usePublicAvatarProfiles';
 import { useResolveCdnPathUrl } from '../hooks/useResolveCdnPathUrl';
-import Feather from '@expo/vector-icons/Feather';
-import { HeaderMenuModal } from '../components/HeaderMenuModal';
-import { AnimatedDots } from '../components/AnimatedDots';
-import { MediaViewerModal } from '../components/MediaViewerModal';
-import { RichText } from '../components/RichText';
-import { GlobalAboutContent } from '../components/globalAbout/GlobalAboutContent';
-import { ThemeToggleRow } from '../components/ThemeToggleRow';
-import { AppBrandIcon } from '../components/AppBrandIcon';
 import { GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
 import type { MediaItem } from '../types/media';
 import { useUiPromptHelpers } from '../hooks/useUiPromptHelpers';
 import { useGlobalAboutOncePerVersion } from '../features/globalAbout/useGlobalAboutOncePerVersion';
 import { useGuestChannelHistory } from '../features/guest/useGuestChannelHistory';
-import { ChatHistoryLoadMore } from '../features/chat/components/ChatHistoryLoadMore';
-import { ReactionInfoModal } from '../features/chat/components/ReactionInfoModal';
-import { renderGuestListItem } from '../features/guest/renderGuestListItem';
 import { markChannelAboutSeen } from '../utils/channelAboutSeen';
 import { useAutoPopupChannelAbout } from '../hooks/useAutoPopupChannelAbout';
 import { guestReactionInfoModalStyles, styles } from './GuestGlobalScreen.styles';
 import { useGuestChannelSearch } from '../features/guest/useGuestChannelSearch';
-import { GuestChannelPickerModal } from '../features/guest/components/GuestChannelPickerModal';
 import { useWebSafeInvertedListData } from '../hooks/useWebSafeInvertedListData';
 import { useReactionInfo } from '../hooks/useReactionInfo';
 import { useMediaViewer } from '../hooks/useMediaViewer';
@@ -51,12 +33,17 @@ import { useOpenGlobalViewer } from '../hooks/useOpenGlobalViewer';
 import { useGuestChannelAboutModalActions } from '../features/guest/useGuestChannelAboutModalActions';
 import { useWebWheelRefresh } from '../hooks/useWebWheelRefresh';
 import { useGuestRequestSignIn } from '../features/guest/useGuestRequestSignIn';
+import { GuestGlobalScreenOverlays } from '../features/guest/components/GuestGlobalScreenOverlays';
+import { GuestGlobalHeaderRow } from '../features/guest/components/GuestGlobalHeaderRow';
+import { GuestGlobalBottomBar } from '../features/guest/components/GuestGlobalBottomBar';
+import { GuestGlobalMessageList } from '../features/guest/components/GuestGlobalMessageList';
 
 export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const { isWide: isWideUi, viewportWidth } = useViewportWidth(windowWidth, { wideBreakpointPx: 900, maxContentWidthPx: 1040 });
   const { theme, setTheme, isDark } = useStoredTheme({});
+  const onSetTheme = React.useCallback((next: 'light' | 'dark') => setTheme(next), [setTheme]);
 
   // --- Guest onboarding (Option A + C) ---
   // Global About is code-defined + versioned. Show once per version; About menu reopens it.
@@ -225,131 +212,48 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
       // Web: ignore safe-area left/right insets (they can be misreported as ~42px and flip with rotation).
       edges={Platform.OS === 'web' ? [] : ['left', 'right']}
     >
-      <View style={[styles.headerRow, isDark && styles.headerRowDark]}>
-        <View style={[styles.headerRowContent, isWideUi ? styles.contentColumn : null]}>
-          <Pressable
-            onPress={() => {
-              setChannelQuery('');
-              setChannelPickerOpen(true);
-            }}
-            style={({ pressed }) => [
-              { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 2 },
-              pressed ? { opacity: 0.9 } : null,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Browse channels"
-          >
-            <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]} numberOfLines={1}>
-              {activeChannelTitle}
-            </Text>
-            <Feather name="chevron-down" size={16} color={isDark ? '#fff' : '#111'} />
-          </Pressable>
-          <View style={styles.headerRight}>
-            <Pressable
-              ref={menu.ref}
-              onPress={() => {
-                menu.openFromRef({ enabled: isWideUi, onOpen: () => setMenuOpen(true) });
-              }}
-              style={({ pressed }) => [
-                styles.menuIconBtn,
-                isDark && styles.menuIconBtnDark,
-                pressed && { opacity: 0.85 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Open menu"
-            >
-              <AppBrandIcon isDark={isDark} fit="contain" slotWidth={32} slotHeight={32} accessible={false} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
+      <GuestGlobalHeaderRow
+        isDark={isDark}
+        isWideUi={isWideUi}
+        activeChannelTitle={activeChannelTitle}
+        onOpenChannelPicker={() => {
+          setChannelQuery('');
+          setChannelPickerOpen(true);
+        }}
+        menu={menu}
+        setMenuOpen={setMenuOpen}
+        styles={styles}
+      />
 
       {/* Ensure the message list never overlaps the header on Android touch layers. */}
       <View style={{ flex: 1, alignSelf: 'stretch' }}>
-        <HeaderMenuModal
-          open={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          title={undefined}
+        <GuestGlobalScreenOverlays
           isDark={isDark}
-          cardWidth={160}
-          anchor={isWideUi ? menu.anchor : null}
-          headerRight={
-            <ThemeToggleRow isDark={isDark} onSetTheme={setTheme} styles={styles} />
-          }
-          items={[
-            {
-              key: 'about',
-              label: 'About',
-              onPress: () => {
-                setMenuOpen(false);
-                if (isChannel) {
-                  // In guest mode, About should reflect the current channel (if any).
-                  setChannelAboutText(String(activeChannelMeta?.aboutText || ''));
-                  setChannelAboutOpen(true);
-                  return;
-                }
-                // Global About
-                setGlobalAboutOpen(true);
-              },
-            },
-            {
-              key: 'signin',
-              label: 'Sign in',
-              onPress: () => {
-                setMenuOpen(false);
-                requestSignIn();
-              },
-            },
-          ]}
-        />
-
-        <Modal
-          visible={channelAboutOpen}
-          transparent
-          animationType="fade"
-          onRequestClose={guestChannelAboutModal.onRequestClose}
-        >
-          <View style={styles.modalOverlay}>
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={guestChannelAboutModal.onBackdropPress}
-            />
-            <View style={[styles.modalCard, isDark ? styles.modalCardDark : null]}>
-              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
-                {activeChannelTitle && activeChannelTitle !== 'Global' ? `${activeChannelTitle}` : 'About'}
-              </Text>
-              <ScrollView style={styles.modalScroll}>
-                <RichText
-                  text={String(channelAboutText || '')}
-                  isDark={isDark}
-                  style={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
-                  enableMentions={false}
-                  variant="neutral"
-                  onOpenUrl={requestOpenLink}
-                />
-              </ScrollView>
-              <View style={styles.modalButtons}>
-                <Pressable
-                  style={[styles.modalBtn, isDark ? styles.modalBtnDark : null]}
-                  onPress={guestChannelAboutModal.onGotIt}
-                >
-                  <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>Got it</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        <GuestChannelPickerModal
-          open={channelPickerOpen}
-          isDark={isDark}
-          styles={styles}
-          query={channelQuery}
-          onChangeQuery={setChannelQuery}
-          loading={channelListLoading}
-          error={channelListError}
+          isWideUi={isWideUi}
+          requestOpenLink={requestOpenLink}
+          onSetTheme={onSetTheme}
+          menuOpen={menuOpen}
+          setMenuOpen={setMenuOpen}
+          menuAnchor={menu.anchor}
+          globalAboutOpen={globalAboutOpen}
+          setGlobalAboutOpen={setGlobalAboutOpen}
+          dismissGlobalAbout={dismissGlobalAbout}
+          isChannel={isChannel}
+          activeChannelTitle={activeChannelTitle}
+          activeChannelMetaAboutText={String(activeChannelMeta?.aboutText || '')}
+          channelAboutOpen={channelAboutOpen}
+          setChannelAboutOpen={setChannelAboutOpen}
+          channelAboutText={channelAboutText}
+          setChannelAboutText={setChannelAboutText}
+          guestChannelAboutModal={guestChannelAboutModal}
+          channelPickerOpen={channelPickerOpen}
+          setChannelPickerOpen={setChannelPickerOpen}
+          channelQuery={channelQuery}
+          setChannelQuery={setChannelQuery}
+          channelListLoading={channelListLoading}
+          channelListError={channelListError}
           globalUserCount={globalUserCount}
-          channels={channelResults}
+          channelResults={channelResults}
           onPickGlobal={() => {
             setActiveConversationId('global');
             setActiveChannelTitle('Global');
@@ -360,190 +264,61 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
             setActiveChannelTitle(name);
             setChannelPickerOpen(false);
           }}
-          onLockedChannel={() =>
+          showLockedChannelAlert={() =>
             showAlert('Locked Channel', 'This channel is password protected. Please sign in to join.')
           }
-          onClose={() => setChannelPickerOpen(false)}
+          requestSignIn={requestSignIn}
+          reactionInfoOpen={reactionInfo.open}
+          reactionInfoEmoji={reactionInfo.emoji}
+          reactionInfoSubsSorted={reactionInfo.subsSorted}
+          reactionNameBySub={reactionNameBySub}
+          closeReactionInfo={() => reactionInfo.closeReactionInfo()}
+          guestReactionInfoModalStyles={guestReactionInfoModalStyles as any}
+          viewerOpen={viewer.open}
+          viewerState={viewer.state as any}
+          setViewerState={viewer.setState as any}
+          viewerSaving={viewer.saving}
+          onSaveViewer={() => void viewer.saveToDevice()}
+          closeViewer={viewer.close}
+          confirmLinkModal={confirmLinkModal}
+          styles={styles}
         />
         {/* Global UiPromptProvider renders UiPromptModal */}
 
-        {error ? (
-          <Text
-            style={[styles.errorText, isDark && styles.errorTextDark, isWideUi ? styles.contentColumn : null]}
-            numberOfLines={3}
-          >
-            {error}
-          </Text>
-        ) : null}
-
-        {loading && messages.length === 0 ? (
-          <View style={[styles.loadingWrap, isWideUi ? styles.contentColumn : null]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ color: isDark ? '#d7d7e0' : '#555', fontWeight: '700', fontSize: 14 }}>Loading</Text>
-              <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={16} />
-            </View>
-          </View>
-        ) : null}
-
-        {/*
-        Web note:
-        FlatList `inverted` can render upside-down on web in some environments.
-        Keep native inverted behavior, but render non-inverted on web and reverse data.
-      */}
-        {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
-          Center the *content* via FlatList.contentContainerStyle instead. */}
-        <View
-          style={{ flex: 1 }}
-          {...(webWheelRefresh as any)}
-        >
-          <FlatList
-            style={{ flex: 1, opacity: Platform.OS === 'web' && !webPinned.ready ? 0 : 1 }}
-            data={messageListData}
-            keyExtractor={(m) => m.id}
-            inverted={Platform.OS !== 'web'}
-            ref={(r) => {
-              webPinned.listRef.current = r;
-            }}
-            onLayout={webPinned.onLayout as any}
-            onContentSizeChange={webPinned.onContentSizeChange as any}
-            keyboardShouldPersistTaps="handled"
-            onEndReached={
-              Platform.OS === 'web'
-                ? undefined
-                : () => {
-                    if (!API_URL) return;
-                    if (!historyHasMore) return;
-                    if (historyLoading) return;
-                    loadOlderHistory();
-                  }
-            }
-            onEndReachedThreshold={0.2}
-            ListFooterComponent={
-              Platform.OS === 'web' ? null : API_URL ? (
-                <ChatHistoryLoadMore
-                  isDark={isDark}
-                  hasMore={historyHasMore}
-                  loading={historyLoading}
-                  isEmpty={messages.length === 0}
-                  emptyText="Sign in to Start the Conversation!"
-                  noMoreText="No Older Messages"
-                  enablePressedOpacity
-                  onPress={loadOlderHistory}
-                />
-              ) : null
-            }
-            contentContainerStyle={[styles.listContent, isWideUi ? styles.contentColumn : null]}
-            // For web (non-inverted), load older history when the user scrolls to the top.
-            onScroll={webPinned.onScroll as any}
-            scrollEventThrottle={Platform.OS === 'web' ? 16 : undefined}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={() => fetchNow({ isManual: true })}
-                tintColor={isDark ? '#ffffff' : '#111'}
-              />
-            }
-            renderItem={({ item, index }) =>
-              renderGuestListItem({
-                item,
-                index,
-                messageListData,
-                isDark,
-                viewportWidth,
-                avatarProfileBySub,
-                cdnGet: (p) => cdn.get(p),
-                requestOpenLink,
-                resolvePathUrl,
-                openReactionInfo,
-                openViewer,
-              })
-            }
-          />
-        </View>
+        <GuestGlobalMessageList
+          apiUrl={API_URL}
+          isDark={isDark}
+          isWideUi={isWideUi}
+          viewportWidth={viewportWidth}
+          styles={styles}
+          messages={messages}
+          messageListData={messageListData}
+          error={error}
+          loading={loading}
+          refreshing={refreshing}
+          fetchNow={fetchNow}
+          historyHasMore={historyHasMore}
+          historyLoading={historyLoading}
+          loadOlderHistory={loadOlderHistory}
+          webPinned={webPinned}
+          webWheelRefresh={webWheelRefresh}
+          avatarProfileBySub={avatarProfileBySub}
+          cdnGet={(p) => cdn.get(p)}
+          requestOpenLink={requestOpenLink}
+          resolvePathUrl={resolvePathUrl}
+          openReactionInfo={openReactionInfo}
+          openViewer={openViewer as any}
+        />
 
         {/* Bottom bar CTA (like the chat input row), so messages never render behind it */}
-        <View
-          style={[
-            styles.bottomBar,
-            isDark && styles.bottomBarDark,
-            // Fill the safe area with the bar background, but keep the inner content vertically centered.
-            { paddingBottom: insets.bottom },
-          ]}
-        >
-          <View style={[styles.bottomBarInner, isWideUi ? styles.contentColumn : null]}>
-            <Pressable
-              onPress={requestSignIn}
-              style={({ pressed }) => [
-                styles.bottomBarCta,
-                isDark && styles.bottomBarCtaDark,
-                pressed && { opacity: 0.9 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Sign in to chat"
-            >
-              <Text style={[styles.bottomBarCtaText, isDark && styles.bottomBarCtaTextDark]}>Sign in to Chat</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <ReactionInfoModal
-          visible={reactionInfo.open}
+        <GuestGlobalBottomBar
           isDark={isDark}
-          styles={guestReactionInfoModalStyles as any}
-          emoji={reactionInfo.emoji}
-          subsSorted={reactionInfo.subsSorted}
-          myUserId={null}
-          nameBySub={reactionNameBySub}
-          closeLabel="OK"
-          onClose={() => reactionInfo.closeReactionInfo()}
+          isWideUi={isWideUi}
+          bottomInset={insets.bottom}
+          requestSignIn={requestSignIn}
+          styles={styles}
         />
 
-        <Modal visible={globalAboutOpen} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalCard, isDark && styles.modalCardDark]}>
-              <ScrollView style={styles.modalScroll}>
-                <GlobalAboutContent
-                  isDark={isDark}
-                  titleStyle={[styles.modalTitle, isDark && styles.modalTitleDark]}
-                  bodyStyle={[styles.modalRowText, ...(isDark ? [styles.modalRowTextDark] : [])]}
-                  onOpenUrl={requestOpenLink}
-                />
-              </ScrollView>
-              <View style={styles.modalButtons}>
-                <Pressable
-                  style={[styles.modalBtn, isDark && styles.modalBtnDark]}
-                  onPress={() => void dismissGlobalAbout()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss about"
-                >
-                  <Text style={[styles.modalBtnText, isDark && styles.modalBtnTextDark]}>Got it</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.modalBtn, isDark && styles.modalBtnDark]}
-                  onPress={() => {
-                    void dismissGlobalAbout();
-                    requestSignIn();
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Sign in"
-                >
-                  <Text style={[styles.modalBtnText, isDark && styles.modalBtnTextDark]}>Sign in</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        <MediaViewerModal
-          open={viewer.open}
-          viewerState={viewer.state as any}
-          setViewerState={viewer.setState as any}
-          saving={viewer.saving}
-          onSave={() => void viewer.saveToDevice()}
-          onClose={viewer.close}
-        />
-
-        {confirmLinkModal}
       </View>
     </SafeAreaView>
   );

@@ -20,7 +20,7 @@ type Props = {
   webOnLayout?: (e: unknown) => void;
   webOnContentSizeChange?: (w: number, h: number) => void;
   webOnScrollSync?: (e: unknown) => void;
-  setListRef: (r: any) => void;
+  listRef: React.RefObject<any>;
 
   // History loading
   historyHasMore: boolean;
@@ -28,7 +28,7 @@ type Props = {
   loadOlderHistory: () => void;
 
   // Render item
-  renderItem: (args: { item: any; index: number }) => React.JSX.Element;
+  renderItem: (args: { item: any; index: number }) => React.ReactElement | null;
 };
 
 export function ChatMessageList({
@@ -44,26 +44,28 @@ export function ChatMessageList({
   webOnLayout,
   webOnContentSizeChange,
   webOnScrollSync,
-  setListRef,
+  listRef,
   historyHasMore,
   historyLoading,
   loadOlderHistory,
   renderItem,
 }: Props) {
+  const isWeb = Platform.OS === 'web';
   return (
     <FlatList
-      style={[styles.messageList, Platform.OS === 'web' && !webReady ? { opacity: 0 } : null]}
+      style={[styles.messageList, isWeb && !webReady ? { opacity: 0 } : null]}
       data={messageListData as any}
       keyExtractor={(m: any) => String(m?.id)}
-      inverted={Platform.OS !== 'web'}
-      ref={(r) => setListRef(r)}
-      onLayout={webOnLayout as any}
-      onContentSizeChange={webOnContentSizeChange as any}
+      inverted={!isWeb}
+      ref={listRef as any}
+      // Web-only pinned list wiring (avoid native layout feedback loops)
+      onLayout={isWeb ? (webOnLayout as any) : undefined}
+      onContentSizeChange={isWeb ? (webOnContentSizeChange as any) : undefined}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         // In the *inverted* (native) list, the header renders at the bottom near the composer.
         // In the non-inverted (web) list, the footer renders at the bottom.
-        Platform.OS === 'web' ? (
+        isWeb ? (
           API_URL ? (
             <ChatHistoryLoadMore
               isDark={isDark}
@@ -78,17 +80,18 @@ export function ChatMessageList({
         ) : null
       }
       onEndReached={
-        Platform.OS === 'web'
+        isWeb
           ? undefined
           : () => {
               if (!API_URL) return;
               if (!historyHasMore) return;
+              if (historyLoading) return;
               loadOlderHistory();
             }
       }
       onEndReachedThreshold={0.2}
       ListFooterComponent={
-        Platform.OS === 'web' ? (
+        isWeb ? (
           isGroup && groupStatus && groupStatus !== 'active' ? (
             <ChatReadOnlyBanner isDark={isDark} status={groupStatus} />
           ) : null
@@ -102,8 +105,8 @@ export function ChatMessageList({
           />
         ) : null
       }
-      onScroll={Platform.OS === 'web' ? (webOnScrollSync as any) : undefined}
-      scrollEventThrottle={Platform.OS === 'web' ? 16 : undefined}
+      onScroll={isWeb ? (webOnScrollSync as any) : undefined}
+      scrollEventThrottle={isWeb ? 16 : undefined}
       // Perf tuning (especially on Android):
       removeClippedSubviews={Platform.OS === 'android'}
       initialNumToRender={18}

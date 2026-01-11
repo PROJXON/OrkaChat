@@ -32,6 +32,10 @@ export function usePublicAvatarProfiles(opts: {
   const maxBatch = typeof opts.maxBatch === 'number' && Number.isFinite(opts.maxBatch) ? Math.max(1, Math.floor(opts.maxBatch)) : 25;
   const resetKey = opts.resetKey;
   const cdn = opts.cdn;
+  const cdnRef = React.useRef<CdnLike | undefined>(cdn);
+  React.useEffect(() => {
+    cdnRef.current = cdn;
+  }, [cdn]);
 
   const [avatarProfileBySub, setAvatarProfileBySub] = React.useState<Record<string, PublicAvatarProfileLite>>({});
   const inFlightRef = React.useRef<Set<string>>(new Set());
@@ -149,17 +153,18 @@ export function usePublicAvatarProfiles(opts: {
 
   // Best-effort: prefetch avatar image URLs once profiles land.
   React.useEffect(() => {
-    if (!cdn) return;
+    const cdnNow = cdnRef.current;
+    if (!cdnNow) return;
     const needed: string[] = [];
     for (const prof of Object.values(avatarProfileBySub)) {
       const p = prof?.avatarImagePath;
       if (!p) continue;
-      if (cdn.get(p)) continue;
+      if (cdnNow.get(p)) continue;
       needed.push(p);
     }
     if (!needed.length) return;
-    cdn.ensure(Array.from(new Set(needed)));
-  }, [avatarProfileBySub, cdn]);
+    cdnNow.ensure(Array.from(new Set(needed)));
+  }, [avatarProfileBySub]);
 
   return React.useMemo(
     () => ({ avatarProfileBySub, invalidate, upsertMany, reset }),

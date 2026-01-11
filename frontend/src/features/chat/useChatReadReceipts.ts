@@ -38,11 +38,21 @@ export function useChatReadReceipts(opts: {
     readReceiptSuppressUpToRef.current = readReceiptSuppressUpTo;
   }, [readReceiptSuppressUpTo]);
 
+  const suppressStorageKey = React.useMemo(() => {
+    const cid = conversationIdForStorage && conversationIdForStorage.length > 0 ? conversationIdForStorage : 'global';
+    return `chat:readReceiptSuppressUpTo:${cid}`;
+  }, [conversationIdForStorage]);
+  const normalizeSuppress = React.useCallback(
+    (v: number) => (Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0),
+    []
+  );
+
   usePersistedNumber({
-    storageKey: `chat:readReceiptSuppressUpTo:${conversationIdForStorage && conversationIdForStorage.length > 0 ? conversationIdForStorage : 'global'}`,
+    enabled: !!myUserId,
+    storageKey: suppressStorageKey,
     value: readReceiptSuppressUpTo,
     setValue: setReadReceiptSuppressUpTo,
-    normalize: (v) => (Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0),
+    normalize: normalizeSuppress,
   });
 
   // Reset per-conversation read bookkeeping

@@ -1,0 +1,657 @@
+import React, { useState } from 'react';
+import { ActivityIndicator, Pressable, View, useWindowDimensions } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { useAuthenticator } from '@aws-amplify/ui-react-native/dist';
+import { deleteUser, fetchUserAttributes } from 'aws-amplify/auth';
+import { fetchAuthSession } from '@aws-amplify/auth';
+
+import { API_URL, CDN_URL } from '../../../config/env';
+import { styles } from '../../../../App.styles';
+import { useCdnUrlCache } from '../../../hooks/useCdnUrlCache';
+import { useStoredTheme } from '../../../hooks/useStoredTheme';
+import { useViewportWidth } from '../../../hooks/useViewportWidth';
+import { useMenuAnchor } from '../../../hooks/useMenuAnchor';
+import {
+  registerForDmPushNotifications,
+  setForegroundNotificationPolicy,
+  unregisterDmPushNotifications,
+} from '../../../utils/pushNotifications';
+import { GLOBAL_ABOUT_VERSION } from '../../../utils/globalAbout';
+import { formatChatActivityDate } from '../../../utils/chatDates';
+import { AVATAR_DEFAULT_COLORS } from '../../../components/AvatarBubble';
+
+import ChatScreen from '../../../screens/ChatScreen';
+
+import { MainAppMenuAndAboutOverlays } from './MainAppMenuAndAboutOverlays';
+import { MainAppChatsAndRecoveryModals } from './MainAppChatsAndRecoveryModals';
+import { MainAppChannelsModals } from './MainAppChannelsModals';
+import { MainAppBlocklistModal } from './MainAppBlocklistModal';
+import { MainAppAvatarModal } from './MainAppAvatarModal';
+import { MainAppBackgroundModal } from './MainAppBackgroundModal';
+import { MainAppPassphrasePromptModal } from './MainAppPassphrasePromptModal';
+import { MainAppHeaderTop } from './MainAppHeaderTop';
+
+import { useGlobalAboutOncePerVersion } from '../../globalAbout/useGlobalAboutOncePerVersion';
+import { usePassphrasePrompt } from '../hooks/usePassphrasePrompt';
+import { useSignedInBootstrap } from '../hooks/useSignedInBootstrap';
+import { useChatBackgroundSettings } from '../hooks/useChatBackgroundSettings';
+import { useMyAvatarSettings } from '../hooks/useMyAvatarSettings';
+import { useDmUnreadsAndPush } from '../hooks/useDmUnreadsAndPush';
+import { useChatsInboxData } from '../hooks/useChatsInboxData';
+import { useBlocklistData } from '../hooks/useBlocklistData';
+import { useStartDmFlow } from '../hooks/useStartDmFlow';
+import { useLastChannelConversation } from '../hooks/useLastChannelConversation';
+import { useChannelsFlow } from '../hooks/useChannelsFlow';
+import { useRecoveryFlow } from '../hooks/useRecoveryFlow';
+import { useConversationNavigation } from '../hooks/useConversationNavigation';
+import { useConversationTitleChanged } from '../hooks/useConversationTitleChanged';
+import { useDeleteConversationFromList } from '../hooks/useDeleteConversationFromList';
+import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
+import { useAuthApiHelpers } from '../hooks/useAuthApiHelpers';
+
+import {
+  decryptPrivateKey,
+  derivePublicKey,
+  encryptPrivateKey,
+  generateKeypair,
+  loadKeyPair,
+  storeKeyPair,
+} from '../../../utils/crypto';
+import { useUiPrompt } from '../../../providers/UiPromptProvider';
+import { getAppThemeColors } from '../../../theme/colors';
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'unknown error';
+  if (typeof err === 'string') return err || 'unknown error';
+  if (!err) return 'unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'unknown error';
+  } catch {
+    return 'unknown error';
+  }
+}
+
+function getUsernameFromAuthenticatorUser(user: unknown): string | undefined {
+  if (!user || typeof user !== 'object') return undefined;
+  const rec = user as Record<string, unknown>;
+  const u = rec.username;
+  return typeof u === 'string' && u.trim() ? u.trim() : undefined;
+}
+
+export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
+  const { user } = useAuthenticator();
+  const { signOut } = useAuthenticator();
+  const { alert: promptAlert, confirm: promptConfirm, choice3: promptChoice3, isOpen: uiPromptOpen } = useUiPrompt();
+  const cdn = useCdnUrlCache(CDN_URL);
+  const [displayName, setDisplayName] = useState<string>('anon');
+  const [myUserSub, setMyUserSub] = React.useState<string | null>(null);
+  // Bump this whenever we change/recover/reset keys so ChatScreen reloads them from storage.
+  const [keyEpoch, setKeyEpoch] = React.useState<number>(0);
+
+  const {
+    avatarOpen,
+    setAvatarOpen,
+    avatarSaving,
+    setAvatarSaving,
+    avatarSavingRef,
+    avatarError,
+    setAvatarError,
+    myAvatar,
+    setMyAvatar,
+    avatarDraft,
+    setAvatarDraft,
+    avatarDraftImageUri,
+    setAvatarDraftImageUri,
+    avatarDraftRemoveImage,
+    setAvatarDraftRemoveImage,
+    saveAvatarToStorageAndServer,
+  } = useMyAvatarSettings({
+    userSub: myUserSub,
+    apiUrl: API_URL,
+    fetchAuthSession,
+    cdn,
+  });
+
+  const {
+    chatBackground,
+    setChatBackground,
+    backgroundOpen,
+    setBackgroundOpen,
+    backgroundSaving,
+    setBackgroundSaving,
+    backgroundSavingRef,
+    backgroundError,
+    setBackgroundError,
+    backgroundDraft,
+    setBackgroundDraft,
+    backgroundDraftImageUri,
+    setBackgroundDraftImageUri,
+    bgEffectBlur,
+    setBgEffectBlur,
+    bgEffectOpacity,
+    setBgEffectOpacity,
+  } = useChatBackgroundSettings();
+
+  const [hasRecoveryBlob, setHasRecoveryBlob] = useState(false);
+  // hasRecoveryBlob defaults false; track whether we've actually checked the server this session.
+  const [recoveryBlobKnown, setRecoveryBlobKnown] = useState(false);
+  const [recoveryLocked, setRecoveryLocked] = React.useState<boolean>(false);
+  const { promptPassphrase, closePrompt, processing, setProcessing, modalProps: passphraseModalProps } = usePassphrasePrompt({
+    uiPromptOpen,
+    promptConfirm,
+    promptChoice3: promptChoice3 as any,
+  });
+
+  const { deleteMyAccount } = useDeleteAccountFlow({
+    apiUrl: API_URL,
+    myUserSub,
+    promptAlert,
+    promptConfirm,
+    unregisterDmPushNotifications,
+    fetchAuthSession: fetchAuthSession as any,
+    deleteUser,
+    signOut: signOut as any,
+    onSignedOut,
+    getErrorMessage,
+  });
+
+  const applyRecoveryBlobExists = (exists: boolean) => {
+    setRecoveryBlobKnown(true);
+    setHasRecoveryBlob(exists);
+  };
+
+  const { uploadRecoveryBlob, checkRecoveryBlobExists, getIdTokenWithRetry, uploadPublicKey } = useAuthApiHelpers({
+    apiUrl: API_URL,
+    fetchAuthSession: fetchAuthSession as any,
+    encryptPrivateKey,
+  });
+
+  useSignedInBootstrap({
+    user,
+    apiUrl: API_URL,
+    fetchAuthSession,
+    fetchUserAttributes,
+    getUsernameFromAuthenticatorUser,
+    setForegroundNotificationPolicy,
+    setHasRecoveryBlob,
+    setRecoveryBlobKnown,
+    setRecoveryLocked,
+    setProcessing,
+    setMyUserSub: (v) => setMyUserSub(v),
+    setDisplayName,
+    loadKeyPair,
+    storeKeyPair,
+    derivePublicKey,
+    decryptPrivateKey,
+    generateKeypair,
+    uploadPublicKey,
+    uploadRecoveryBlob,
+    checkRecoveryBlobExists,
+    applyRecoveryBlobExists,
+    getIdTokenWithRetry,
+    promptPassphrase,
+    closePrompt,
+    bumpKeyEpoch: () => setKeyEpoch((v) => v + 1),
+    promptAlert,
+  });
+
+  const currentUsername = displayName.length ? displayName : getUsernameFromAuthenticatorUser(user as unknown) || 'anon';
+
+  const [conversationId, setConversationId] = useState<string>('global');
+  const [peer, setPeer] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState<boolean>(false); // DM search
+  const [peerInput, setPeerInput] = useState<string>('');
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [chatsOpen, setChatsOpen] = React.useState<boolean>(false);
+
+  const {
+    unreadDmMap,
+    setUnreadDmMap,
+    dmThreads,
+    setDmThreads,
+    serverConversations,
+    setServerConversations,
+    chatsLoading,
+    conversationsCacheAt,
+    titleOverrideByConvIdRef,
+    upsertDmThread,
+    chatsList,
+    fetchConversations,
+    fetchUnreads,
+  } = useChatsInboxData({ apiUrl: API_URL, fetchAuthSession, chatsOpen });
+
+  const isDmMode = conversationId.startsWith('dm#') || conversationId.startsWith('gdm#');
+  const isChannelMode = !isDmMode;
+  const { channelRestoreDone, lastChannelConversationIdRef } = useLastChannelConversation({
+    conversationId,
+    setConversationId,
+  });
+
+  const getIdToken = React.useCallback(async (): Promise<string | null> => {
+    return await getIdTokenWithRetry({ maxAttempts: 10, delayMs: 200 });
+  }, [getIdTokenWithRetry]);
+
+  const {
+    channelsOpen,
+    setChannelsOpen,
+    myChannelsLoading,
+    myChannelsError,
+    setMyChannelsError,
+    myChannels,
+    leaveChannelFromSettings,
+    createChannelOpen,
+    setCreateChannelOpen,
+    createChannelName,
+    setCreateChannelName,
+    createChannelPassword,
+    setCreateChannelPassword,
+    createChannelIsPublic,
+    setCreateChannelIsPublic,
+    createChannelLoading,
+    setCreateChannelLoading,
+    createChannelError,
+    setCreateChannelError,
+    submitCreateChannelInline,
+    channelSearchOpen,
+    setChannelSearchOpen,
+    channelsQuery,
+    setChannelsQuery,
+    channelsLoading,
+    channelsError,
+    setChannelsError,
+    globalUserCount,
+    channelsResults,
+    fetchChannelsSearch,
+    joinChannel,
+    channelPasswordPrompt,
+    setChannelPasswordPrompt,
+    channelPasswordInput,
+    setChannelPasswordInput,
+    channelJoinError,
+    setChannelJoinError,
+    submitChannelPassword,
+    channelNameById,
+    setChannelNameById,
+    enterChannelConversation,
+  } = useChannelsFlow({
+    apiUrl: API_URL,
+    getIdToken,
+    promptAlert,
+    setConversationId,
+    setPeer,
+    setSearchOpen,
+    setPeerInput,
+    setSearchError,
+  });
+
+  const { theme, setTheme, isDark } = useStoredTheme({ storageKey: 'ui:theme', defaultTheme: 'light' });
+  const appColors = getAppThemeColors(isDark);
+  const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
+  const menu = useMenuAnchor<React.ElementRef<typeof Pressable>>();
+  const { width: windowWidth } = useWindowDimensions();
+  const { isWide: isWideUi } = useViewportWidth(windowWidth, { wideBreakpointPx: 900, maxContentWidthPx: 1040 });
+  const [channelAboutRequestEpoch, setChannelAboutRequestEpoch] = React.useState<number>(0);
+  const { globalAboutOpen, setGlobalAboutOpen, dismissGlobalAbout } = useGlobalAboutOncePerVersion(GLOBAL_ABOUT_VERSION);
+  const [blocklistOpen, setBlocklistOpen] = React.useState<boolean>(false);
+  const [recoveryOpen, setRecoveryOpen] = React.useState<boolean>(false);
+
+  const {
+    blocklistLoading,
+    blockedUsers,
+    blockedSubs,
+    blockUsername,
+    setBlockUsername,
+    blockError,
+    setBlockError,
+    addBlockByUsername,
+    addBlockBySub,
+    unblockUser,
+  } = useBlocklistData({ apiUrl: API_URL, fetchAuthSession, promptConfirm, blocklistOpen });
+
+  const { enterRecoveryPassphrase, setupRecovery, changeRecoveryPassphrase, resetRecovery } = useRecoveryFlow({
+    apiUrl: API_URL,
+    myUserSub,
+    getIdToken,
+    promptAlert,
+    promptConfirm,
+    promptPassphrase,
+    closePrompt,
+    decryptPrivateKey,
+    derivePublicKey,
+    storeKeyPair,
+    loadKeyPair,
+    generateKeypair,
+    uploadPublicKey,
+    uploadRecoveryBlob,
+    bumpKeyEpoch: () => setKeyEpoch((v) => v + 1),
+    setHasRecoveryBlob,
+    setRecoveryBlobKnown,
+    setRecoveryLocked,
+  });
+
+  const { handleConversationTitleChanged } = useConversationTitleChanged({
+    conversationId,
+    setPeer,
+    setChannelNameById,
+    titleOverrideByConvIdRef: titleOverrideByConvIdRef as any,
+    setServerConversations: setServerConversations as any,
+    setUnreadDmMap: setUnreadDmMap as any,
+    upsertDmThread,
+  });
+
+  const { deleteConversationFromList } = useDeleteConversationFromList({
+    apiUrl: API_URL,
+    fetchAuthSession: fetchAuthSession as any,
+    promptConfirm,
+    setServerConversations: setServerConversations as any,
+    setDmThreads: setDmThreads as any,
+    setUnreadDmMap: setUnreadDmMap as any,
+  });
+
+  const { startDM } = useStartDmFlow({
+    apiUrl: API_URL,
+    peerInput,
+    currentUsername,
+    blockedSubs,
+    fetchAuthSession,
+    fetchUserAttributes,
+    setPeer,
+    setConversationId,
+    upsertDmThread,
+    setSearchOpen,
+    setPeerInput,
+    setSearchError,
+  });
+
+  const getChannelIdFromConversationId = React.useCallback((cid: string): string | null => {
+    const s = String(cid || '').trim();
+    if (!s.startsWith('ch#')) return null;
+    const id = s.slice('ch#'.length).trim();
+    return id || null;
+  }, []);
+
+  const activeChannelConversationId = React.useMemo(() => {
+    if (!isDmMode) return conversationId || 'global';
+    return lastChannelConversationIdRef.current || 'global';
+  }, [isDmMode, conversationId, lastChannelConversationIdRef]);
+
+  const activeChannelLabel = React.useMemo(() => {
+    if (activeChannelConversationId === 'global') return 'Global';
+    const id = getChannelIdFromConversationId(activeChannelConversationId);
+    if (!id) return 'Global';
+    return channelNameById[id] || 'Channel';
+  }, [activeChannelConversationId, getChannelIdFromConversationId, channelNameById]);
+
+  const { goToConversation } = useConversationNavigation({
+    serverConversations: serverConversations as any,
+    unreadDmMap: unreadDmMap as any,
+    peer,
+    upsertDmThread,
+    setConversationId,
+    setPeer,
+    setSearchOpen,
+    setPeerInput,
+    setSearchError,
+    setChannelsOpen,
+    setChannelSearchOpen,
+    setChannelsError,
+    setChannelJoinError,
+    setChannelsQuery,
+  });
+
+  const { hasUnreadDms, unreadEntries, handleNewDmNotification } = useDmUnreadsAndPush({
+    user,
+    conversationId,
+    setConversationId,
+    setPeer,
+    setSearchOpen,
+    setPeerInput,
+    setSearchError,
+    setChannelNameById,
+    unreadDmMap,
+    setUnreadDmMap,
+    upsertDmThread,
+    fetchUnreads,
+    registerForDmPushNotifications,
+  });
+
+  const headerTop = (
+    <MainAppHeaderTop
+      styles={styles}
+      isDark={isDark}
+      isWideUi={isWideUi}
+      activeChannelLabel={activeChannelLabel}
+      isChannelMode={isChannelMode}
+      isDmMode={isDmMode}
+      hasUnreadDms={hasUnreadDms}
+      peerInput={peerInput}
+      setPeerInput={setPeerInput}
+      searchOpen={searchOpen}
+      setSearchOpen={setSearchOpen}
+      searchError={searchError}
+      setSearchError={setSearchError}
+      unreadEntries={unreadEntries as any}
+      goToConversation={goToConversation}
+      menuRef={menu.ref}
+      openMenu={() => {
+        menu.openFromRef({ enabled: isWideUi, onOpen: () => setMenuOpen(true) });
+      }}
+      onPressChannelTab={() => {
+        if (isDmMode) {
+          // Jump back to the last channel (default Global).
+          enterChannelConversation(activeChannelConversationId);
+          return;
+        }
+        // While already in channel mode, open the channel search/join picker (like "Start DM").
+        setChannelsError(null);
+        setChannelJoinError(null);
+        setChannelsQuery('');
+        setChannelSearchOpen(true);
+      }}
+      onStartDm={startDM}
+    />
+  );
+
+  return (
+    <View style={[styles.appContent, isDark ? styles.appContentDark : null]}>
+      <MainAppMenuAndAboutOverlays
+        styles={styles}
+        isDark={isDark}
+        isWideUi={isWideUi}
+        menuAnchor={menu.anchor}
+        menuOpen={menuOpen}
+        setMenuOpen={setMenuOpen}
+        onSetTheme={setTheme}
+        activeChannelConversationId={activeChannelConversationId}
+        setGlobalAboutOpen={setGlobalAboutOpen}
+        setChannelAboutRequestEpoch={setChannelAboutRequestEpoch}
+        setChatsOpen={setChatsOpen}
+        setMyChannelsError={setMyChannelsError}
+        setCreateChannelError={setCreateChannelError}
+        setCreateChannelOpen={setCreateChannelOpen}
+        setCreateChannelName={setCreateChannelName}
+        setCreateChannelPassword={setCreateChannelPassword}
+        setCreateChannelIsPublic={setCreateChannelIsPublic}
+        setChannelSearchOpen={setChannelSearchOpen}
+        setChannelsError={setChannelsError}
+        setChannelJoinError={setChannelJoinError}
+        setChannelsQuery={setChannelsQuery}
+        setChannelsOpen={setChannelsOpen}
+        setAvatarError={setAvatarError}
+        setAvatarOpen={setAvatarOpen}
+        setBackgroundError={setBackgroundError}
+        setBackgroundOpen={setBackgroundOpen}
+        setRecoveryOpen={setRecoveryOpen}
+        getIdTokenWithRetry={getIdTokenWithRetry}
+        checkRecoveryBlobExists={checkRecoveryBlobExists}
+        applyRecoveryBlobExists={applyRecoveryBlobExists}
+        setBlocklistOpen={setBlocklistOpen}
+        deleteMyAccount={deleteMyAccount}
+        unregisterDmPushNotifications={unregisterDmPushNotifications}
+        signOut={signOut as any}
+        onSignedOut={onSignedOut}
+        globalAboutOpen={globalAboutOpen}
+        dismissGlobalAbout={dismissGlobalAbout}
+      />
+
+      <MainAppAvatarModal
+        styles={styles}
+        isDark={isDark}
+        myUserSub={myUserSub}
+        displayName={displayName}
+        avatarOpen={avatarOpen}
+        setAvatarOpen={setAvatarOpen}
+        avatarSaving={avatarSaving}
+        setAvatarSaving={setAvatarSaving}
+        avatarSavingRef={avatarSavingRef}
+        avatarError={avatarError}
+        setAvatarError={setAvatarError}
+        myAvatar={myAvatar as any}
+        setMyAvatar={setMyAvatar as any}
+        avatarDraft={avatarDraft as any}
+        setAvatarDraft={setAvatarDraft as any}
+        avatarDraftImageUri={avatarDraftImageUri}
+        setAvatarDraftImageUri={setAvatarDraftImageUri}
+        avatarDraftRemoveImage={avatarDraftRemoveImage}
+        setAvatarDraftRemoveImage={setAvatarDraftRemoveImage}
+        saveAvatarToStorageAndServer={saveAvatarToStorageAndServer}
+      />
+
+      <MainAppBackgroundModal
+        styles={styles}
+        isDark={isDark}
+        avatarDefaultColors={AVATAR_DEFAULT_COLORS}
+        backgroundOpen={backgroundOpen}
+        setBackgroundOpen={setBackgroundOpen}
+        backgroundSaving={backgroundSaving}
+        setBackgroundSaving={setBackgroundSaving}
+        backgroundSavingRef={backgroundSavingRef}
+        chatBackground={chatBackground}
+        setChatBackground={setChatBackground}
+        backgroundDraft={backgroundDraft}
+        setBackgroundDraft={setBackgroundDraft}
+        backgroundDraftImageUri={backgroundDraftImageUri}
+        setBackgroundDraftImageUri={setBackgroundDraftImageUri}
+        backgroundError={backgroundError}
+        setBackgroundError={setBackgroundError}
+        bgEffectBlur={bgEffectBlur}
+        setBgEffectBlur={setBgEffectBlur}
+        bgEffectOpacity={bgEffectOpacity}
+        setBgEffectOpacity={setBgEffectOpacity}
+      />
+
+      <MainAppChatsAndRecoveryModals
+        styles={styles}
+        isDark={isDark}
+        recoveryOpen={recoveryOpen}
+        setRecoveryOpen={setRecoveryOpen}
+        recoveryLocked={recoveryLocked}
+        recoveryBlobKnown={recoveryBlobKnown}
+        hasRecoveryBlob={hasRecoveryBlob}
+        enterRecoveryPassphrase={enterRecoveryPassphrase}
+        setupRecovery={setupRecovery}
+        changeRecoveryPassphrase={changeRecoveryPassphrase}
+        resetRecovery={resetRecovery}
+        chatsOpen={chatsOpen}
+        setChatsOpen={setChatsOpen}
+        chatsLoading={chatsLoading}
+        chatsList={chatsList as any}
+        goToConversation={goToConversation}
+        deleteConversationFromList={deleteConversationFromList}
+        formatChatActivityDate={formatChatActivityDate}
+      />
+
+      <MainAppChannelsModals
+        styles={styles}
+        isDark={isDark}
+        channelsOpen={channelsOpen}
+        setChannelsOpen={setChannelsOpen}
+        myChannelsLoading={myChannelsLoading}
+        myChannelsError={myChannelsError}
+        myChannels={myChannels}
+        enterChannelConversation={enterChannelConversation}
+        leaveChannelFromSettings={leaveChannelFromSettings}
+        createChannelOpen={createChannelOpen}
+        setCreateChannelOpen={setCreateChannelOpen}
+        createChannelName={createChannelName}
+        setCreateChannelName={setCreateChannelName}
+        createChannelPassword={createChannelPassword}
+        setCreateChannelPassword={setCreateChannelPassword}
+        createChannelIsPublic={createChannelIsPublic}
+        setCreateChannelIsPublic={setCreateChannelIsPublic}
+        createChannelLoading={createChannelLoading}
+        setCreateChannelLoading={setCreateChannelLoading}
+        createChannelError={createChannelError}
+        setCreateChannelError={setCreateChannelError}
+        submitCreateChannelInline={submitCreateChannelInline}
+        channelSearchOpen={channelSearchOpen}
+        setChannelSearchOpen={setChannelSearchOpen}
+        channelsQuery={channelsQuery}
+        setChannelsQuery={setChannelsQuery}
+        channelsLoading={channelsLoading}
+        channelsError={channelsError}
+        setChannelsError={setChannelsError}
+        channelJoinError={channelJoinError}
+        setChannelJoinError={setChannelJoinError}
+        globalUserCount={globalUserCount}
+        channelsResults={channelsResults as any}
+        fetchChannelsSearch={fetchChannelsSearch}
+        joinChannel={joinChannel}
+        channelPasswordPrompt={channelPasswordPrompt}
+        setChannelPasswordPrompt={setChannelPasswordPrompt}
+        channelPasswordInput={channelPasswordInput}
+        setChannelPasswordInput={setChannelPasswordInput}
+        submitChannelPassword={submitChannelPassword}
+      />
+
+      <MainAppBlocklistModal
+        styles={styles}
+        isDark={isDark}
+        blocklistOpen={blocklistOpen}
+        setBlocklistOpen={setBlocklistOpen}
+        blockUsername={blockUsername}
+        setBlockUsername={setBlockUsername}
+        blockError={blockError}
+        setBlockError={setBlockError}
+        addBlockByUsername={addBlockByUsername}
+        blocklistLoading={blocklistLoading}
+        blockedUsers={blockedUsers as any}
+        unblockUser={unblockUser}
+      />
+
+      <MainAppPassphrasePromptModal styles={styles} isDark={isDark} {...passphraseModalProps} />
+
+      <View style={{ flex: 1 }}>
+        {channelRestoreDone ? (
+          <ChatScreen
+            conversationId={conversationId}
+            peer={peer}
+            displayName={displayName}
+            onNewDmNotification={handleNewDmNotification}
+            onKickedFromConversation={(convId) => {
+              if (!convId) return;
+              if (conversationId !== convId) return;
+              setConversationId('global');
+              setPeer(null);
+            }}
+            onConversationTitleChanged={handleConversationTitleChanged}
+            channelAboutRequestEpoch={channelAboutRequestEpoch}
+            headerTop={headerTop}
+            theme={theme}
+            chatBackground={chatBackground}
+            blockedUserSubs={blockedSubs}
+            keyEpoch={keyEpoch}
+            onBlockUserSub={addBlockBySub}
+          />
+        ) : (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.appBackground }}>
+            <ActivityIndicator size="large" color={appColors.appForeground} />
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+

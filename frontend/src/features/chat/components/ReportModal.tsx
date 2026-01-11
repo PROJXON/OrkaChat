@@ -86,6 +86,8 @@ export function ReportModal({
   onSelectCategory,
   onChangeDetails,
 }: Props) {
+  const ensureThumbUrl = cdnMedia.ensure;
+
   // Prefetch thumb URLs so we don't call cdnMedia.resolve() during render (which would set state).
   React.useEffect(() => {
     if (!visible) return;
@@ -111,11 +113,11 @@ export function ReportModal({
       if (!thumbPath) return;
       if (thumbPath.includes('.enc')) return;
 
-      cdnMedia.ensure([thumbPath]);
+      ensureThumbUrl([thumbPath]);
     } catch {
       // ignore prefetch errors
     }
-  }, [cdnMedia, reportKind, reportTargetMessage, visible]);
+  }, [ensureThumbUrl, reportKind, reportTargetMessage, visible]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

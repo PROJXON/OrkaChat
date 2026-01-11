@@ -10,10 +10,18 @@ export function usePersistedNumber(opts: {
 }): void {
   const key = String(opts.storageKey || '').trim();
   const enabled = opts.enabled !== false;
-  const normalize =
-    typeof opts.normalize === 'function'
-      ? opts.normalize
-      : (n: number) => (Number.isFinite(n) ? n : 0);
+  // `normalize` is commonly passed as an inline function; keep it in a ref so
+  // this hook doesn't accidentally create an effect loop.
+  const normalizeRef = React.useRef<typeof opts.normalize>(opts.normalize);
+  React.useEffect(() => {
+    normalizeRef.current = opts.normalize;
+  }, [opts.normalize]);
+
+  const normalize = React.useCallback((n: number) => {
+    const fn = normalizeRef.current;
+    if (typeof fn === 'function') return fn(n);
+    return Number.isFinite(n) ? n : 0;
+  }, []);
   const value = normalize(Number(opts.value));
   const setValue = opts.setValue;
 
@@ -26,9 +34,12 @@ export function usePersistedNumber(opts: {
         const raw = await AsyncStorage.getItem(key);
         if (cancelled) return;
         const v = raw ? Number(raw) : 0;
-        setValue(normalize(v));
+        const next = normalize(v);
+        setValue((prev) => (prev === next ? prev : next));
       } catch {
-        if (!cancelled) setValue(normalize(0));
+        if (cancelled) return;
+        const next = normalize(0);
+        setValue((prev) => (prev === next ? prev : next));
       }
     })();
     return () => {
