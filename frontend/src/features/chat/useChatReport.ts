@@ -105,21 +105,16 @@ export function useChatReport(opts: { apiUrl: string | null | undefined; activeC
     const messagePreview = (() => {
       const t = nowTargetMsg;
       if (!t) return '';
-      const rec = t as unknown as Record<string, unknown>;
-      if (rec.deletedAt) return '';
-      if (typeof rec.decryptedText === 'string' && rec.decryptedText.trim()) {
-        return rec.decryptedText.trim();
+      if (t.deletedAt) return '';
+      if (typeof t.decryptedText === 'string' && t.decryptedText.trim()) {
+        return t.decryptedText.trim();
       }
-      if (typeof rec.text === 'string' && rec.text.trim()) return rec.text.trim();
+      if (typeof t.text === 'string' && t.text.trim()) return t.text.trim();
       return '';
     })();
 
-    const nowTargetMsgRec = nowTargetMsg as unknown as Record<string, unknown>;
-    const messageCreatedAtRaw = nowTargetMsgRec?.createdAt;
-    const messageCreatedAt =
-      typeof messageCreatedAtRaw === 'string' || typeof messageCreatedAtRaw === 'number' ? messageCreatedAtRaw : undefined;
-    const reportedUserSub =
-      typeof nowTargetMsgRec?.userSub === 'string' ? (nowTargetMsgRec.userSub as string) : undefined;
+    const messageCreatedAt = nowTargetMsg?.createdAt;
+    const reportedUserSub = nowTargetMsg?.userSub;
 
     const payload: ReportPayload =
       reportKind === 'user'

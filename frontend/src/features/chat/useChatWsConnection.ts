@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { AppState } from 'react-native';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import type { AmplifyUiUser } from '../../types/amplifyUi';
 
 function appendQueryParam(url: string, key: string, value: string): string {
   const hasQuery = url.includes('?');
@@ -15,7 +16,7 @@ function redactWsUrl(url: string): string {
 }
 
 export function useChatWsConnection(opts: {
-  user: unknown;
+  user: AmplifyUiUser;
   wsUrl: string | null | undefined;
   wsRef?: React.MutableRefObject<WebSocket | null>;
   appStateRef: React.MutableRefObject<string>;
@@ -141,12 +142,11 @@ export function useChatWsConnection(opts: {
         }
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = (event: { data: unknown }) => {
         // Ignore events from stale sockets.
         if (wsRef.current !== ws) return;
         try {
-          const ev = event as unknown as { data: unknown };
-          onMessageRef.current({ data: ev?.data });
+          onMessageRef.current({ data: event?.data });
         } catch {
           // ignore
         }
@@ -167,7 +167,7 @@ export function useChatWsConnection(opts: {
       ws.onclose = (e) => {
         // Ignore events from stale sockets.
         if (wsRef.current !== ws) return;
-        const rec = typeof e === 'object' && e != null ? ((e as unknown) as Record<string, unknown>) : {};
+        const rec = typeof e === 'object' && e != null ? (e as { code?: unknown; reason?: unknown }) : {};
         const code = typeof rec.code === 'number' ? rec.code : undefined;
         const reason = typeof rec.reason === 'string' ? rec.reason : undefined;
         console.log('WS close:', code, reason, 'url:', redactWsUrl(ws.url));

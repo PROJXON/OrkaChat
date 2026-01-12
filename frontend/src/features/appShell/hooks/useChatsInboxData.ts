@@ -113,7 +113,7 @@ export function useChatsInboxData({
       if (!res.ok) return;
       const json: unknown = await res.json().catch(() => null);
       const jsonRec = typeof json === 'object' && json != null ? (json as Record<string, unknown>) : {};
-      const convos: unknown[] = Array.isArray(jsonRec.conversations) ? (jsonRec.conversations as unknown[]) : [];
+      const convos: unknown[] = Array.isArray(jsonRec.conversations) ? jsonRec.conversations : [];
       const parsed: ServerConversation[] = convos
         .map((c) => {
           const rec = typeof c === 'object' && c != null ? (c as Record<string, unknown>) : {};

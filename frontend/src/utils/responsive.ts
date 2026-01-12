@@ -24,8 +24,7 @@ export function isWebCoarsePointer(): boolean {
   // Fallback: touch-capable browsers often expose maxTouchPoints.
   try {
     type NavigatorLike = { maxTouchPoints?: number; userAgent?: string };
-    const nav: NavigatorLike | undefined =
-      typeof navigator !== 'undefined' ? (navigator as unknown as NavigatorLike) : undefined;
+    const nav: NavigatorLike | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorLike) : undefined;
     const maxTouchPoints = typeof nav?.maxTouchPoints === 'number' ? nav.maxTouchPoints : 0;
     if (maxTouchPoints > 0) return true;
 

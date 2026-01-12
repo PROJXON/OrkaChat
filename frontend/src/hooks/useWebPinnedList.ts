@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Platform } from 'react-native';
+import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import type { FlatList } from 'react-native';
 import { getNativeEventNumber } from '../utils/nativeEvent';
 
@@ -23,9 +24,9 @@ export type WebPinnedListState<TItem> = {
   atBottomRef: React.MutableRefObject<boolean>;
   scrollToBottom: (animated: boolean) => void;
   kickInitialScrollToEnd: () => void;
-  onLayout?: (e: unknown) => void;
+  onLayout?: (e: LayoutChangeEvent) => void;
   onContentSizeChange?: (w: number, h: number) => void;
-  onScroll?: (e: unknown) => void;
+  onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
 };
 
 export function useWebPinnedList<TItem = unknown>({
@@ -97,9 +98,9 @@ export function useWebPinnedList<TItem = unknown>({
     kickInitialScrollToEnd();
   }, [enabled, itemCount, kickInitialScrollToEnd]);
 
-  const onLayout = React.useMemo<((e: unknown) => void) | undefined>(() => {
+  const onLayout = React.useMemo<((e: LayoutChangeEvent) => void) | undefined>(() => {
     if (!enabled || Platform.OS !== 'web') return undefined;
-    return (e: unknown) => {
+    return (e: LayoutChangeEvent) => {
       const h = getNativeEventNumber(e, ['nativeEvent', 'layout', 'height']);
       if (Number.isFinite(h) && h > 0) viewportHRef.current = h;
       if (!ready) kickInitialScrollToEnd();
@@ -121,9 +122,9 @@ export function useWebPinnedList<TItem = unknown>({
     };
   }, [enabled, kickInitialScrollToEnd, ready, scrollToBottom]);
 
-  const onScroll = React.useMemo<((e: unknown) => void) | undefined>(() => {
+  const onScroll = React.useMemo<((e: NativeSyntheticEvent<NativeScrollEvent>) => void) | undefined>(() => {
     if (!enabled || Platform.OS !== 'web') return undefined;
-    return (e: unknown) => {
+    return (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       // Track whether the user is near the bottom so we don't hijack scroll while reading older messages.
       try {
         const y = getNativeEventNumber(e, ['nativeEvent', 'contentOffset', 'y']);

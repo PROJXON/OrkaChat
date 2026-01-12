@@ -1,4 +1,4 @@
-export function getGuestSenderKey(m?: { userSub?: unknown; user?: unknown } | null): string {
+export function getGuestSenderKey(m?: { userSub?: string | null; user?: string | null } | null): string {
   if (!m) return '';
   const sub = m.userSub ? String(m.userSub) : '';
   if (sub) return `sub:${sub}`;
@@ -8,7 +8,7 @@ export function getGuestSenderKey(m?: { userSub?: unknown; user?: unknown } | nu
 }
 
 export function getChatSenderKey(
-  m: { userSub?: unknown; userLower?: unknown; user?: unknown },
+  m: { userSub?: string | null; userLower?: string | null; user?: string | null },
   normalizeUser: (v: unknown) => string,
 ): string {
   // Keep behavior identical to ChatScreen's previous logic.

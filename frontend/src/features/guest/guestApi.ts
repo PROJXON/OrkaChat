@@ -1,11 +1,78 @@
 import { API_URL } from '../../config/env';
 import type { GuestHistoryPage } from './types';
+import type { GuestChannelMeta } from './types';
 import { normalizeGuestMessages } from './parsers';
 
 const GUEST_HISTORY_PAGE_SIZE = 50;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object';
+}
+
+type GuestHistoryResponseObj = {
+  items?: unknown;
+  hasMore?: unknown;
+  nextCursor?: unknown;
+  channel?: unknown;
+};
+
+function getStringField(rec: Record<string, unknown>, key: string): string | null {
+  const v = rec[key];
+  return typeof v === 'string' ? v : v == null ? null : String(v);
+}
+
+function getOptionalFiniteNumberField(rec: Record<string, unknown>, key: string): number | undefined {
+  const v = rec[key];
+  if (typeof v !== 'number') return undefined;
+  return Number.isFinite(v) ? v : undefined;
+}
+
+function parseGuestChannelMeta(raw: unknown, fallbackConversationId: string): GuestChannelMeta | undefined {
+  if (!isRecord(raw)) return undefined;
+  const channelId = String(getStringField(raw, 'channelId') || '').trim();
+  if (!channelId) return undefined;
+
+  const conversationId = String(getStringField(raw, 'conversationId') || fallbackConversationId || '').trim() || 'global';
+  const name = getStringField(raw, 'name');
+  const aboutText = getStringField(raw, 'aboutText');
+  const aboutVersion = getOptionalFiniteNumberField(raw, 'aboutVersion');
+
+  return {
+    channelId,
+    conversationId,
+    name: name ? String(name) : undefined,
+    aboutText: aboutText ? String(aboutText) : undefined,
+    aboutVersion,
+  };
+}
+
+function parseGuestHistoryResponse(
+  json: unknown,
+  conversationId: string,
+): {
+  rawItems: unknown[];
+  channelMeta?: GuestChannelMeta;
+  hasMoreFromServer: boolean | null;
+  nextCursorFromServer: number | null;
+} {
+  // Backward compat: some deployments return the raw array of messages.
+  if (Array.isArray(json)) {
+    return {
+      rawItems: json,
+      channelMeta: undefined,
+      hasMoreFromServer: null,
+      nextCursorFromServer: null,
+    };
+  }
+
+  const rec: GuestHistoryResponseObj = isRecord(json) ? (json as GuestHistoryResponseObj) : {};
+  const rawItems: unknown[] = Array.isArray(rec.items) ? rec.items : [];
+
+  const channelMeta = parseGuestChannelMeta(rec.channel, conversationId);
+  const hasMoreFromServer = typeof rec.hasMore === 'boolean' ? rec.hasMore : null;
+  const nextCursorFromServer = typeof rec.nextCursor === 'number' && Number.isFinite(rec.nextCursor) ? rec.nextCursor : null;
+
+  return { rawItems, channelMeta, hasMoreFromServer, nextCursorFromServer };
 }
 
 export async function fetchGuestChannelHistoryPage(opts: {
@@ -45,40 +112,8 @@ export async function fetchGuestChannelHistoryPage(opts: {
         continue;
       }
       const json: unknown = await res.json();
-      const rec = isRecord(json) ? json : {};
-      const rawItems: unknown[] = Array.isArray(json) ? (json as unknown[]) : Array.isArray(rec.items) ? rec.items : [];
+      const { rawItems, channelMeta, hasMoreFromServer, nextCursorFromServer } = parseGuestHistoryResponse(json, conversationId);
       const items = normalizeGuestMessages(rawItems);
-
-      const channelMetaRaw = !Array.isArray(json) && isRecord(json) ? json.channel : null;
-      const channelMeta =
-        channelMetaRaw && typeof channelMetaRaw === 'object' && channelMetaRaw != null
-          ? {
-              channelId:
-                typeof (channelMetaRaw as Record<string, unknown>).channelId === 'string'
-                  ? String((channelMetaRaw as Record<string, unknown>).channelId)
-                  : '',
-              conversationId:
-                typeof (channelMetaRaw as Record<string, unknown>).conversationId === 'string'
-                  ? String((channelMetaRaw as Record<string, unknown>).conversationId)
-                  : conversationId,
-              name:
-                typeof (channelMetaRaw as Record<string, unknown>).name === 'string'
-                  ? String((channelMetaRaw as Record<string, unknown>).name)
-                  : undefined,
-              aboutText:
-                typeof (channelMetaRaw as Record<string, unknown>).aboutText === 'string'
-                  ? String((channelMetaRaw as Record<string, unknown>).aboutText)
-                  : undefined,
-              aboutVersion:
-                typeof (channelMetaRaw as Record<string, unknown>).aboutVersion === 'number' &&
-                Number.isFinite((channelMetaRaw as Record<string, unknown>).aboutVersion)
-                  ? ((channelMetaRaw as Record<string, unknown>).aboutVersion as number)
-                  : undefined,
-            }
-          : undefined;
-
-      const hasMoreFromServer = typeof rec.hasMore === 'boolean' ? rec.hasMore : null;
-      const nextCursorFromServer = typeof rec.nextCursor === 'number' && Number.isFinite(rec.nextCursor) ? rec.nextCursor : null;
 
       const nextCursor =
         typeof nextCursorFromServer === 'number' && Number.isFinite(nextCursorFromServer)
@@ -96,7 +131,7 @@ export async function fetchGuestChannelHistoryPage(opts: {
         items,
         hasMore: !!hasMore,
         nextCursor: typeof nextCursor === 'number' && Number.isFinite(nextCursor) ? nextCursor : null,
-        channelMeta: channelMeta && channelMeta.channelId ? channelMeta : undefined,
+        channelMeta,
       };
     } catch (err) {
       errors.push(`GET ${url} threw: ${err instanceof Error ? err.message : String(err)}`);

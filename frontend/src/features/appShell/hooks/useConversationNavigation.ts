@@ -1,14 +1,6 @@
 import * as React from 'react';
 
-type ServerConversationLike = {
-  conversationId: string;
-  peerDisplayName?: unknown;
-  conversationKind?: unknown;
-};
-
-type UnreadEntryLike = {
-  user?: unknown;
-};
+import type { ServerConversation, UnreadDmMap } from './useChatsInboxData';
 
 export function useConversationNavigation({
   serverConversations,
@@ -27,8 +19,8 @@ export function useConversationNavigation({
   setChannelJoinError,
   setChannelsQuery,
 }: {
-  serverConversations: ServerConversationLike[];
-  unreadDmMap: Record<string, UnreadEntryLike | undefined>;
+  serverConversations: ServerConversation[];
+  unreadDmMap: UnreadDmMap;
   peer: string | null;
   upsertDmThread: (conversationId: string, title: string, lastActivityAt: number) => void;
   setConversationId: (v: string) => void;

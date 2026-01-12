@@ -1,4 +1,5 @@
 import * as React from 'react';
+import type { AmplifyUiUser } from '../../../types/amplifyUi';
 
 export function useDmUnreadsAndPush({
   user,
@@ -16,7 +17,7 @@ export function useDmUnreadsAndPush({
   fetchUnreads,
   registerForDmPushNotifications,
 }: {
-  user: unknown;
+  user: AmplifyUiUser;
   conversationId: string;
   setConversationId: (v: string) => void;
   setPeer: (v: string | null) => void;
@@ -64,16 +65,13 @@ export function useDmUnreadsAndPush({
   // Handle taps on OS notifications to jump into the DM.
   React.useEffect(() => {
     type NotificationSubscription = { remove: () => void };
+    type ExpoNotificationsLike = {
+      addNotificationResponseReceivedListener?: (cb: (resp: unknown) => void) => NotificationSubscription;
+    };
     let sub: NotificationSubscription | null = null;
     try {
-      const NotificationsModule = require('expo-notifications') as unknown;
-      const addListener =
-        typeof NotificationsModule === 'object' &&
-        NotificationsModule != null &&
-        'addNotificationResponseReceivedListener' in NotificationsModule &&
-        typeof (NotificationsModule as Record<string, unknown>).addNotificationResponseReceivedListener === 'function'
-          ? ((NotificationsModule as Record<string, unknown>).addNotificationResponseReceivedListener as (cb: (resp: unknown) => void) => NotificationSubscription)
-          : null;
+      const NotificationsModule = require('expo-notifications') as ExpoNotificationsLike;
+      const addListener = NotificationsModule?.addNotificationResponseReceivedListener ?? null;
       if (!addListener) return;
       sub = addListener((resp: unknown) => {
         const rec = typeof resp === 'object' && resp != null ? (resp as Record<string, unknown>) : {};

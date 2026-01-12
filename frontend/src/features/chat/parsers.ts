@@ -31,7 +31,8 @@ export const normalizeReactions = (raw: unknown): ReactionMap | undefined => {
     if (!emoji) continue;
     const rec = info && typeof info === 'object' ? (info as Record<string, unknown>) : null;
     const count = Number(rec?.count);
-    const subs = Array.isArray(rec?.userSubs) ? (rec?.userSubs as unknown[]).map(String).filter(Boolean) : [];
+    const subsRaw: unknown[] = Array.isArray(rec?.userSubs) ? rec.userSubs : [];
+    const subs = subsRaw.map(String).filter(Boolean);
     const safeCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : subs.length;
     if (safeCount <= 0 && subs.length === 0) continue;
     out[String(emoji)] = { count: safeCount, userSubs: subs };
@@ -41,9 +42,9 @@ export const normalizeReactions = (raw: unknown): ReactionMap | undefined => {
 
 export const normalizeChatMediaList = (raw: ChatEnvelope['media']): MediaItem[] => {
   if (!raw) return [];
-  const arr = Array.isArray(raw) ? raw : [raw];
+  const arr: unknown[] = Array.isArray(raw) ? raw : [raw];
   const out: MediaItem[] = [];
-  for (const m of arr as unknown[]) {
+  for (const m of arr) {
     if (!m || typeof m !== 'object') continue;
     const rec = m as Record<string, unknown>;
     if (typeof rec.path !== 'string') continue;
@@ -82,7 +83,8 @@ export const parseDmMediaEnvelope = (raw: string): DmMediaEnvelope | null => {
     if (rec.type === 'dm_media_v2' && rec.v === 2) {
       const items = rec.items;
       if (!Array.isArray(items) || items.length === 0) return null;
-      for (const it of items as unknown[]) {
+      const itemsArr: unknown[] = items;
+      for (const it of itemsArr) {
         if (!it || typeof it !== 'object') return null;
         const itRec = it as Record<string, unknown>;
         const media = itRec.media;
@@ -130,7 +132,8 @@ export const parseGroupMediaEnvelope = (raw: string): GroupMediaEnvelope | null 
     if (rec.type === 'gdm_media_v2' && rec.v === 2) {
       const items = rec.items;
       if (!Array.isArray(items) || items.length === 0) return null;
-      for (const it of items as unknown[]) {
+      const itemsArr: unknown[] = items;
+      for (const it of itemsArr) {
         if (!it || typeof it !== 'object') return null;
         const itRec = it as Record<string, unknown>;
         const media = itRec.media;

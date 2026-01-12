@@ -5,7 +5,7 @@ import type { ChatMessage } from './types';
 export function useAiSummary(opts: {
   apiUrl: string | null | undefined;
   activeConversationId: string;
-  peer: unknown;
+  peer: string | null | undefined;
   messages: ChatMessage[];
   fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
   showAlert: (title: string, body: string) => void;

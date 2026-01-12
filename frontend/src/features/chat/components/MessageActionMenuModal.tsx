@@ -139,7 +139,7 @@ export function MessageActionMenuModal({
               type VisualViewportLike = { width?: number; height?: number };
               const vv =
                 Platform.OS === 'web' && typeof window !== 'undefined' && 'visualViewport' in window
-                  ? ((window as unknown as { visualViewport?: VisualViewportLike }).visualViewport ?? null)
+                  ? ((window as { visualViewport?: VisualViewportLike }).visualViewport ?? null)
                   : null;
               // On web, prefer the *visual viewport* (handles mobile browser toolbars/URL bar correctly).
               const w = (vv && typeof vv.width === 'number' ? vv.width : null) ?? Dimensions.get('window').width;

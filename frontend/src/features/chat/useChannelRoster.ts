@@ -97,7 +97,7 @@ export function useChannelRoster(opts: {
     const hasPassword = typeof ch.hasPassword === 'boolean' ? ch.hasPassword : undefined;
     const aboutText = typeof ch.aboutText === 'string' ? String(ch.aboutText) : '';
     const aboutVersion = typeof ch.aboutVersion === 'number' && Number.isFinite(ch.aboutVersion) ? ch.aboutVersion : 0;
-    const membersRaw: unknown[] = Array.isArray(data.members) ? (data.members as unknown[]) : [];
+    const membersRaw: unknown[] = Array.isArray(data.members) ? data.members : [];
     const members: ChannelMember[] = membersRaw
       .map((m) => {
         const rec = isRecord(m) ? m : {};

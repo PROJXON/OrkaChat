@@ -18,17 +18,18 @@ import { FullscreenVideo } from './FullscreenVideo';
 import { isWebCoarsePointer } from '../../utils/responsive';
 import type { MediaKind } from '../../types/media';
 
-type ViewerItem = { url: string; kind: MediaKind; fileName?: string };
+export type MediaViewerGlobalItem = { url: string; kind: MediaKind; fileName?: string };
+export type MediaViewerEncryptedItem = { media: { path?: string; kind?: MediaKind; fileName?: string } };
 
 export type MediaViewerState = null | {
   mode: 'global' | 'dm' | 'gdm';
   index: number;
-  globalItems?: ViewerItem[];
-  dmItems?: Array<{ media: { path?: string; kind?: MediaKind; fileName?: string } }>;
-  gdmItems?: Array<{ media: { path?: string; kind?: MediaKind; fileName?: string } }>;
+  globalItems?: MediaViewerGlobalItem[];
+  dmItems?: MediaViewerEncryptedItem[];
+  gdmItems?: MediaViewerEncryptedItem[];
 };
 
-export function MediaViewerModal({
+export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>({
   open,
   viewerState,
   setViewerState,
@@ -38,8 +39,8 @@ export function MediaViewerModal({
   saving,
 }: {
   open: boolean;
-  viewerState: MediaViewerState;
-  setViewerState: React.Dispatch<React.SetStateAction<MediaViewerState>>;
+  viewerState: S;
+  setViewerState: React.Dispatch<React.SetStateAction<S>>;
   dmFileUriByPath?: Record<string, string>;
   onClose: () => void;
   onSave?: () => void | Promise<void>;
@@ -54,7 +55,7 @@ export function MediaViewerModal({
   const isTouchWeb = Platform.OS === 'web' && isWebCoarsePointer();
 
   const getItemAt = React.useCallback(
-    (vs: MediaViewerState, i: number): ViewerItem | null => {
+    (vs: S, i: number): MediaViewerGlobalItem | null => {
       if (!vs) return null;
       if (vs.mode === 'global') return vs.globalItems?.[i] ?? null;
       if (vs.mode === 'dm') {
@@ -80,7 +81,7 @@ export function MediaViewerModal({
     [dmFileUriByPath],
   );
 
-  const getCount = React.useCallback((vs: MediaViewerState) => {
+  const getCount = React.useCallback((vs: S) => {
     if (!vs) return 0;
     return vs.mode === 'global'
       ? (vs.globalItems?.length ?? 0)
@@ -375,7 +376,7 @@ export function MediaViewerModal({
                   style={{ width: pageW, height: pageH }}
                 >
                   {Array.from({ length: count }).map((_, i) => {
-                    const item: ViewerItem | null = getItemAt(vs, i);
+                    const item: MediaViewerGlobalItem | null = getItemAt(vs, i);
 
                     const url = item?.url || '';
                     const kind = item?.kind;

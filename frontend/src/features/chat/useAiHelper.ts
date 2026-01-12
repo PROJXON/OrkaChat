@@ -35,7 +35,7 @@ function parseAiHelperTurn(v: unknown): AiHelperTurn | null {
 export function useAiHelper(opts: {
   apiUrl: string | null | undefined;
   activeConversationId: string;
-  peer: unknown;
+  peer: string | null | undefined;
   messages: ChatMessage[];
   isDm: boolean;
   mediaUrlByPath: Record<string, string>;

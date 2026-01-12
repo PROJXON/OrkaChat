@@ -1,25 +1,10 @@
 import * as React from 'react';
 import type { ChatMessage, DmMediaEnvelopeV1 } from './types';
-
-type DmViewerState = {
-  mode: 'dm';
-  index: number;
-  dmMsg?: ChatMessage;
-  dmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-};
-
-type GroupViewerState = {
-  mode: 'gdm';
-  index: number;
-  gdmMsg?: ChatMessage;
-  gdmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-};
-
-type ViewerStateLike = { mode: 'global' } | DmViewerState | GroupViewerState;
+import type { ChatMediaViewerState } from './viewerTypes';
 
 export function useLazyDecryptDmViewerPages(opts: {
   viewerOpen: boolean;
-  viewerState: ViewerStateLike | null | undefined;
+  viewerState: ChatMediaViewerState | null | undefined;
   dmFileUriByPath: Record<string, string>;
   inFlightRef: React.MutableRefObject<Set<string>>;
   decryptDmFileToCacheUri: (msg: ChatMessage, it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }) => Promise<string>;
@@ -57,7 +42,7 @@ export function useLazyDecryptDmViewerPages(opts: {
 
 export function useLazyDecryptGroupViewerPages(opts: {
   viewerOpen: boolean;
-  viewerState: ViewerStateLike | null | undefined;
+  viewerState: ChatMediaViewerState | null | undefined;
   dmFileUriByPath: Record<string, string>;
   inFlightRef: React.MutableRefObject<Set<string>>;
   decryptGroupFileToCacheUri: (msg: ChatMessage, it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }) => Promise<string>;

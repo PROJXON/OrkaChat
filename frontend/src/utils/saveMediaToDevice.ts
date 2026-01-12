@@ -20,9 +20,9 @@ function getErrorMessage(err: unknown): string {
 }
 
 type ExpoFileSystemLike = {
-  Paths?: { cache?: unknown; document?: unknown };
+  Paths?: { cache?: string; document?: string };
   File?: {
-    new (root: unknown, name: string): {
+    new (root: string, name: string): {
       uri: string;
       write?: (data: string, opts: { encoding: 'base64' }) => Promise<void>;
       downloadFileAsync?: (url: string) => Promise<void>;
@@ -71,7 +71,7 @@ export async function saveMediaUrlToDevice({
       if (!isBase64) throw new Error('Unsupported data URI encoding');
 
       const fsMod: unknown = require('expo-file-system');
-      const fs = (isRecord(fsMod) ? (fsMod as ExpoFileSystemLike) : {}) as ExpoFileSystemLike;
+      const fs: ExpoFileSystemLike = isRecord(fsMod) ? (fsMod as ExpoFileSystemLike) : {};
       const root = fs.Paths?.cache ?? fs.Paths?.document;
       if (!root) throw new Error('No writable cache directory');
       const File = fs.File;
@@ -93,7 +93,7 @@ export async function saveMediaUrlToDevice({
 
     // Modern Expo FileSystem API (SDK 54+).
     const fsMod: unknown = require('expo-file-system');
-    const fs = (isRecord(fsMod) ? (fsMod as ExpoFileSystemLike) : {}) as ExpoFileSystemLike;
+    const fs: ExpoFileSystemLike = isRecord(fsMod) ? (fsMod as ExpoFileSystemLike) : {};
     const root = fs.Paths?.cache ?? fs.Paths?.document;
     if (!root) throw new Error('No writable cache directory');
     const File = fs.File;

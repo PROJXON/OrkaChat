@@ -127,7 +127,7 @@ const LinkedConfirmResetPasswordFormFields = ({
     return (
       <React.Fragment key={name}>
         <FieldComp
-          {...(field as unknown as React.ComponentProps<typeof TextField>)}
+          {...(field as React.ComponentProps<typeof TextField>)}
           {...(valueProp || {})}
           disabled={isPending}
           error={hasError}
@@ -216,7 +216,7 @@ const LinkedSignUpFormFields = ({
     return (
       <React.Fragment key={name}>
         <FieldComp
-          {...(field as unknown as React.ComponentProps<typeof TextField>)}
+          {...(field as React.ComponentProps<typeof TextField>)}
           {...(valueProp || {})}
           {...(name === 'preferred_username'
             ? {
@@ -309,7 +309,7 @@ const LinkedSignInFormFields = ({
     return (
       <React.Fragment key={name}>
         <FieldComp
-          {...(field as unknown as React.ComponentProps<typeof TextField>)}
+          {...(field as React.ComponentProps<typeof TextField>)}
           {...(valueProp || {})}
           disabled={isPending}
           error={hasError}
@@ -393,7 +393,7 @@ function useWebAuthFieldValues({
         const nativeEvent =
           typeof evRec.nativeEvent === 'object' && evRec.nativeEvent != null ? (evRec.nativeEvent as Record<string, unknown>) : {};
         rec.onChange?.(event);
-        reportChange((nativeEvent.text ?? '') as unknown);
+        reportChange(nativeEvent.text ?? '');
       };
 
       const value = values[name] ?? '';

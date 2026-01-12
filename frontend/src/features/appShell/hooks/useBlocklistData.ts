@@ -55,7 +55,7 @@ export function useBlocklistData({
       if (!res.ok) return;
       const json: unknown = await res.json().catch(() => null);
       const rec = typeof json === 'object' && json != null ? (json as Record<string, unknown>) : {};
-      const arr: unknown[] = Array.isArray(rec.blocked) ? (rec.blocked as unknown[]) : [];
+      const arr: unknown[] = Array.isArray(rec.blocked) ? rec.blocked : [];
       const parsed: BlockedUser[] = arr
         .map((it) => {
           const itRec = typeof it === 'object' && it != null ? (it as Record<string, unknown>) : {};

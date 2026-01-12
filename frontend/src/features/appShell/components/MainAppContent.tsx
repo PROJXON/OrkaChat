@@ -58,6 +58,7 @@ import {
 } from '../../../utils/crypto';
 import { useUiPrompt } from '../../../providers/UiPromptProvider';
 import { getAppThemeColors } from '../../../theme/colors';
+import type { AmplifyUiUser } from '../../../types/amplifyUi';
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'unknown error';
@@ -72,10 +73,9 @@ function getErrorMessage(err: unknown): string {
   }
 }
 
-function getUsernameFromAuthenticatorUser(user: unknown): string | undefined {
+function getUsernameFromAuthenticatorUser(user: AmplifyUiUser): string | undefined {
   if (!user || typeof user !== 'object') return undefined;
-  const rec = user as Record<string, unknown>;
-  const u = rec.username;
+  const u = 'username' in user ? (user as { username?: unknown }).username : undefined;
   return typeof u === 'string' && u.trim() ? u.trim() : undefined;
 }
 
@@ -140,7 +140,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
   const { promptPassphrase, closePrompt, setProcessing, modalProps: passphraseModalProps } = usePassphrasePrompt({
     uiPromptOpen,
     promptConfirm,
-    promptChoice3: promptChoice3 as unknown as (...args: unknown[]) => Promise<unknown>,
+    promptChoice3: promptChoice3 as (...args: unknown[]) => Promise<unknown>,
   });
 
   const { deleteMyAccount } = useDeleteAccountFlow({
@@ -196,7 +196,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     promptAlert,
   });
 
-  const currentUsername = displayName.length ? displayName : getUsernameFromAuthenticatorUser(user as unknown) || 'anon';
+  const currentUsername = displayName.length ? displayName : getUsernameFromAuthenticatorUser(user) || 'anon';
 
   const [conversationId, setConversationId] = useState<string>('global');
   const [peer, setPeer] = useState<string | null>(null);

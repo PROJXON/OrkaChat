@@ -9,18 +9,32 @@ export type PendingMediaItem = PendingUploadMedia & {
   source?: 'camera' | 'library' | 'file';
 };
 
-export function pendingMediaFromImagePickerAssets(assets: unknown[]): PendingMediaItem[] {
+export type ImagePickerAssetLike = {
+  uri: string;
+  type?: 'image' | 'video' | string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  mimeType?: string | null;
+};
+
+export type DocumentPickerAssetLike = {
+  uri: string;
+  name?: string | null;
+  size?: number | null;
+  mimeType?: string | null;
+};
+
+export function pendingMediaFromImagePickerAssets(assets: ReadonlyArray<ImagePickerAssetLike>): PendingMediaItem[] {
   const arr = Array.isArray(assets) ? assets : [];
   return arr
     .map((a): PendingMediaItem | null => {
-      const rec = typeof a === 'object' && a != null ? (a as Record<string, unknown>) : {};
-      const uri = typeof rec.uri === 'string' ? rec.uri : '';
+      const uri = typeof a?.uri === 'string' ? a.uri : '';
       if (!uri) return null;
-      const type = typeof rec.type === 'string' ? rec.type : String(rec.type ?? '');
+      const type = typeof a?.type === 'string' ? a.type : String(a?.type ?? '');
       const kind: MediaKind = type === 'video' ? 'video' : type === 'image' ? 'image' : 'file';
-      const fileName = typeof rec.fileName === 'string' ? rec.fileName : undefined;
-      const size = typeof rec.fileSize === 'number' ? rec.fileSize : undefined;
-      const mimeType = typeof rec.mimeType === 'string' ? rec.mimeType : undefined;
+      const fileName = typeof a?.fileName === 'string' ? a.fileName : undefined;
+      const size = typeof a?.fileSize === 'number' ? a.fileSize : undefined;
+      const mimeType = typeof a?.mimeType === 'string' ? a.mimeType : undefined;
       const contentType = mimeType ?? guessContentTypeFromName(fileName);
       return {
         uri,
@@ -35,15 +49,14 @@ export function pendingMediaFromImagePickerAssets(assets: unknown[]): PendingMed
     .filter((it): it is PendingMediaItem => !!it);
 }
 
-export function pendingMediaFromDocumentPickerAssets(assets: unknown[]): PendingMediaItem[] {
+export function pendingMediaFromDocumentPickerAssets(assets: ReadonlyArray<DocumentPickerAssetLike>): PendingMediaItem[] {
   const arr = Array.isArray(assets) ? assets : [];
   return arr
     .map((a): PendingMediaItem | null => {
-      const rec = typeof a === 'object' && a != null ? (a as Record<string, unknown>) : {};
-      const uri = typeof rec.uri === 'string' ? rec.uri : '';
+      const uri = typeof a?.uri === 'string' ? a.uri : '';
       if (!uri) return null;
-      const fileName = typeof rec.name === 'string' ? rec.name : undefined;
-      const mimeType = typeof rec.mimeType === 'string' ? rec.mimeType : undefined;
+      const fileName = typeof a?.name === 'string' ? a.name : undefined;
+      const mimeType = typeof a?.mimeType === 'string' ? a.mimeType : undefined;
       const contentType = mimeType ?? guessContentTypeFromName(fileName);
       return {
         uri,
@@ -52,7 +65,7 @@ export function pendingMediaFromDocumentPickerAssets(assets: unknown[]): Pending
         fileName,
         displayName: fileName,
         source: 'file' as const,
-        size: typeof rec.size === 'number' ? rec.size : undefined,
+        size: typeof a?.size === 'number' ? a.size : undefined,
       } satisfies PendingMediaItem;
     })
     .filter((it): it is PendingMediaItem => !!it);

@@ -50,7 +50,14 @@ export function useChatDecryptors(opts: {
         typeof rec.senderPublicKey === 'string' &&
         (typeof rec.recipientPublicKey === 'undefined' || typeof rec.recipientPublicKey === 'string')
       ) {
-        return rec as unknown as EncryptedChatPayloadV1;
+        return {
+          v: 1,
+          alg: 'secp256k1-ecdh+aes-256-gcm',
+          iv: rec.iv,
+          ciphertext: rec.ciphertext,
+          senderPublicKey: rec.senderPublicKey,
+          recipientPublicKey: typeof rec.recipientPublicKey === 'string' ? rec.recipientPublicKey : undefined,
+        };
       }
       return null;
     } catch {
@@ -80,7 +87,14 @@ export function useChatDecryptors(opts: {
         rec.wraps &&
         typeof rec.wraps === 'object'
       ) {
-        return rec as unknown as EncryptedGroupPayloadV1;
+        return {
+          type: 'gdm_v1',
+          v: 1,
+          alg: 'aes-256-gcm+wraps-v1',
+          iv: rec.iv,
+          ciphertext: rec.ciphertext,
+          wraps: rec.wraps as EncryptedGroupPayloadV1['wraps'],
+        };
       }
       return null;
     } catch {

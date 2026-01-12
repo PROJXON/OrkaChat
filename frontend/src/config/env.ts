@@ -9,7 +9,7 @@ type Extra = {
 
 // Support both new expoConfig.extra and legacy manifest extra
 type LegacyConstantsWithManifestExtra = { manifestExtra?: unknown };
-const legacy = Constants as unknown as LegacyConstantsWithManifestExtra;
+const legacy = Constants as LegacyConstantsWithManifestExtra;
 const extra = (Constants.expoConfig?.extra ?? legacy.manifestExtra ?? {}) as Extra;
 
 export const WS_URL: string = extra.WS_URL || '';

@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import type { BackupBlob } from '../../../types/crypto';
+import type { AmplifyUiUser } from '../../../types/amplifyUi';
 
 type KeyPair = { privateKey: string; publicKey: string } | null;
 
@@ -42,12 +43,12 @@ export function useSignedInBootstrap({
   // Ui prompts
   promptAlert,
 }: {
-  user: unknown;
+  user: AmplifyUiUser;
   apiUrl: string;
 
   fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
   fetchUserAttributes: () => Promise<Record<string, unknown>>;
-  getUsernameFromAuthenticatorUser: (u: unknown) => string | undefined;
+  getUsernameFromAuthenticatorUser: (u: AmplifyUiUser) => string | undefined;
 
   setForegroundNotificationPolicy: () => Promise<void>;
   setHasRecoveryBlob: (v: boolean) => void;
@@ -89,12 +90,14 @@ export function useSignedInBootstrap({
         setProcessing(false);
 
         const attrs = await fetchUserAttributes();
+        const preferredUsername = typeof attrs.preferred_username === 'string' ? attrs.preferred_username : undefined;
+        const email = typeof attrs.email === 'string' ? attrs.email : undefined;
         const name =
-          (attrs.preferred_username as string | undefined) ||
-          (attrs.email as string | undefined) ||
-          getUsernameFromAuthenticatorUser(user as unknown) ||
+          preferredUsername ||
+          email ||
+          getUsernameFromAuthenticatorUser(user) ||
           'anon';
-        const userId = attrs.sub as string;
+        const userId = typeof attrs.sub === 'string' ? attrs.sub : String(attrs.sub || '');
         if (mounted) setMyUserSub(userId);
         if (mounted) setDisplayName(name);
 
@@ -242,7 +245,7 @@ export function useSignedInBootstrap({
           }
         }
       } catch {
-        if (mounted) setDisplayName(getUsernameFromAuthenticatorUser(user as unknown) || 'anon');
+        if (mounted) setDisplayName(getUsernameFromAuthenticatorUser(user) || 'anon');
       }
     })();
 

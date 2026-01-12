@@ -1,5 +1,5 @@
 import * as React from 'react';
-import type { PendingMediaItem } from './attachments';
+import type { ImagePickerAssetLike, PendingMediaItem } from './attachments';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object';
@@ -11,9 +11,9 @@ function isRecord(v: unknown): v is Record<string, unknown> {
  */
 export function useRecoverPendingImagePicker(opts: {
   /** Change this when attachment mode changes so we re-check. */
-  trigger: unknown;
+  trigger: string | number | boolean | null | undefined;
   getPendingResultAsync: () => Promise<unknown>;
-  pendingMediaFromImagePickerAssets: (assets: unknown[]) => PendingMediaItem[];
+  pendingMediaFromImagePickerAssets: (assets: ReadonlyArray<ImagePickerAssetLike>) => PendingMediaItem[];
   mergeRecoveredPickerItems: (items: PendingMediaItem[]) => void;
 }): void {
   const { trigger, getPendingResultAsync, pendingMediaFromImagePickerAssets, mergeRecoveredPickerItems } = opts;
@@ -26,7 +26,7 @@ export function useRecoverPendingImagePicker(opts: {
         if (cancelled) return;
         const pending = isRecord(pendingRaw) ? pendingRaw : {};
         if (pending.canceled === true) return;
-        const assets = Array.isArray(pending.assets) ? (pending.assets as unknown[]) : [];
+        const assets = Array.isArray(pending.assets) ? (pending.assets as ImagePickerAssetLike[]) : [];
         if (!assets.length) return;
         const items = pendingMediaFromImagePickerAssets(assets);
         if (!items.length) return;

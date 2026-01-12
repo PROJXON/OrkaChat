@@ -3,6 +3,15 @@ import { Image } from 'react-native';
 import type { ChatMessage, DmMediaEnvelopeV1 } from './types';
 import { defaultFileExtensionForContentType } from '../../utils/mediaKinds';
 
+type ExpoFileLike = {
+  write?: (b: Uint8Array) => Promise<void>;
+  uri?: string;
+};
+type ExpoFileSystemLike = {
+  Paths?: { cache?: string; document?: string };
+  File?: new (a: string, b?: string) => ExpoFileLike;
+};
+
 export function useChatMediaDecryptCache(opts: {
   aesGcmDecryptBytes: (key: Uint8Array, iv: string, ciphertext: string) => Uint8Array;
   hexToBytes: (hex: string) => Uint8Array;
@@ -123,20 +132,15 @@ export function useChatMediaDecryptCache(opts: {
       const ct = it.media.contentType || 'application/octet-stream';
       const ext = defaultFileExtensionForContentType(ct);
       const fileNameSafe = (it.media.fileName || `dm-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_');
-      const fsMod = require('expo-file-system') as unknown;
-      const fsRec = typeof fsMod === 'object' && fsMod != null ? (fsMod as Record<string, unknown>) : {};
-      const Paths = fsRec.Paths as unknown;
-      const File = fsRec.File as unknown;
-      const pathsRec = typeof Paths === 'object' && Paths != null ? (Paths as Record<string, unknown>) : {};
-      const root = (typeof pathsRec.cache === 'string' ? pathsRec.cache : undefined) || (typeof pathsRec.document === 'string' ? pathsRec.document : undefined);
+      const fs = require('expo-file-system') as ExpoFileSystemLike;
+      const root = fs.Paths?.cache || fs.Paths?.document;
       if (!root) throw new Error('No writable cache directory');
-      if (!File) throw new Error('File API not available');
-      const outFile = new (File as new (dir: string, name: string) => unknown)(root, `dm-${fileNameSafe}.${ext}`);
-      const outRec = typeof outFile === 'object' && outFile != null ? (outFile as Record<string, unknown>) : {};
-      if (typeof outRec.write !== 'function') throw new Error('File write API not available');
-      await (outRec.write as (b: Uint8Array) => Promise<unknown>)(plainBytes);
+      if (!fs.File) throw new Error('File API not available');
+      const outFile = new fs.File(root, `dm-${fileNameSafe}.${ext}`);
+      if (typeof outFile.write !== 'function') throw new Error('File write API not available');
+      await outFile.write(plainBytes);
 
-      const uri = typeof outRec.uri === 'string' ? outRec.uri : '';
+      const uri = typeof outFile.uri === 'string' ? outFile.uri : '';
       if (!uri) throw new Error('File write produced no URI');
       setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
       return uri;
@@ -236,20 +240,15 @@ export function useChatMediaDecryptCache(opts: {
       const ct = it.media.contentType || 'application/octet-stream';
       const ext = defaultFileExtensionForContentType(ct);
       const fileNameSafe = (it.media.fileName || `gdm-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_');
-      const fsMod = require('expo-file-system') as unknown;
-      const fsRec = typeof fsMod === 'object' && fsMod != null ? (fsMod as Record<string, unknown>) : {};
-      const Paths = fsRec.Paths as unknown;
-      const File = fsRec.File as unknown;
-      const pathsRec = typeof Paths === 'object' && Paths != null ? (Paths as Record<string, unknown>) : {};
-      const root = (typeof pathsRec.cache === 'string' ? pathsRec.cache : undefined) || (typeof pathsRec.document === 'string' ? pathsRec.document : undefined);
+      const fs = require('expo-file-system') as ExpoFileSystemLike;
+      const root = fs.Paths?.cache || fs.Paths?.document;
       if (!root) throw new Error('No writable cache directory');
-      if (!File) throw new Error('File API not available');
-      const outFile = new (File as new (dir: string, name: string) => unknown)(root, `gdm-${fileNameSafe}.${ext}`);
-      const outRec = typeof outFile === 'object' && outFile != null ? (outFile as Record<string, unknown>) : {};
-      if (typeof outRec.write !== 'function') throw new Error('File write API not available');
-      await (outRec.write as (b: Uint8Array) => Promise<unknown>)(plainBytes);
+      if (!fs.File) throw new Error('File API not available');
+      const outFile = new fs.File(root, `gdm-${fileNameSafe}.${ext}`);
+      if (typeof outFile.write !== 'function') throw new Error('File write API not available');
+      await outFile.write(plainBytes);
 
-      const uri = typeof outRec.uri === 'string' ? outRec.uri : '';
+      const uri = typeof outFile.uri === 'string' ? outFile.uri : '';
       if (!uri) throw new Error('File write produced no URI');
       setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
       return uri;

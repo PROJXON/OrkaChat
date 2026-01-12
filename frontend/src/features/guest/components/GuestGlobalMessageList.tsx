@@ -72,7 +72,7 @@ export function GuestGlobalMessageList({
     if (!isWeb) return {};
     if (!webWheelRefresh?.onWheel) return {};
     // RN-web supports onWheel, but RN's View typings may not include it.
-    return { onWheel: webWheelRefresh.onWheel } as unknown as React.ComponentProps<typeof View>;
+    return { onWheel: webWheelRefresh.onWheel } as React.ComponentProps<typeof View>;
   }, [isWeb, webWheelRefresh]);
   return (
     <>

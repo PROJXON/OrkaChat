@@ -91,7 +91,7 @@ export function MainAppBackgroundModal({
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'] as unknown as never,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [9, 16],
         quality: 0.9,

@@ -21,7 +21,8 @@ export function normalizeGuestReactions(raw: unknown): ReactionMap | undefined {
   for (const [emoji, info] of Object.entries(obj)) {
     const rec = info && typeof info === 'object' ? (info as Record<string, unknown>) : null;
     const count = Number(rec?.count);
-    const subs = Array.isArray(rec?.userSubs) ? (rec?.userSubs as unknown[]).map(String).filter(Boolean) : [];
+    const subsRaw: unknown[] = Array.isArray(rec?.userSubs) ? rec.userSubs : [];
+    const subs = subsRaw.map(String).filter(Boolean);
     const safeCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : subs.length;
     if (safeCount <= 0 && subs.length === 0) continue;
     out[String(emoji)] = { count: safeCount, userSubs: subs };
@@ -31,9 +32,9 @@ export function normalizeGuestReactions(raw: unknown): ReactionMap | undefined {
 
 export function normalizeGuestMediaList(raw: GuestChatEnvelope['media']): MediaItem[] {
   if (!raw) return [];
-  const arr = Array.isArray(raw) ? raw : [raw];
+  const arr: unknown[] = Array.isArray(raw) ? raw : [raw];
   const out: MediaItem[] = [];
-  for (const m of arr as unknown[]) {
+  for (const m of arr) {
     if (!m || typeof m !== 'object') continue;
     const rec = m as Record<string, unknown>;
     if (typeof rec.path !== 'string') continue;

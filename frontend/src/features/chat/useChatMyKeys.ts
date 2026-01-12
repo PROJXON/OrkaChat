@@ -1,9 +1,10 @@
 import * as React from 'react';
 import { fetchUserAttributes } from 'aws-amplify/auth';
 import { derivePublicKey, loadKeyPair } from '../../utils/crypto';
+import type { AmplifyUiUser } from '../../types/amplifyUi';
 
 export function useChatMyKeys(opts: {
-  user: unknown;
+  user: AmplifyUiUser;
   keyEpoch?: number;
 }): {
   myUserId: string | null;
@@ -25,7 +26,7 @@ export function useChatMyKeys(opts: {
     (async () => {
       try {
         const attrs = await fetchUserAttributes();
-        const sub = attrs.sub as string | undefined;
+        const sub = typeof attrs.sub === 'string' ? attrs.sub : undefined;
         if (sub) {
           setMyUserId(sub);
           await refreshMyKeys(sub);

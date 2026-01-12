@@ -177,7 +177,7 @@ export function MainAppAvatarModal({
                   }
                   const result = await ImagePicker.launchImageLibraryAsync({
                     // Avoid deprecated MediaTypeOptions while staying compatible with older typings.
-                    mediaTypes: ['images'] as unknown as never,
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
                     allowsEditing: true, // built-in crop UI w/ zoom
                     aspect: [1, 1],
                     quality: 0.9,

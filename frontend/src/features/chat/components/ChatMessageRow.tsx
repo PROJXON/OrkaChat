@@ -1,5 +1,6 @@
 import React from 'react';
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import type { GestureResponderEvent } from 'react-native';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AvatarBubble } from '../../../components/AvatarBubble';
 import { RichText } from '../../../components/RichText';
@@ -81,7 +82,7 @@ export function ChatMessageRow(props: {
   // Navigation / actions
   requestOpenLink: (url: string) => void;
   onPressMessage: (m: ChatMessage) => void;
-  onLongPressMessage: (e: unknown) => void;
+  onLongPressMessage: (e: GestureResponderEvent) => void;
   latestOutgoingMessageId: string | null;
   retryFailedMessage: (m: ChatMessage) => void;
 
@@ -151,7 +152,7 @@ export function ChatMessageRow(props: {
       }}
       onLongPress={(e) => {
         if (isDeleted) return;
-        onLongPressMessage(e as unknown);
+        onLongPressMessage(e);
       }}
     >
       <View style={[styles.messageRow, isOutgoing ? styles.messageRowOutgoing : styles.messageRowIncoming]}>

@@ -1,5 +1,6 @@
 import * as React from 'react';
 import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope, GroupMediaEnvelopeV1 } from './types';
+import type { ChatMediaViewerState } from './viewerTypes';
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
@@ -14,23 +15,13 @@ function getErrorMessage(err: unknown): string {
   }
 }
 
-type ViewerState = {
-  mode: 'dm' | 'gdm';
-  title?: string;
-  index: number;
-  dmMsg?: ChatMessage;
-  dmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-  gdmMsg?: ChatMessage;
-  gdmItems?: Array<{ media: GroupMediaEnvelopeV1['media']; wrap: GroupMediaEnvelopeV1['wrap'] }>;
-};
-
 type DmMediaItem = { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] };
 type GroupMediaItem = { media: GroupMediaEnvelopeV1['media']; wrap: GroupMediaEnvelopeV1['wrap'] };
 
 export function useChatEncryptedMediaViewer(opts: {
   isDm: boolean;
   isGroup: boolean;
-  viewer: { setState: (next: ViewerState) => void; setOpen: (next: boolean) => void };
+  viewer: { setState: (next: NonNullable<ChatMediaViewerState>) => void; setOpen: (next: boolean) => void };
   showAlert: (title: string, message: string) => void;
   parseDmMediaEnvelope: (raw: string) => DmMediaEnvelope | null;
   parseGroupMediaEnvelope: (raw: string) => GroupMediaEnvelope | null;

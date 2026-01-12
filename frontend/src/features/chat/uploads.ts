@@ -49,18 +49,45 @@ export function assertWithinAttachmentHardLimit(kind: MediaKind, sizeBytes: numb
   }
 }
 
+type BlobLike = { arrayBuffer?: () => Promise<ArrayBuffer> };
+type FetchResponseLike = { arrayBuffer?: () => Promise<ArrayBuffer>; blob?: () => Promise<BlobLike> };
+
+type ExpoFileLike = {
+  bytes?: () => Promise<Uint8Array | ArrayBuffer | ArrayBufferView | number[]>;
+  base64?: () => Promise<string>;
+  write?: (b: Uint8Array) => Promise<void>;
+  uri?: string;
+};
+type ExpoFileSystemLike = {
+  Paths?: { cache?: string; document?: string };
+  File?: new (a: string, b?: string) => ExpoFileLike;
+};
+
+type ExpoImageManipulatorLike = {
+  manipulateAsync?: (
+    uri: string,
+    actions: Array<{ resize?: { width?: number; height?: number } }>,
+    opts: { compress: number; format: string },
+  ) => Promise<{ uri?: string }>;
+  SaveFormat?: { WEBP?: string };
+};
+
+type ExpoVideoThumbnailsLike = {
+  getThumbnailAsync?: (uri: string, opts: { time: number; quality: number }) => Promise<{ uri?: string }>;
+};
+
 export async function readUriBytes(uri: string): Promise<Uint8Array> {
   // Prefer fetch(...).arrayBuffer() (works for http(s) and often for file://),
   // fallback to FileSystem Base64 read for cases where Blob/arrayBuffer is missing.
   try {
     const resp = await fetch(uri);
-    const respLike = resp as unknown as { arrayBuffer?: () => Promise<ArrayBuffer>; blob?: () => Promise<unknown> };
+    const respLike = resp as FetchResponseLike;
     if (respLike && typeof respLike.arrayBuffer === 'function') {
       return new Uint8Array(await respLike.arrayBuffer());
     }
     if (respLike && typeof respLike.blob === 'function') {
       const b = await respLike.blob();
-      const blobLike = b as unknown as { arrayBuffer?: () => Promise<ArrayBuffer> };
+      const blobLike = b as BlobLike;
       if (blobLike && typeof blobLike.arrayBuffer === 'function') {
         return new Uint8Array(await blobLike.arrayBuffer());
       }
@@ -69,14 +96,11 @@ export async function readUriBytes(uri: string): Promise<Uint8Array> {
     // fall through
   }
 
-  const fsMod = require('expo-file-system') as unknown;
-  const fsRec = typeof fsMod === 'object' && fsMod != null ? (fsMod as Record<string, unknown>) : {};
-  const File = fsRec.File as unknown;
-  if (!File) throw new Error('File API not available');
-  const f = new (File as new (u: string) => unknown)(uri);
-  const fRec = typeof f === 'object' && f != null ? (f as Record<string, unknown>) : {};
-  if (typeof fRec.bytes === 'function') {
-    const bytes = await (fRec.bytes as () => Promise<unknown>)();
+  const fs = require('expo-file-system') as ExpoFileSystemLike;
+  if (!fs.File) throw new Error('File API not available');
+  const f = new fs.File(uri);
+  if (typeof f.bytes === 'function') {
+    const bytes = await f.bytes();
     if (bytes instanceof Uint8Array) return bytes;
     if (bytes instanceof ArrayBuffer) return new Uint8Array(bytes);
     if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(bytes)) {
@@ -86,9 +110,9 @@ export async function readUriBytes(uri: string): Promise<Uint8Array> {
     if (Array.isArray(bytes)) return new Uint8Array(bytes);
     throw new Error('File bytes returned an unsupported type');
   }
-  if (typeof fRec.base64 === 'function') {
-    const b64 = await (fRec.base64 as () => Promise<unknown>)();
-    return toByteArray(String(b64 || ''));
+  if (typeof f.base64 === 'function') {
+    const b64 = await f.base64();
+    return toByteArray(String(b64));
   }
   throw new Error('File read API not available');
 }
@@ -100,15 +124,9 @@ export async function createWebpThumbnailBytes(args: { kind: MediaKind; uri: str
   try {
     // Dynamic require keeps this module lightweight for non-upload call sites,
     // and avoids eager native module init on platforms that don't support it.
-    const ImageManipulator = require('expo-image-manipulator') as unknown;
-    const imRec = typeof ImageManipulator === 'object' && ImageManipulator != null ? (ImageManipulator as Record<string, unknown>) : {};
-    const manipulateAsync = imRec.manipulateAsync as
-      | ((u: string, actions: unknown[], opts: { compress: number; format: unknown }) => Promise<unknown>)
-      | undefined;
-    const saveFormatRec = imRec.SaveFormat as unknown;
-    const saveFormat =
-      typeof saveFormatRec === 'object' && saveFormatRec != null ? (saveFormatRec as Record<string, unknown>) : {};
-    const WEBP = saveFormat.WEBP;
+    const ImageManipulator = require('expo-image-manipulator') as ExpoImageManipulatorLike;
+    const manipulateAsync = ImageManipulator.manipulateAsync;
+    const WEBP = ImageManipulator.SaveFormat?.WEBP;
     if (typeof manipulateAsync !== 'function' || !WEBP) return null;
 
     let thumbUri: string | null = null;
@@ -118,29 +136,23 @@ export async function createWebpThumbnailBytes(args: { kind: MediaKind; uri: str
         compress: THUMB_JPEG_QUALITY,
         format: WEBP,
       });
-      const thumbRec = typeof thumb === 'object' && thumb != null ? (thumb as Record<string, unknown>) : {};
-      thumbUri = typeof thumbRec.uri === 'string' ? String(thumbRec.uri) : null;
+      thumbUri = typeof thumb?.uri === 'string' ? String(thumb.uri) : null;
     } else {
-      const VideoThumbnails = require('expo-video-thumbnails') as unknown;
-      const vtRec = typeof VideoThumbnails === 'object' && VideoThumbnails != null ? (VideoThumbnails as Record<string, unknown>) : {};
-      const getThumbnailAsync = vtRec.getThumbnailAsync as
-        | ((u: string, opts: { time: number; quality: number }) => Promise<unknown>)
-        | undefined;
+      const VideoThumbnails = require('expo-video-thumbnails') as ExpoVideoThumbnailsLike;
+      const getThumbnailAsync = VideoThumbnails.getThumbnailAsync;
       if (typeof getThumbnailAsync !== 'function') return null;
       const t = await getThumbnailAsync(uri, {
         time: 500,
         quality: THUMB_JPEG_QUALITY,
       });
-      const tRec = typeof t === 'object' && t != null ? (t as Record<string, unknown>) : {};
-      const src = typeof tRec.uri === 'string' ? String(tRec.uri) : null;
+      const src = typeof t?.uri === 'string' ? String(t.uri) : null;
       if (!src) return null;
 
       const converted = await manipulateAsync(src, [{ resize: { width: THUMB_MAX_DIM } }], {
         compress: THUMB_JPEG_QUALITY,
         format: WEBP,
       });
-      const convRec = typeof converted === 'object' && converted != null ? (converted as Record<string, unknown>) : {};
-      thumbUri = typeof convRec.uri === 'string' ? String(convRec.uri) : null;
+      thumbUri = typeof converted?.uri === 'string' ? String(converted.uri) : null;
     }
 
     if (!thumbUri) return null;

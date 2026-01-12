@@ -47,10 +47,10 @@ export function applyTitleOverridesToUnreadMap(
 // ChatScreen header title helper (pure formatting).
 export function getChatHeaderTitle(args: {
   isChannel: boolean;
-  channelName?: unknown;
-  peer?: unknown;
+  channelName?: string | null;
+  peer?: string | null;
   isGroup: boolean;
-  groupName?: unknown;
+  groupName?: string | null;
 }): string {
   const channel = normalizeTitle(args.channelName);
   const peer = normalizeTitle(args.peer);

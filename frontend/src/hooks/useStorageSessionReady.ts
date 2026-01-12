@@ -1,12 +1,17 @@
 import * as React from 'react';
+import type { AmplifyUiUser } from '../types/amplifyUi';
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === 'object';
-}
+type AuthCredentialsLike = {
+  accessKeyId?: string | null;
+};
+
+type AuthSessionLike = {
+  credentials?: AuthCredentialsLike | null;
+};
 
 export function useStorageSessionReady(opts: {
-  user: unknown;
-  fetchAuthSession: (opts?: { forceRefresh?: boolean }) => Promise<unknown>;
+  user: AmplifyUiUser;
+  fetchAuthSession: (opts?: { forceRefresh?: boolean }) => Promise<AuthSessionLike>;
   attempts?: number;
   baseDelayMs?: number;
 }): boolean {
@@ -32,8 +37,7 @@ export function useStorageSessionReady(opts: {
       for (let attempt = 0; attempt < attempts; attempt++) {
         try {
           const sess = await fetchAuthSession({ forceRefresh: attempt === 0 });
-          const creds = isRecord(sess) ? sess.credentials : null;
-          const accessKeyId = isRecord(creds) ? creds.accessKeyId : null;
+          const accessKeyId = sess?.credentials?.accessKeyId ?? null;
           if (typeof accessKeyId === 'string' && accessKeyId.trim()) {
             if (!cancelled) setReady(true);
             return;

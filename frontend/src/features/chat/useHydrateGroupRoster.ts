@@ -69,7 +69,7 @@ export function useHydrateGroupRoster(opts: {
         const me = typeof data.me === 'object' && data.me != null ? (data.me as Record<string, unknown>) : {};
         const meIsAdmin = !!me.isAdmin;
         const meStatus = typeof me.status === 'string' ? String(me.status) : 'active';
-        const membersRaw: unknown[] = Array.isArray(data.members) ? (data.members as unknown[]) : [];
+        const membersRaw: unknown[] = Array.isArray(data.members) ? data.members : [];
         const members: GroupMember[] = membersRaw
           .map((m) => {
             const rec = typeof m === 'object' && m != null ? (m as Record<string, unknown>) : {};

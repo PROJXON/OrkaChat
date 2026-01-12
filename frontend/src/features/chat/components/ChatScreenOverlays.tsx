@@ -21,9 +21,9 @@ import { TtlPickerModal } from './TtlPickerModal';
 import { InAppCameraModal } from '../../../components/InAppCameraModal';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import type { InAppCameraCapture } from '../../../components/InAppCameraModal';
-import type { MediaViewerState } from '../../../components/MediaViewerModal';
 import type { MemberRow } from '../../../types/members';
 import type { ChatMessage } from '../types';
+import type { ChatMediaViewerState } from '../viewerTypes';
 
 type UiConfirm = React.ComponentProps<typeof MessageActionMenuModal>['uiConfirm'];
 type ReportCdnMedia = React.ComponentProps<typeof ReportModal>['cdnMedia'];
@@ -110,8 +110,8 @@ type ReactionInfoController = {
 
 type ViewerController = {
   open: boolean;
-  state: MediaViewerState;
-  setState: React.Dispatch<React.SetStateAction<MediaViewerState>>;
+  state: ChatMediaViewerState;
+  setState: React.Dispatch<React.SetStateAction<ChatMediaViewerState>>;
   saving?: boolean;
   saveToDevice: () => void | Promise<void>;
   close: () => void;
@@ -254,7 +254,7 @@ export type ChatScreenOverlaysProps = {
   channelPasswordModalActions: { onSave: () => void | Promise<void>; onCancel: () => void };
 
   // Viewer
-  viewer: unknown;
+  viewer: ViewerController;
   dmFileUriByPath: Record<string, string>;
 
   // Confirm link modal (React node)
@@ -347,15 +347,6 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
     toast,
     toastAnim,
   } = props;
-
-  const viewerTyped = viewer as {
-    open: boolean;
-    state: unknown;
-    setState: unknown;
-    saving?: boolean;
-    saveToDevice: () => void | Promise<void>;
-    close: () => void;
-  };
 
   return (
     <>
@@ -680,13 +671,13 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
       />
 
       <MediaViewerModal
-        open={viewerTyped.open}
-        viewerState={viewerTyped.state as unknown as MediaViewerState}
-        setViewerState={viewerTyped.setState as unknown as React.Dispatch<React.SetStateAction<MediaViewerState>>}
+        open={viewer.open}
+        viewerState={viewer.state}
+        setViewerState={viewer.setState}
         dmFileUriByPath={dmFileUriByPath}
-        saving={viewerTyped.saving}
-        onSave={() => void viewerTyped.saveToDevice()}
-        onClose={viewerTyped.close}
+        saving={viewer.saving}
+        onSave={() => void viewer.saveToDevice()}
+        onClose={viewer.close}
       />
 
       {toast ? (

@@ -4,7 +4,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
 import type { InAppCameraCapture } from '../../components/InAppCameraModal';
-import type { PendingMediaItem } from './attachments';
+import type { DocumentPickerAssetLike, ImagePickerAssetLike, PendingMediaItem } from './attachments';
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
@@ -22,8 +22,8 @@ function getErrorMessage(err: unknown): string {
 export function useChatAttachmentPickers(opts: {
   showAlert: (title: string, message: string) => void;
   addPickedMediaItems: (items: PendingMediaItem[]) => void;
-  pendingMediaFromImagePickerAssets: (assets: unknown[]) => PendingMediaItem[];
-  pendingMediaFromDocumentPickerAssets: (assets: unknown[]) => PendingMediaItem[];
+  pendingMediaFromImagePickerAssets: (assets: ReadonlyArray<ImagePickerAssetLike>) => PendingMediaItem[];
+  pendingMediaFromDocumentPickerAssets: (assets: ReadonlyArray<DocumentPickerAssetLike>) => PendingMediaItem[];
   pendingMediaFromInAppCameraCapture: (cap: InAppCameraCapture) => PendingMediaItem;
   setCameraOpen: (open: boolean) => void;
 }): {

@@ -138,6 +138,7 @@ import { useMentions } from '../features/chat/useMentions';
 import { useChatReport } from '../features/chat/useChatReport';
 import { useReactionInfo } from '../hooks/useReactionInfo';
 import { useMediaViewer } from '../hooks/useMediaViewer';
+import type { ChatMediaViewerState } from '../features/chat/viewerTypes';
 import { useToast } from '../hooks/useToast';
 import { useOpenGlobalViewer } from '../hooks/useOpenGlobalViewer';
 import { useChatEncryptedMediaViewer } from '../features/chat/useChatEncryptedMediaViewer';
@@ -446,16 +447,7 @@ export default function ChatScreen({
     showToast(m.length > 120 ? `${m.slice(0, 120)}…` : m, 'error');
   }
 
-  const viewer = useMediaViewer<{
-    mode: 'global' | 'dm' | 'gdm';
-    title?: string;
-    index: number;
-    globalItems?: Array<{ url: string; kind: 'image' | 'video' | 'file'; fileName?: string }>;
-    dmMsg?: ChatMessage;
-    dmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-    gdmMsg?: ChatMessage;
-    gdmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-  }>({
+  const viewer = useMediaViewer<NonNullable<ChatMediaViewerState>>({
     getSaveItem: (vs) => {
       if (!vs) return null;
       if (vs.mode === 'global') return vs.globalItems?.[vs.index] ?? null;
