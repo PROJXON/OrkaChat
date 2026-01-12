@@ -1,9 +1,10 @@
 import Feather from '@expo/vector-icons/Feather';
 import * as React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AnimatedDots } from '../../../components/AnimatedDots';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { AppTextInput } from '../../../components/AppTextInput';
+import { APP_COLORS } from '../../../theme/colors';
 
 export function GuestChannelPickerModal(props: {
   open: boolean;
@@ -48,13 +49,11 @@ export function GuestChannelPickerModal(props: {
         <View style={[styles.modalCard, isDark ? styles.modalCardDark : null]}>
           <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Channels</Text>
 
-          <TextInput
+          <AppTextInput
+            isDark={isDark}
             value={query}
             onChangeText={onChangeQuery}
             placeholder="Search Channels"
-            placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-            selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-            cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             autoCapitalize="none"
             autoCorrect={false}
             style={{

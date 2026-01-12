@@ -1,9 +1,10 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import { AppTextInput } from '../../../components/AppTextInput';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { APP_COLORS } from '../../../theme/colors';
 
 export type AiHelperTurn = { role: 'user' | 'assistant'; text: string; thinking?: boolean };
 
@@ -277,13 +278,13 @@ export function AiHelperModal({
             </ScrollView>
           ) : null}
 
-          <TextInput
+          <AppTextInput
+            isDark={isDark}
             value={instruction}
             onChangeText={onChangeInstruction}
             placeholder={
               hasAnyOutput ? 'Ask a follow-up…' : 'How do you want to respond to this message?'
             }
-            placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
             style={[
               styles.helperInput,
               isDark ? styles.helperInputDark : null,

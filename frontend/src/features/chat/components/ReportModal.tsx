@@ -8,10 +8,10 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
+import { AppTextInput } from '../../../components/AppTextInput';
 import type { CdnUrlCacheApi } from '../../../hooks/useCdnUrlCache';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
@@ -501,7 +501,8 @@ export function ReportModal({
                 </View>
               )}
 
-              <TextInput
+              <AppTextInput
+                isDark={isDark}
                 value={reportDetails}
                 onChangeText={onChangeDetails}
                 placeholder="Optional note (e.g. harassment, spam, impersonation)…"

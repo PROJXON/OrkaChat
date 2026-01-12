@@ -1,8 +1,9 @@
 import React from 'react';
-import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, Text, View } from 'react-native';
 
+import { AppTextInput } from '../../../components/AppTextInput';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { APP_COLORS } from '../../../theme/colors';
 
 type Props = {
   visible: boolean;
@@ -32,13 +33,11 @@ export function ChannelPasswordModal({
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
             Channel Password
           </Text>
-          <TextInput
+          <AppTextInput
+            isDark={isDark}
             value={draft}
             onChangeText={onChangeDraft}
             placeholder="Password"
-            placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-            selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-            cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             secureTextEntry
             style={{
               width: '100%',

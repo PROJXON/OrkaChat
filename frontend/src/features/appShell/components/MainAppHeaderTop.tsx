@@ -1,9 +1,9 @@
 import React from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AppBrandIcon } from '../../../components/AppBrandIcon';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { AppTextInput } from '../../../components/AppTextInput';
 
 export function MainAppHeaderTop({
   styles,
@@ -143,17 +143,16 @@ export function MainAppHeaderTop({
           ]}
         >
           <View style={styles.searchRow}>
-            <TextInput
+            <AppTextInput
+              isDark={isDark}
               value={peerInput}
               onChangeText={(value) => {
                 setPeerInput(value);
                 setSearchError(null);
               }}
               placeholder="Enter Names"
-              placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-              selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-              cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-              style={[styles.searchInput, isDark && styles.searchInputDark]}
+              baseStyle={styles.searchInput}
+              darkStyle={styles.searchInputDark}
             />
             <Pressable
               onPress={() => void Promise.resolve(onStartDm())}

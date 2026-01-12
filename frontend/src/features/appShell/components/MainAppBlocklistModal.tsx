@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { AppTextInput } from '../../../components/AppTextInput';
+import { APP_COLORS } from '../../../theme/colors';
 
 export function MainAppBlocklistModal({
   styles,
@@ -56,19 +57,18 @@ export function MainAppBlocklistModal({
           </View>
 
           <View style={styles.blocksSearchRow}>
-            <TextInput
+            <AppTextInput
+              isDark={isDark}
               value={blockUsername}
               onChangeText={(v) => {
                 setBlockUsername(v);
                 setBlockError(null);
               }}
               placeholder="Username to block"
-              placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-              selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-              cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
               autoCapitalize="none"
               autoCorrect={false}
-              style={[styles.blocksInput, isDark ? styles.blocksInputDark : null]}
+              baseStyle={styles.blocksInput}
+              darkStyle={styles.blocksInputDark}
             />
             <Pressable
               onPress={() => void Promise.resolve(addBlockByUsername())}
