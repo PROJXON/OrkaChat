@@ -56,6 +56,10 @@ Cross‑platform chat app (iOS / Android / Web) with **end‑to‑end encrypted 
 - **Abuse limits**: DynamoDB‑backed **AI quotas**, **media upload/download limits**, and **signed URL issuance limits**
 - **AI**: Lambda endpoints with caching (TTL) + quota enforcement
 
+### Architecture diagram
+
+![OrkaChat architecture](docs/architecture.png)
+
 ## Repo layout
 
 ```
