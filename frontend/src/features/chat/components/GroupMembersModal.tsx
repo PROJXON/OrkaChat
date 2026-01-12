@@ -1,9 +1,11 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import type { TextInput } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
+import { AppTextInput } from '../../../components/AppTextInput';
 import { GroupMembersSectionList } from '../../../components/GroupMembersSectionList';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { APP_COLORS } from '../../../theme/colors';
 import type { MemberRow } from '../../../types/members';
 
 type Props = {
@@ -61,18 +63,14 @@ export function GroupMembersModal({
 
           {meIsAdmin ? (
             <View style={{ marginTop: 10 }}>
-              <TextInput
+              <AppTextInput
+                isDark={isDark}
                 ref={(r) => {
                   addMembersInputRef.current = r;
                 }}
                 value={addMembersDraft}
                 onChangeText={onChangeAddMembersDraft}
                 placeholder="Add usernames (comma/space separated)"
-                placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                selectionColor={
-                  isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
-                }
-                cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 // Use a fully explicit style here (avoid theme/style collisions in Android modals).
                 style={{
                   width: '100%',

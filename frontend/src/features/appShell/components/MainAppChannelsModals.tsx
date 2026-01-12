@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { AppTextInput } from '../../../components/AppTextInput';
+import { APP_COLORS } from '../../../theme/colors';
 
 type ChannelSearchResult = {
   channelId: string;
@@ -130,7 +131,8 @@ export function MainAppChannelsModals({
 
             {createChannelOpen ? (
               <>
-                <TextInput
+                <AppTextInput
+                  isDark={isDark}
                   value={createChannelName}
                   onChangeText={(v) => {
                     setCreateChannelName(v);
@@ -138,31 +140,11 @@ export function MainAppChannelsModals({
                   }}
                   placeholder="Channel name"
                   maxLength={21}
-                  placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                  selectionColor={
-                    isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
-                  }
-                  cursorColor={
-                    isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
-                  }
                   autoCapitalize="words"
                   autoCorrect={false}
-                  style={[
-                    styles.blocksInput,
-                    isDark ? styles.blocksInputDark : null,
-                    {
-                      // `blocksInput` uses flex:1 for row layouts; override for column layout.
-                      flex: 0,
-                      alignSelf: 'stretch',
-                      width: '100%',
-                      height: 44,
-                      fontSize: 16,
-                      lineHeight: 20,
-                      paddingVertical: 10,
-                      textAlignVertical: 'center',
-                      color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
-                    },
-                  ]}
+                  baseStyle={styles.blocksInput}
+                  darkStyle={styles.blocksInputDark}
+                  variant="blocksStandalone"
                 />
 
                 <View
@@ -242,40 +224,20 @@ export function MainAppChannelsModals({
                 </View>
 
                 {createChannelIsPublic ? (
-                  <TextInput
+                  <AppTextInput
+                    isDark={isDark}
                     value={createChannelPassword}
                     onChangeText={(v) => {
                       setCreateChannelPassword(v);
                       setCreateChannelError(null);
                     }}
                     placeholder="Password (optional)"
-                    placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                    selectionColor={
-                      isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
-                    }
-                    cursorColor={
-                      isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
-                    }
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
-                    style={[
-                      styles.blocksInput,
-                      isDark ? styles.blocksInputDark : null,
-                      {
-                        flex: 0,
-                        alignSelf: 'stretch',
-                        width: '100%',
-                        height: 44,
-                        fontSize: 16,
-                        lineHeight: 20,
-                        paddingVertical: 10,
-                        textAlignVertical: 'center',
-                        color: isDark
-                          ? APP_COLORS.dark.text.primary
-                          : APP_COLORS.light.text.primary,
-                      },
-                    ]}
+                    baseStyle={styles.blocksInput}
+                    darkStyle={styles.blocksInputDark}
+                    variant="blocksStandalone"
                   />
                 ) : null}
 
@@ -475,7 +437,8 @@ export function MainAppChannelsModals({
             </View>
 
             <View style={styles.blocksSearchRow}>
-              <TextInput
+              <AppTextInput
+                isDark={isDark}
                 value={channelsQuery}
                 onChangeText={(v) => {
                   setChannelsQuery(v);
@@ -483,14 +446,10 @@ export function MainAppChannelsModals({
                   setChannelJoinError(null);
                 }}
                 placeholder="Search Channels"
-                placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                selectionColor={
-                  isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
-                }
-                cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 autoCapitalize="none"
                 autoCorrect={false}
-                style={[styles.blocksInput, isDark ? styles.blocksInputDark : null]}
+                baseStyle={styles.blocksInput}
+                darkStyle={styles.blocksInputDark}
               />
               <Pressable
                 onPress={() => void Promise.resolve(fetchChannelsSearch(channelsQuery))}
@@ -663,39 +622,24 @@ export function MainAppChannelsModals({
             >
               Enter Channel Password
             </Text>
-            <TextInput
+            <AppTextInput
+              isDark={isDark}
               value={channelPasswordInput}
               onChangeText={(v) => {
                 setChannelPasswordInput(v);
                 setChannelJoinError(null);
               }}
               placeholder="Channel Password"
-              placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-              selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-              cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={() => void Promise.resolve(submitChannelPassword())}
-              style={[
-                styles.blocksInput,
-                isDark ? styles.blocksInputDark : null,
-                // `blocksInput` is used in row layouts and has flex: 1; override for standalone column input.
-                {
-                  flex: 0,
-                  alignSelf: 'stretch',
-                  width: '100%',
-                  height: 44,
-                  fontSize: 16,
-                  lineHeight: 20,
-                  paddingVertical: 10,
-                  textAlignVertical: 'center',
-                  color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
-                  marginBottom: 12,
-                },
-              ]}
+              baseStyle={styles.blocksInput}
+              darkStyle={styles.blocksInputDark}
+              variant="blocksStandalone"
+              style={{ marginBottom: 12 }}
             />
             {channelJoinError ? (
               <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>

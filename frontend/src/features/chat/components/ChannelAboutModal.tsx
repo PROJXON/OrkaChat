@@ -1,9 +1,10 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { AppTextInput } from '../../../components/AppTextInput';
 import { RichText } from '../../../components/RichText';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { APP_COLORS } from '../../../theme/colors';
 
 type Props = {
   visible: boolean;
@@ -68,15 +69,11 @@ export function ChannelAboutModal({
               >
                 Supports **bold**, *italics*, and links. Max 4000 chars.
               </Text>
-              <TextInput
+              <AppTextInput
+                isDark={isDark}
                 value={draft}
                 onChangeText={onChangeDraft}
                 placeholder="Write channel info / rules…"
-                placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                selectionColor={
-                  isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
-                }
-                cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 multiline
                 autoFocus
                 // Android: multiline TextInput defaults to vertically-centered text; force top-left like a real editor.

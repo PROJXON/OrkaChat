@@ -1,9 +1,10 @@
 import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 import React from 'react';
-import { Image, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import { AppTextInput } from '../../../components/AppTextInput';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type PassphrasePromptMode = 'setup' | 'restore' | 'change' | 'reset';
@@ -79,7 +80,8 @@ export function MainAppPassphrasePromptModal({
       ) : null}
 
       <View style={styles.passphraseFieldWrapper}>
-        <TextInput
+        <AppTextInput
+          isDark={isDark}
           style={[
             styles.modalInput,
             styles.passphraseInput,
@@ -94,9 +96,6 @@ export function MainAppPassphrasePromptModal({
             if (passphraseError) setPassphraseError(null);
           }}
           placeholder="Passphrase"
-          placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-          selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-          cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
           autoFocus
           editable={!processing}
         />
@@ -120,7 +119,8 @@ export function MainAppPassphrasePromptModal({
 
       {requiresConfirm ? (
         <View style={styles.passphraseFieldWrapper}>
-          <TextInput
+          <AppTextInput
+            isDark={isDark}
             style={[
               styles.modalInput,
               styles.passphraseInput,
@@ -135,9 +135,6 @@ export function MainAppPassphrasePromptModal({
               if (passphraseError) setPassphraseError(null);
             }}
             placeholder="Confirm Passphrase"
-            placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-            selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-            cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             editable={!processing}
           />
           <Pressable
