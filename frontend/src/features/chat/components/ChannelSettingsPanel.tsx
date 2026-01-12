@@ -253,6 +253,21 @@ export function ChannelSettingsPanel({
               </View>
             </Pressable>
           </View>
+        ) : !meIsAdmin && isPublic && hasPassword ? (
+          <View style={styles.channelAdminActions}>
+            <View style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Feather
+                  name="lock"
+                  size={14}
+                  color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                />
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                  Password Protected
+                </Text>
+              </View>
+            </View>
+          </View>
         ) : null}
       </View>
     </View>
