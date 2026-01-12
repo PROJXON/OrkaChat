@@ -683,7 +683,18 @@ export function MainAppChannelsModals({
                 styles.blocksInput,
                 isDark ? styles.blocksInputDark : null,
                 // `blocksInput` is used in row layouts and has flex: 1; override for standalone column input.
-                { flex: 0, alignSelf: 'stretch', marginBottom: 12 },
+                {
+                  flex: 0,
+                  alignSelf: 'stretch',
+                  width: '100%',
+                  height: 44,
+                  fontSize: 16,
+                  lineHeight: 20,
+                  paddingVertical: 10,
+                  textAlignVertical: 'center',
+                  color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                  marginBottom: 12,
+                },
               ]}
             />
             {channelJoinError ? (
