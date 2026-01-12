@@ -299,6 +299,22 @@ export function handleChatWsMessage(opts: {
           ? JSON.stringify(payload.text)
           : '';
     if (Number.isFinite(messageCreatedAt) && newRaw) {
+      const extractChatTextFromText = (rawText: string): string => {
+        const t = String(rawText || '').trim();
+        if (!t) return '';
+        // Fast path: typical plain text messages
+        if (!(t.startsWith('{') && t.endsWith('}'))) return t;
+        try {
+          const obj = JSON.parse(t) as unknown;
+          if (!obj || typeof obj !== 'object') return t;
+          const rec = obj as Record<string, unknown>;
+          if (rec.type !== 'chat') return t;
+          return typeof rec.text === 'string' ? String(rec.text) : '';
+        } catch {
+          return t;
+        }
+      };
+
       opts.setMessages((prev) =>
         prev.map((m) => {
           if (m.createdAt !== messageCreatedAt) return m;
@@ -306,15 +322,23 @@ export function handleChatWsMessage(opts: {
           const encrypted = opts.parseEncrypted(newRaw);
           const groupEncrypted = opts.parseGroupEncrypted(newRaw);
           const isEncrypted = !!encrypted || !!groupEncrypted;
+          // Important: for encrypted messages, don't wipe decrypted UI state if we already have it
+          // (e.g. the sender optimistically updates decryptedText on edit).
+          const nextText = isEncrypted
+            ? m.decryptedText
+              ? m.text
+              : opts.encryptedPlaceholder
+            : extractChatTextFromText(newRaw);
           return {
             ...m,
             rawText: newRaw,
             encrypted: encrypted ?? undefined,
             groupEncrypted: groupEncrypted ?? undefined,
-            groupKeyHex: undefined,
-            text: isEncrypted ? opts.encryptedPlaceholder : newRaw,
-            decryptedText: undefined,
-            decryptFailed: false,
+            // Only reset groupKey/decryptedText when we *don't* have plaintext to preserve.
+            groupKeyHex: isEncrypted && !m.decryptedText ? undefined : m.groupKeyHex,
+            text: nextText,
+            decryptedText: isEncrypted ? m.decryptedText : undefined,
+            decryptFailed: isEncrypted ? m.decryptFailed : false,
             editedAt,
           };
         }),

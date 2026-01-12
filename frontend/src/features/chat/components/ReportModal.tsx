@@ -103,6 +103,13 @@ export function ReportModal({
   onChangeDetails,
 }: Props) {
   const ensureThumbUrl = cdnMedia.ensure;
+  const [detailsFocused, setDetailsFocused] = React.useState(false);
+
+  // If the modal is dismissed while focused, ensure we don't keep the "focused" ring
+  // when it reopens.
+  React.useEffect(() => {
+    if (!visible) setDetailsFocused(false);
+  }, [visible]);
 
   // Prefetch thumb URLs so we don't call cdnMedia.resolve() during render (which would set state).
   React.useEffect(() => {
@@ -500,7 +507,17 @@ export function ReportModal({
                 placeholder="Optional note (e.g. harassment, spam, impersonation)…"
                 placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate370}
                 multiline
-                style={[styles.reportInput, isDark ? styles.reportInputDark : null]}
+                onFocus={() => setDetailsFocused(true)}
+                onBlur={() => setDetailsFocused(false)}
+                style={[
+                  styles.reportInput,
+                  isDark ? styles.reportInputDark : null,
+                  detailsFocused
+                    ? isDark
+                      ? styles.reportInputFocusedDark
+                      : styles.reportInputFocused
+                    : null,
+                ]}
                 editable={!submitting}
                 maxLength={900}
               />
