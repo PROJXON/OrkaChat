@@ -45,6 +45,7 @@ Cross‑platform chat app (iOS / Android / Web) with **end‑to‑end encrypted 
 
 - **Frontend**: `frontend/` is an Expo app (React Native + RN Web), written in **TypeScript**
 - **Auth**: **AWS Cognito** (via Amplify Auth)
+- **Backend**: AWS resources are currently **provisioned manually** (API Gateway + Lambdas + DynamoDB; no IaC). See `backend/README.md` for **API Gateway route mapping** (currently documented: ~23 HTTP routes + 3 WebSocket routes, plus the WS authorizer) and **DynamoDB table/GSI setup** (currently documented: 16 tables).
 - **Realtime (signed‑in users)**: **API Gateway WebSockets** → Lambda route handler(s)
 - **HTTP (guest/public + some hydration)**: **API Gateway HTTP API** → Lambda handlers
 - **Data**: DynamoDB (users, messages, conversations, reads/unreads, blocks, reports, quotas, connections)
@@ -156,5 +157,6 @@ The signer Lambda behind `POST /media/dm/signed-url` must have:
 
 ## Docs / reference
 
+- Backend setup (manual AWS resources, routes, DynamoDB tables/GSIs): `backend/README.md`
 - Backend routes (HTTP + WebSocket): `backend/aws/src/handlers/README.md`
 - Web portal hosting (Amplify Hosting / S3+CloudFront): `docs/web-portal-deploy.md`

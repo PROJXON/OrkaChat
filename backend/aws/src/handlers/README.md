@@ -7,6 +7,152 @@ This folder stores the **source code** for the AWS Lambdas used by OrkaChat.
 - `http/`: Lambdas invoked by the HTTP API (API Gateway HTTP API v2)
 - `ws/`: Lambdas invoked by the WebSocket API (API Gateway WebSockets)
 
+## Required AWS resources (manual backend)
+
+This repo **tracks Lambda source**, but if you deploy by copy/paste in the AWS Console you must also create the backing AWS resources manually (API Gateway routes + DynamoDB tables + GSIs, etc.).
+
+### DynamoDB tables + GSIs
+
+Below are the DynamoDB tables referenced by the backend handlers, plus the **GSIs that the code expects** for the fast paths (some handlers fall back to scans/unsorted queries if an index is missing, but you’ll want these in any real environment).
+
+#### Users
+
+- **Table**: `Users`
+- **PK**: `userSub` (S)
+- **Attributes used**: `displayName`, `usernameLower`, `currentPublicKey`, `avatarBgColor`, `avatarTextColor`, `avatarImagePath`, `updatedAt`
+- **GSI**: `byUsernameLower`
+  - **PK**: `usernameLower` (S)
+  - **Notes**: used for username lookup (blocks, start group DM, auth triggers, etc.)
+
+#### Messages
+
+- **Table**: `Messages`
+- **PK**: `conversationId` (S) (e.g. `global`, `dm#<minSub>#<maxSub>`, `gdm#<groupId>`, `ch#<channelId>`)
+- **SK**: `createdAt` (N) (epoch ms)
+
+#### Conversations (DM/group list index)
+
+- **Table**: `Conversations`
+- **PK**: `userSub` (S)
+- **SK**: `conversationId` (S)
+- **Attributes used**: `peerSub`, `peerDisplayName`, `conversationKind`, `memberStatus`, `lastMessageAt`, `lastSenderSub`, `lastSenderDisplayName`
+- **GSI**: `byUserLastMessageAt`
+  - **PK**: `userSub` (S)
+  - **SK**: `lastMessageAt` (N)
+  - **Notes**: newest-first inbox ordering for `GET /conversations`
+
+#### ConversationReads (read receipts)
+
+- **Table**: `ConversationReads`
+- **PK**: `conversationId` (S)
+- **SK**: `key` (S) (server-defined; e.g. `read#<sub>`)
+
+#### Unread DM conversations
+
+- **Table**: `UnreadDmConversations`
+- **PK**: `userSub` (S)
+- **SK**: `conversationId` (S)
+
+#### Blocks
+
+- **Table**: `Blocks`
+- **PK**: `blockerSub` (S)
+- **SK**: `blockedSub` (S)
+- **Attributes used**: `blockedAt`, `blockedUsernameLower`, `blockedDisplayName`
+
+#### PushTokens
+
+- **Table**: `PushTokens`
+- **PK**: `userSub` (S)
+- **SK**: `expoPushToken` (S)
+- **Attributes used**: `platform`, `deviceId`, `updatedAt`
+
+#### RecoveryKeys
+
+- **Table**: `RecoveryKeys`
+- **PK**: `sub` (S)
+- **Attributes used**: `ciphertext`, `iv`, `salt`, `updatedAt`
+
+#### Reports
+
+- **Table**: `Reports`
+- **PK**: `reportId` (S)
+- **Attributes used**: `kind`, `reportedUserSub`, `conversationId`, `messageCreatedAt`, `reason`, `details`, `messagePreview`, `createdAt`
+
+#### Stats
+
+- **Table**: `Stats`
+- **PK**: `statKey` (S)
+- **Attributes used**: `userCount` (Number)
+- **Notes**: best-effort “global user count” chip for channel search UI
+
+#### Channels (plaintext rooms)
+
+- **Table**: `Channels`
+- **PK**: `channelId` (S)
+- **Attributes used**: `name`, `nameLower`, `isPublic`, `hasPassword`, `passwordHash`, `aboutText`, `aboutVersion`, `activeMemberCount`, `createdBySub`, `createdAt`, `updatedAt`, `deletedAt`
+- **GSI**: `byNameLower`
+  - **PK**: `nameLower` (S)
+  - **Notes**: name uniqueness + join-by-name
+- **GSI**: `byPublicRank`
+  - **PK**: `publicIndexPk` (S) (value: `"public"`)
+  - **SK**: `publicRankSk` (S)
+  - **Notes**: public channel discovery ordering (member-count ranking encoded into `publicRankSk`)
+
+#### ChannelMembers
+
+- **Table**: `ChannelMembers`
+- **PK**: `channelId` (S)
+- **SK**: `memberSub` (S)
+- **Attributes used**: `status` (`active`/`left`/`banned`), `isAdmin`, `joinedAt`, `leftAt`, `bannedAt`, `updatedAt`
+- **GSI**: `byMemberSub`
+  - **PK**: `memberSub` (S)
+  - **SK**: `channelId` (S) (or `joinedAt` if you prefer; handlers only require PK)
+  - **Notes**: “my channels” list + cleanup paths (delete account)
+
+#### Groups (encrypted group DMs)
+
+- **Table**: `Groups`
+- **PK**: `groupId` (S)
+- **Attributes used**: `rosterKey`, `groupName`, `createdBySub`, `createdAt`, `updatedAt`
+- **GSI**: `byRosterKey`
+  - **PK**: `rosterKey` (S)
+  - **SK**: `groupId` (S)
+  - **Notes**: reuse an existing group if the roster matches
+
+#### GroupMembers
+
+- **Table**: `GroupMembers`
+- **PK**: `groupId` (S)
+- **SK**: `memberSub` (S)
+- **Attributes used**: `status` (`active`/`left`/`banned`), `isAdmin`, `joinedAt`, `addedBySub`, `leftAt`, `bannedAt`, `updatedAt`
+
+#### Connections (WebSocket presence)
+
+- **Table**: `Connections`
+- **PK**: `connectionId` (S)
+- **Attributes used**: `conversationId`, `userSub`, `usernameLower`, `displayName`, `connectedAt` (epoch seconds), `expiresAt` (epoch seconds)
+- **TTL**: enable DynamoDB TTL using attribute **`expiresAt`**
+- **GSI**: `byConversation`
+  - **PK**: `conversationId` (S)
+  - **Projection needs**: `connectionId`
+- **GSI**: `byConversationWithUser`
+  - **PK**: `conversationId` (S)
+  - **SK**: `connectionId` (S)
+  - **Projection needs**: `connectionId`, `userSub`
+  - **Notes**: preferred for global presence because it can project `userSub` for deduping/filtering
+- **GSI**: `byUserSub`
+  - **PK**: `userSub` (S)
+  - **Projection needs**: `connectionId`
+
+#### AI quota tables (optional)
+
+The AI and media-quota handlers can optionally use DynamoDB for rate/usage tracking:
+
+- `AiSummaries`: PK `sub` (S), SK `conversationId` (S)
+- `AiHelper` (if used): PK `sub` (S), SK `conversationId` (S)
+- A shared quota table used by media signer / media upload caps (preferred): PK `sub` (S), SK `conversationId` (S)
+
 ## Routes
 
 ### HTTP API (API Gateway HTTP API v2)
