@@ -42,6 +42,13 @@ export function GuestChannelPickerModal(props: {
     onClose,
   } = props;
 
+  const trimmedQuery = String(query || '').trim();
+  // Match signed-in behavior: Global is a suggestion when empty, otherwise only show it if the
+  // query is clearly trying to find "Global" (so it's not "pinned" during unrelated searches).
+  const showGlobalRow =
+    !trimmedQuery ||
+    (trimmedQuery.length >= 2 && 'global'.includes(trimmedQuery.toLowerCase()));
+
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -75,63 +82,67 @@ export function GuestChannelPickerModal(props: {
           ) : null}
 
           <ScrollView style={styles.modalScroll}>
-            <Pressable
-              style={({ pressed }) => [
-                {
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  minHeight: 44,
-                  borderRadius: 12,
-                  alignSelf: 'stretch',
-                  backgroundColor: isDark
-                    ? APP_COLORS.dark.bg.header
-                    : APP_COLORS.light.bg.surface2,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: isDark
-                    ? APP_COLORS.dark.border.subtle
-                    : APP_COLORS.light.border.subtle,
-                  marginBottom: 8,
-                  opacity: pressed ? 0.85 : 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                },
-              ]}
-              onPress={onPickGlobal}
-              accessibilityRole="button"
-              accessibilityLabel="Enter Global"
-            >
-              <Text
-                style={{
-                  color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
-                  fontWeight: '800',
-                }}
-              >
-                Global
-              </Text>
-              <View
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  borderRadius: 999,
-                  backgroundColor: isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app,
-                  borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: isDark ? 'transparent' : APP_COLORS.light.border.subtle,
-                  minWidth: 38,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+            {showGlobalRow ? (
+              <Pressable
+                style={({ pressed }) => [
+                  {
+                    paddingVertical: 10,
+                    paddingHorizontal: 10,
+                    minHeight: 44,
+                    borderRadius: 12,
+                    alignSelf: 'stretch',
+                    backgroundColor: isDark
+                      ? APP_COLORS.dark.bg.header
+                      : APP_COLORS.light.bg.surface2,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: isDark
+                      ? APP_COLORS.dark.border.subtle
+                      : APP_COLORS.light.border.subtle,
+                    marginBottom: 8,
+                    opacity: pressed ? 0.85 : 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  },
+                ]}
+                onPress={onPickGlobal}
+                accessibilityRole="button"
+                accessibilityLabel="Enter Global"
               >
                 <Text
                   style={{
-                    fontWeight: '900',
                     color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                    fontWeight: '800',
                   }}
                 >
-                  {typeof globalUserCount === 'number' ? String(globalUserCount) : '—'}
+                  Global
                 </Text>
-              </View>
-            </Pressable>
+                <View
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 999,
+                    backgroundColor: isDark
+                      ? APP_COLORS.dark.border.subtle
+                      : APP_COLORS.light.bg.app,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: isDark ? 'transparent' : APP_COLORS.light.border.subtle,
+                    minWidth: 38,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontWeight: '900',
+                      color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                    }}
+                  >
+                    {typeof globalUserCount === 'number' ? String(globalUserCount) : '—'}
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
 
             {loading ? (
               <View style={{ paddingVertical: 12, alignItems: 'center' }}>

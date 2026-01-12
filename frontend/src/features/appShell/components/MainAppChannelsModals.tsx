@@ -107,6 +107,12 @@ export function MainAppChannelsModals({
   submitChannelPassword: () => void | Promise<void>;
 }): React.JSX.Element {
   const [channelPasswordVisible, setChannelPasswordVisible] = React.useState<boolean>(false);
+  const trimmedChannelsQuery = String(channelsQuery || '').trim();
+  // Keep Global from feeling "pinned" during search: show it when empty, or when the query
+  // is clearly attempting to find "Global" specifically.
+  const showGlobalInChannelSearch =
+    !trimmedChannelsQuery ||
+    (trimmedChannelsQuery.length >= 2 && 'global'.includes(trimmedChannelsQuery.toLowerCase()));
 
   // Always default to hidden when opening/closing the prompt.
   React.useEffect(() => {
@@ -491,8 +497,8 @@ export function MainAppChannelsModals({
             ) : null}
 
             <ScrollView style={styles.chatsScroll}>
-              {/* Only show Global as a suggestion when not actively searching */}
-              {!String(channelsQuery || '').trim() ? (
+              {/* Show Global as a suggestion when empty, otherwise only when it matches the query. */}
+              {showGlobalInChannelSearch ? (
                 <Pressable
                   key="searchchannel:global"
                   style={({ pressed }) => [
