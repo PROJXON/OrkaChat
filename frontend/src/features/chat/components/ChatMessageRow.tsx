@@ -734,7 +734,9 @@ export function ChatMessageRow(props: {
                         <Text
                           style={[
                             styles.inlineEditBtnText,
-                            isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
+                            isOutgoing
+                              ? styles.inlineEditBtnTextOutgoing
+                              : styles.inlineEditBtnTextIncoming,
                           ]}
                         >
                           Save
@@ -760,7 +762,9 @@ export function ChatMessageRow(props: {
                         <Text
                           style={[
                             styles.inlineEditBtnText,
-                            isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
+                            isOutgoing
+                              ? styles.inlineEditBtnTextOutgoing
+                              : styles.inlineEditBtnTextIncoming,
                           ]}
                         >
                           Cancel
