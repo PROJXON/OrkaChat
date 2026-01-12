@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import { APP_COLORS } from '../../../theme/colors';
 
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 
@@ -22,7 +23,7 @@ export function SummaryModal({ visible, isDark, styles, loading, text, onClose }
           {loading ? (
             <View style={styles.summaryLoadingRow}>
               <Text style={[styles.summaryLoadingText, isDark ? styles.summaryTextDark : null]}>Summarizing</Text>
-              <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={18} />
+              <AnimatedDots color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary} size={18} />
             </View>
           ) : (
             <ScrollView style={styles.summaryScroll}>

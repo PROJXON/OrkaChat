@@ -2,6 +2,7 @@ import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Platform, Pressable, Switch, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
+import { APP_COLORS } from '../theme/colors';
 
 export type ThemeToggleRowStyles = {
   themeToggle: StyleProp<ViewStyle>;
@@ -23,7 +24,11 @@ export function ThemeToggleRow({
 }): React.JSX.Element {
   return (
     <View style={[styles.themeToggle, isDark && styles.themeToggleDark]}>
-      <Feather name={isDark ? 'moon' : 'sun'} size={16} color={isDark ? '#fff' : '#111'} />
+      <Feather
+        name={isDark ? 'moon' : 'sun'}
+        size={16}
+        color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+      />
       {Platform.OS === 'web' ? (
         <Pressable
           onPress={() => onSetTheme(isDark ? 'light' : 'dark')}
@@ -41,8 +46,8 @@ export function ThemeToggleRow({
         <Switch
           value={isDark}
           onValueChange={(v) => onSetTheme(v ? 'dark' : 'light')}
-          trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-          thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+          trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+          thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
         />
       )}
     </View>

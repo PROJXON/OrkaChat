@@ -1,17 +1,19 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
+import { APP_COLORS, PALETTE } from '../theme/colors';
+
 export const AVATAR_DEFAULT_COLORS = [
-  '#5865F2', // blurple-ish
-  '#57F287', // green
-  '#FEE75C', // yellow
-  '#EB459E', // pink
-  '#ED4245', // red
-  '#3498DB', // blue
-  '#9B59B6', // purple
-  '#E67E22', // orange
-  '#1ABC9C', // teal
-  '#95A5A6', // gray
+  PALETTE.avatarBlurple, // blurple-ish
+  PALETTE.avatarGreen, // green
+  PALETTE.avatarYellow, // yellow
+  PALETTE.avatarPink, // pink
+  PALETTE.avatarRed, // red
+  PALETTE.avatarBlue, // blue
+  PALETTE.avatarPurple, // purple
+  PALETTE.avatarOrange, // orange
+  PALETTE.avatarTeal, // teal
+  PALETTE.avatarGray, // gray
 ];
 
 function hashStringToInt(input: string): number {
@@ -40,9 +42,9 @@ export function AvatarBubble({
   label,
   size = 34,
   backgroundColor,
-  textColor = '#fff',
+  textColor = APP_COLORS.dark.text.primary,
   imageUri,
-  imageBgColor = '#f2f2f7',
+  imageBgColor = APP_COLORS.light.bg.surface2,
   style,
 }: {
   seed: string;

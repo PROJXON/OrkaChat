@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppBrandIcon } from './AppBrandIcon';
+import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 export type HeaderMenuItem = {
   key: string;
@@ -73,15 +74,15 @@ export function HeaderMenuModal({
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] });
 
   // Match ChatScreen/GuestGlobalScreen surface colors.
-  const cardBg = isDark ? '#0b0b0f' : '#fff';
-  const border = isDark ? '#2a2a33' : '#e3e3e3';
-  const divider = isDark ? '#2a2a33' : '#e9e9ee';
-  const text = isDark ? '#fff' : '#111';
-  const pressedBg = isDark ? '#1c1c22' : '#e9e9ee';
+  const cardBg = isDark ? APP_COLORS.dark.bg.app : APP_COLORS.light.bg.app;
+  const border = isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.border.subtle;
+  const divider = isDark ? APP_COLORS.dark.border.subtle : PALETTE.mist;
+  const text = isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary;
+  const pressedBg = isDark ? APP_COLORS.dark.bg.header : PALETTE.mist;
 
   // Match the app's "tool button" look (Summarize / AI Helper).
-  const btnBg = isDark ? '#2a2a33' : '#f2f2f7';
-  const btnBorder = isDark ? '#2a2a33' : '#e3e3e3';
+  const btnBg = isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.surface2;
+  const btnBorder = isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.border.subtle;
   const btnBorderWidth = isDark ? 0 : StyleSheet.hairlineWidth;
 
   const hasAnchor = !!anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y);
@@ -195,7 +196,7 @@ export function HeaderMenuModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.25)',
+    backgroundColor: withAlpha(PALETTE.black, 0.25),
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
   },
@@ -208,8 +209,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 8px 16px rgba(0,0,0,0.18)' }
-      : { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }),
+      ? { boxShadow: `0px 8px 16px ${withAlpha(PALETTE.black, 0.18)}` }
+      : { shadowColor: PALETTE.black, shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }),
     elevation: 10,
   },
   topRightCloseRow: {

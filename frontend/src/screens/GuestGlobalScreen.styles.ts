@@ -1,13 +1,14 @@
 import { StyleSheet } from 'react-native';
 import type { ReactionInfoModalStyles } from '../features/chat/components/ReactionInfoModal';
+import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: APP_COLORS.light.bg.app,
   },
   containerDark: {
-    backgroundColor: '#0b0b0f',
+    backgroundColor: APP_COLORS.dark.bg.app,
   },
   headerRow: {
     paddingHorizontal: 12,
@@ -16,12 +17,12 @@ export const styles = StyleSheet.create({
     zIndex: 10,
     elevation: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e3e3e3',
-    backgroundColor: '#fafafa',
+    borderBottomColor: APP_COLORS.light.border.subtle,
+    backgroundColor: APP_COLORS.light.bg.header,
   },
   headerRowDark: {
-    backgroundColor: '#1c1c22',
-    borderBottomColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderBottomColor: APP_COLORS.dark.border.subtle,
   },
   headerRowContent: {
     flexDirection: 'row',
@@ -33,10 +34,10 @@ export const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111',
+    color: APP_COLORS.light.text.primary,
   },
   headerTitleDark: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
   headerRight: {
     flexDirection: 'row',
@@ -50,13 +51,13 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: APP_COLORS.light.bg.app,
     borderWidth: 1,
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
   },
   themeToggleDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderColor: APP_COLORS.dark.border.subtle,
   },
   // Web-only: avoid browser default teal/blue accent that can bleed into the native Switch implementation.
   webToggleTrack: {
@@ -64,47 +65,47 @@ export const styles = StyleSheet.create({
     height: 26,
     borderRadius: 999,
     padding: 2,
-    backgroundColor: '#d1d1d6',
+    backgroundColor: APP_COLORS.light.border.default,
     justifyContent: 'center',
   },
   webToggleTrackOn: {
     // Match mobile: keep the track light; the "on" state is indicated by thumb position.
-    backgroundColor: '#d1d1d6',
+    backgroundColor: APP_COLORS.light.border.default,
   },
   webToggleThumb: {
     width: 22,
     height: 22,
     borderRadius: 999,
-    backgroundColor: '#ffffff',
+    backgroundColor: APP_COLORS.light.bg.app,
     transform: [{ translateX: 0 }],
   },
   webToggleThumbOn: {
-    backgroundColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.border.subtle,
     transform: [{ translateX: 18 }],
   },
   menuIconBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#f2f2f7',
+    backgroundColor: APP_COLORS.light.bg.surface2,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
   menuIconBtnDark: {
-    backgroundColor: '#2a2a33',
-    borderColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.border.subtle,
+    borderColor: APP_COLORS.dark.border.subtle,
     borderWidth: 0,
   },
   errorText: {
     paddingHorizontal: 12,
     paddingBottom: 6,
-    color: '#b00020',
+    color: APP_COLORS.light.status.errorText,
     fontSize: 12,
   },
   errorTextDark: {
-    color: '#ff6b6b',
+    color: APP_COLORS.dark.status.errorText,
   },
   loadingWrap: {
     paddingVertical: 16,
@@ -121,8 +122,8 @@ export const styles = StyleSheet.create({
   },
   bottomBar: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e3e3e3',
-    backgroundColor: '#f2f2f7',
+    borderTopColor: APP_COLORS.light.border.subtle,
+    backgroundColor: APP_COLORS.light.bg.surface2,
   },
   bottomBarInner: {
     paddingHorizontal: 12,
@@ -130,30 +131,30 @@ export const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   bottomBarDark: {
-    backgroundColor: '#1c1c22',
-    borderTopColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderTopColor: APP_COLORS.dark.border.subtle,
   },
   bottomBarCta: {
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#111',
+    backgroundColor: APP_COLORS.light.text.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   bottomBarCtaDark: {
-    backgroundColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.border.subtle,
   },
   bottomBarCtaText: {
-    color: '#fff',
+    color: APP_COLORS.light.text.inverse,
     fontWeight: '800',
     fontSize: 15,
   },
   bottomBarCtaTextDark: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
@@ -162,38 +163,38 @@ export const styles = StyleSheet.create({
     width: '92%',
     maxWidth: 420,
     maxHeight: '80%',
-    backgroundColor: '#fff',
+    backgroundColor: APP_COLORS.light.bg.app,
     borderRadius: 12,
     padding: 16,
   },
   modalCardDark: {
-    backgroundColor: '#14141a',
+    backgroundColor: APP_COLORS.dark.bg.surface,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111',
+    color: APP_COLORS.light.text.primary,
     marginBottom: 10,
   },
-  modalTitleDark: { color: '#fff' },
+  modalTitleDark: { color: APP_COLORS.dark.text.primary },
   modalScroll: { maxHeight: 420 },
-  modalRowText: { color: '#222', lineHeight: 20, marginBottom: 8 },
-  modalRowTextDark: { color: '#d7d7e0' },
+  modalRowText: { color: APP_COLORS.light.text.heading, lineHeight: 20, marginBottom: 8 },
+  modalRowTextDark: { color: APP_COLORS.dark.text.body },
   modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 8 },
   modalBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: '#f2f2f7',
+    backgroundColor: APP_COLORS.light.bg.surface2,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
   },
   modalBtnDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderColor: APP_COLORS.dark.border.subtle,
   },
-  modalBtnText: { color: '#111', fontWeight: '800' },
-  modalBtnTextDark: { color: '#fff' },
+  modalBtnText: { color: APP_COLORS.light.text.primary, fontWeight: '800' },
+  modalBtnTextDark: { color: APP_COLORS.dark.text.primary, fontWeight: '800' },
 });
 
 export const guestReactionInfoModalStyles = {

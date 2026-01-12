@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { fetchAuthSession } from '@aws-amplify/auth';
 import { API_URL } from '../config/env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PALETTE } from '../theme/colors';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
 type ExpoDeviceModule = typeof import('expo-device');
@@ -82,7 +83,7 @@ export async function ensureDmNotificationChannel(): Promise<void> {
       importance: Notifications.AndroidImportance.HIGH,
       sound: 'default',
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#1976d2',
+      lightColor: PALETTE.brandBlue,
     });
   }
 }
@@ -98,7 +99,7 @@ export async function ensureChannelsNotificationChannel(): Promise<void> {
       importance: Notifications.AndroidImportance.HIGH,
       sound: 'default',
       vibrationPattern: [0, 250],
-      lightColor: '#1976d2',
+      lightColor: PALETTE.brandBlue,
     });
   }
 }

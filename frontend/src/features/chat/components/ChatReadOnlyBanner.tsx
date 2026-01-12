@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, View } from 'react-native';
+import { APP_COLORS } from '../../../theme/colors';
 
 type Props = {
   isDark: boolean;
@@ -16,7 +17,15 @@ export function ChatReadOnlyBanner({ isDark, status }: Props) {
 
   return (
     <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-      <Text style={{ color: isDark ? '#a7a7b4' : '#666', fontStyle: 'italic', fontWeight: '700' }}>{msg}</Text>
+      <Text
+        style={{
+          color: isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted,
+          fontStyle: 'italic',
+          fontWeight: '700',
+        }}
+      >
+        {msg}
+      </Text>
     </View>
   );
 }

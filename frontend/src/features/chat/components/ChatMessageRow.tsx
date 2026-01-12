@@ -11,6 +11,7 @@ import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 import type { PendingMediaItem } from '../attachments';
+import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 
 // NOTE:
 // This component is intentionally a “dumb view” extracted from `ChatScreen.tsx`.
@@ -165,7 +166,7 @@ export function ChatMessageRow(props: {
               backgroundColor={prof?.avatarBgColor ?? item.avatarBgColor}
               textColor={prof?.avatarTextColor ?? item.avatarTextColor}
               imageUri={avatarImageUri}
-              imageBgColor={isDark ? '#1c1c22' : '#f2f2f7'}
+              imageBgColor={isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2}
             />
           </View>
         ) : null}
@@ -331,10 +332,28 @@ export function ChatMessageRow(props: {
                         multiline
                         autoFocus
                         placeholder="Add a caption…"
-                        placeholderTextColor={isOutgoing ? 'rgba(255,255,255,0.75)' : isDark ? '#b7b7c2' : '#777'}
+                        placeholderTextColor={
+                          isOutgoing
+                            ? withAlpha(PALETTE.white, 0.75)
+                            : isDark
+                              ? APP_COLORS.dark.text.secondary
+                              : PALETTE.slate450
+                        }
                         editable={!inlineEditUploading}
-                        selectionColor={isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#ffffff' : '#111'}
-                        cursorColor={isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#ffffff' : '#111'}
+                        selectionColor={
+                          isOutgoing
+                            ? withAlpha(PALETTE.white, 0.95)
+                            : isDark
+                              ? APP_COLORS.dark.text.primary
+                              : APP_COLORS.light.text.primary
+                        }
+                        cursorColor={
+                          isOutgoing
+                            ? withAlpha(PALETTE.white, 0.95)
+                            : isDark
+                              ? APP_COLORS.dark.text.primary
+                              : APP_COLORS.light.text.primary
+                        }
                       />
                       {inlineEditAttachmentMode === 'remove' ? (
                         <Text
@@ -389,7 +408,12 @@ export function ChatMessageRow(props: {
                               >
                                 Uploading
                               </Text>
-                              <AnimatedDots color={isOutgoing ? 'rgba(255,255,255,0.95)' : '#111'} size={16} />
+                              <AnimatedDots
+                                color={
+                                  isOutgoing ? withAlpha(PALETTE.white, 0.95) : APP_COLORS.light.text.primary
+                                }
+                                size={16}
+                              />
                             </View>
                           ) : (
                             <Text
@@ -547,8 +571,20 @@ export function ChatMessageRow(props: {
                       multiline
                       autoFocus
                       editable={!inlineEditUploading}
-                      selectionColor={isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#ffffff' : '#111'}
-                      cursorColor={isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#ffffff' : '#111'}
+                      selectionColor={
+                        isOutgoing
+                          ? withAlpha(PALETTE.white, 0.95)
+                          : isDark
+                            ? APP_COLORS.dark.text.primary
+                            : APP_COLORS.light.text.primary
+                      }
+                      cursorColor={
+                        isOutgoing
+                          ? withAlpha(PALETTE.white, 0.95)
+                          : isDark
+                            ? APP_COLORS.dark.text.primary
+                            : APP_COLORS.light.text.primary
+                      }
                     />
                   </View>
                 ) : (

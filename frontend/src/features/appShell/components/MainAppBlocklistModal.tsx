@@ -4,6 +4,7 @@ import Feather from '@expo/vector-icons/Feather';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 export function MainAppBlocklistModal({
   styles,
@@ -51,9 +52,9 @@ export function MainAppBlocklistModal({
                 setBlockError(null);
               }}
               placeholder="Username to block"
-              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-              selectionColor={isDark ? '#ffffff' : '#111'}
-              cursorColor={isDark ? '#ffffff' : '#111'}
+              placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+              selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+              cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
               autoCapitalize="none"
               autoCorrect={false}
               style={[styles.blocksInput, isDark ? styles.blocksInputDark : null]}
@@ -75,7 +76,7 @@ export function MainAppBlocklistModal({
               <View style={styles.chatsLoadingRow}>
                 <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, styles.chatsLoadingText]}>Loading</Text>
                 <View style={styles.chatsLoadingDotsWrap}>
-                  <AnimatedDots color={isDark ? '#ffffff' : '#111'} size={18} />
+                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
                 </View>
               </View>
             ) : blockedUsers.length ? (
@@ -101,7 +102,11 @@ export function MainAppBlocklistModal({
                       accessibilityRole="button"
                       accessibilityLabel="Unblock user"
                     >
-                      <Feather name="user-check" size={16} color={isDark ? '#fff' : '#111'} />
+                      <Feather
+                        name="user-check"
+                        size={16}
+                        color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                      />
                     </Pressable>
                   </View>
                 ))

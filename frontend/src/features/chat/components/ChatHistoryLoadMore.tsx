@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type Props = {
   isDark: boolean;
@@ -32,16 +33,16 @@ export function ChatHistoryLoadMore({
             paddingHorizontal: 14,
             paddingVertical: 9,
             borderRadius: 999,
-            backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
+            backgroundColor: isDark ? APP_COLORS.dark.border.subtle : PALETTE.mist,
             opacity: loading ? 0.6 : enablePressedOpacity && pressed ? 0.85 : 1,
           })}
         >
-          <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
+          <Text style={{ color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary, fontWeight: '700' }}>
             {loading ? 'Loading older…' : 'Load older messages'}
           </Text>
         </Pressable>
       ) : (
-        <Text style={{ color: isDark ? '#aaa' : '#666' }}>
+        <Text style={{ color: isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted }}>
           {isEmpty ? emptyText || 'Start the Conversation!' : noMoreText || 'No Older Messages'}
         </Text>
       )}

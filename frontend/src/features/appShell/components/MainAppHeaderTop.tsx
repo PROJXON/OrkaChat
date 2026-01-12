@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AppBrandIcon } from '../../../components/AppBrandIcon';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 export function MainAppHeaderTop({
   styles,
@@ -143,9 +144,9 @@ export function MainAppHeaderTop({
                 setSearchError(null);
               }}
               placeholder="Enter Names"
-              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-              selectionColor={isDark ? '#ffffff' : '#111'}
-              cursorColor={isDark ? '#ffffff' : '#111'}
+              placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+              selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+              cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
               style={[styles.searchInput, isDark && styles.searchInputDark]}
             />
             <Pressable

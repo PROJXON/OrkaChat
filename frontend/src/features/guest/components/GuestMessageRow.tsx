@@ -8,6 +8,7 @@ import { resolveMediaUrlWithFallback } from '../../../utils/resolveMediaUrl';
 import { calcCappedMediaSize } from '../../../utils/mediaSizing';
 import type { GuestMessage } from '../types';
 import { formatGuestTimestamp } from '../parsers';
+import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 
 export function GuestMessageRow({
   item,
@@ -167,7 +168,7 @@ export function GuestMessageRow({
     <View style={{ paddingVertical: 10, alignItems: 'center' }}>
       <Text
         style={{
-          color: isDark ? '#a7a7b4' : '#666',
+          color: isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted,
           fontStyle: 'italic',
           fontWeight: '700',
           textAlign: 'center',
@@ -188,7 +189,7 @@ export function GuestMessageRow({
             backgroundColor={avatarBgColor}
             textColor={avatarTextColor}
             imageUri={avatarImageUri}
-            imageBgColor={isDark ? '#1c1c22' : '#f2f2f7'}
+            imageBgColor={isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2}
           />
         </View>
       ) : null}
@@ -399,13 +400,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#f2f2f7',
+    backgroundColor: APP_COLORS.light.bg.surface2,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
   },
   bubbleDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderColor: APP_COLORS.dark.border.default,
   },
   guestReactionOverlay: {
     position: 'absolute',
@@ -418,16 +419,16 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 6,
     paddingVertical: 3,
-    backgroundColor: '#fff',
+    backgroundColor: APP_COLORS.light.bg.app,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
   },
   guestReactionChipDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderColor: APP_COLORS.dark.border.default,
   },
-  guestReactionText: { color: '#111', fontWeight: '800', fontSize: 12 },
-  guestReactionTextDark: { color: '#fff' },
+  guestReactionText: { color: APP_COLORS.light.text.primary, fontWeight: '800', fontSize: 12 },
+  guestReactionTextDark: { color: APP_COLORS.dark.text.primary },
   // Match ChatScreen: keep the main text container on a single row so the RichText can flex-grow
   // and wrap based on the bubble width (especially important on web).
   guestTextRow: { flexDirection: 'row', alignItems: 'flex-end' },
@@ -438,50 +439,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
     fontWeight: '400',
-    color: '#555',
+    color: APP_COLORS.light.text.secondary,
   },
   guestMetaLine: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#555',
+    color: APP_COLORS.light.text.secondary,
     marginBottom: 4,
     flexWrap: 'wrap',
   },
   guestMetaLineDark: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
   msgText: {
     fontSize: 15,
-    color: '#111',
+    color: APP_COLORS.light.text.primary,
     lineHeight: 20,
   },
   msgTextDark: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
 
   guestMediaCardOuter: { alignSelf: 'flex-start', position: 'relative', overflow: 'visible' },
   guestMediaCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#f1f1f1',
+    backgroundColor: PALETTE.paper210,
   },
   guestMediaCardDark: {
-    backgroundColor: '#1c1c22',
+    backgroundColor: APP_COLORS.dark.bg.header,
   },
   guestMediaHeader: {
     paddingHorizontal: 12,
     paddingTop: 6,
     paddingBottom: 6,
-    backgroundColor: '#f1f1f1',
+    backgroundColor: PALETTE.paper210,
   },
   guestMediaHeaderDark: {
-    backgroundColor: '#1c1c22',
+    backgroundColor: APP_COLORS.dark.bg.header,
   },
   guestMediaCaption: {
     marginTop: 4,
     fontSize: 15,
     fontWeight: '400',
-    color: '#111',
+    color: APP_COLORS.light.text.primary,
     lineHeight: 20,
   },
   guestMediaHeaderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -495,10 +496,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginLeft: 10,
   },
-  guestEditedLabel: { fontSize: 12, fontStyle: 'italic', fontWeight: '400', color: '#555' },
-  guestEditedLabelDark: { color: '#a7a7b4' },
+  guestEditedLabel: { fontSize: 12, fontStyle: 'italic', fontWeight: '400', color: APP_COLORS.light.text.secondary },
+  guestEditedLabelDark: { color: APP_COLORS.dark.text.muted },
   guestMediaCaptionDark: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
   guestMediaPlayOverlay: {
     position: 'absolute',
@@ -510,34 +511,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   guestMediaPlayOverlayText: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
     fontSize: 42,
     fontWeight: '900',
     ...(Platform.OS === 'web'
-      ? { textShadow: '0px 2px 6px rgba(0,0,0,0.6)' }
-      : { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }),
+      ? { textShadow: `0px 2px 6px ${withAlpha(PALETTE.black, 0.6)}` }
+      : { textShadowColor: withAlpha(PALETTE.black, 0.6), textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }),
   },
   mediaFill: { width: '100%', height: '100%' },
   guestMediaFileChip: {
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: '#fff',
+    backgroundColor: APP_COLORS.light.bg.app,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
     maxWidth: 260,
   },
   guestMediaFileChipDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderColor: APP_COLORS.dark.border.default,
   },
   guestMediaFileText: {
-    color: '#111',
+    color: APP_COLORS.light.text.primary,
     fontWeight: '800',
     fontSize: 13,
   },
   guestMediaFileTextDark: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
   guestExtraMediaRow: {
     paddingHorizontal: 12,
@@ -547,9 +548,9 @@ const styles = StyleSheet.create({
   guestExtraMediaText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#555',
+    color: APP_COLORS.light.text.secondary,
   },
   guestExtraMediaTextDark: {
-    color: '#b7b7c2',
+    color: APP_COLORS.dark.text.secondary,
   },
 });

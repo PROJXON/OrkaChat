@@ -4,6 +4,7 @@ import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type PassphrasePromptMode = 'setup' | 'restore' | 'change' | 'reset';
 
@@ -91,9 +92,9 @@ export function MainAppPassphrasePromptModal({
             if (passphraseError) setPassphraseError(null);
           }}
           placeholder="Passphrase"
-          placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-          selectionColor={isDark ? '#ffffff' : '#111'}
-          cursorColor={isDark ? '#ffffff' : '#111'}
+          placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+          selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+          cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
           autoFocus
           editable={!processing}
         />
@@ -106,7 +107,7 @@ export function MainAppPassphrasePromptModal({
         >
           <Image
             source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
-            tintColor={isDark ? '#8f8fa3' : '#777'}
+            tintColor={isDark ? PALETTE.slate400 : PALETTE.slate450}
             style={{
               width: 18,
               height: 18,
@@ -132,9 +133,9 @@ export function MainAppPassphrasePromptModal({
               if (passphraseError) setPassphraseError(null);
             }}
             placeholder="Confirm Passphrase"
-            placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-            selectionColor={isDark ? '#ffffff' : '#111'}
-            cursorColor={isDark ? '#ffffff' : '#111'}
+            placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+            selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+            cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             editable={!processing}
           />
           <Pressable
@@ -146,7 +147,7 @@ export function MainAppPassphrasePromptModal({
           >
             <Image
               source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
-              tintColor={isDark ? '#8f8fa3' : '#777'}
+              tintColor={isDark ? PALETTE.slate400 : PALETTE.slate450}
               style={{
                 width: 18,
                 height: 18,
@@ -174,7 +175,7 @@ export function MainAppPassphrasePromptModal({
           {processing ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
               <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>{busyLabel}</Text>
-              <AnimatedDots color="#fff" size={18} />
+              <AnimatedDots color={APP_COLORS.dark.text.primary} size={18} />
             </View>
           ) : (
             <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>Submit</Text>

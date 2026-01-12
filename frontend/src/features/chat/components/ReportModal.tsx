@@ -6,6 +6,7 @@ import { previewLabelForMedia } from '../../../utils/mediaKinds';
 import type { MediaItem } from '../../../types/media';
 import type { ChatMessage } from '../types';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type ReportNotice = { type: 'success' | 'error'; message: string };
 
@@ -185,8 +186,8 @@ export function ReportModal({
                     value={reportKind === 'user'}
                     disabled={submitting}
                     onValueChange={onToggleKind}
-                    trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                    thumbColor={isDark ? '#2a2a33' : '#ffffff'}
+                    trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                    thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
                   />
                 )}
                 <Text style={[styles.reportTargetToggleLabel, isDark ? styles.reportTargetToggleLabelDark : null]}>
@@ -322,7 +323,7 @@ export function ReportModal({
                               width: 56,
                               height: 56,
                               borderRadius: 10,
-                              backgroundColor: isDark ? '#1c1c22' : '#e9e9ee',
+                              backgroundColor: isDark ? APP_COLORS.dark.bg.header : PALETTE.paper240,
                             }}
                             resizeMode="cover"
                           />
@@ -402,7 +403,7 @@ export function ReportModal({
                 value={reportDetails}
                 onChangeText={onChangeDetails}
                 placeholder="Optional note (e.g. harassment, spam, impersonation)…"
-                placeholderTextColor={isDark ? '#8f8fa3' : '#8a8a96'}
+                placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate370}
                 multiline
                 style={[styles.reportInput, isDark ? styles.reportInputDark : null]}
                 editable={!submitting}

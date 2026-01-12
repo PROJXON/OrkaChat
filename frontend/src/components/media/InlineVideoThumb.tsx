@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 
 function tryInvokePlayerMethod(player: unknown, method: 'play' | 'pause'): void {
   if (!player || typeof player !== 'object') return;
@@ -38,7 +39,7 @@ export function InlineVideoThumb({ url, onPress }: { url: string; onPress: () =>
 }
 
 const styles = StyleSheet.create({
-  mediaThumb: { width: '100%', height: '100%', borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.02)' },
+  mediaThumb: { width: '100%', height: '100%', borderRadius: 14, backgroundColor: withAlpha(PALETTE.black, 0.02) },
   videoThumbWrap: { position: 'relative', overflow: 'hidden', borderRadius: 14 },
   videoPlayOverlay: {
     position: 'absolute',
@@ -49,5 +50,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  videoPlayText: { color: '#fff', fontSize: 28, fontWeight: '900' },
+  videoPlayText: { color: APP_COLORS.dark.text.primary, fontSize: 28, fontWeight: '900' },
 });

@@ -5,6 +5,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUiPromptOptional } from '../providers/UiPromptProvider';
+import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 export type InAppCameraMode = 'photo' | 'video';
 
@@ -406,7 +407,7 @@ export function InAppCameraModal({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
+  root: { flex: 1, backgroundColor: PALETTE.black },
   overlay: {
     flex: 1,
     justifyContent: 'space-between',
@@ -419,12 +420,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
   },
   centerTitleWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  title: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 14 },
   topBtn: { width: 56, paddingVertical: 6 },
-  topBtnText: { color: '#fff', fontWeight: '800' },
+  topBtnText: { color: APP_COLORS.dark.text.primary, fontWeight: '800' },
   captureColumn: { alignItems: 'center' },
   modeToggleRowBottom: { marginTop: 10, flexDirection: 'row', gap: 8 },
   modePill: {
@@ -432,22 +433,22 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    borderColor: withAlpha(PALETTE.white, 0.35),
+    backgroundColor: withAlpha(PALETTE.black, 0.15),
   },
   modePillActive: {
-    borderColor: 'rgba(255,255,255,0.6)',
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderColor: withAlpha(PALETTE.white, 0.6),
+    backgroundColor: withAlpha(PALETTE.white, 0.22),
   },
-  modePillText: { color: 'rgba(255,255,255,0.85)', fontWeight: '900', fontSize: 12 },
-  modePillTextActive: { color: '#fff' },
-  preview: { width: '100%', height: '100%', backgroundColor: '#000' },
+  modePillText: { color: withAlpha(PALETTE.white, 0.85), fontWeight: '900', fontSize: 12 },
+  modePillTextActive: { color: APP_COLORS.dark.text.primary },
+  preview: { width: '100%', height: '100%', backgroundColor: PALETTE.black },
   bottomBar: {
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
   },
   bottomContent: {
     width: '100%',
@@ -463,42 +464,42 @@ const styles = StyleSheet.create({
     height: 66,
     borderRadius: 33,
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: APP_COLORS.dark.text.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#fff' },
+  shutterInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: APP_COLORS.dark.text.primary },
   recordRedDot: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#ff3b30',
+    backgroundColor: PALETTE.dangerRed,
   },
   recordStopSquare: {
     width: 30,
     height: 30,
     borderRadius: 6,
-    backgroundColor: '#ff3b30',
+    backgroundColor: PALETTE.dangerRed,
   },
   actionBtn: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderColor: withAlpha(PALETTE.white, 0.35),
+    backgroundColor: withAlpha(PALETTE.white, 0.14),
     alignItems: 'center',
   },
-  actionBtnText: { color: '#fff', fontWeight: '800' },
+  actionBtnText: { color: APP_COLORS.dark.text.primary, fontWeight: '800' },
   actionBtnPrimary: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
+    borderColor: withAlpha(PALETTE.white, 0.55),
     // "Glass" primary: stays readable but lets content show through.
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: withAlpha(PALETTE.white, 0.22),
     alignItems: 'center',
   },
-  actionBtnPrimaryText: { color: '#fff', fontWeight: '900' },
+  actionBtnPrimaryText: { color: APP_COLORS.dark.text.primary, fontWeight: '900' },
 });

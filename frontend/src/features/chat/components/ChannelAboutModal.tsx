@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { RichText } from '../../../components/RichText';
 
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type Props = {
   visible: boolean;
@@ -63,9 +64,9 @@ export function ChannelAboutModal({
                 value={draft}
                 onChangeText={onChangeDraft}
                 placeholder="Write channel info / rules…"
-                placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                selectionColor={isDark ? '#ffffff' : '#111'}
-                cursorColor={isDark ? '#ffffff' : '#111'}
+                placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+                selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 multiline
                 autoFocus
                 // Android: multiline TextInput defaults to vertically-centered text; force top-left like a real editor.
@@ -78,9 +79,9 @@ export function ChannelAboutModal({
                   paddingVertical: 10,
                   borderWidth: 1,
                   borderRadius: 10,
-                  backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
-                  borderColor: isDark ? '#3a3a46' : '#e3e3e3',
-                  color: isDark ? '#ffffff' : '#111',
+                  backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
+                  borderColor: isDark ? APP_COLORS.dark.border.default : APP_COLORS.light.border.subtle,
+                  color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
                   fontSize: 15,
                 }}
               />

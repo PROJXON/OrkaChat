@@ -3,6 +3,7 @@ import { Platform, Pressable, Switch, Text, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { APP_COLORS } from '../../../theme/colors';
 
 function MiniToggle({
   value,
@@ -179,9 +180,9 @@ export function ChannelSettingsPanel({
                   value={!!isPublic}
                   disabled={busy}
                   onValueChange={onTogglePublic}
-                  trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                  thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                  ios_backgroundColor="#d1d1d6"
+                  trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                  thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
+                  ios_backgroundColor={APP_COLORS.light.border.default}
                 />
               )}
               <Text
@@ -220,7 +221,11 @@ export function ChannelSettingsPanel({
               onPress={onPressPassword}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Feather name={hasPassword ? 'lock' : 'unlock'} size={14} color={isDark ? '#ffffff' : '#111'} />
+                <Feather
+                  name={hasPassword ? 'lock' : 'unlock'}
+                  size={14}
+                  color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                />
                 <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
                   {compact ? 'Password' : hasPassword ? 'Password: On' : 'Password: Off'}
                 </Text>

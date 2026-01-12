@@ -4,6 +4,7 @@ import Feather from '@expo/vector-icons/Feather';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import { APP_COLORS } from '../../../theme/colors';
 
 export function MainAppChatsAndRecoveryModals({
   styles,
@@ -166,7 +167,7 @@ export function MainAppChatsAndRecoveryModals({
                 <View style={styles.chatsLoadingRow}>
                   <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, styles.chatsLoadingText]}>Loading</Text>
                   <View style={styles.chatsLoadingDotsWrap}>
-                    <AnimatedDots color={isDark ? '#ffffff' : '#111'} size={18} />
+                    <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
                   </View>
                 </View>
               ) : chatsList.length ? (
@@ -213,7 +214,11 @@ export function MainAppChatsAndRecoveryModals({
                         accessibilityRole="button"
                         accessibilityLabel="Remove chat"
                       >
-                        <Feather name="trash-2" size={16} color={isDark ? '#fff' : '#111'} />
+                        <Feather
+                          name="trash-2"
+                          size={16}
+                          color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                        />
                       </Pressable>
                     </View>
                   </Pressable>

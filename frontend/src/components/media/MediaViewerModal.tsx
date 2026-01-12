@@ -17,6 +17,7 @@ import { AnimatedDots } from '../AnimatedDots';
 import { FullscreenVideo } from './FullscreenVideo';
 import { isWebCoarsePointer } from '../../utils/responsive';
 import type { MediaKind } from '../../types/media';
+import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 
 export type MediaViewerGlobalItem = { url: string; kind: MediaKind; fileName?: string };
 export type MediaViewerEncryptedItem = { media: { path?: string; kind?: MediaKind; fileName?: string } };
@@ -297,8 +298,8 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                               ]}
                             >
                               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Loading</Text>
-                                <AnimatedDots color="#fff" size={18} />
+                                <Text style={{ color: APP_COLORS.dark.text.primary, fontWeight: '800', fontSize: 16 }}>Loading</Text>
+                                <AnimatedDots color={APP_COLORS.dark.text.primary} size={18} />
                               </View>
                             </View>
                           );
@@ -390,8 +391,8 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                           ]}
                         >
                           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Loading</Text>
-                            <AnimatedDots color="#fff" size={18} />
+                            <Text style={{ color: APP_COLORS.dark.text.primary, fontWeight: '800', fontSize: 16 }}>Loading</Text>
+                            <AnimatedDots color={APP_COLORS.dark.text.primary} size={18} />
                           </View>
                         </View>
                       );
@@ -489,7 +490,7 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
 const styles = StyleSheet.create({
   viewerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: withAlpha(PALETTE.black, 0.85),
     justifyContent: 'flex-start',
     alignItems: 'stretch',
   },
@@ -498,7 +499,7 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 0,
     overflow: 'hidden',
-    backgroundColor: '#000',
+    backgroundColor: PALETTE.black,
     position: 'relative',
   },
   viewerTopBar: {
@@ -507,23 +508,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 10,
   },
-  viewerTitle: { color: '#fff', fontWeight: '700', fontSize: 14, flex: 1, marginRight: 12 },
+  viewerTitle: { color: APP_COLORS.dark.text.primary, fontWeight: '700', fontSize: 14, flex: 1, marginRight: 12 },
   viewerCloseBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: withAlpha(PALETTE.white, 0.18),
   },
-  viewerCloseText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  viewerCloseText: { color: APP_COLORS.dark.text.primary, fontWeight: '700', fontSize: 14 },
   viewerBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   viewerTapArea: { flex: 1, width: '100%', height: '100%' },
   viewerNavBtn: {
@@ -535,16 +536,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: withAlpha(PALETTE.white, 0.18),
     zIndex: 11,
   },
   viewerNavLeft: { left: 12 },
   viewerNavRight: { right: 12 },
-  viewerNavText: { color: '#fff', fontWeight: '900', fontSize: 28, lineHeight: 28, marginTop: -2 },
+  viewerNavText: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 28, lineHeight: 28, marginTop: -2 },
   // RN-web deprecates `style.resizeMode`; use the Image prop instead.
   viewerImage: { width: '100%', height: '100%' },
   viewerVideo: { width: '100%', height: '100%' },
-  viewerFallback: { color: '#fff' },
+  viewerFallback: { color: APP_COLORS.dark.text.primary },
 });

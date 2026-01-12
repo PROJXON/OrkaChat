@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { AvatarBubble } from './AvatarBubble';
 import type { MemberRow } from '../types/members';
 import type { ChatScreenStyles } from '../screens/ChatScreen.styles';
+import { PALETTE } from '../theme/colors';
 
 export function ChannelMembersSectionList({
   members,
@@ -95,7 +96,7 @@ export function ChannelMembersSectionList({
                     label={String(label || '')}
                     size={30}
                     backgroundColor={typeof m.avatarBgColor === 'string' ? m.avatarBgColor : undefined}
-                    textColor={typeof m.avatarTextColor === 'string' ? m.avatarTextColor : '#fff'}
+                    textColor={typeof m.avatarTextColor === 'string' ? m.avatarTextColor : PALETTE.white}
                     imageUri={imageUri}
                     style={{ marginRight: 10 }}
                   />

@@ -4,6 +4,7 @@ import Feather from '@expo/vector-icons/Feather';
 
 import { AppBrandIcon } from '../../../components/AppBrandIcon';
 import { useMenuAnchor } from '../../../hooks/useMenuAnchor';
+import { APP_COLORS } from '../../../theme/colors';
 
 export function GuestGlobalHeaderRow({
   isDark,
@@ -37,7 +38,7 @@ export function GuestGlobalHeaderRow({
           <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]} numberOfLines={1}>
             {activeChannelTitle}
           </Text>
-          <Feather name="chevron-down" size={16} color={isDark ? '#fff' : '#111'} />
+          <Feather name="chevron-down" size={16} color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} />
         </Pressable>
         <View style={styles.headerRight}>
           <Pressable

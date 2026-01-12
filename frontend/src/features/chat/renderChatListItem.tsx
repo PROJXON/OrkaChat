@@ -13,6 +13,7 @@ import { ChatMessageRow } from './components/ChatMessageRow';
 import type { ChatScreenStyles } from '../../screens/ChatScreen.styles';
 import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
 import type { PendingMediaItem } from './attachments';
+import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 
 type Anchor = { x: number; y: number };
 
@@ -126,7 +127,7 @@ export function renderChatListItem(args: {
       <View style={{ paddingVertical: 10, alignItems: 'center' }}>
         <Text
           style={{
-            color: isDark ? '#a7a7b4' : '#666',
+            color: isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted,
             fontStyle: 'italic',
             fontWeight: '500',
             textAlign: 'center',
@@ -238,8 +239,20 @@ export function renderChatListItem(args: {
         loop
         uriByPath={isEncryptedChat ? EMPTY_URI_BY_PATH : mediaUrlByPath}
         thumbUriByPath={isEncryptedChat ? dmThumbUriByPath : undefined}
-        loadingTextColor={isOutgoing ? 'rgba(255,255,255,0.9)' : isDark ? '#b7b7c2' : '#555'}
-        loadingDotsColor={isOutgoing ? 'rgba(255,255,255,0.9)' : isDark ? '#b7b7c2' : '#555'}
+        loadingTextColor={
+          isOutgoing
+            ? withAlpha(PALETTE.white, 0.9)
+            : isDark
+              ? APP_COLORS.dark.text.secondary
+              : APP_COLORS.light.text.secondary
+        }
+        loadingDotsColor={
+          isOutgoing
+            ? withAlpha(PALETTE.white, 0.9)
+            : isDark
+              ? APP_COLORS.dark.text.secondary
+              : APP_COLORS.light.text.secondary
+        }
         onOpen={(idx) => {
           if (isDm) void openDmMediaViewer(item, idx);
           else if (isGroup) void openGroupMediaViewer(item, idx);

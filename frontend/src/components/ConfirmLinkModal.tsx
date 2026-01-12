@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 export function ConfirmLinkModal({
   open,
@@ -48,7 +49,7 @@ export function ConfirmLinkModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
@@ -58,33 +59,33 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     borderRadius: 16,
     padding: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: APP_COLORS.light.bg.app,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
   },
   cardDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderColor: APP_COLORS.dark.border.subtle,
   },
-  title: { fontSize: 18, fontWeight: '900', color: '#111' },
-  titleDark: { color: '#fff' },
-  domain: { marginTop: 10, fontSize: 15, fontWeight: '900', color: '#444' },
-  domainDark: { color: '#d7d7e0' },
-  url: { marginTop: 8, fontSize: 15, color: '#444' },
-  urlDark: { color: '#b7b7c2' },
+  title: { fontSize: 18, fontWeight: '900', color: APP_COLORS.light.text.primary },
+  titleDark: { color: APP_COLORS.dark.text.primary },
+  domain: { marginTop: 10, fontSize: 15, fontWeight: '900', color: APP_COLORS.light.text.body },
+  domainDark: { color: APP_COLORS.dark.text.body },
+  url: { marginTop: 8, fontSize: 15, color: APP_COLORS.light.text.body },
+  urlDark: { color: APP_COLORS.dark.text.secondary },
   row: { marginTop: 12, flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
   btn: {
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#f2f2f7',
+    backgroundColor: APP_COLORS.light.bg.surface2,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
   },
   btnDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderColor: APP_COLORS.dark.border.subtle,
   },
-  btnText: { color: '#111', fontWeight: '800', fontSize: 15 },
-  btnTextDark: { color: '#fff' },
+  btnText: { color: APP_COLORS.light.text.primary, fontWeight: '800', fontSize: 15 },
+  btnTextDark: { color: APP_COLORS.dark.text.primary },
 });

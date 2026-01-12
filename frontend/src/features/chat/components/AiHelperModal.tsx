@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 export type AiHelperTurn = { role: 'user' | 'assistant'; text: string; thinking?: boolean };
 
@@ -151,7 +152,10 @@ export function AiHelperModal({
                                   <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
                                     Thinking
                                   </Text>
-                                  <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={18} />
+                                  <AnimatedDots
+                                    color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary}
+                                    size={18}
+                                  />
                                 </View>
                               ) : (
                                 <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
@@ -216,7 +220,7 @@ export function AiHelperModal({
             value={instruction}
             onChangeText={onChangeInstruction}
             placeholder={hasAnyOutput ? 'Ask a follow-up…' : 'How do you want to respond to this message?'}
-            placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
+            placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
             style={[
               styles.helperInput,
               isDark ? styles.helperInputDark : null,
@@ -291,7 +295,7 @@ export function AiHelperModal({
               {loading ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Thinking</Text>
-                  <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={18} />
+                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary} size={18} />
                 </View>
               ) : (
                 <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>

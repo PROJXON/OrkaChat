@@ -7,6 +7,7 @@ import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import type { MediaItem } from '../../../types/media';
 import type { PendingMediaItem } from '../attachments';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type ReplyTarget = null | {
   id: string;
@@ -219,11 +220,18 @@ export function ChatComposer(props: {
                 paddingHorizontal: 10,
                 paddingVertical: 6,
                 borderRadius: 999,
-                backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
+                backgroundColor: isDark ? PALETTE.slate750 : PALETTE.mist,
                 opacity: pressed ? 0.85 : 1,
               })}
             >
-              <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }}>@{u}</Text>
+              <Text
+                style={{
+                  color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                  fontWeight: '800',
+                }}
+              >
+                @{u}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -279,9 +287,9 @@ export function ChatComposer(props: {
                     ? 'Add a caption (optional)…'
                     : 'Type a message'
             }
-            placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-            selectionColor={isDark ? '#ffffff' : '#111'}
-            cursorColor={isDark ? '#ffffff' : '#111'}
+            placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+            selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+            cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             value={input}
             onChangeText={onChangeInput}
             editable={!inlineEditTargetId && !isUploading && !(isGroup && groupMeta?.meStatus !== 'active')}
@@ -311,8 +319,8 @@ export function ChatComposer(props: {
           >
             {isUploading ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                <Text style={{ color: '#fff', fontWeight: '800' }}>Uploading</Text>
-                <AnimatedDots color="#fff" size={18} />
+                <Text style={{ color: APP_COLORS.dark.text.primary, fontWeight: '800' }}>Uploading</Text>
+                <AnimatedDots color={APP_COLORS.dark.text.primary} size={18} />
               </View>
             ) : (
               <Text style={[styles.sendTxt, isDark ? styles.sendTxtDark : null]}>Send</Text>

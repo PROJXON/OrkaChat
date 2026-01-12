@@ -8,6 +8,7 @@ import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AVATAR_DEFAULT_COLORS, AvatarBubble, pickDefaultAvatarColor } from '../../../components/AvatarBubble';
 import type { AvatarState } from '../hooks/useMyAvatarSettings';
+import { APP_COLORS } from '../../../theme/colors';
 
 export function MainAppAvatarModal({
   styles,
@@ -88,7 +89,7 @@ export function MainAppAvatarModal({
               backgroundColor={avatarDraft.bgColor || pickDefaultAvatarColor(String(myUserSub || displayName))}
               textColor={avatarDraft.textColor || '#fff'}
               imageUri={avatarDraftImageUri || avatarDraft.imageUri}
-              imageBgColor={isDark ? '#1c1c22' : '#f2f2f7'}
+              imageBgColor={isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2}
             />
             <View style={styles.profilePreviewMeta}>
               <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
@@ -274,7 +275,7 @@ export function MainAppAvatarModal({
               {avatarSaving ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                   <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Saving</Text>
-                  <AnimatedDots color={isDark ? '#fff' : '#111'} size={18} />
+                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
                 </View>
               ) : (
                 <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Save</Text>

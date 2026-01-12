@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { UiPrompt } from '../../types/uiPrompt';
+import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 
 export function UiPromptModal({
   uiPrompt,
@@ -167,7 +168,7 @@ export function UiPromptModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: withAlpha(PALETTE.black, 0.5),
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -177,30 +178,31 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? ({ width: '92%', maxWidth: 520, alignSelf: 'center' } as const)
       : ({ width: '80%' } as const)),
-    backgroundColor: '#fff',
+    backgroundColor: APP_COLORS.light.bg.app,
     padding: 20,
     borderRadius: 12,
     elevation: 6,
     position: 'relative',
   },
   modalContentDark: {
-    backgroundColor: '#1c1c22',
+    backgroundColor: APP_COLORS.dark.bg.header,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
+    color: APP_COLORS.light.text.primary,
     marginBottom: 12,
   },
   modalTitleDark: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
   modalHelperText: {
-    color: '#555',
+    color: APP_COLORS.light.text.secondary,
     marginBottom: 12,
     lineHeight: 18,
   },
   modalHelperTextDark: {
-    color: '#b7b7c2',
+    color: APP_COLORS.dark.text.secondary,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -212,47 +214,49 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     // Light mode: neutral buttons should be off-gray (modal backgrounds are white).
-    backgroundColor: '#f2f2f7',
+    backgroundColor: APP_COLORS.light.bg.surface2,
     borderWidth: 1,
     // Neutral "tool button" style (avoid blue default buttons in light mode).
-    borderColor: '#e3e3e3',
+    borderColor: APP_COLORS.light.border.subtle,
     // Web: avoid browser default focus ring tint (can appear green/blue on some platforms).
-    ...(Platform.OS === 'web' ? { outlineStyle: 'none', boxShadow: 'none' } : null),
+    ...(Platform.OS === 'web'
+      ? { outlineStyle: 'solid', outlineWidth: 0, outlineColor: 'transparent', boxShadow: 'none' }
+      : null),
   },
   modalButtonDark: {
-    backgroundColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.border.subtle,
     borderColor: 'transparent',
     borderWidth: 0,
   },
   // Primary button for generic in-app alerts/confirmations (avoid bright blue; match app theme).
   modalButtonPrimary: {
-    backgroundColor: '#111',
+    backgroundColor: APP_COLORS.light.text.primary,
     borderColor: 'transparent',
   },
   modalButtonPrimaryDark: {
-    backgroundColor: '#2a2a33',
+    backgroundColor: APP_COLORS.dark.border.subtle,
     borderColor: 'transparent',
   },
   modalButtonDanger: {
-    backgroundColor: '#b00020',
+    backgroundColor: APP_COLORS.light.status.errorText,
     borderColor: 'transparent',
   },
   modalButtonDangerDark: {
-    backgroundColor: '#ff6b6b',
+    backgroundColor: APP_COLORS.dark.status.errorText,
     borderColor: 'transparent',
   },
   modalButtonText: {
-    color: '#111',
+    color: APP_COLORS.light.text.primary,
     fontWeight: '800',
     textAlign: 'center',
   },
   modalButtonTextDark: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
   modalButtonPrimaryText: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
   modalButtonDangerText: {
-    color: '#fff',
+    color: APP_COLORS.dark.text.primary,
   },
 });

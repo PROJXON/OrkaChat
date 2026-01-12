@@ -9,6 +9,7 @@ import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProf
 import type { GuestMessage } from '../types';
 import type { WebPinnedListState } from '../../../hooks/useWebPinnedList';
 import { useWebWheelRefresh } from '../../../hooks/useWebWheelRefresh';
+import { APP_COLORS } from '../../../theme/colors';
 
 export function GuestGlobalMessageList({
   apiUrl,
@@ -85,8 +86,16 @@ export function GuestGlobalMessageList({
       {loading && messages.length === 0 ? (
         <View style={[styles.loadingWrap, isWideUi ? styles.contentColumn : null]}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ color: isDark ? '#d7d7e0' : '#555', fontWeight: '700', fontSize: 14 }}>Loading</Text>
-            <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={16} />
+            <Text
+              style={{
+                color: isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary,
+                fontWeight: '700',
+                fontSize: 14,
+              }}
+            >
+              Loading
+            </Text>
+            <AnimatedDots color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary} size={16} />
           </View>
         </View>
       ) : null}
@@ -137,7 +146,7 @@ export function GuestGlobalMessageList({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => fetchNow({ isManual: true })}
-              tintColor={isDark ? '#ffffff' : '#111'}
+              tintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             />
           }
           renderItem={({ item, index }) =>

@@ -4,6 +4,7 @@ import Feather from '@expo/vector-icons/Feather';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type ChannelSearchResult = { channelId: string; name: string; hasPassword?: boolean; activeMemberCount?: number };
 
@@ -121,9 +122,9 @@ export function MainAppChannelsModals({
                   }}
                   placeholder="Channel name"
                   maxLength={21}
-                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                  selectionColor={isDark ? '#ffffff' : '#111'}
-                  cursorColor={isDark ? '#ffffff' : '#111'}
+                  placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+                  selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                  cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                   autoCapitalize="words"
                   autoCorrect={false}
                   style={[
@@ -139,7 +140,7 @@ export function MainAppChannelsModals({
                       lineHeight: 20,
                       paddingVertical: 10,
                       textAlignVertical: 'center',
-                      color: isDark ? '#fff' : '#111',
+                      color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
                     },
                   ]}
                 />
@@ -153,7 +154,7 @@ export function MainAppChannelsModals({
                       createChannelIsPublic ? styles.modalButtonCta : null,
                       isDark ? (createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
                       // Dark-mode selector: make the active choice visibly different.
-                      isDark && createChannelIsPublic ? { backgroundColor: '#3a3a46' } : null,
+                      isDark && createChannelIsPublic ? { backgroundColor: APP_COLORS.dark.border.default } : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
@@ -161,7 +162,7 @@ export function MainAppChannelsModals({
                       style={[
                         styles.modalButtonText,
                         isDark ? styles.modalButtonTextDark : null,
-                        isDark && !createChannelIsPublic ? { color: '#a7a7b4' } : null,
+                        isDark && !createChannelIsPublic ? { color: APP_COLORS.dark.text.muted } : null,
                         createChannelIsPublic ? styles.modalButtonCtaText : null,
                       ]}
                     >
@@ -179,7 +180,7 @@ export function MainAppChannelsModals({
                       !createChannelIsPublic ? styles.modalButtonCta : null,
                       isDark ? (!createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
                       // Dark-mode selector: make the active choice visibly different.
-                      isDark && !createChannelIsPublic ? { backgroundColor: '#3a3a46' } : null,
+                      isDark && !createChannelIsPublic ? { backgroundColor: APP_COLORS.dark.border.default } : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
@@ -187,7 +188,7 @@ export function MainAppChannelsModals({
                       style={[
                         styles.modalButtonText,
                         isDark ? styles.modalButtonTextDark : null,
-                        isDark && createChannelIsPublic ? { color: '#a7a7b4' } : null,
+                        isDark && createChannelIsPublic ? { color: APP_COLORS.dark.text.muted } : null,
                         !createChannelIsPublic ? styles.modalButtonCtaText : null,
                       ]}
                     >
@@ -204,9 +205,9 @@ export function MainAppChannelsModals({
                       setCreateChannelError(null);
                     }}
                     placeholder="Password (optional)"
-                    placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                    selectionColor={isDark ? '#ffffff' : '#111'}
-                    cursorColor={isDark ? '#ffffff' : '#111'}
+                    placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+                    selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                    cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -222,7 +223,7 @@ export function MainAppChannelsModals({
                         lineHeight: 20,
                         paddingVertical: 10,
                         textAlignVertical: 'center',
-                        color: isDark ? '#fff' : '#111',
+                        color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
                       },
                     ]}
                   />
@@ -288,7 +289,7 @@ export function MainAppChannelsModals({
                     Loading
                   </Text>
                   <View style={styles.chatsLoadingDotsWrap}>
-                    <AnimatedDots color={isDark ? '#ffffff' : '#111'} size={18} />
+                    <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
                   </View>
                 </View>
               ) : myChannels.length ? (
@@ -368,9 +369,9 @@ export function MainAppChannelsModals({
                   setChannelJoinError(null);
                 }}
                 placeholder="Search Channels"
-                placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                selectionColor={isDark ? '#ffffff' : '#111'}
-                cursorColor={isDark ? '#ffffff' : '#111'}
+                placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+                selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={[styles.blocksInput, isDark ? styles.blocksInputDark : null]}
@@ -419,7 +420,7 @@ export function MainAppChannelsModals({
                     Loading
                   </Text>
                   <View style={styles.chatsLoadingDotsWrap}>
-                    <AnimatedDots color={isDark ? '#ffffff' : '#111'} size={18} />
+                    <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
                   </View>
                 </View>
               ) : channelsResults.length ? (
@@ -435,7 +436,11 @@ export function MainAppChannelsModals({
                       </Text>
                       {c.hasPassword ? (
                         <View style={{ marginLeft: 8 }}>
-                          <Feather name="lock" size={14} color={isDark ? '#a7a7b4' : '#666'} />
+                          <Feather
+                            name="lock"
+                            size={14}
+                            color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                          />
                         </View>
                       ) : null}
                     </View>
@@ -489,9 +494,9 @@ export function MainAppChannelsModals({
                 setChannelJoinError(null);
               }}
               placeholder="Channel Password"
-              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-              selectionColor={isDark ? '#ffffff' : '#111'}
-              cursorColor={isDark ? '#ffffff' : '#111'}
+              placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+              selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+              cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}

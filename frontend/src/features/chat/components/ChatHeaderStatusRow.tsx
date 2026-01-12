@@ -5,6 +5,7 @@ import { AvatarBubble } from '../../../components/AvatarBubble';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
+import { APP_COLORS } from '../../../theme/colors';
 
 type Props = {
   styles: ChatScreenStyles;
@@ -51,7 +52,7 @@ export function ChatHeaderStatusRow({
           backgroundColor={myProf?.avatarBgColor}
           textColor={myProf?.avatarTextColor}
           imageUri={myAvatarImageUri}
-          imageBgColor={isDark ? '#1c1c22' : '#f2f2f7'}
+          imageBgColor={isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2}
           style={styles.welcomeAvatar}
         />
         <Text
@@ -75,7 +76,7 @@ export function ChatHeaderStatusRow({
           {isConnecting ? (
             <AnimatedDots
               // Don't read colors off StyleSheet objects (can be numeric in prod).
-              color={isDark ? '#a7a7b4' : '#666'}
+              color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
               size={16}
             />
           ) : null}
@@ -90,7 +91,7 @@ export function ChatHeaderStatusRow({
               <MaterialIcons
                 name={caretExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
                 size={18}
-                color={isDark ? '#b7b7c2' : '#555'}
+                color={isDark ? APP_COLORS.dark.text.secondary : APP_COLORS.light.text.secondary}
               />
             </Pressable>
           ) : null}

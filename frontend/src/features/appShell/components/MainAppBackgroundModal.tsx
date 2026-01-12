@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type ChatBackgroundState =
   | { mode: 'default' }
@@ -178,7 +179,7 @@ export function MainAppBackgroundModal({
                 <View
                   style={[
                     StyleSheet.absoluteFill,
-                    { backgroundColor: isDark ? '#0b0b0f' : '#ffffff' },
+                    { backgroundColor: isDark ? APP_COLORS.dark.bg.app : APP_COLORS.light.bg.app },
                   ]}
                 />
               )}
@@ -207,11 +208,11 @@ export function MainAppBackgroundModal({
               </Text>
               <View style={styles.avatarPaletteRow}>
                 {[
-                  '#ffffff',
-                  '#f2f2f7',
-                  '#e9e9ee',
-                  '#111111',
-                  '#0b0b0f',
+                  PALETTE.white,
+                  PALETTE.cloud,
+                  PALETTE.mist,
+                  PALETTE.slate900,
+                  PALETTE.orkaDarkBg,
                   ...avatarDefaultColors,
                 ].map((c) => {
                   const selected = backgroundDraft.mode === 'color' && backgroundDraft.color === c;
@@ -280,9 +281,9 @@ export function MainAppBackgroundModal({
                   value={bgEffectBlur}
                   onValueChange={(v: number) => setBgEffectBlur(v)}
                   onSlidingComplete={(v: number) => setBgEffectBlur(Math.max(0, Math.min(10, Math.round(v))))}
-                  minimumTrackTintColor={isDark ? '#fff' : '#111'}
-                  maximumTrackTintColor={isDark ? '#2a2a33' : '#d6d6de'}
-                  thumbTintColor={isDark ? '#fff' : '#111'}
+                  minimumTrackTintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                  maximumTrackTintColor={isDark ? APP_COLORS.dark.border.subtle : PALETTE.slate190}
+                  thumbTintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 />
               </View>
 
@@ -303,9 +304,9 @@ export function MainAppBackgroundModal({
                   onSlidingComplete={(v: number) =>
                     setBgEffectOpacity(Math.max(0.2, Math.min(1, Math.round(v * 100) / 100)))
                   }
-                  minimumTrackTintColor={isDark ? '#fff' : '#111'}
-                  maximumTrackTintColor={isDark ? '#2a2a33' : '#d6d6de'}
-                  thumbTintColor={isDark ? '#fff' : '#111'}
+                  minimumTrackTintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                  maximumTrackTintColor={isDark ? APP_COLORS.dark.border.subtle : PALETTE.slate190}
+                  thumbTintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 />
               </View>
             </>
@@ -380,7 +381,7 @@ export function MainAppBackgroundModal({
               {backgroundSaving ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                   <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Saving</Text>
-                  <AnimatedDots color={isDark ? '#fff' : '#111'} size={18} />
+                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
                 </View>
               ) : (
                 <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Save</Text>

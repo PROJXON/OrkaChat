@@ -1,6 +1,7 @@
 import React from 'react';
 import { Linking, Platform, StyleProp, Text, TextStyle } from 'react-native';
 import { useUiPromptOptional } from '../providers/UiPromptProvider';
+import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 type Segment =
   | { kind: 'text'; text: string; bold?: boolean; italic?: boolean }
@@ -293,8 +294,12 @@ export function RichText({
   const v = variant || 'neutral';
   const baseLink: TextStyle =
     v === 'outgoing'
-      ? { color: 'rgba(255,255,255,0.95)', textDecorationLine: 'underline', fontWeight: '700' }
-      : { color: isDark ? '#9dd3ff' : '#0b62d6', textDecorationLine: 'underline', fontWeight: '700' };
+      ? { color: withAlpha(PALETTE.white, 0.95), textDecorationLine: 'underline', fontWeight: '700' }
+      : {
+          color: isDark ? APP_COLORS.dark.brand.link : APP_COLORS.light.brand.link,
+          textDecorationLine: 'underline',
+          fontWeight: '700',
+        };
   const baseMention: TextStyle = { fontWeight: '900' };
 
   return (

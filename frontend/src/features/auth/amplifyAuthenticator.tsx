@@ -11,6 +11,7 @@ import { Button as AmplifyButton, PhoneNumberField, TextField } from '@aws-ampli
 import { authenticatorTextUtil, getErrors } from '@aws-amplify/ui';
 import { FederatedProviderButtons } from '@aws-amplify/ui-react-native/dist/Authenticator/common';
 import { styles } from '../../../App.styles';
+import { APP_COLORS, PALETTE } from '../../theme/colors';
 
 type CaretColors = { selectionColor: string; cursorColor?: string };
 
@@ -118,7 +119,7 @@ const LinkedConfirmResetPasswordFormFields = ({
         <Image
           source={showPassword ? icons.visibilityOn : icons.visibilityOff}
           resizeMode="contain"
-          tintColor={isDark ? '#d7d7e0' : '#666'}
+          tintColor={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.muted}
           style={{ width: 18, height: 18 }}
         />
       </Pressable>
@@ -207,7 +208,7 @@ const LinkedSignUpFormFields = ({
         <Image
           source={showPassword ? icons.visibilityOn : icons.visibilityOff}
           resizeMode="contain"
-          tintColor={isDark ? '#d7d7e0' : '#666'}
+          tintColor={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.muted}
           style={{ width: 18, height: 18 }}
         />
       </Pressable>
@@ -300,7 +301,7 @@ const LinkedSignInFormFields = ({
           // Reflect current state: "eye open" means visible.
           source={showPassword ? icons.visibilityOn : icons.visibilityOff}
           resizeMode="contain"
-          tintColor={isDark ? '#d7d7e0' : '#666'}
+          tintColor={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.muted}
           style={{ width: 18, height: 18 }}
         />
       </Pressable>
@@ -495,12 +496,23 @@ const WebAuthContent = ({
   return (
     <>
       <Header style={{ marginVertical: 10, paddingHorizontal: HPAD }}>{headerText}</Header>
-      {body ? typeof body === 'string' ? <Text style={{ paddingHorizontal: HPAD, color: isDark ? '#d7d7e0' : '#444' }}>{body}</Text> : body : null}
+      {body ? (
+        typeof body === 'string' ? (
+          <Text style={{ paddingHorizontal: HPAD, color: isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.body }}>
+            {body}
+          </Text>
+        ) : (
+          body
+        )
+      ) : null}
 
       <FormFields
         fieldContainerStyle={{ paddingHorizontal: HPAD }}
         fieldErrorsContainer={{ paddingHorizontal: HPAD, paddingVertical: 6 }}
-        fieldErrorStyle={{ color: isDark ? '#ff6b6b' : '#b00020', fontWeight: '700' }}
+        fieldErrorStyle={{
+          color: isDark ? APP_COLORS.dark.status.errorText : APP_COLORS.light.status.errorText,
+          fontWeight: '700',
+        }}
         fieldLabelStyle={{}}
         fieldStyle={{}}
         fields={fields}
@@ -511,7 +523,11 @@ const WebAuthContent = ({
 
       {error ? (
         <View style={{ paddingHorizontal: HPAD, paddingBottom: 8 }}>
-          <Text style={{ color: isDark ? '#ff6b6b' : '#b00020', fontWeight: '800' }}>{String(error)}</Text>
+          <Text
+            style={{ color: isDark ? APP_COLORS.dark.status.errorText : APP_COLORS.light.status.errorText, fontWeight: '800' }}
+          >
+            {String(error)}
+          </Text>
         </View>
       ) : null}
 
@@ -875,30 +891,30 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
       tokens: {
         colors: {
           background: {
-            primary: '#ffffff',
-            secondary: '#f2f2f7',
-            tertiary: '#ffffff',
+            primary: APP_COLORS.light.bg.app,
+            secondary: APP_COLORS.light.bg.surface2,
+            tertiary: APP_COLORS.light.bg.app,
           },
           border: {
-            primary: '#e3e3e3',
-            secondary: '#ddd',
+            primary: APP_COLORS.light.border.subtle,
+            secondary: PALETTE.lineMedium,
           },
           font: {
-            primary: '#111',
-            secondary: '#444',
-            tertiary: '#666',
-            interactive: '#111',
-            error: '#b00020',
+            primary: APP_COLORS.light.text.primary,
+            secondary: APP_COLORS.light.text.body,
+            tertiary: APP_COLORS.light.text.muted,
+            interactive: APP_COLORS.light.text.primary,
+            error: APP_COLORS.light.status.errorText,
           },
           // Kill the teal/blue brand colors for this app; keep it neutral.
           primary: {
-            10: '#f2f2f7',
-            20: '#e3e3e3',
-            40: '#c7c7cc',
-            60: '#8e8e93',
-            80: '#2a2a33',
-            90: '#111',
-            100: '#000',
+            10: APP_COLORS.light.bg.surface2,
+            20: APP_COLORS.light.border.subtle,
+            40: PALETTE.slate175,
+            60: PALETTE.slate380,
+            80: PALETTE.slate750,
+            90: APP_COLORS.light.text.primary,
+            100: PALETTE.black,
           },
         },
       },
@@ -909,33 +925,33 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
           tokens: {
             colors: {
               background: {
-                primary: '#14141a',
-                secondary: '#1c1c22',
-                tertiary: '#14141a',
+                primary: APP_COLORS.dark.bg.surface,
+                secondary: APP_COLORS.dark.bg.header,
+                tertiary: APP_COLORS.dark.bg.surface,
                 // Used by the `ErrorMessage` primitive container.
-                error: '#2a1a1a',
+                error: PALETTE.dangerBgDarkAlt,
               },
               border: {
-                primary: '#2a2a33',
-                secondary: '#2a2a33',
+                primary: APP_COLORS.dark.border.default,
+                secondary: APP_COLORS.dark.border.default,
               },
               font: {
-                primary: '#ffffff',
-                secondary: '#d7d7e0',
-                tertiary: '#a7a7b4',
-                interactive: '#ffffff',
+                primary: APP_COLORS.dark.text.primary,
+                secondary: APP_COLORS.dark.text.body,
+                tertiary: APP_COLORS.dark.text.muted,
+                interactive: APP_COLORS.dark.text.primary,
                 // Validation errors ("Please enter a valid email", etc).
                 // This is the main fix for readability on dark backgrounds.
-                error: '#ff6b6b',
+                error: APP_COLORS.dark.status.errorText,
               },
               primary: {
-                10: '#2a2a33',
-                20: '#2a2a33',
-                40: '#444',
-                60: '#666',
-                80: '#d7d7e0',
-                90: '#ffffff',
-                100: '#ffffff',
+                10: PALETTE.slate750,
+                20: PALETTE.slate750,
+                40: PALETTE.slate650,
+                60: PALETTE.slate500,
+                80: APP_COLORS.dark.text.body,
+                90: APP_COLORS.dark.text.primary,
+                100: APP_COLORS.dark.text.primary,
               },
             },
           },
@@ -953,53 +969,53 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
             justifyContent: 'center' as const,
           },
           containerPrimary: {
-            backgroundColor: isDark ? '#2a2a33' : '#111',
+            backgroundColor: isDark ? PALETTE.slate750 : APP_COLORS.light.text.primary,
             borderWidth: 0,
             ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
           },
           // Some Authenticator flows on web use the "variation" style keys directly.
           // Provide an explicit primary variant override so buttons never fall back to Amplify teal.
           primary: {
-            backgroundColor: isDark ? '#2a2a33' : '#111',
+            backgroundColor: isDark ? PALETTE.slate750 : APP_COLORS.light.text.primary,
             borderWidth: 0,
             ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
           },
           primaryPressed: { opacity: 0.9 },
           containerDefault: {
             // Use a soft off-white fill in light mode (matches our text field backgrounds).
-            backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+            backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
             borderWidth: 1,
-            borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+            borderColor: isDark ? APP_COLORS.dark.border.default : APP_COLORS.light.border.subtle,
             ...(Platform.OS === 'web' ? ({ alignSelf: 'stretch' } as const) : null),
           },
           pressed: { opacity: 0.9 },
           // Give descenders (e.g. "g") enough vertical room across devices.
           text: { fontWeight: '800' as const, fontSize: 15, lineHeight: 20 },
-          textPrimary: { color: '#fff' },
-          textDefault: { color: isDark ? '#fff' : '#111' },
+          textPrimary: { color: APP_COLORS.dark.text.primary },
+          textDefault: { color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary },
           containerLink: { backgroundColor: 'transparent' },
           textLink: {
-            color: isDark ? '#fff' : '#111',
+            color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
             fontWeight: '800' as const,
             fontSize: 15,
             lineHeight: 20,
           },
         }),
         textField: () => ({
-          label: { color: isDark ? '#d7d7e0' : '#444', fontWeight: '700' as const },
+          label: { color: isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.body, fontWeight: '700' as const },
           // Ensure full-width fields on web (Authenticator container doesn't force stretch).
           container: Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : undefined,
           fieldContainer: {
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: isDark ? '#2a2a33' : '#e3e3e3',
+            borderColor: isDark ? APP_COLORS.dark.border.default : APP_COLORS.light.border.subtle,
             // Off-gray fill in light mode (avoid stark white inputs).
-            backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
+            backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
             paddingHorizontal: 8,
             ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
           },
           field: {
-            color: isDark ? '#fff' : '#111',
+            color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
             paddingVertical: 12,
             ...(Platform.OS === 'web' ? ({ width: '100%' } as const) : null),
           },
@@ -1007,7 +1023,7 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
         errorMessage: () => ({
           label: {
             // Higher-contrast error color for dark backgrounds.
-            color: isDark ? '#ff6b6b' : '#b00020',
+            color: isDark ? APP_COLORS.dark.status.errorText : APP_COLORS.light.status.errorText,
             fontWeight: '700' as const,
           },
         }),
@@ -1018,8 +1034,8 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
 
   const caretProps = React.useMemo(
     () => ({
-      selectionColor: isDark ? '#ffffff' : '#111',
-      cursorColor: isDark ? '#ffffff' : '#111',
+      selectionColor: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+      cursorColor: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
     }),
     [isDark]
   );

@@ -4,6 +4,7 @@ import { AnimatedDots } from '../AnimatedDots';
 import type { MediaItem } from '../../types/media';
 import { getNativeEventNumber } from '../../utils/nativeEvent';
 import { isImageLike, isVideoLike } from '../../utils/mediaKinds';
+import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 
 export function MediaStackCarousel({
   messageId,
@@ -173,7 +174,7 @@ export function MediaStackCarousel({
           // Map extended pages → real index.
           const realIndex = !loopEnabled ? idx2 : idx2 === 0 ? n - 1 : idx2 === n + 1 ? 0 : idx2 - 1;
 
-          const loadingText = loadingTextColor ?? (isDark ? '#fff' : '#111');
+          const loadingText = loadingTextColor ?? (isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary);
           const loadingDots = loadingDotsColor ?? loadingText;
           const onPress = () => onOpen(realIndex, mediaList[realIndex]);
 
@@ -219,7 +220,7 @@ export function MediaStackCarousel({
                     { width, height, justifyContent: 'center', alignItems: 'center', borderRadius: cornerRadius },
                   ]}
                 >
-                  <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }}>
+                  <Text style={{ color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary, fontWeight: '800' }}>
                     {m2.fileName ? m2.fileName : 'Attachment'}
                   </Text>
                 </View>
@@ -291,7 +292,7 @@ const styles = StyleSheet.create({
   mediaFill: { width: '100%', height: '100%' },
   videoThumbWrap: { position: 'relative', overflow: 'hidden' },
   mediaCappedImage: { backgroundColor: 'transparent' },
-  imageThumbWrap: { overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.06)' },
+  imageThumbWrap: { overflow: 'hidden', backgroundColor: withAlpha(PALETTE.black, 0.06) },
   videoPlayOverlay: {
     position: 'absolute',
     top: 0,
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  videoPlayText: { color: '#fff', fontSize: 28, fontWeight: '900' },
+  videoPlayText: { color: APP_COLORS.dark.text.primary, fontSize: 28, fontWeight: '900' },
   mediaCountBadge: {
     position: 'absolute',
     top: 10,
@@ -309,10 +310,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: withAlpha(PALETTE.black, 0.55),
     zIndex: 5,
   },
-  mediaCountBadgeText: { color: '#fff', fontWeight: '900', fontSize: 12 },
+  mediaCountBadgeText: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 12 },
   mediaCarouselNavBtn: {
     position: 'absolute',
     top: '50%',
@@ -322,14 +323,14 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: withAlpha(PALETTE.white, 0.18),
     zIndex: 7,
   },
   mediaCarouselNavLeft: { left: 10 },
   mediaCarouselNavRight: { right: 10 },
-  mediaCarouselNavText: { color: '#fff', fontWeight: '900', fontSize: 22, lineHeight: 22, marginTop: -1 },
+  mediaCarouselNavText: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 22, lineHeight: 22, marginTop: -1 },
   mediaDotsOverlay: {
     position: 'absolute',
     left: 0,
@@ -347,16 +348,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.28)',
+    backgroundColor: withAlpha(PALETTE.black, 0.28),
   },
   mediaDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: withAlpha(PALETTE.white, 0.45),
   },
   mediaDotActive: {
-    backgroundColor: '#fff',
+    backgroundColor: APP_COLORS.dark.text.primary,
     width: 8,
     height: 8,
     borderRadius: 4,

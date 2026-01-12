@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, Pressable, Switch, Text, View } from 'react-native';
 
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { APP_COLORS } from '../../../theme/colors';
 
 function MiniToggle({
   value,
@@ -129,9 +130,9 @@ export function DmSettingsPanel({
                   value={autoDecrypt}
                   onValueChange={onToggleAutoDecrypt}
                   disabled={!myPrivateKeyReady}
-                  trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                  thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                  ios_backgroundColor="#d1d1d6"
+                  trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                  thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
+                  ios_backgroundColor={APP_COLORS.light.border.default}
                 />
               )}
             </View>
@@ -190,9 +191,9 @@ export function DmSettingsPanel({
                 <Switch
                   value={sendReadReceipts}
                   onValueChange={onToggleReadReceipts}
-                  trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                  thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                  ios_backgroundColor="#d1d1d6"
+                  trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                  thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
+                  ios_backgroundColor={APP_COLORS.light.border.default}
                 />
               )}
             </View>
@@ -261,9 +262,9 @@ export function DmSettingsPanel({
                   value={autoDecrypt}
                   onValueChange={onToggleAutoDecrypt}
                   disabled={!myPrivateKeyReady}
-                  trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                  thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                  ios_backgroundColor="#d1d1d6"
+                  trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                  thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
+                  ios_backgroundColor={APP_COLORS.light.border.default}
                 />
               )}
             </View>
