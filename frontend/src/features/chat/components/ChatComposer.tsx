@@ -79,8 +79,8 @@ export function ChatComposer(props: {
     isEncryptedChat,
     groupMeta,
     inlineEditTargetId,
-    inlineEditUploading,
-    cancelInlineEdit,
+    inlineEditUploading: _inlineEditUploading,
+    cancelInlineEdit: _cancelInlineEdit,
     pendingMedia,
     setPendingMedia,
     isUploading,
@@ -108,120 +108,119 @@ export function ChatComposer(props: {
 
   return (
     <>
-      {inlineEditTargetId ? (
-        <View style={[styles.editingBar, isDark ? styles.editingBarDark : null]}>
-          <Text style={[styles.editingBarText, isDark ? styles.editingBarTextDark : null]}>
-            Editing message
-          </Text>
+      {pendingMedia.length ? (
+        <View
+          style={[
+            isWideChatLayout ? styles.chatContentColumn : null,
+            composerHorizontalInsetsStyle,
+          ]}
+        >
           <Pressable
-            onPress={cancelInlineEdit}
-            disabled={inlineEditUploading}
-            style={({ pressed }) => [
-              styles.editingBarCancelBtn,
-              isDark ? styles.editingBarCancelBtnDark : null,
-              inlineEditUploading ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
-              pressed ? { opacity: 0.85 } : null,
+            style={[
+              styles.attachmentPill,
+              isDark ? styles.attachmentPillDark : null,
+              // This pill is rendered outside the composer row; constrain it like the composer controls.
+              { marginHorizontal: 0 },
             ]}
+            onPress={() => setPendingMedia([])}
+            disabled={isUploading}
           >
             <Text
-              style={[styles.editingBarCancelText, isDark ? styles.editingBarCancelTextDark : null]}
+              style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
             >
-              Cancel
+              {pendingMedia.length === 1
+                ? `Attached: ${pendingMedia[0].displayName || pendingMedia[0].fileName || pendingMedia[0].kind} (tap to remove)`
+                : `Attached: ${pendingMedia.length} items (tap to remove)`}
             </Text>
           </Pressable>
         </View>
-      ) : pendingMedia.length ? (
-        <Pressable
-          style={[styles.attachmentPill, isDark ? styles.attachmentPillDark : null]}
-          onPress={() => setPendingMedia([])}
-          disabled={isUploading}
-        >
-          <Text style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}>
-            {pendingMedia.length === 1
-              ? `Attached: ${pendingMedia[0].displayName || pendingMedia[0].fileName || pendingMedia[0].kind} (tap to remove)`
-              : `Attached: ${pendingMedia.length} items (tap to remove)`}
-          </Text>
-        </Pressable>
       ) : null}
 
       {replyTarget ? (
         <View
           style={[
-            styles.attachmentPill,
-            isDark ? styles.attachmentPillDark : null,
-            { flexDirection: 'row', alignItems: 'center' },
+            isWideChatLayout ? styles.chatContentColumn : null,
+            composerHorizontalInsetsStyle,
           ]}
         >
-          {replyTarget.mediaCount ? (
+          <View
+            style={[
+              styles.attachmentPill,
+              isDark ? styles.attachmentPillDark : null,
+              { flexDirection: 'row', alignItems: 'center', marginHorizontal: 0 },
+            ]}
+          >
+            {replyTarget.mediaCount ? (
+              <Pressable
+                onPress={() => {
+                  // Best-effort: open the original target if it's in memory.
+                  const t = messages.find((m) => m && m.id === replyTarget.id);
+                  if (!t) return;
+                  const raw = String(t.rawText ?? t.text ?? '');
+                  const env =
+                    !t.encrypted && !t.groupEncrypted && !isDm ? parseChatEnvelope(raw) : null;
+                  const envList = env ? normalizeChatMediaList(env.media) : [];
+                  if (!envList.length) return;
+                  openViewer(envList, 0);
+                }}
+                style={({ pressed }) => [
+                  styles.replyThumbWrap,
+                  { marginRight: 10 },
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Open replied media"
+              >
+                {replyTarget.mediaThumbUri ? (
+                  <Image source={{ uri: replyTarget.mediaThumbUri }} style={styles.replyThumb} />
+                ) : (
+                  <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
+                    <Text style={styles.replyThumbPlaceholderText}>
+                      {replyTarget.mediaKind === 'image'
+                        ? 'Photo'
+                        : replyTarget.mediaKind === 'video'
+                          ? 'Video'
+                          : 'File'}
+                    </Text>
+                  </View>
+                )}
+                {(replyTarget.mediaCount || 0) > 1 ? (
+                  <View style={styles.replyThumbCountBadge}>
+                    <Text
+                      style={styles.replyThumbCountText}
+                    >{`+${(replyTarget.mediaCount || 0) - 1}`}</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            ) : null}
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
+                numberOfLines={2}
+              >
+                {`Replying to ${replyTarget.user || 'user'}: ${replyTarget.preview || ''}`}
+              </Text>
+            </View>
             <Pressable
-              onPress={() => {
-                // Best-effort: open the original target if it's in memory.
-                const t = messages.find((m) => m && m.id === replyTarget.id);
-                if (!t) return;
-                const raw = String(t.rawText ?? t.text ?? '');
-                const env =
-                  !t.encrypted && !t.groupEncrypted && !isDm ? parseChatEnvelope(raw) : null;
-                const envList = env ? normalizeChatMediaList(env.media) : [];
-                if (!envList.length) return;
-                openViewer(envList, 0);
-              }}
+              onPress={() => setReplyTarget(null)}
               style={({ pressed }) => [
-                styles.replyThumbWrap,
-                { marginRight: 10 },
-                pressed ? { opacity: 0.9 } : null,
+                {
+                  marginLeft: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  opacity: pressed ? 0.85 : 1,
+                },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Open replied media"
+              accessibilityLabel="Cancel reply"
             >
-              {replyTarget.mediaThumbUri ? (
-                <Image source={{ uri: replyTarget.mediaThumbUri }} style={styles.replyThumb} />
-              ) : (
-                <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
-                  <Text style={styles.replyThumbPlaceholderText}>
-                    {replyTarget.mediaKind === 'image'
-                      ? 'Photo'
-                      : replyTarget.mediaKind === 'video'
-                        ? 'Video'
-                        : 'File'}
-                  </Text>
-                </View>
-              )}
-              {(replyTarget.mediaCount || 0) > 1 ? (
-                <View style={styles.replyThumbCountBadge}>
-                  <Text
-                    style={styles.replyThumbCountText}
-                  >{`+${(replyTarget.mediaCount || 0) - 1}`}</Text>
-                </View>
-              ) : null}
+              <Text
+                style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
+              >
+                Cancel
+              </Text>
             </Pressable>
-          ) : null}
-          <View style={{ flex: 1 }}>
-            <Text
-              style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
-              numberOfLines={2}
-            >
-              {`Replying to ${replyTarget.user || 'user'}: ${replyTarget.preview || ''}`}
-            </Text>
           </View>
-          <Pressable
-            onPress={() => setReplyTarget(null)}
-            style={({ pressed }) => [
-              {
-                marginLeft: 10,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Cancel reply"
-          >
-            <Text
-              style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
-            >
-              Cancel
-            </Text>
-          </Pressable>
         </View>
       ) : null}
 

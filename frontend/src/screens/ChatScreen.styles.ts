@@ -382,9 +382,36 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 0,
     marginTop: 1,
     fontWeight: '400',
+    backgroundColor: 'transparent',
+    // Web: prevent the browser's default <textarea> border/outline (can look like a double line).
+    ...(Platform.OS === 'web'
+      ? ({
+          borderWidth: 0,
+          outlineStyle: 'solid',
+          outlineWidth: 0,
+          outlineColor: 'transparent',
+          boxShadow: 'none',
+        } as const)
+      : null),
   },
   inlineEditInputIncoming: { color: APP_COLORS.light.text.heading },
-  inlineEditInputOutgoing: { color: APP_COLORS.dark.text.primary },
+  // Outgoing edits sit on the blue bubble/header bar → a single white border reads best in both light/dark themes.
+  inlineEditInputOutgoing: {
+    color: APP_COLORS.dark.text.primary,
+    borderWidth: 1,
+    // Default (unfocused): subtle border so it doesn't look "stuck focused".
+    borderColor: withAlpha(PALETTE.white, 0.45),
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  inlineEditInputOutgoingFocused: {
+    borderColor: withAlpha(PALETTE.white, 0.92),
+    // Make the focus ring 1px thicker, but keep overall size stable.
+    borderWidth: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+  },
   inlineEditActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -749,26 +776,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 6,
   },
-  editingBar: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: APP_COLORS.light.bg.surface2,
-  },
-  editingBarDark: { backgroundColor: APP_COLORS.dark.bg.header },
-  editingBarText: { color: APP_COLORS.light.text.body, fontWeight: '600' },
-  editingBarTextDark: { color: APP_COLORS.dark.text.body },
-  editingBarCancelBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: PALETTE.paper260,
-  },
-  editingBarCancelBtnDark: { backgroundColor: PALETTE.slate750 },
-  editingBarCancelText: { color: APP_COLORS.light.text.primary, fontWeight: '700' },
-  editingBarCancelTextDark: { color: APP_COLORS.dark.text.primary },
+  // (editingBar styles removed; save/cancel now live inside the edited message bubble)
   typingIndicatorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -899,11 +907,36 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
     color: APP_COLORS.light.text.primary,
     textAlignVertical: 'top',
+    ...(Platform.OS === 'web'
+      ? ({
+          // Avoid the browser default focus outline (can clip in ScrollViews and doesn't match our rounded inputs).
+          // Use a "zero-width solid" outline so it stays type-safe across RN-web style typings.
+          outlineStyle: 'solid',
+          outlineWidth: 0,
+          outlineColor: 'transparent',
+        } as const)
+      : null),
   },
   reportInputDark: {
     borderColor: APP_COLORS.dark.border.default,
     backgroundColor: APP_COLORS.dark.bg.header,
     color: APP_COLORS.dark.text.primary,
+  },
+  reportInputFocused: {
+    // Match other web inputs: solid black focus ring (but inset so it won't clip in modals).
+    ...(Platform.OS === 'web'
+      ? ({
+          boxShadow: `inset 0px 0px 0px 1px ${PALETTE.black}`,
+        } as const)
+      : null),
+  },
+  reportInputFocusedDark: {
+    // Match other web inputs: thicker white focus ring in dark mode (inset to avoid clipping).
+    ...(Platform.OS === 'web'
+      ? ({
+          boxShadow: `inset 0px 0px 0px 2px ${PALETTE.white}`,
+        } as const)
+      : null),
   },
   reportCategoryWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   reportChip: {

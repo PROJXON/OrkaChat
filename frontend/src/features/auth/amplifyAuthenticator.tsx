@@ -1110,13 +1110,22 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
             borderColor: isDark ? APP_COLORS.dark.border.default : APP_COLORS.light.border.subtle,
             // Off-gray fill in light mode (avoid stark white inputs).
             backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
-            paddingHorizontal: 8,
+            // Let the actual input fill the container so the browser focus ring
+            // matches the rounded shape (no "square inside the bubble").
+            paddingHorizontal: 0,
             ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
           },
           field: {
             color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
             paddingVertical: 12,
-            ...(Platform.OS === 'web' ? ({ width: '100%' } as const) : null),
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            ...(Platform.OS === 'web'
+              ? ({
+                  width: '100%',
+                  alignSelf: 'stretch',
+                } as const)
+              : null),
           },
         }),
         errorMessage: () => ({

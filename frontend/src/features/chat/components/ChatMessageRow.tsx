@@ -141,6 +141,11 @@ export function ChatMessageRow(props: {
     renderMediaCarousel,
   } = props;
 
+  const [inlineEditFocused, setInlineEditFocused] = React.useState(false);
+  React.useEffect(() => {
+    if (!inlineEditTargetId || item.id !== inlineEditTargetId) setInlineEditFocused(false);
+  }, [inlineEditTargetId, item.id]);
+
   const prof = item.userSub ? avatarProfileBySub[String(item.userSub)] : undefined;
 
   const AVATAR_SIZE = 34;
@@ -391,13 +396,18 @@ export function ChatMessageRow(props: {
                         style={[
                           styles.inlineEditInput,
                           isOutgoing
-                            ? styles.inlineEditInputOutgoing
+                            ? [
+                                styles.inlineEditInputOutgoing,
+                                inlineEditFocused ? styles.inlineEditInputOutgoingFocused : null,
+                              ]
                             : styles.inlineEditInputIncoming,
                         ]}
                         value={inlineEditDraft}
                         onChangeText={setInlineEditDraft}
                         multiline
                         autoFocus
+                        onFocus={() => setInlineEditFocused(true)}
+                        onBlur={() => setInlineEditFocused(false)}
                         placeholder="Add a caption…"
                         placeholderTextColor={
                           isOutgoing
@@ -527,25 +537,47 @@ export function ChatMessageRow(props: {
                         </Pressable>
                       </View>
                     </View>
-                  ) : captionText?.length ? (
+                  ) : captionText?.length || isEdited ? (
                     <View style={styles.mediaHeaderCaptionRow}>
-                      <RichText
-                        text={String(captionText || '')}
-                        isDark={isDark}
-                        enableMentions={!isEncryptedChat}
-                        variant={isOutgoing ? 'outgoing' : 'incoming'}
-                        style={[
-                          styles.mediaHeaderCaption,
-                          isOutgoing
-                            ? styles.mediaHeaderCaptionOutgoing
-                            : isDark
-                              ? styles.mediaHeaderCaptionIncomingDark
-                              : styles.mediaHeaderCaptionIncoming,
-                          styles.mediaHeaderCaptionFlex,
-                        ]}
-                        mentionStyle={styles.mentionText}
-                        onOpenUrl={requestOpenLink}
-                      />
+                      {captionText?.length ? (
+                        <RichText
+                          text={String(captionText || '')}
+                          isDark={isDark}
+                          enableMentions={!isEncryptedChat}
+                          variant={isOutgoing ? 'outgoing' : 'incoming'}
+                          style={[
+                            styles.mediaHeaderCaption,
+                            isOutgoing
+                              ? styles.mediaHeaderCaptionOutgoing
+                              : isDark
+                                ? styles.mediaHeaderCaptionIncomingDark
+                                : styles.mediaHeaderCaptionIncoming,
+                            styles.mediaHeaderCaptionFlex,
+                          ]}
+                          mentionStyle={styles.mentionText}
+                          onOpenUrl={requestOpenLink}
+                        />
+                      ) : (
+                        // Keep the row layout stable so the "Edited" label stays right-aligned
+                        // even when the caption is empty.
+                        <View style={styles.mediaHeaderCaptionFlex} />
+                      )}
+                      {isEdited ? (
+                        <Text
+                          style={[
+                            styles.editedLabel,
+                            isOutgoing
+                              ? isDark
+                                ? styles.editedLabelOutgoingDark
+                                : styles.editedLabelOutgoing
+                              : isDark
+                                ? styles.editedLabelIncomingDark
+                                : styles.editedLabelIncoming,
+                          ]}
+                        >
+                          Edited
+                        </Text>
+                      ) : null}
                     </View>
                   ) : null}
                 </View>
@@ -653,13 +685,18 @@ export function ChatMessageRow(props: {
                       style={[
                         styles.inlineEditInput,
                         isOutgoing
-                          ? styles.inlineEditInputOutgoing
+                          ? [
+                              styles.inlineEditInputOutgoing,
+                              inlineEditFocused ? styles.inlineEditInputOutgoingFocused : null,
+                            ]
                           : styles.inlineEditInputIncoming,
                       ]}
                       value={inlineEditDraft}
                       onChangeText={setInlineEditDraft}
                       multiline
                       autoFocus
+                      onFocus={() => setInlineEditFocused(true)}
+                      onBlur={() => setInlineEditFocused(false)}
                       editable={!inlineEditUploading}
                       selectionColor={
                         isOutgoing
@@ -676,6 +713,60 @@ export function ChatMessageRow(props: {
                             : APP_COLORS.light.text.primary
                       }
                     />
+                    <View style={styles.inlineEditActions}>
+                      <Pressable
+                        onPress={() => void commitInlineEdit()}
+                        disabled={inlineEditUploading}
+                        style={({ pressed }) => [
+                          styles.inlineEditBtn,
+                          inlineEditUploading
+                            ? isOutgoing
+                              ? styles.inlineEditBtnUploadingOutgoing
+                              : isDark
+                                ? styles.btnDisabledDark
+                                : styles.btnDisabled
+                            : null,
+                          pressed ? styles.inlineEditBtnPressed : null,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Save edited message"
+                      >
+                        <Text
+                          style={[
+                            styles.inlineEditBtnText,
+                            isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
+                          ]}
+                        >
+                          Save
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={cancelInlineEdit}
+                        disabled={inlineEditUploading}
+                        style={({ pressed }) => [
+                          styles.inlineEditBtn,
+                          inlineEditUploading
+                            ? isOutgoing
+                              ? styles.inlineEditBtnUploadingOutgoing
+                              : isDark
+                                ? styles.btnDisabledDark
+                                : styles.btnDisabled
+                            : null,
+                          pressed ? styles.inlineEditBtnPressed : null,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel editing"
+                      >
+                        <Text
+                          style={[
+                            styles.inlineEditBtnText,
+                            isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
+                          ]}
+                        >
+                          Cancel
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
                 ) : (
                   <RichText
