@@ -7,6 +7,7 @@ import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AppTextInput } from '../../../components/AppTextInput';
 import { APP_COLORS } from '../../../theme/colors';
+import { shouldShowGlobalForChannelSearch } from '../../../utils/channelSearch';
 
 type ChannelSearchResult = {
   channelId: string;
@@ -107,6 +108,7 @@ export function MainAppChannelsModals({
   submitChannelPassword: () => void | Promise<void>;
 }): React.JSX.Element {
   const [channelPasswordVisible, setChannelPasswordVisible] = React.useState<boolean>(false);
+  const showGlobalInChannelSearch = shouldShowGlobalForChannelSearch(channelsQuery);
 
   // Always default to hidden when opening/closing the prompt.
   React.useEffect(() => {
@@ -491,8 +493,8 @@ export function MainAppChannelsModals({
             ) : null}
 
             <ScrollView style={styles.chatsScroll}>
-              {/* Only show Global as a suggestion when not actively searching */}
-              {!String(channelsQuery || '').trim() ? (
+              {/* Show Global as a suggestion when empty, otherwise only when it matches the query. */}
+              {showGlobalInChannelSearch ? (
                 <Pressable
                   key="searchchannel:global"
                   style={({ pressed }) => [

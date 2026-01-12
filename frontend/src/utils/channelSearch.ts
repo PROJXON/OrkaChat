@@ -145,3 +145,19 @@ export async function searchChannels(opts: {
 
   throw new Error(errors.length ? errors.join('\n') : 'Channel search failed');
 }
+
+/**
+ * Shared "Global" visibility rule for channel search UIs.
+ *
+ * - Show Global as a suggestion when the query is empty
+ * - Otherwise only show Global when the query is clearly trying to find "Global"
+ *   (so it doesn't feel "pinned" during unrelated searches)
+ */
+export function shouldShowGlobalForChannelSearch(query: string): boolean {
+  const q = String(query || '').trim();
+  if (!q) return true;
+  const lower = q.toLowerCase();
+  // Keep the behavior conservative to avoid showing Global on 1-char searches.
+  if (lower.length < 2) return false;
+  return 'global'.includes(lower);
+}
