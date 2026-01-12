@@ -146,16 +146,58 @@ export function ChatMessageRow(props: {
   const AVATAR_SIZE = 34;
   const AVATAR_TOP_OFFSET = 0;
 
+  // On mobile web, releasing after a long-press can still synthesize a "click"/press,
+  // which can cause an underlying tap action (and/or selection flash) immediately after
+  // the long-press menu opens. Swallow the next onPress if we just long-pressed.
+  const swallowNextPressRef = React.useRef(false);
+  const swallowResetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    return () => {
+      if (swallowResetTimerRef.current) clearTimeout(swallowResetTimerRef.current);
+    };
+  }, []);
+
   return (
     <Pressable
       onPress={() => {
+        if (swallowNextPressRef.current) {
+          swallowNextPressRef.current = false;
+          return;
+        }
         if (inlineEditTargetId && item.id === inlineEditTargetId) return;
         onPressMessage(item);
       }}
       onLongPress={(e) => {
         if (isDeleted) return;
+        if (Platform.OS === 'web') {
+          swallowNextPressRef.current = true;
+          if (swallowResetTimerRef.current) clearTimeout(swallowResetTimerRef.current);
+          swallowResetTimerRef.current = setTimeout(() => {
+            swallowNextPressRef.current = false;
+          }, 800);
+        }
         onLongPressMessage(e);
       }}
+      // Prevent the browser’s native context menu / selection behavior from fighting
+      // with our custom long-press message actions on mobile web.
+      {...(Platform.OS === 'web'
+        ? ({
+            onContextMenu: (e: unknown) => {
+              const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
+              ev.preventDefault?.();
+              ev.stopPropagation?.();
+            },
+            style: ({ pressed }: { pressed: boolean }) => [
+              // Ensure long-press doesn't trigger native text selection callouts.
+              {
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+                WebkitTouchCallout: 'none',
+              } as const,
+              pressed ? { opacity: 0.98 } : null,
+            ],
+          } as const)
+        : {})}
     >
       <View
         style={[
