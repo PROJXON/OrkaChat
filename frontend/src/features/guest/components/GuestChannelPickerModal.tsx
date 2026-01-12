@@ -5,6 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AppTextInput } from '../../../components/AppTextInput';
 import { APP_COLORS } from '../../../theme/colors';
+import { shouldShowGlobalForChannelSearch } from '../../../utils/channelSearch';
 
 export function GuestChannelPickerModal(props: {
   open: boolean;
@@ -42,12 +43,7 @@ export function GuestChannelPickerModal(props: {
     onClose,
   } = props;
 
-  const trimmedQuery = String(query || '').trim();
-  // Match signed-in behavior: Global is a suggestion when empty, otherwise only show it if the
-  // query is clearly trying to find "Global" (so it's not "pinned" during unrelated searches).
-  const showGlobalRow =
-    !trimmedQuery ||
-    (trimmedQuery.length >= 2 && 'global'.includes(trimmedQuery.toLowerCase()));
+  const showGlobalRow = shouldShowGlobalForChannelSearch(query);
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>

@@ -7,6 +7,7 @@ import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AppTextInput } from '../../../components/AppTextInput';
 import { APP_COLORS } from '../../../theme/colors';
+import { shouldShowGlobalForChannelSearch } from '../../../utils/channelSearch';
 
 type ChannelSearchResult = {
   channelId: string;
@@ -107,12 +108,7 @@ export function MainAppChannelsModals({
   submitChannelPassword: () => void | Promise<void>;
 }): React.JSX.Element {
   const [channelPasswordVisible, setChannelPasswordVisible] = React.useState<boolean>(false);
-  const trimmedChannelsQuery = String(channelsQuery || '').trim();
-  // Keep Global from feeling "pinned" during search: show it when empty, or when the query
-  // is clearly attempting to find "Global" specifically.
-  const showGlobalInChannelSearch =
-    !trimmedChannelsQuery ||
-    (trimmedChannelsQuery.length >= 2 && 'global'.includes(trimmedChannelsQuery.toLowerCase()));
+  const showGlobalInChannelSearch = shouldShowGlobalForChannelSearch(channelsQuery);
 
   // Always default to hidden when opening/closing the prompt.
   React.useEffect(() => {
