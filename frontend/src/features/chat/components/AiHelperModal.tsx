@@ -6,7 +6,12 @@ import { AppTextInput } from '../../../components/AppTextInput';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS } from '../../../theme/colors';
 
-export type AiHelperTurn = { role: 'user' | 'assistant'; text: string; thinking?: boolean };
+export type AiHelperTurn = {
+  role: 'user' | 'assistant';
+  text: string;
+  thinking?: boolean;
+  suggestions?: string[];
+};
 
 type Props = {
   visible: boolean;
@@ -14,8 +19,6 @@ type Props = {
   styles: ChatScreenStyles;
 
   thread: AiHelperTurn[];
-  answer: string;
-  suggestions: string[];
   instruction: string;
   loading: boolean;
   mode: 'ask' | 'reply';
@@ -31,7 +34,6 @@ type Props = {
   scrollRef: React.MutableRefObject<ScrollView | null>;
   scrollContentRef: React.MutableRefObject<View | null>;
   lastTurnRef: React.MutableRefObject<View | null>;
-  lastTurnLayoutRef: React.MutableRefObject<{ y: number; h: number; ok: boolean }>;
   scrollViewportHRef: React.MutableRefObject<number>;
   scrollContentHRef: React.MutableRefObject<number>;
   lastAutoScrollAtRef: React.MutableRefObject<number>;
@@ -49,8 +51,6 @@ export function AiHelperModal({
   isDark,
   styles,
   thread,
-  answer,
-  suggestions,
   instruction,
   loading,
   mode,
@@ -64,7 +64,6 @@ export function AiHelperModal({
   scrollRef,
   scrollContentRef,
   lastTurnRef,
-  lastTurnLayoutRef,
   scrollViewportHRef,
   scrollContentHRef,
   lastAutoScrollAtRef,
@@ -73,7 +72,7 @@ export function AiHelperModal({
   autoScrollIntentRef,
   autoScroll,
 }: Props) {
-  const hasAnyOutput = thread.length || answer.length || suggestions.length;
+  const hasAnyOutput = thread.length > 0;
 
   return (
     <Modal visible={visible} transparent animationType="fade">
@@ -133,13 +132,8 @@ export function AiHelperModal({
                             ref={(r) => {
                               if (idx === lastAssistantIdx) lastTurnRef.current = r;
                             }}
-                            onLayout={(e) => {
+                            onLayout={(_e) => {
                               if (idx !== lastAssistantIdx) return;
-                              lastTurnLayoutRef.current = {
-                                y: Number(e?.nativeEvent?.layout?.y ?? 0),
-                                h: Number(e?.nativeEvent?.layout?.height ?? 0),
-                                ok: true,
-                              };
                               // Ensure we re-run scroll logic after the newest assistant bubble lays out.
                               setTimeout(() => autoScroll(), 0);
                             }}
@@ -189,88 +183,91 @@ export function AiHelperModal({
                                   />
                                 </View>
                               ) : (
-                                <Text
-                                  style={[
-                                    styles.summaryText,
-                                    isDark ? styles.summaryTextDark : null,
-                                  ]}
-                                >
-                                  {t.text}
-                                </Text>
+                                <>
+                                  {t.text ? (
+                                    <Text
+                                      style={[
+                                        styles.summaryText,
+                                        isDark ? styles.summaryTextDark : null,
+                                      ]}
+                                    >
+                                      {t.text}
+                                    </Text>
+                                  ) : null}
+
+                                  {t.role === 'assistant' && t.suggestions?.length ? (
+                                    <View style={{ marginTop: t.text ? 10 : 0 }}>
+                                      <Text
+                                        style={[
+                                          styles.helperSectionTitle,
+                                          isDark ? styles.summaryTitleDark : null,
+                                          { marginBottom: 8 },
+                                        ]}
+                                      >
+                                        Reply options
+                                      </Text>
+                                      <View style={{ gap: 10 }}>
+                                        {t.suggestions.map((s, sIdx) => (
+                                          <View
+                                            key={`turn:${idx}:sugg:${sIdx}`}
+                                            style={[
+                                              styles.helperSuggestionBubble,
+                                              isDark ? styles.helperSuggestionBubbleDark : null,
+                                            ]}
+                                          >
+                                            <Text
+                                              style={[
+                                                styles.helperSuggestionText,
+                                                isDark ? styles.summaryTextDark : null,
+                                              ]}
+                                            >
+                                              {s}
+                                            </Text>
+                                            <View style={styles.helperSuggestionActions}>
+                                              <Pressable
+                                                style={[
+                                                  styles.toolBtn,
+                                                  isDark ? styles.toolBtnDark : null,
+                                                ]}
+                                                onPress={() => onCopySuggestion(s)}
+                                              >
+                                                <Text
+                                                  style={[
+                                                    styles.toolBtnText,
+                                                    isDark ? styles.toolBtnTextDark : null,
+                                                  ]}
+                                                >
+                                                  Copy
+                                                </Text>
+                                              </Pressable>
+                                              <Pressable
+                                                style={[
+                                                  styles.toolBtn,
+                                                  isDark ? styles.toolBtnDark : null,
+                                                ]}
+                                                onPress={() => onUseSuggestion(s)}
+                                              >
+                                                <Text
+                                                  style={[
+                                                    styles.toolBtnText,
+                                                    isDark ? styles.toolBtnTextDark : null,
+                                                  ]}
+                                                >
+                                                  Use
+                                                </Text>
+                                              </Pressable>
+                                            </View>
+                                          </View>
+                                        ))}
+                                      </View>
+                                    </View>
+                                  ) : null}
+                                </>
                               )}
                             </View>
                           </View>
                         ));
                       })()}
-                    </View>
-                  </View>
-                ) : null}
-
-                {/*
-                  If we're showing the full helper conversation, the latest assistant message is already included there.
-                  Avoid duplicating it as a separate "Answer" section.
-                */}
-                {!thread.length && answer.length ? (
-                  <View style={styles.helperBlock}>
-                    <Text
-                      style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}
-                    >
-                      Answer
-                    </Text>
-                    <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-                      {answer}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {suggestions.length ? (
-                  <View style={styles.helperBlock}>
-                    <Text
-                      style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}
-                    >
-                      Reply options
-                    </Text>
-                    <View style={{ gap: 10 }}>
-                      {suggestions.map((s, idx) => (
-                        <View
-                          key={`sugg:${idx}`}
-                          style={[
-                            styles.helperSuggestionBubble,
-                            isDark ? styles.helperSuggestionBubbleDark : null,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.helperSuggestionText,
-                              isDark ? styles.summaryTextDark : null,
-                            ]}
-                          >
-                            {s}
-                          </Text>
-                          <View style={styles.helperSuggestionActions}>
-                            <Pressable
-                              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                              onPress={() => onCopySuggestion(s)}
-                            >
-                              <Text
-                                style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
-                              >
-                                Copy
-                              </Text>
-                            </Pressable>
-                            <Pressable
-                              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                              onPress={() => onUseSuggestion(s)}
-                            >
-                              <Text
-                                style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
-                              >
-                                Use
-                              </Text>
-                            </Pressable>
-                          </View>
-                        </View>
-                      ))}
                     </View>
                   </View>
                 ) : null}

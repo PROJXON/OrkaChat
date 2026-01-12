@@ -1,11 +1,17 @@
 import * as React from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ScrollView, View } from 'react-native';
 import { findNodeHandle, UIManager } from 'react-native';
 
 import { buildAiHelperContext } from './aiHelperContext';
 import type { ChatMessage } from './types';
 
-export type AiHelperTurn = { role: 'user' | 'assistant'; text: string; thinking?: boolean };
+export type AiHelperTurn = {
+  role: 'user' | 'assistant';
+  text: string;
+  thinking?: boolean;
+  suggestions?: string[];
+};
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
@@ -31,7 +37,59 @@ function parseAiHelperTurn(v: unknown): AiHelperTurn | null {
   if (role !== 'user' && role !== 'assistant') return null;
   if (typeof text !== 'string') return null;
   const thinking = typeof v.thinking === 'boolean' ? v.thinking : undefined;
-  return { role, text, ...(typeof thinking === 'boolean' ? { thinking } : {}) };
+  const suggestionsRaw = v.suggestions;
+  const suggestions = Array.isArray(suggestionsRaw)
+    ? suggestionsRaw
+        .map((s) => (typeof s === 'string' ? s.trim() : String(s ?? '').trim()))
+        .filter(Boolean)
+        .slice(0, 3)
+    : undefined;
+  return {
+    role,
+    text,
+    ...(typeof thinking === 'boolean' ? { thinking } : {}),
+    ...(suggestions?.length ? { suggestions } : {}),
+  };
+}
+
+function threadForApi(thread: AiHelperTurn[]): Array<{ role: 'user' | 'assistant'; text: string }> {
+  return thread.map((t) => ({ role: t.role, text: t.text }));
+}
+
+function mergeHistoricSuggestions(prev: AiHelperTurn[], next: AiHelperTurn[]): AiHelperTurn[] {
+  // Server threads typically don't include per-turn suggestions; preserve any locally-stored
+  // suggestions by aligning assistant turns in-order and matching on text.
+  const prevAssistant: Array<{ text: string; suggestions?: string[] }> = [];
+  for (const t of prev) {
+    if (t?.role === 'assistant') prevAssistant.push({ text: t.text, suggestions: t.suggestions });
+  }
+  if (!prevAssistant.length) return next;
+
+  const out = next.slice();
+  let aIdx = -1;
+  for (let i = 0; i < out.length; i++) {
+    const t = out[i];
+    if (t?.role !== 'assistant') continue;
+    aIdx += 1;
+    if (t.suggestions?.length) continue;
+    const p = prevAssistant[aIdx];
+    if (!p?.suggestions?.length) continue;
+    if (typeof p.text === 'string' && typeof t.text === 'string' && p.text === t.text) {
+      out[i] = { ...t, suggestions: p.suggestions };
+    }
+  }
+  return out;
+}
+
+function sanitizeThreadForStorage(thread: AiHelperTurn[]): AiHelperTurn[] {
+  // Don't persist ephemeral "Thinking" placeholder turns.
+  return thread
+    .filter((t) => !t?.thinking)
+    .map((t) => ({
+      role: t.role,
+      text: t.text,
+      ...(t.suggestions?.length ? { suggestions: t.suggestions } : {}),
+    }));
 }
 
 export function useAiHelper(opts: {
@@ -60,22 +118,22 @@ export function useAiHelper(opts: {
   const [open, setOpen] = React.useState(false);
   const [instruction, setInstruction] = React.useState<string>('');
   const [loading, setLoading] = React.useState<boolean>(false);
-  const [answer, setAnswer] = React.useState<string>('');
-  const [suggestions, setSuggestions] = React.useState<string[]>([]);
   const [thread, setThread] = React.useState<AiHelperTurn[]>([]);
   const [resetThread, setResetThread] = React.useState<boolean>(false);
   const [mode, setMode] = React.useState<'ask' | 'reply'>('ask');
+
+  const storageKey = React.useMemo(
+    () => `aiHelperThread:v1:${String(activeConversationId || '').trim() || 'unknown'}`,
+    [activeConversationId],
+  );
+  const hydrateRunRef = React.useRef<number>(0);
+  const persistTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollRef = React.useRef<ScrollView | null>(null);
   const scrollViewportHRef = React.useRef<number>(0);
   const scrollContentHRef = React.useRef<number>(0);
   const scrollContentRef = React.useRef<View | null>(null);
   const lastTurnRef = React.useRef<View | null>(null);
-  const lastTurnLayoutRef = React.useRef<{ y: number; h: number; ok: boolean }>({
-    y: 0,
-    h: 0,
-    ok: false,
-  });
   const autoScrollRetryRef = React.useRef<{
     timer: ReturnType<typeof setTimeout> | null;
     attempts: number;
@@ -97,17 +155,65 @@ export function useAiHelper(opts: {
   const closeHelper = React.useCallback(() => {
     setOpen(false);
     setInstruction('');
-    setAnswer('');
-    setSuggestions([]);
+    // Keep `thread` so history (incl. reply options) persists across open/close.
   }, []);
 
   const resetHelperThread = React.useCallback(() => {
     setThread([]);
     setResetThread(true);
-    setAnswer('');
-    setSuggestions([]);
     setInstruction('');
+    // Reset scroll measurement so next answer doesn't use stale nodes.
+    lastTurnRef.current = null;
+    // Also clear persisted history for this conversation.
+    void AsyncStorage.removeItem(storageKey).catch(() => {});
   }, []);
+
+  // If the user switches conversations, treat AI helper history as per-conversation.
+  React.useEffect(() => {
+    setThread([]);
+    setResetThread(false);
+    setInstruction('');
+    setLoading(false);
+    lastTurnRef.current = null;
+  }, [activeConversationId]);
+
+  // Hydrate persisted helper history when opening (and after refresh).
+  React.useEffect(() => {
+    if (!open) return;
+    if (thread.length) return;
+    const runId = Date.now();
+    hydrateRunRef.current = runId;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(storageKey);
+        if (!raw) return;
+        if (hydrateRunRef.current !== runId) return;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return;
+        const hydrated = parsed
+          .map(parseAiHelperTurn)
+          .filter((t): t is AiHelperTurn => !!t);
+        if (hydrated.length) setThread(hydrated);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [open, storageKey, thread.length]);
+
+  // Persist thread updates so refresh/reopen shows history immediately.
+  React.useEffect(() => {
+    if (!thread.length) return;
+    const cleaned = sanitizeThreadForStorage(thread);
+    if (!cleaned.length) return;
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      void AsyncStorage.setItem(storageKey, JSON.stringify(cleaned)).catch(() => {});
+    }, 200);
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    };
+  }, [storageKey, thread]);
 
   const autoScroll = React.useCallback(() => {
     if (!open) return;
@@ -157,24 +263,6 @@ export function useAiHelper(opts: {
       return;
     }
 
-    const lastLayout = lastTurnLayoutRef.current;
-    if (intent === 'answer' && lastLayout?.ok) {
-      const bubbleTopY = Math.max(0, Math.floor(lastLayout.y));
-      const latestViewportH = Math.max(0, Math.floor(scrollViewportHRef.current || 0));
-      const latestContentH = Math.max(0, Math.floor(scrollContentHRef.current || 0));
-      const latestEndY = latestViewportH > 0 ? Math.max(0, latestContentH - latestViewportH) : 0;
-      const responseH = Math.max(0, Math.floor(latestContentH - bubbleTopY));
-      const targetY = responseH > latestViewportH ? bubbleTopY : latestEndY;
-      scrollRef.current?.scrollTo({ y: targetY, animated: true });
-      lastAutoScrollAtRef.current = Date.now();
-      lastAutoScrollContentHRef.current = latestContentH;
-      autoScrollIntentRef.current = null;
-      if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
-      autoScrollRetryRef.current.timer = null;
-      autoScrollRetryRef.current.attempts = 0;
-      return;
-    }
-
     const measureLastTurnAndScroll = () => {
       const contentNode = scrollContentRef.current;
       const lastNode = lastTurnRef.current;
@@ -197,9 +285,11 @@ export function useAiHelper(opts: {
               latestViewportH > 0 ? Math.max(0, latestContentH - latestViewportH) : 0;
             const responseH = Math.max(0, Math.floor(latestContentH - bubbleTopY));
             const targetY = responseH > latestViewportH ? bubbleTopY : latestEndY;
-            scrollRef.current?.scrollTo({ y: targetY, animated: true });
+            const animated = targetY === bubbleTopY ? false : true;
+            scrollRef.current?.scrollTo({ y: targetY, animated });
             lastAutoScrollAtRef.current = Date.now();
             lastAutoScrollContentHRef.current = latestContentH;
+
             autoScrollIntentRef.current = null;
             if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
             autoScrollRetryRef.current.timer = null;
@@ -239,8 +329,6 @@ export function useAiHelper(opts: {
     try {
       setInstruction('');
       setLoading(true);
-      setAnswer('');
-      setSuggestions([]);
 
       const { tokens } = await fetchAuthSession();
       const idToken = tokens?.idToken?.toString();
@@ -254,6 +342,8 @@ export function useAiHelper(opts: {
       autoScrollRetryRef.current.timer = null;
       autoScrollRetryRef.current.attempts = 0;
       autoScrollIntentRef.current = 'thinking';
+      // We're about to render a new "last assistant" turn; discard any previous measurement.
+      lastTurnRef.current = null;
 
       setThread((prev) => [
         ...prev,
@@ -282,7 +372,7 @@ export function useAiHelper(opts: {
           instruction: instructionTrimmed,
           wantReplies: mode === 'reply',
           messages: transcript,
-          thread: threadBefore,
+          thread: threadForApi(threadBefore),
           resetThread: shouldResetThread,
           attachments: attachmentsForAi,
         }),
@@ -316,20 +406,37 @@ export function useAiHelper(opts: {
             .slice(0, 3)
         : [];
 
-      setAnswer(nextAnswer);
-      setSuggestions(nextSuggestions);
-
       if (Array.isArray(rec.thread)) {
         const parsedThread = rec.thread
           .map(parseAiHelperTurn)
           .filter((t): t is AiHelperTurn => !!t);
+        let nextThread = parsedThread;
+        if (!shouldResetThread) {
+          nextThread = mergeHistoricSuggestions(threadBefore, nextThread);
+        }
+        if (nextSuggestions.length) {
+          // Attach reply options to the latest assistant turn in the thread.
+          let lastAssistantIdx = -1;
+          for (let i = nextThread.length - 1; i >= 0; i--) {
+            if (nextThread[i]?.role === 'assistant') {
+              lastAssistantIdx = i;
+              break;
+            }
+          }
+          if (lastAssistantIdx >= 0) {
+            const t = nextThread[lastAssistantIdx];
+            nextThread = nextThread.slice();
+            nextThread[lastAssistantIdx] = { ...t, suggestions: nextSuggestions };
+          }
+        }
+
         lastTurnRef.current = null;
         if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
         autoScrollRetryRef.current.timer = null;
         autoScrollRetryRef.current.attempts = 0;
         autoScrollIntentRef.current = 'answer';
-        if (parsedThread.length) setThread(parsedThread);
-      } else if (nextAnswer) {
+        if (nextThread.length) setThread(nextThread);
+      } else if (nextAnswer || nextSuggestions.length) {
         lastTurnRef.current = null;
         if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
         autoScrollRetryRef.current.timer = null;
@@ -344,7 +451,11 @@ export function useAiHelper(opts: {
           ) {
             next.pop();
           }
-          next.push({ role: 'assistant', text: nextAnswer });
+          next.push({
+            role: 'assistant',
+            text: nextAnswer,
+            ...(nextSuggestions.length ? { suggestions: nextSuggestions } : {}),
+          });
           return next;
         });
       }
@@ -377,8 +488,6 @@ export function useAiHelper(opts: {
     instruction,
     setInstruction,
     loading,
-    answer,
-    suggestions,
     thread,
     mode,
     setMode,
@@ -388,7 +497,6 @@ export function useAiHelper(opts: {
     scrollRef,
     scrollContentRef,
     lastTurnRef,
-    lastTurnLayoutRef,
     scrollViewportHRef,
     scrollContentHRef,
     lastAutoScrollAtRef,
