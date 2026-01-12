@@ -151,16 +151,10 @@ export function ChatMessageRow(props: {
   const AVATAR_SIZE = 34;
   const AVATAR_TOP_OFFSET = 0;
 
-  // On mobile web, releasing after a long-press can still synthesize a "click"/press,
-  // which can cause an underlying tap action (and/or selection flash) immediately after
-  // the long-press menu opens. Swallow the next onPress if we just long-pressed.
+  // Mobile web: when long-press opens the actions menu, releasing immediately can still
+  // trigger native selection/callouts and/or a synthetic click. Consume the next release.
+  const webConsumeNextReleaseRef = React.useRef(false);
   const swallowNextPressRef = React.useRef(false);
-  const swallowResetTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  React.useEffect(() => {
-    return () => {
-      if (swallowResetTimerRef.current) clearTimeout(swallowResetTimerRef.current);
-    };
-  }, []);
 
   return (
     <Pressable
@@ -175,11 +169,10 @@ export function ChatMessageRow(props: {
       onLongPress={(e) => {
         if (isDeleted) return;
         if (Platform.OS === 'web') {
+          // Critical: consume the imminent release event (touchend/pointerup) so mobile browsers
+          // don't finalize a selection/callout right as the actions menu appears.
+          webConsumeNextReleaseRef.current = true;
           swallowNextPressRef.current = true;
-          if (swallowResetTimerRef.current) clearTimeout(swallowResetTimerRef.current);
-          swallowResetTimerRef.current = setTimeout(() => {
-            swallowNextPressRef.current = false;
-          }, 800);
         }
         onLongPressMessage(e);
       }}
@@ -192,12 +185,36 @@ export function ChatMessageRow(props: {
               ev.preventDefault?.();
               ev.stopPropagation?.();
             },
+            onTouchEndCapture: (e: unknown) => {
+              if (!webConsumeNextReleaseRef.current) return;
+              const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
+              ev.preventDefault?.();
+              ev.stopPropagation?.();
+              try {
+                document.getSelection?.()?.removeAllRanges?.();
+              } catch {
+                // ignore
+              }
+              webConsumeNextReleaseRef.current = false;
+              swallowNextPressRef.current = false;
+            },
+            onPointerUpCapture: (e: unknown) => {
+              if (!webConsumeNextReleaseRef.current) return;
+              const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
+              ev.preventDefault?.();
+              ev.stopPropagation?.();
+              try {
+                document.getSelection?.()?.removeAllRanges?.();
+              } catch {
+                // ignore
+              }
+              webConsumeNextReleaseRef.current = false;
+              swallowNextPressRef.current = false;
+            },
             style: ({ pressed }: { pressed: boolean }) => [
-              // Ensure long-press doesn't trigger native text selection callouts.
               {
-                WebkitUserSelect: 'none',
-                userSelect: 'none',
-                WebkitTouchCallout: 'none',
+                // Helps avoid delayed/synthetic click behavior on mobile browsers.
+                touchAction: 'manipulation',
               } as const,
               pressed ? { opacity: 0.98 } : null,
             ],
