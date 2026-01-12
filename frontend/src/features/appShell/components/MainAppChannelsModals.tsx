@@ -1,6 +1,7 @@
+import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
@@ -105,6 +106,17 @@ export function MainAppChannelsModals({
   setChannelPasswordInput: (v: string) => void;
   submitChannelPassword: () => void | Promise<void>;
 }): React.JSX.Element {
+  const [channelPasswordVisible, setChannelPasswordVisible] = React.useState<boolean>(false);
+
+  // Always default to hidden when opening/closing the prompt.
+  React.useEffect(() => {
+    if (!channelPasswordPrompt) {
+      setChannelPasswordVisible(false);
+      return;
+    }
+    setChannelPasswordVisible(false);
+  }, [channelPasswordPrompt]);
+
   return (
     <>
       {/* Settings → Channels: list joined channels (like Chats) */}
@@ -600,12 +612,18 @@ export function MainAppChannelsModals({
         visible={!!channelPasswordPrompt}
         transparent
         animationType="fade"
-        onRequestClose={() => setChannelPasswordPrompt(null)}
+        onRequestClose={() => {
+          setChannelPasswordPrompt(null);
+          setChannelPasswordVisible(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setChannelPasswordPrompt(null)}
+            onPress={() => {
+              setChannelPasswordPrompt(null);
+              setChannelPasswordVisible(false);
+            }}
           />
           <View style={[styles.profileCard, isDark ? styles.profileCardDark : null]}>
             <View style={styles.chatsTopRow}>
@@ -622,25 +640,41 @@ export function MainAppChannelsModals({
             >
               Enter Channel Password
             </Text>
-            <AppTextInput
-              isDark={isDark}
-              value={channelPasswordInput}
-              onChangeText={(v) => {
-                setChannelPasswordInput(v);
-                setChannelJoinError(null);
-              }}
-              placeholder="Channel Password"
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={() => void Promise.resolve(submitChannelPassword())}
-              baseStyle={styles.blocksInput}
-              darkStyle={styles.blocksInputDark}
-              variant="blocksStandalone"
-              style={{ marginBottom: 12 }}
-            />
+            <View style={styles.passphraseFieldWrapper}>
+              <AppTextInput
+                isDark={isDark}
+                value={channelPasswordInput}
+                onChangeText={(v) => {
+                  setChannelPasswordInput(v);
+                  setChannelJoinError(null);
+                }}
+                placeholder="Channel Password"
+                secureTextEntry={!channelPasswordVisible}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={() => void Promise.resolve(submitChannelPassword())}
+                baseStyle={styles.blocksInput}
+                darkStyle={styles.blocksInputDark}
+                variant="blocksStandalone"
+                style={[styles.passphraseInput, { marginBottom: 0 }]}
+              />
+              <Pressable
+                style={styles.passphraseEyeBtn}
+                onPress={() => setChannelPasswordVisible((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  channelPasswordVisible ? 'Hide channel password' : 'Show channel password'
+                }
+              >
+                <Image
+                  source={channelPasswordVisible ? icons.visibilityOn : icons.visibilityOff}
+                  tintColor={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                  style={{ width: 18, height: 18 }}
+                />
+              </Pressable>
+            </View>
             {channelJoinError ? (
               <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>
                 {channelJoinError}
@@ -669,6 +703,7 @@ export function MainAppChannelsModals({
                 ]}
                 onPress={() => {
                   setChannelPasswordPrompt(null);
+                  setChannelPasswordVisible(false);
                   setChannelPasswordInput('');
                   setChannelJoinError(null);
                 }}
