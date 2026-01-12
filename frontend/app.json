@@ -37,8 +37,12 @@
       },
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
-      "package": "com.anonymous.frontend",
-      "permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"]
+      "package": "com.projxon.orkachat",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -47,7 +51,7 @@
       "WS_URL": "wss://a6ersp1gab.execute-api.us-east-2.amazonaws.com/production",
       "API_URL": "https://828bp5ailc.execute-api.us-east-2.amazonaws.com",
       "eas": {
-        "projectId": "f977cc9c-dc31-445e-9184-a892e4c08cf1"
+        "projectId": "590b8f3a-9f1a-4d98-bec3-9b8012b1a831"
       }
     },
     "plugins": [
@@ -68,6 +72,7 @@
       "expo-camera",
       "expo-video",
       "expo-notifications"
-    ]
+    ],
+    "owner": "eperry2688"
   }
 }
