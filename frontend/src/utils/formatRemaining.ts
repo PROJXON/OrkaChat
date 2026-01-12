@@ -10,4 +10,3 @@ export function formatRemaining(seconds: number): string {
   if (m > 0) return `${m}m`;
   return `${s}s`;
 }
-

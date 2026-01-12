@@ -47,7 +47,9 @@ export function useStartDmFlow({
       const trimmed = tokens[0];
       const normalizedInput = trimmed.toLowerCase();
       if (!trimmed || normalizedInput === normalizedCurrent) {
-        setSearchError(normalizedInput === normalizedCurrent ? 'Not you silly!' : 'Enter a username');
+        setSearchError(
+          normalizedInput === normalizedCurrent ? 'Not you silly!' : 'Enter a username',
+        );
         return;
       }
 
@@ -58,9 +60,12 @@ export function useStartDmFlow({
         return;
       }
 
-      const res = await fetch(`${apiUrl.replace(/\/$/, '')}/users?username=${encodeURIComponent(trimmed)}`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
+      const res = await fetch(
+        `${apiUrl.replace(/\/$/, '')}/users?username=${encodeURIComponent(trimmed)}`,
+        {
+          headers: { Authorization: `Bearer ${idToken}` },
+        },
+      );
       if (res.status === 404) {
         setSearchError('No such user!');
         return;
@@ -75,13 +80,17 @@ export function useStartDmFlow({
         } catch {
           // ignore
         }
-        setSearchError(msg ? `User lookup failed (${res.status}): ${msg}` : `User lookup failed (${res.status})`);
+        setSearchError(
+          msg ? `User lookup failed (${res.status}): ${msg}` : `User lookup failed (${res.status})`,
+        );
         return;
       }
 
       const data = await res.json();
       const peerSub = String(data.sub || data.userSub || '').trim();
-      const canonical = String(data.displayName || data.preferred_username || data.username || trimmed).trim();
+      const canonical = String(
+        data.displayName || data.preferred_username || data.username || trimmed,
+      ).trim();
       if (!peerSub) {
         console.warn('getUser ok but missing sub', data);
         setSearchError('User lookup missing sub (check getUser response JSON)');
@@ -147,11 +156,14 @@ export function useStartDmFlow({
       } catch {
         // ignore
       }
-      setSearchError(msg ? `Group start failed (${res.status}): ${msg}` : `Group start failed (${res.status})`);
+      setSearchError(
+        msg ? `Group start failed (${res.status}): ${msg}` : `Group start failed (${res.status})`,
+      );
       return;
     }
     const rawResp: unknown = await res.json().catch(() => ({}));
-    const rec = typeof rawResp === 'object' && rawResp != null ? (rawResp as Record<string, unknown>) : {};
+    const rec =
+      typeof rawResp === 'object' && rawResp != null ? (rawResp as Record<string, unknown>) : {};
     const convId = String(rec.conversationId || '').trim();
     const title = typeof rec.title === 'string' ? String(rec.title).trim() : 'Group DM';
     if (!convId) {
@@ -181,4 +193,3 @@ export function useStartDmFlow({
 
   return { startDM };
 }
-

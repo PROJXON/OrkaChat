@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import type { PendingMediaItem } from './attachments';
 
 export function useChatAttachments(args: {
@@ -45,7 +46,10 @@ export function useChatAttachments(args: {
           const capped = incoming.slice(0, max);
           pendingMediaRef.current = capped;
           if (incoming.length > capped.length) {
-            showAlert('Attachment limit', `Only ${maxAttachmentsPerMessage} items allowed per message.`);
+            showAlert(
+              'Attachment limit',
+              `Only ${maxAttachmentsPerMessage} items allowed per message.`,
+            );
           }
           return capped;
         }
@@ -53,7 +57,10 @@ export function useChatAttachments(args: {
         const base = prev;
         const remaining = Math.max(0, max - base.length);
         if (remaining <= 0) {
-          showAlert('Attachment limit', `You can attach up to ${maxAttachmentsPerMessage} items per message.`);
+          showAlert(
+            'Attachment limit',
+            `You can attach up to ${maxAttachmentsPerMessage} items per message.`,
+          );
           pendingMediaRef.current = base;
           return base;
         }

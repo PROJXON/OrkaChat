@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { UiPromptModal } from '../components/modals/UiPromptModal';
 import type { UiPrompt, UiPromptVariant } from '../types/uiPrompt';
 

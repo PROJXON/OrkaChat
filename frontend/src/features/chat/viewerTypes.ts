@@ -26,4 +26,3 @@ export type ChatMediaViewerState = null | {
   gdmMsg?: ChatMessage;
   gdmItems?: ChatGdmViewerItem[];
 };
-

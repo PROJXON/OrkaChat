@@ -1,4 +1,6 @@
-export function getGuestSenderKey(m?: { userSub?: string | null; user?: string | null } | null): string {
+export function getGuestSenderKey(
+  m?: { userSub?: string | null; user?: string | null } | null,
+): string {
   if (!m) return '';
   const sub = m.userSub ? String(m.userSub) : '';
   if (sub) return `sub:${sub}`;

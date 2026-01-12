@@ -1,5 +1,6 @@
-import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
+import * as React from 'react';
+
 import { useAutoPopupChannelAbout } from '../../hooks/useAutoPopupChannelAbout';
 import type { ChannelHeaderCache } from '../../hooks/useChannelHeaderCache';
 
@@ -82,9 +83,12 @@ export function useChannelRoster(opts: {
     if (!idToken) return;
     const base = apiUrl.replace(/\/$/, '');
     // Ask for banned users too; backend will only include them for admins.
-    const resp = await fetch(`${base}/channels/members?channelId=${encodeURIComponent(channelId)}&includeBanned=1`, {
-      headers: { Authorization: `Bearer ${idToken}` },
-    });
+    const resp = await fetch(
+      `${base}/channels/members?channelId=${encodeURIComponent(channelId)}&includeBanned=1`,
+      {
+        headers: { Authorization: `Bearer ${idToken}` },
+      },
+    );
     if (!resp.ok) return;
     const raw: unknown = await resp.json().catch(() => ({}));
     const data = isRecord(raw) ? raw : {};
@@ -96,7 +100,8 @@ export function useChannelRoster(opts: {
     const isPublic = typeof ch.isPublic === 'boolean' ? ch.isPublic : undefined;
     const hasPassword = typeof ch.hasPassword === 'boolean' ? ch.hasPassword : undefined;
     const aboutText = typeof ch.aboutText === 'string' ? String(ch.aboutText) : '';
-    const aboutVersion = typeof ch.aboutVersion === 'number' && Number.isFinite(ch.aboutVersion) ? ch.aboutVersion : 0;
+    const aboutVersion =
+      typeof ch.aboutVersion === 'number' && Number.isFinite(ch.aboutVersion) ? ch.aboutVersion : 0;
     const membersRaw: unknown[] = Array.isArray(data.members) ? data.members : [];
     const members: ChannelMember[] = membersRaw
       .map((m) => {
@@ -106,18 +111,34 @@ export function useChannelRoster(opts: {
           displayName: typeof rec.displayName === 'string' ? String(rec.displayName) : undefined,
           status: typeof rec.status === 'string' ? String(rec.status) : 'active',
           isAdmin: !!rec.isAdmin,
-          avatarBgColor: typeof rec.avatarBgColor === 'string' ? String(rec.avatarBgColor) : undefined,
-          avatarTextColor: typeof rec.avatarTextColor === 'string' ? String(rec.avatarTextColor) : undefined,
-          avatarImagePath: typeof rec.avatarImagePath === 'string' ? String(rec.avatarImagePath) : undefined,
+          avatarBgColor:
+            typeof rec.avatarBgColor === 'string' ? String(rec.avatarBgColor) : undefined,
+          avatarTextColor:
+            typeof rec.avatarTextColor === 'string' ? String(rec.avatarTextColor) : undefined,
+          avatarImagePath:
+            typeof rec.avatarImagePath === 'string' ? String(rec.avatarImagePath) : undefined,
         } satisfies ChannelMember;
       })
       .filter((m) => m.memberSub);
 
     setChannelRosterChannelId(channelId);
     setChannelMembers(members);
-    const activeCount = members.reduce((acc: number, m: ChannelMember) => (m && m.status === 'active' ? acc + 1 : acc), 0);
+    const activeCount = members.reduce(
+      (acc: number, m: ChannelMember) => (m && m.status === 'active' ? acc + 1 : acc),
+      0,
+    );
     setChannelMembersActiveCountHint(activeCount);
-    if (name) setChannelMeta({ channelId, name, isPublic, hasPassword, aboutText, aboutVersion, meIsAdmin, meStatus });
+    if (name)
+      setChannelMeta({
+        channelId,
+        name,
+        isPublic,
+        hasPassword,
+        aboutText,
+        aboutVersion,
+        meIsAdmin,
+        meStatus,
+      });
 
     // Persist a tiny channel header cache so cold starts don't flash placeholders.
     // (We avoid caching signed avatar URLs; just stable metadata.)
@@ -131,7 +152,16 @@ export function useChannelRoster(opts: {
       meStatus: meStatus || 'active',
       activeCount,
     });
-  }, [apiUrl, enabled, activeConversationId, channelHeaderCache, setChannelMembers, setChannelMembersActiveCountHint, setChannelMeta, setChannelRosterChannelId]);
+  }, [
+    apiUrl,
+    enabled,
+    activeConversationId,
+    channelHeaderCache,
+    setChannelMembers,
+    setChannelMembersActiveCountHint,
+    setChannelMeta,
+    setChannelRosterChannelId,
+  ]);
 
   // Load cached channel header snapshot ASAP on entering a channel (reduces "flash" on cold start).
   React.useEffect(() => {
@@ -146,21 +176,42 @@ export function useChannelRoster(opts: {
     const isPublic = typeof obj.isPublic === 'boolean' ? obj.isPublic : undefined;
     const hasPassword = typeof obj.hasPassword === 'boolean' ? obj.hasPassword : undefined;
     const aboutText = typeof obj.aboutText === 'string' ? String(obj.aboutText) : '';
-    const aboutVersion = typeof obj.aboutVersion === 'number' && Number.isFinite(obj.aboutVersion) ? obj.aboutVersion : 0;
+    const aboutVersion =
+      typeof obj.aboutVersion === 'number' && Number.isFinite(obj.aboutVersion)
+        ? obj.aboutVersion
+        : 0;
     const meIsAdmin = !!obj.meIsAdmin;
     const meStatus = typeof obj.meStatus === 'string' ? String(obj.meStatus) : 'active';
     const activeCount =
-      typeof obj.activeCount === 'number' && Number.isFinite(obj.activeCount) ? Math.max(0, Math.floor(obj.activeCount)) : null;
+      typeof obj.activeCount === 'number' && Number.isFinite(obj.activeCount)
+        ? Math.max(0, Math.floor(obj.activeCount))
+        : null;
 
     if (activeCount != null) setChannelMembersActiveCountHint(activeCount);
 
     // Only apply cached meta if we don't already have fresh meta for this channel.
     setChannelMeta((prev) => {
-      if (prev && prev.channelId === activeChannelId && prev.name && String(prev.name).trim()) return prev;
+      if (prev && prev.channelId === activeChannelId && prev.name && String(prev.name).trim())
+        return prev;
       if (!name) return prev;
-      return { channelId: activeChannelId, name, isPublic, hasPassword, aboutText, aboutVersion, meIsAdmin, meStatus };
+      return {
+        channelId: activeChannelId,
+        name,
+        isPublic,
+        hasPassword,
+        aboutText,
+        aboutVersion,
+        meIsAdmin,
+        meStatus,
+      };
     });
-  }, [enabled, activeChannelId, channelHeaderCache.cached, setChannelMembersActiveCountHint, setChannelMeta]);
+  }, [
+    enabled,
+    activeChannelId,
+    channelHeaderCache.cached,
+    setChannelMembersActiveCountHint,
+    setChannelMeta,
+  ]);
 
   // Auto-popup Channel About on first join or whenever aboutVersion changes.
   useAutoPopupChannelAbout({
@@ -201,7 +252,15 @@ export function useChannelRoster(opts: {
     setChannelAboutDraft(String(channelMeta?.aboutText || ''));
     setChannelAboutEdit(false);
     setChannelAboutOpen(true);
-  }, [channelAboutRequestEpoch, enabled, uiAlert, setChannelAboutDraft, setChannelAboutEdit, setChannelAboutOpen, channelMeta?.aboutText]);
+  }, [
+    channelAboutRequestEpoch,
+    enabled,
+    uiAlert,
+    setChannelAboutDraft,
+    setChannelAboutEdit,
+    setChannelAboutOpen,
+    channelMeta?.aboutText,
+  ]);
 
   // Fetch channel metadata (title, admin flag) when entering a channel.
   React.useEffect(() => {
@@ -244,7 +303,16 @@ export function useChannelRoster(opts: {
     return () => {
       cancelled = true;
     };
-  }, [apiUrl, enabled, activeConversationId, refreshChannelRoster, setChannelMembers, setChannelMembersActiveCountHint, setChannelMeta, setChannelRosterChannelId]);
+  }, [
+    apiUrl,
+    enabled,
+    activeConversationId,
+    refreshChannelRoster,
+    setChannelMembers,
+    setChannelMembersActiveCountHint,
+    setChannelMeta,
+    setChannelRosterChannelId,
+  ]);
 
   // When opening the Members modal, refresh immediately so it reflects latest state.
   React.useEffect(() => {
@@ -270,4 +338,3 @@ export function useChannelRoster(opts: {
 
   return { refreshChannelRoster };
 }
-

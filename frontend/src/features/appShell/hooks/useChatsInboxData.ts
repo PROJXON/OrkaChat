@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 import {
   applyTitleOverridesToConversations,
@@ -72,21 +72,24 @@ export function useChatsInboxData({
   // Used to keep Chats list + unread labels consistent even if serverConversations is stale.
   const titleOverrideByConvIdRef = React.useRef<Record<string, string>>({});
 
-  const upsertDmThread = React.useCallback((convId: string, peerName: string, lastActivityAt?: number) => {
-    const id = String(convId || '').trim();
-    if (!id || id === 'global') return;
-    const name = String(peerName || '').trim() || 'Direct Message';
-    const ts = Number.isFinite(Number(lastActivityAt)) ? Number(lastActivityAt) : Date.now();
-    setDmThreads((prev) => {
-      const existing = prev[id];
-      const next = { ...prev };
-      next[id] = {
-        peer: name || existing?.peer || 'Direct Message',
-        lastActivityAt: Math.max(ts, existing?.lastActivityAt || 0),
-      };
-      return next;
-    });
-  }, []);
+  const upsertDmThread = React.useCallback(
+    (convId: string, peerName: string, lastActivityAt?: number) => {
+      const id = String(convId || '').trim();
+      if (!id || id === 'global') return;
+      const name = String(peerName || '').trim() || 'Direct Message';
+      const ts = Number.isFinite(Number(lastActivityAt)) ? Number(lastActivityAt) : Date.now();
+      setDmThreads((prev) => {
+        const existing = prev[id];
+        const next = { ...prev };
+        next[id] = {
+          peer: name || existing?.peer || 'Direct Message',
+          lastActivityAt: Math.max(ts, existing?.lastActivityAt || 0),
+        };
+        return next;
+      });
+    },
+    [],
+  );
 
   const dmThreadsList = React.useMemo((): ChatsListEntry[] => {
     const entries = Object.entries(dmThreads)
@@ -112,14 +115,19 @@ export function useChatsInboxData({
       });
       if (!res.ok) return;
       const json: unknown = await res.json().catch(() => null);
-      const jsonRec = typeof json === 'object' && json != null ? (json as Record<string, unknown>) : {};
+      const jsonRec =
+        typeof json === 'object' && json != null ? (json as Record<string, unknown>) : {};
       const convos: unknown[] = Array.isArray(jsonRec.conversations) ? jsonRec.conversations : [];
       const parsed: ServerConversation[] = convos
         .map((c) => {
           const rec = typeof c === 'object' && c != null ? (c as Record<string, unknown>) : {};
           const conversationId = String(rec.conversationId || '').trim();
           const conversationKind =
-            rec.conversationKind === 'group' ? 'group' : rec.conversationKind === 'dm' ? 'dm' : undefined;
+            rec.conversationKind === 'group'
+              ? 'group'
+              : rec.conversationKind === 'dm'
+                ? 'dm'
+                : undefined;
           const memberStatus =
             rec.memberStatus === 'active'
               ? 'active'
@@ -130,7 +138,8 @@ export function useChatsInboxData({
                   : undefined;
           return {
             conversationId,
-            peerDisplayName: typeof rec.peerDisplayName === 'string' ? String(rec.peerDisplayName) : undefined,
+            peerDisplayName:
+              typeof rec.peerDisplayName === 'string' ? String(rec.peerDisplayName) : undefined,
             peerSub: typeof rec.peerSub === 'string' ? String(rec.peerSub) : undefined,
             conversationKind,
             memberStatus,
@@ -140,13 +149,16 @@ export function useChatsInboxData({
         .filter((c) => c.conversationId);
 
       // Apply any local overrides (e.g. group name changed in-chat).
-      const parsedWithOverrides = applyTitleOverridesToConversations(parsed, titleOverrideByConvIdRef.current);
+      const parsedWithOverrides = applyTitleOverridesToConversations(
+        parsed,
+        titleOverrideByConvIdRef.current,
+      );
       setServerConversations(parsedWithOverrides);
       setConversationsCacheAt(Date.now());
       try {
         await AsyncStorage.setItem(
           'conversations:cache:v1',
-          JSON.stringify({ at: Date.now(), conversations: parsedWithOverrides })
+          JSON.stringify({ at: Date.now(), conversations: parsedWithOverrides }),
         );
       } catch {
         // ignore
@@ -156,8 +168,11 @@ export function useChatsInboxData({
       try {
         const titleByConvId = new Map(
           parsedWithOverrides
-            .map((c) => [String(c.conversationId || ''), String(c.peerDisplayName || '').trim()] as const)
-            .filter(([id, t]) => id && t)
+            .map(
+              (c) =>
+                [String(c.conversationId || ''), String(c.peerDisplayName || '').trim()] as const,
+            )
+            .filter(([id, t]) => id && t),
         );
         setUnreadDmMap((prev) => {
           const next = { ...prev };
@@ -200,7 +215,10 @@ export function useChatsInboxData({
         // Prefer display name if backend provides it; fall back to legacy `sender`/`user`.
         // For kind=added, senderDisplayName is treated as the group title.
         const sender = String(
-          it.senderDisplayName || it.sender || it.user || (kind === 'added' ? 'Added to group' : 'someone')
+          it.senderDisplayName ||
+            it.sender ||
+            it.user ||
+            (kind === 'added' ? 'Added to group' : 'someone'),
         );
         const senderSub = it.senderSub ? String(it.senderSub) : undefined;
         const countRaw = Number.isFinite(Number(it.messageCount)) ? Number(it.messageCount) : 1;
@@ -319,4 +337,3 @@ export function useChatsInboxData({
     fetchUnreads,
   };
 }
-

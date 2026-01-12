@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Image } from 'react-native';
+
 import { isImageLike } from '../../utils/mediaKinds';
 import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
 import type { ChatMessage } from './types';
@@ -24,7 +25,13 @@ export function useChatImageAspectPrefetch(opts: {
 
     for (const m of messages) {
       const env = !m.encrypted ? parseChatEnvelope(m.rawText ?? m.text) : null;
-      const list = env ? normalizeChatMediaList(env.media) : m.mediaList ? m.mediaList : m.media ? [m.media] : [];
+      const list = env
+        ? normalizeChatMediaList(env.media)
+        : m.mediaList
+          ? m.mediaList
+          : m.media
+            ? [m.media]
+            : [];
       for (const media of list) {
         if (!media?.path) continue;
         if (!isImageLike(media)) continue;
@@ -55,4 +62,3 @@ export function useChatImageAspectPrefetch(opts: {
     });
   }, [enabled, messages, mediaUrlByPath, imageAspectByPath, setImageAspectByPath]);
 }
-

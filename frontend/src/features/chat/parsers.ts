@@ -55,9 +55,13 @@ export const normalizeChatMediaList = (raw: ChatEnvelope['media']): MediaItem[] 
       thumbPath: typeof rec.thumbPath === 'string' ? String(rec.thumbPath) : undefined,
       kind,
       contentType: typeof rec.contentType === 'string' ? String(rec.contentType) : undefined,
-      thumbContentType: typeof rec.thumbContentType === 'string' ? String(rec.thumbContentType) : undefined,
+      thumbContentType:
+        typeof rec.thumbContentType === 'string' ? String(rec.thumbContentType) : undefined,
       fileName: typeof rec.fileName === 'string' ? String(rec.fileName) : undefined,
-      size: typeof rec.size === 'number' && Number.isFinite(rec.size) ? (rec.size as number) : undefined,
+      size:
+        typeof rec.size === 'number' && Number.isFinite(rec.size)
+          ? (rec.size as number)
+          : undefined,
     });
   }
   return out;

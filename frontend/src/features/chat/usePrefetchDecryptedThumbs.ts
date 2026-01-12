@@ -1,12 +1,21 @@
 import * as React from 'react';
+
+import {
+  normalizeDmMediaItems,
+  normalizeGroupMediaItems,
+  parseDmMediaEnvelope,
+  parseGroupMediaEnvelope,
+} from './parsers';
 import type { ChatMessage, DmMediaEnvelopeV1 } from './types';
-import { normalizeDmMediaItems, normalizeGroupMediaItems, parseDmMediaEnvelope, parseGroupMediaEnvelope } from './parsers';
 
 export function usePrefetchDmDecryptedThumbs(opts: {
   enabled: boolean;
   messages: ChatMessage[];
   dmThumbUriByPath: Record<string, string>;
-  decryptDmThumbToDataUri: (msg: ChatMessage, it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }) => Promise<string | null>;
+  decryptDmThumbToDataUri: (
+    msg: ChatMessage,
+    it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] },
+  ) => Promise<string | null>;
 }): void {
   const enabled = !!opts.enabled;
   const messages = opts.messages;
@@ -28,7 +37,6 @@ export function usePrefetchDmDecryptedThumbs(opts: {
           if (!it.media.thumbPath || !it.media.thumbIv) continue;
           if (dmThumbUriByPath[it.media.thumbPath]) continue;
           try {
-             
             await decryptDmThumbToDataUri(m, it);
           } catch {
             // ignore
@@ -47,7 +55,10 @@ export function usePrefetchGroupDecryptedThumbs(opts: {
   enabled: boolean;
   messages: ChatMessage[];
   dmThumbUriByPath: Record<string, string>;
-  decryptGroupThumbToDataUri: (msg: ChatMessage, it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }) => Promise<string | null>;
+  decryptGroupThumbToDataUri: (
+    msg: ChatMessage,
+    it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] },
+  ) => Promise<string | null>;
 }): void {
   const enabled = !!opts.enabled;
   const messages = opts.messages;
@@ -69,7 +80,6 @@ export function usePrefetchGroupDecryptedThumbs(opts: {
           if (!it.media.thumbPath || !it.media.thumbIv) continue;
           if (dmThumbUriByPath[it.media.thumbPath]) continue;
           try {
-             
             await decryptGroupThumbToDataUri(m, it);
           } catch {
             // ignore
@@ -83,4 +93,3 @@ export function usePrefetchGroupDecryptedThumbs(opts: {
     };
   }, [enabled, messages, dmThumbUriByPath, decryptGroupThumbToDataUri]);
 }
-

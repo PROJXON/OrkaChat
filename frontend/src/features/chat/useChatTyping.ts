@@ -7,7 +7,13 @@ export function useChatTyping(opts: {
   typingByUserExpiresAt: Record<string, number>;
   setTypingByUserExpiresAt: React.Dispatch<React.SetStateAction<Record<string, number>>>;
 }) {
-  const { wsRef, activeConversationId, displayName, typingByUserExpiresAt, setTypingByUserExpiresAt } = opts;
+  const {
+    wsRef,
+    activeConversationId,
+    displayName,
+    typingByUserExpiresAt,
+    setTypingByUserExpiresAt,
+  } = opts;
 
   const isTypingRef = React.useRef<boolean>(false);
   const lastTypingSentAtRef = React.useRef<number>(0);
@@ -78,4 +84,3 @@ export function useChatTyping(opts: {
 
   return { isTypingRef, sendTyping, typingIndicatorText };
 }
-

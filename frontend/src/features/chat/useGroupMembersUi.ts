@@ -32,7 +32,9 @@ export function useGroupMembersUi(opts: {
     () =>
       groupMembers.reduce<number>(
         (acc, m) =>
-          m && typeof m === 'object' && (m as { status?: unknown }).status === 'active' ? acc + 1 : acc,
+          m && typeof m === 'object' && (m as { status?: unknown }).status === 'active'
+            ? acc + 1
+            : acc,
         0,
       ),
     [groupMembers],
@@ -57,4 +59,3 @@ export function useGroupMembersUi(opts: {
 
   return { groupMembersVisible, groupMembersActiveCount, computeDefaultGroupTitleForMe };
 }
-

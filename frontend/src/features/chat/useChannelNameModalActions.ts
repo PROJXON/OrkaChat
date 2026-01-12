@@ -1,5 +1,5 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
 
 import type { ChannelMeta } from './useChannelRoster';
 
@@ -13,7 +13,14 @@ export function useChannelNameModalActions(opts: {
   setChannelNameEditOpen: (v: boolean) => void;
   channelUpdate: ChannelUpdateFn;
 }) {
-  const { wsRef, activeConversationId, channelNameDraft, setChannelMeta, setChannelNameEditOpen, channelUpdate } = opts;
+  const {
+    wsRef,
+    activeConversationId,
+    channelNameDraft,
+    setChannelMeta,
+    setChannelNameEditOpen,
+    channelUpdate,
+  } = opts;
 
   const onSave = React.useCallback(() => {
     const next = String(channelNameDraft || '').trim();
@@ -38,10 +45,16 @@ export function useChannelNameModalActions(opts: {
       // ignore
     }
     setChannelNameEditOpen(false);
-  }, [activeConversationId, channelNameDraft, channelUpdate, setChannelMeta, setChannelNameEditOpen, wsRef]);
+  }, [
+    activeConversationId,
+    channelNameDraft,
+    channelUpdate,
+    setChannelMeta,
+    setChannelNameEditOpen,
+    wsRef,
+  ]);
 
   const onCancel = React.useCallback(() => setChannelNameEditOpen(false), [setChannelNameEditOpen]);
 
   return { onSave, onCancel };
 }
-

@@ -2,18 +2,21 @@ import React from 'react';
 import { Platform, Text, View } from 'react-native';
 
 import { MediaStackCarousel } from '../../components/MediaStackCarousel';
-import type { MediaItem } from '../../types/media';
-import { isImageLike as isImageLikeMedia, isVideoLike as isVideoLikeMedia } from '../../utils/mediaKinds';
-import { getOlderNeighbor } from '../../utils/listNeighbors';
-import { shouldShowIncomingAvatar } from '../../utils/avatarGrouping';
-import { getChatSenderKey } from '../../utils/senderKeys';
-import type { ChatMessage } from './types';
-import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
-import { ChatMessageRow } from './components/ChatMessageRow';
-import type { ChatScreenStyles } from '../../screens/ChatScreen.styles';
 import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
-import type { PendingMediaItem } from './attachments';
+import type { ChatScreenStyles } from '../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
+import type { MediaItem } from '../../types/media';
+import { shouldShowIncomingAvatar } from '../../utils/avatarGrouping';
+import { getOlderNeighbor } from '../../utils/listNeighbors';
+import {
+  isImageLike as isImageLikeMedia,
+  isVideoLike as isVideoLikeMedia,
+} from '../../utils/mediaKinds';
+import { getChatSenderKey } from '../../utils/senderKeys';
+import type { PendingMediaItem } from './attachments';
+import { ChatMessageRow } from './components/ChatMessageRow';
+import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
+import type { ChatMessage } from './types';
 
 type Anchor = { x: number; y: number };
 
@@ -37,7 +40,10 @@ export function renderChatListItem(args: {
   avatarUrlByPath: Record<string, string>;
 
   peerSeenAtByCreatedAt: Record<string, number>;
-  getSeenLabelFor: (peerSeenAtByCreatedAt: Record<string, number>, createdAt: number) => string | null;
+  getSeenLabelFor: (
+    peerSeenAtByCreatedAt: Record<string, number>,
+    createdAt: number,
+  ) => string | null;
   normalizeUser: (v: unknown) => string;
 
   nowSec: number;
@@ -150,11 +156,15 @@ export function renderChatListItem(args: {
   const formatted = isToday ? time : `${timestamp.toLocaleDateString()} · ${time}`;
   const expiresIn = isDm && typeof item.expiresAt === 'number' ? item.expiresAt - nowSec : null;
 
-  const isOutgoingByUserSub = !!myUserId && !!item.userSub && String(item.userSub) === String(myUserId);
-  const isEncryptedOutgoing = !!item.encrypted && !!myPublicKey && item.encrypted.senderPublicKey === myPublicKey;
+  const isOutgoingByUserSub =
+    !!myUserId && !!item.userSub && String(item.userSub) === String(myUserId);
+  const isEncryptedOutgoing =
+    !!item.encrypted && !!myPublicKey && item.encrypted.senderPublicKey === myPublicKey;
   const isPlainOutgoing =
     !item.encrypted &&
-    (isOutgoingByUserSub ? true : normalizeUser(item.userLower ?? item.user ?? 'anon') === normalizeUser(displayName));
+    (isOutgoingByUserSub
+      ? true
+      : normalizeUser(item.userLower ?? item.user ?? 'anon') === normalizeUser(displayName));
   const isOutgoing = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
 
   const outgoingSeenLabel = isDm ? getSeenLabelFor(peerSeenAtByCreatedAt, item.createdAt) : null;
@@ -163,7 +173,9 @@ export function renderChatListItem(args: {
   const seenLabel = isOutgoing ? outgoingSeenLabel : null;
 
   const envelope =
-    !item.encrypted && !item.groupEncrypted && !isDm ? parseChatEnvelope(item.rawText ?? item.text) : null;
+    !item.encrypted && !item.groupEncrypted && !isDm
+      ? parseChatEnvelope(item.rawText ?? item.text)
+      : null;
   const envMediaList = envelope ? normalizeChatMediaList(envelope.media) : [];
   // Only treat it as a "media envelope" if it actually has media.
   // (Otherwise a random JSON message could parse as an envelope and we'd hide the text.)
@@ -174,11 +186,16 @@ export function renderChatListItem(args: {
   const captionHasText = !!captionText && String(captionText).trim().length > 0;
   const isDeleted = typeof item.deletedAt === 'number' && Number.isFinite(item.deletedAt);
   const displayText = isDeleted ? 'This message has been deleted' : captionText;
-  const isEdited = !isDeleted && typeof item.editedAt === 'number' && Number.isFinite(item.editedAt);
+  const isEdited =
+    !isDeleted && typeof item.editedAt === 'number' && Number.isFinite(item.editedAt);
 
   const reactionEntries = item.reactions
     ? Object.entries(item.reactions)
-        .map(([emoji, info]) => ({ emoji, count: info?.count ?? 0, userSubs: info?.userSubs ?? [] }))
+        .map(([emoji, info]) => ({
+          emoji,
+          count: info?.count ?? 0,
+          userSubs: info?.userSubs ?? [],
+        }))
         .filter((r) => r.emoji && r.count > 0)
         .sort((a, b) => b.count - a.count)
     : [];
@@ -198,8 +215,10 @@ export function renderChatListItem(args: {
   // don't appear larger than encrypted text placeholders.
   const isStillEncrypted = (!!item.encrypted || !!item.groupEncrypted) && !item.decryptedText;
   const hasMedia = !!mediaList.length && !isStillEncrypted;
-  const thumbKeyPath = mediaLooksImage || mediaLooksVideo ? media?.thumbPath || media?.path : undefined;
-  const thumbAspect = thumbKeyPath && imageAspectByPath[thumbKeyPath] ? imageAspectByPath[thumbKeyPath] : undefined;
+  const thumbKeyPath =
+    mediaLooksImage || mediaLooksVideo ? media?.thumbPath || media?.path : undefined;
+  const thumbAspect =
+    thumbKeyPath && imageAspectByPath[thumbKeyPath] ? imageAspectByPath[thumbKeyPath] : undefined;
 
   const senderKey = getChatSenderKey(item, normalizeUser);
   // IMPORTANT: `index` is relative to the FlatList `data` prop.
@@ -215,10 +234,15 @@ export function renderChatListItem(args: {
   });
 
   const prof = item.userSub ? avatarProfileBySub[String(item.userSub)] : undefined;
-  const avatarImageUri = prof?.avatarImagePath ? avatarUrlByPath[String(prof.avatarImagePath)] : undefined;
+  const avatarImageUri = prof?.avatarImagePath
+    ? avatarUrlByPath[String(prof.avatarImagePath)]
+    : undefined;
 
   const rowGutter = !isOutgoing && showAvatarForIncoming ? AVATAR_GUTTER : 0;
-  const capped = getCappedMediaSize(thumbAspect, isOutgoing ? chatViewportWidth : chatViewportWidth - rowGutter);
+  const capped = getCappedMediaSize(
+    thumbAspect,
+    isOutgoing ? chatViewportWidth : chatViewportWidth - rowGutter,
+  );
   const hideMetaUntilDecrypted = isStillEncrypted;
   const canReact = !isDeleted && !isStillEncrypted;
   const reactionEntriesVisible = canReact ? reactionEntries : [];
@@ -320,8 +344,10 @@ export function renderChatListItem(args: {
         }
         const ne = (e as Record<string, unknown>).nativeEvent;
         const neRec = ne && typeof ne === 'object' ? (ne as Record<string, unknown>) : {};
-        const xRaw = Platform.OS === 'web' ? (neRec.clientX ?? neRec.pageX ?? 0) : (neRec.pageX ?? 0);
-        const yRaw = Platform.OS === 'web' ? (neRec.clientY ?? neRec.pageY ?? 0) : (neRec.pageY ?? 0);
+        const xRaw =
+          Platform.OS === 'web' ? (neRec.clientX ?? neRec.pageX ?? 0) : (neRec.pageX ?? 0);
+        const yRaw =
+          Platform.OS === 'web' ? (neRec.clientY ?? neRec.pageY ?? 0) : (neRec.pageY ?? 0);
         const x = Number(xRaw) || 0;
         const y = Number(yRaw) || 0;
         openMessageActions(item, { x, y });

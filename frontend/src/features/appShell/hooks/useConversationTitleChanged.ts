@@ -1,7 +1,10 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
-import { applyTitleOverridesToUnreadMap, setTitleOverride } from '../../../utils/conversationTitles';
+import {
+  applyTitleOverridesToUnreadMap,
+  setTitleOverride,
+} from '../../../utils/conversationTitles';
 import type { ServerConversation, UnreadDmMap } from './useChatsInboxData';
 
 type TitleOverrideRef = React.MutableRefObject<Record<string, string>>;
@@ -39,7 +42,11 @@ export function useConversationTitleChanged({
       }
 
       // Persist local override so fetches won't overwrite the UI with stale server titles.
-      titleOverrideByConvIdRef.current = setTitleOverride(titleOverrideByConvIdRef.current, convId, title);
+      titleOverrideByConvIdRef.current = setTitleOverride(
+        titleOverrideByConvIdRef.current,
+        convId,
+        title,
+      );
 
       // Update current chat title if we're in it.
       if (conversationId === convId) {
@@ -48,9 +55,14 @@ export function useConversationTitleChanged({
 
       // Update server-backed conversations cache + DM threads list (best-effort).
       setServerConversations((prev) => {
-        const next = prev.map((c) => (c.conversationId === convId ? { ...c, peerDisplayName: title } : c));
+        const next = prev.map((c) =>
+          c.conversationId === convId ? { ...c, peerDisplayName: title } : c,
+        );
         try {
-          AsyncStorage.setItem('conversations:cache:v1', JSON.stringify({ at: Date.now(), conversations: next })).catch(() => {});
+          AsyncStorage.setItem(
+            'conversations:cache:v1',
+            JSON.stringify({ at: Date.now(), conversations: next }),
+          ).catch(() => {});
         } catch {
           // ignore
         }
@@ -63,9 +75,16 @@ export function useConversationTitleChanged({
       });
       upsertDmThread(convId, title, Date.now());
     },
-    [conversationId, setChannelNameById, setPeer, setServerConversations, setUnreadDmMap, titleOverrideByConvIdRef, upsertDmThread]
+    [
+      conversationId,
+      setChannelNameById,
+      setPeer,
+      setServerConversations,
+      setUnreadDmMap,
+      titleOverrideByConvIdRef,
+      upsertDmThread,
+    ],
   );
 
   return { handleConversationTitleChanged };
 }
-

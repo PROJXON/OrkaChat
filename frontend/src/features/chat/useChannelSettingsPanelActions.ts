@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import type { ChannelMeta } from './useChannelRoster';
 
 type ToastKind = 'success' | 'error';
@@ -42,8 +43,8 @@ export function useChannelSettingsPanelActions(opts: {
           void uiAlert(
             next ? 'Channel is public' : 'Channel is Private',
             next
-              ? 'This channel is now discoverable in search, and people can join publicly'
-              : 'This channel is no longer discoverable in search, and people cannot join it',
+              ? 'This channel is now discoverable in search, and people can join publicly.'
+              : 'This channel is no longer discoverable in search, and people cannot join it.',
           );
         } finally {
           setChannelActionBusy(false);
@@ -62,8 +63,14 @@ export function useChannelSettingsPanelActions(opts: {
     }
     setChannelPasswordDraft('');
     setChannelPasswordEditOpen(true);
-  }, [channelMeta?.hasPassword, channelUpdate, setChannelMeta, setChannelPasswordDraft, setChannelPasswordEditOpen, showToast]);
+  }, [
+    channelMeta?.hasPassword,
+    channelUpdate,
+    setChannelMeta,
+    setChannelPasswordDraft,
+    setChannelPasswordEditOpen,
+    showToast,
+  ]);
 
   return { onTogglePublic, onPressPassword };
 }
-

@@ -122,7 +122,13 @@ export function MainAppHeaderTop({
             accessibilityRole="button"
             accessibilityLabel="Open menu"
           >
-            <AppBrandIcon isDark={isDark} fit="contain" slotWidth={32} slotHeight={32} accessible={false} />
+            <AppBrandIcon
+              isDark={isDark}
+              fit="contain"
+              slotWidth={32}
+              slotHeight={32}
+              accessible={false}
+            />
           </Pressable>
         </View>
       </View>
@@ -159,7 +165,9 @@ export function MainAppHeaderTop({
               accessibilityRole="button"
               accessibilityLabel="Start direct message"
             >
-              <Text style={[styles.startDmBtnText, isDark && styles.startDmBtnTextDark]}>Start DM</Text>
+              <Text style={[styles.startDmBtnText, isDark && styles.startDmBtnTextDark]}>
+                Start DM
+              </Text>
             </Pressable>
             <Pressable
               onPress={() => {
@@ -188,7 +196,9 @@ export function MainAppHeaderTop({
                 >
                   <Text style={[styles.unreadHint, isDark && styles.unreadHintDark]}>
                     {info.count} unread {info.count === 1 ? 'message' : 'messages'} from{' '}
-                    <Text style={[styles.unreadHintBold, isDark && styles.unreadHintBoldDark]}>{info.user}</Text>
+                    <Text style={[styles.unreadHintBold, isDark && styles.unreadHintBoldDark]}>
+                      {info.user}
+                    </Text>
                   </Text>
                 </Pressable>
               ))}
@@ -203,4 +213,3 @@ export function MainAppHeaderTop({
     </>
   );
 }
-

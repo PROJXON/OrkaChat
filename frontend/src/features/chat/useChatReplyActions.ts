@@ -1,10 +1,17 @@
 import * as React from 'react';
 
-import type { ChatMessage } from './types';
 import type { MediaItem } from '../../types/media';
+import {
+  normalizeChatMediaList,
+  normalizeDmMediaItems,
+  normalizeGroupMediaItems,
+  parseChatEnvelope,
+  parseDmMediaEnvelope,
+  parseGroupMediaEnvelope,
+} from './parsers';
+import type { ChatMessage } from './types';
 import type { ChatEnvelope, DmMediaEnvelope, GroupMediaEnvelope } from './types';
 import type { ReplyTarget } from './useChatSendActions';
-import { normalizeChatMediaList, normalizeDmMediaItems, normalizeGroupMediaItems, parseChatEnvelope, parseDmMediaEnvelope, parseGroupMediaEnvelope } from './parsers';
 
 export function useChatReplyActions(opts: {
   isDm: boolean;
@@ -41,9 +48,13 @@ export function useChatReplyActions(opts: {
       try {
         if (target.encrypted || target.groupEncrypted) {
           const plain = String(target.decryptedText || '');
-          const dmEnv: DmMediaEnvelope | null = target.encrypted ? parseDmMediaEnvelope(plain) : null;
+          const dmEnv: DmMediaEnvelope | null = target.encrypted
+            ? parseDmMediaEnvelope(plain)
+            : null;
           const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
-          const gEnv: GroupMediaEnvelope | null = target.groupEncrypted ? parseGroupMediaEnvelope(plain) : null;
+          const gEnv: GroupMediaEnvelope | null = target.groupEncrypted
+            ? parseGroupMediaEnvelope(plain)
+            : null;
           const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
           const items = dmItems.length ? dmItems : gItems;
           if (items.length) {
@@ -52,7 +63,8 @@ export function useChatReplyActions(opts: {
             const k = first?.kind;
             mediaKind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
             const thumbPath = typeof first?.thumbPath === 'string' ? first.thumbPath : '';
-            mediaThumbUri = thumbPath && dmThumbUriByPath[thumbPath] ? dmThumbUriByPath[thumbPath] : null;
+            mediaThumbUri =
+              thumbPath && dmThumbUriByPath[thumbPath] ? dmThumbUriByPath[thumbPath] : null;
           }
         } else {
           const raw = String(target.rawText ?? target.text ?? '');
@@ -81,7 +93,8 @@ export function useChatReplyActions(opts: {
       preview = preview.replace(/\s+/g, ' ').trim();
       if (preview.length > 160) preview = `${preview.slice(0, 160)}…`;
       if (!preview && mediaCount && mediaCount > 0) {
-        const base = mediaKind === 'image' ? 'Photo' : mediaKind === 'video' ? 'Video' : 'Attachment';
+        const base =
+          mediaKind === 'image' ? 'Photo' : mediaKind === 'video' ? 'Video' : 'Attachment';
         preview = mediaCount > 1 ? `${base} · ${mediaCount} attachments` : base;
       }
 
@@ -116,4 +129,3 @@ export function useChatReplyActions(opts: {
 
   return { beginReply };
 }
-

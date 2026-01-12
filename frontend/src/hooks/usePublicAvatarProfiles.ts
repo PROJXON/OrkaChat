@@ -28,8 +28,12 @@ export function usePublicAvatarProfiles(opts: {
 } {
   const apiUrl = String(opts.apiUrl || '').trim();
   const ttlMsRaw = opts.ttlMs;
-  const ttlMs = typeof ttlMsRaw === 'number' && Number.isFinite(ttlMsRaw) ? ttlMsRaw : Number.POSITIVE_INFINITY;
-  const maxBatch = typeof opts.maxBatch === 'number' && Number.isFinite(opts.maxBatch) ? Math.max(1, Math.floor(opts.maxBatch)) : 25;
+  const ttlMs =
+    typeof ttlMsRaw === 'number' && Number.isFinite(ttlMsRaw) ? ttlMsRaw : Number.POSITIVE_INFINITY;
+  const maxBatch =
+    typeof opts.maxBatch === 'number' && Number.isFinite(opts.maxBatch)
+      ? Math.max(1, Math.floor(opts.maxBatch))
+      : 25;
   const resetKey = opts.resetKey;
   const cdn = opts.cdn;
   const cdnRef = React.useRef<CdnLike | undefined>(cdn);
@@ -37,7 +41,9 @@ export function usePublicAvatarProfiles(opts: {
     cdnRef.current = cdn;
   }, [cdn]);
 
-  const [avatarProfileBySub, setAvatarProfileBySub] = React.useState<Record<string, PublicAvatarProfileLite>>({});
+  const [avatarProfileBySub, setAvatarProfileBySub] = React.useState<
+    Record<string, PublicAvatarProfileLite>
+  >({});
   const inFlightRef = React.useRef<Set<string>>(new Set());
 
   const reset = React.useCallback(() => {
@@ -61,24 +67,27 @@ export function usePublicAvatarProfiles(opts: {
     });
   }, []);
 
-  const upsertMany = React.useCallback((items: Array<{ sub: string; profile: Partial<PublicAvatarProfileLite> }>) => {
-    const list = Array.isArray(items) ? items : [];
-    if (!list.length) return;
-    const now = Date.now();
-    setAvatarProfileBySub((prev) => {
-      let changed = false;
-      const next: Record<string, PublicAvatarProfileLite> = { ...prev };
-      for (const it of list) {
-        const sub = typeof it?.sub === 'string' ? it.sub.trim() : String(it?.sub || '').trim();
-        if (!sub) continue;
-        inFlightRef.current.delete(sub);
-        const patch = it?.profile && typeof it.profile === 'object' ? it.profile : {};
-        next[sub] = { ...(prev[sub] || {}), ...patch, fetchedAt: now };
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
-  }, []);
+  const upsertMany = React.useCallback(
+    (items: Array<{ sub: string; profile: Partial<PublicAvatarProfileLite> }>) => {
+      const list = Array.isArray(items) ? items : [];
+      if (!list.length) return;
+      const now = Date.now();
+      setAvatarProfileBySub((prev) => {
+        let changed = false;
+        const next: Record<string, PublicAvatarProfileLite> = { ...prev };
+        for (const it of list) {
+          const sub = typeof it?.sub === 'string' ? it.sub.trim() : String(it?.sub || '').trim();
+          if (!sub) continue;
+          inFlightRef.current.delete(sub);
+          const patch = it?.profile && typeof it.profile === 'object' ? it.profile : {};
+          next[sub] = { ...(prev[sub] || {}), ...patch, fetchedAt: now };
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    },
+    [],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -100,7 +109,8 @@ export function usePublicAvatarProfiles(opts: {
       for (const sub of uniqueWanted) {
         if (inFlightRef.current.has(sub)) continue;
         const existing = avatarProfileBySub[sub];
-        const fetchedAt = existing && typeof existing.fetchedAt === 'number' ? existing.fetchedAt : NaN;
+        const fetchedAt =
+          existing && typeof existing.fetchedAt === 'number' ? existing.fetchedAt : NaN;
         const stale =
           !existing ||
           (Number.isFinite(ttlMs) &&
@@ -133,9 +143,12 @@ export function usePublicAvatarProfiles(opts: {
             if (!sub) continue;
             next[sub] = {
               displayName: typeof u.displayName === 'string' ? String(u.displayName) : undefined,
-              avatarBgColor: typeof u.avatarBgColor === 'string' ? String(u.avatarBgColor) : undefined,
-              avatarTextColor: typeof u.avatarTextColor === 'string' ? String(u.avatarTextColor) : undefined,
-              avatarImagePath: typeof u.avatarImagePath === 'string' ? String(u.avatarImagePath) : undefined,
+              avatarBgColor:
+                typeof u.avatarBgColor === 'string' ? String(u.avatarBgColor) : undefined,
+              avatarTextColor:
+                typeof u.avatarTextColor === 'string' ? String(u.avatarTextColor) : undefined,
+              avatarImagePath:
+                typeof u.avatarImagePath === 'string' ? String(u.avatarImagePath) : undefined,
               fetchedAt: now,
             };
           }
@@ -148,7 +161,6 @@ export function usePublicAvatarProfiles(opts: {
     return () => {
       cancelled = true;
     };
-     
   }, [apiUrl, ttlMs, maxBatch, avatarProfileBySub, opts.subs]);
 
   // Best-effort: prefetch avatar image URLs once profiles land.
@@ -171,4 +183,3 @@ export function usePublicAvatarProfiles(opts: {
     [avatarProfileBySub, invalidate, upsertMany, reset],
   );
 }
-

@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 export type BlockedUser = {
   blockedSub: string;
@@ -19,7 +19,7 @@ export function useBlocklistData({
   promptConfirm: (
     title: string,
     message: string,
-    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean }
+    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean },
   ) => Promise<boolean>;
   blocklistOpen: boolean;
 }): {
@@ -40,7 +40,10 @@ export function useBlocklistData({
   const [blockedUsers, setBlockedUsers] = React.useState<BlockedUser[]>([]);
   const [blocklistCacheAt, setBlocklistCacheAt] = React.useState<number>(0);
 
-  const blockedSubs = React.useMemo(() => blockedUsers.map((b) => b.blockedSub).filter(Boolean), [blockedUsers]);
+  const blockedSubs = React.useMemo(
+    () => blockedUsers.map((b) => b.blockedSub).filter(Boolean),
+    [blockedUsers],
+  );
 
   const fetchBlocks = React.useCallback(async (): Promise<void> => {
     if (!apiUrl) return;
@@ -62,8 +65,14 @@ export function useBlocklistData({
           const blockedSub = String(itRec.blockedSub || '').trim();
           return {
             blockedSub,
-            blockedDisplayName: typeof itRec.blockedDisplayName === 'string' ? String(itRec.blockedDisplayName) : undefined,
-            blockedUsernameLower: typeof itRec.blockedUsernameLower === 'string' ? String(itRec.blockedUsernameLower) : undefined,
+            blockedDisplayName:
+              typeof itRec.blockedDisplayName === 'string'
+                ? String(itRec.blockedDisplayName)
+                : undefined,
+            blockedUsernameLower:
+              typeof itRec.blockedUsernameLower === 'string'
+                ? String(itRec.blockedUsernameLower)
+                : undefined,
             blockedAt: typeof itRec.blockedAt === 'number' ? Number(itRec.blockedAt) : undefined,
           };
         })
@@ -71,7 +80,10 @@ export function useBlocklistData({
       setBlockedUsers(parsed);
       setBlocklistCacheAt(Date.now());
       try {
-        await AsyncStorage.setItem('blocklist:cache:v1', JSON.stringify({ at: Date.now(), blocked: parsed }));
+        await AsyncStorage.setItem(
+          'blocklist:cache:v1',
+          JSON.stringify({ at: Date.now(), blocked: parsed }),
+        );
       } catch {
         // ignore
       }
@@ -92,7 +104,7 @@ export function useBlocklistData({
     const ok = await promptConfirm(
       'Block user?',
       `Block "${username}"? You won’t see their messages, and they won’t be able to DM you.\n\nYou can unblock them later from your Blocklist.`,
-      { confirmText: 'Block', cancelText: 'Cancel', destructive: true }
+      { confirmText: 'Block', cancelText: 'Cancel', destructive: true },
     );
     if (!ok) return;
 
@@ -143,12 +155,16 @@ export function useBlocklistData({
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         const who = label ? `"${label}"` : 'user';
-        throw new Error(text?.trim() ? `Failed to block ${who}: ${text.trim()}` : `Failed to block ${who} (${res.status})`);
+        throw new Error(
+          text?.trim()
+            ? `Failed to block ${who}: ${text.trim()}`
+            : `Failed to block ${who} (${res.status})`,
+        );
       }
 
       await fetchBlocks();
     },
-    [apiUrl, fetchAuthSession, fetchBlocks]
+    [apiUrl, fetchAuthSession, fetchBlocks],
   );
 
   const unblockUser = React.useCallback(
@@ -158,7 +174,7 @@ export function useBlocklistData({
       const ok = await promptConfirm(
         'Unblock user?',
         `Unblock ${label ? `"${label}"` : 'this user'}?`,
-        { confirmText: 'Unblock', cancelText: 'Cancel', destructive: false }
+        { confirmText: 'Unblock', cancelText: 'Cancel', destructive: false },
       );
       if (!ok) return;
 
@@ -178,7 +194,7 @@ export function useBlocklistData({
         setBlocklistLoading(false);
       }
     },
-    [apiUrl, fetchAuthSession, promptConfirm]
+    [apiUrl, fetchAuthSession, promptConfirm],
   );
 
   React.useEffect(() => {
@@ -227,4 +243,3 @@ export function useBlocklistData({
     unblockUser,
   };
 }
-

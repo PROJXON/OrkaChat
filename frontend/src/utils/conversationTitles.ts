@@ -5,7 +5,11 @@ export function normalizeTitle(raw: unknown): string {
   return typeof raw === 'string' ? raw.trim() : '';
 }
 
-export function setTitleOverride(overrides: TitleOverrides, convIdRaw: unknown, titleRaw: unknown): TitleOverrides {
+export function setTitleOverride(
+  overrides: TitleOverrides,
+  convIdRaw: unknown,
+  titleRaw: unknown,
+): TitleOverrides {
   const convId = typeof convIdRaw === 'string' ? convIdRaw.trim() : '';
   const title = normalizeTitle(titleRaw);
   if (!convId || convId === 'global' || !title) return overrides || {};
@@ -38,7 +42,8 @@ export function applyTitleOverridesToUnreadMap(
     const existing = merged[convId];
     if (!existing) continue;
     const u = normalizeTitle(existing.user);
-    if (u.startsWith('Added to group:')) merged[convId] = { ...existing, user: `Added to group: ${title}` };
+    if (u.startsWith('Added to group:'))
+      merged[convId] = { ...existing, user: `Added to group: ${title}` };
     else merged[convId] = { ...existing, user: title };
   }
   return merged;

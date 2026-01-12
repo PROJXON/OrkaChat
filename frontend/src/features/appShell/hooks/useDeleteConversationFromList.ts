@@ -15,7 +15,7 @@ export function useDeleteConversationFromList({
   promptConfirm: (
     title: string,
     message: string,
-    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean }
+    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean },
   ) => Promise<boolean>;
   setServerConversations: React.Dispatch<React.SetStateAction<ServerConversation[]>>;
   setDmThreads: React.Dispatch<React.SetStateAction<DmThreads>>;
@@ -28,7 +28,7 @@ export function useDeleteConversationFromList({
       const ok = await promptConfirm(
         'Remove chat?',
         'This removes the selected chat from your Chats list. If they message you again, it will reappear.\n\nThis does not delete message history.',
-        { confirmText: 'Remove', cancelText: 'Cancel', destructive: true }
+        { confirmText: 'Remove', cancelText: 'Cancel', destructive: true },
       );
       if (!ok) return;
 
@@ -69,9 +69,8 @@ export function useDeleteConversationFromList({
         return next;
       });
     },
-    [apiUrl, fetchAuthSession, promptConfirm, setDmThreads, setServerConversations, setUnreadDmMap]
+    [apiUrl, fetchAuthSession, promptConfirm, setDmThreads, setServerConversations, setUnreadDmMap],
   );
 
   return { deleteConversationFromList };
 }
-

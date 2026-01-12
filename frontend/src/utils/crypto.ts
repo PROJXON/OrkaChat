@@ -1,12 +1,13 @@
-import { secp256k1 } from '@noble/curves/secp256k1';
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
-import { getRandomBytes } from 'expo-crypto';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { pbkdf2 } from '@noble/hashes/pbkdf2.js';
 import { gcm } from '@noble/ciphers/aes.js';
+import { secp256k1 } from '@noble/curves/secp256k1';
+import { pbkdf2 } from '@noble/hashes/pbkdf2.js';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getRandomBytes } from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+
 import type { BackupBlob, EncryptedChatPayloadV1, KeyPair } from '../types/crypto';
 export type { BackupBlob, EncryptedChatPayloadV1, KeyPair } from '../types/crypto';
 
@@ -63,7 +64,9 @@ export const loadKeyPair = async (userId: string): Promise<KeyPair | null> => {
     const storageKey = `crypto_keys_${userId}`;
     // SecureStore is not reliably supported on web. Use AsyncStorage (localStorage-backed) instead.
     const keyData =
-      Platform.OS === 'web' ? await AsyncStorage.getItem(storageKey) : await SecureStore.getItemAsync(storageKey);
+      Platform.OS === 'web'
+        ? await AsyncStorage.getItem(storageKey)
+        : await SecureStore.getItemAsync(storageKey);
     if (!keyData) return null;
     return JSON.parse(keyData);
   } catch (error) {
@@ -81,7 +84,10 @@ export const derivePublicKey = (privateKeyHex: string): string => {
 const deriveBackupKey = (passphrase: string, salt: Uint8Array) =>
   pbkdf2(sha256, new TextEncoder().encode(passphrase), salt, { c: 100000, dkLen: 32 });
 
-export const encryptPrivateKey = async (privateKeyHex: string, passphrase: string): Promise<BackupBlob> => {
+export const encryptPrivateKey = async (
+  privateKeyHex: string,
+  passphrase: string,
+): Promise<BackupBlob> => {
   const salt = getRandomBytes(16);
   const key = deriveBackupKey(passphrase, salt);
   const iv = getRandomBytes(12);
@@ -119,7 +125,10 @@ const deriveChatKey = (myPrivateKeyHex: string, theirPublicKeyHex: string): Uint
   return sha256(x);
 };
 
-export const deriveChatKeyBytesV1 = (myPrivateKeyHex: string, theirPublicKeyHex: string): Uint8Array => {
+export const deriveChatKeyBytesV1 = (
+  myPrivateKeyHex: string,
+  theirPublicKeyHex: string,
+): Uint8Array => {
   return deriveChatKey(myPrivateKeyHex, theirPublicKeyHex);
 };
 
@@ -147,7 +156,9 @@ export const encryptChatMessageV1 = (
   const cipher = gcm(key, iv);
   const messageBytes = new TextEncoder().encode(plaintext);
   const encrypted = cipher.encrypt(messageBytes); // includes authTag at end
-  const senderPublicKey = bytesToHex(secp256k1.getPublicKey(hexToBytes(senderPrivateKeyHex), false));
+  const senderPublicKey = bytesToHex(
+    secp256k1.getPublicKey(hexToBytes(senderPrivateKeyHex), false),
+  );
   return {
     v: 1,
     alg: 'secp256k1-ecdh+aes-256-gcm',

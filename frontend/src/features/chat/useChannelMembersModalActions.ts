@@ -1,5 +1,6 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
+
 import type { ChannelMember } from './useChannelRoster';
 
 type ChannelUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
@@ -16,7 +17,14 @@ export function useChannelMembersModalActions(opts: {
   setChannelMembers: React.Dispatch<React.SetStateAction<ChannelMember[]>>;
   setChannelMembersOpen: (v: boolean) => void;
 }) {
-  const { uiConfirm, wsRef, activeConversationId, channelUpdate, setChannelMembers, setChannelMembersOpen } = opts;
+  const {
+    uiConfirm,
+    wsRef,
+    activeConversationId,
+    channelUpdate,
+    setChannelMembers,
+    setChannelMembersOpen,
+  } = opts;
 
   const onBan = React.useCallback(
     async (args: { memberSub: string; label: string }) => {
@@ -80,4 +88,3 @@ export function useChannelMembersModalActions(opts: {
 
   return { onBan, onToggleAdmin, onClose };
 }
-

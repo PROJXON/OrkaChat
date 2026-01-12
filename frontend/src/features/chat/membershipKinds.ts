@@ -14,4 +14,3 @@ const MEMBERSHIP_SYSTEM_KINDS = new Set([
 export function isMembershipSystemKind(kind: unknown): boolean {
   return typeof kind === 'string' && kind.length > 0 && MEMBERSHIP_SYSTEM_KINDS.has(kind);
 }
-

@@ -1,6 +1,8 @@
 import { bytesToHex } from '@noble/hashes/utils.js';
+
 import type { EncryptedChatPayloadV1 } from '../../types/crypto';
 import { aesGcmEncryptBytes, derivePublicKey, encryptChatMessageV1 } from '../../utils/crypto';
+import type { PendingMediaItem } from './attachments';
 import type {
   DmMediaEnvelope,
   DmMediaEnvelopeV1,
@@ -8,7 +10,6 @@ import type {
   GroupMediaEnvelope,
   GroupMediaEnvelopeV1,
 } from './types';
-import type { PendingMediaItem } from './attachments';
 
 export async function prepareDmOutgoingEncryptedText(opts: {
   conversationId: string;
@@ -30,7 +31,6 @@ export async function prepareDmOutgoingEncryptedText(opts: {
 
   const envs: DmMediaEnvelopeV1[] = [];
   for (const item of pending) {
-     
     const dmEnv = await opts.uploadPendingMediaDmEncrypted(
       item,
       opts.conversationId,
@@ -53,7 +53,9 @@ export async function prepareDmOutgoingEncryptedText(opts: {
   const plaintextEnvelope = JSON.stringify(dmAny);
   const enc = encryptChatMessageV1(plaintextEnvelope, opts.myPrivateKey, opts.peerPublicKey);
   const outgoingText = JSON.stringify(enc);
-  const mediaPathsToSend = envs.flatMap((e) => [e.media.path, e.media.thumbPath].filter(Boolean)).map(String);
+  const mediaPathsToSend = envs
+    .flatMap((e) => [e.media.path, e.media.thumbPath].filter(Boolean))
+    .map(String);
   return { outgoingText, mediaPathsToSend };
 }
 
@@ -74,7 +76,6 @@ export async function prepareGroupMediaPlaintext(opts: {
 
   const envs: GroupMediaEnvelopeV1[] = [];
   for (const item of pending) {
-     
     const gEnv = await opts.uploadPendingMediaGroupEncrypted(
       item,
       opts.conversationId,
@@ -93,7 +94,9 @@ export async function prepareGroupMediaPlaintext(opts: {
           items: envs.map((e) => ({ media: e.media, wrap: e.wrap })),
         };
   const plaintextToEncrypt = JSON.stringify(gAny);
-  const mediaPathsToSend = envs.flatMap((e) => [e.media.path, e.media.thumbPath].filter(Boolean)).map(String);
+  const mediaPathsToSend = envs
+    .flatMap((e) => [e.media.path, e.media.thumbPath].filter(Boolean))
+    .map(String);
   return { plaintextToEncrypt, mediaPathsToSend };
 }
 
@@ -112,7 +115,8 @@ export function encryptGroupOutgoingEncryptedText(opts: {
   const messageKeyHex = bytesToHex(opts.messageKeyBytes);
   const wraps: Record<string, EncryptedChatPayloadV1> = {};
   for (const sub of opts.activeMemberSubs) {
-    const pk = sub === opts.myUserId ? derivePublicKey(opts.myPrivateKey) : opts.groupPublicKeyBySub[sub];
+    const pk =
+      sub === opts.myUserId ? derivePublicKey(opts.myPrivateKey) : opts.groupPublicKeyBySub[sub];
     // Product rule is: require keys for all active members; but guard anyway.
     if (!pk) continue;
     wraps[sub] = encryptChatMessageV1(messageKeyHex, opts.myPrivateKey, pk);
@@ -128,4 +132,3 @@ export function encryptGroupOutgoingEncryptedText(opts: {
   };
   return JSON.stringify(payload);
 }
-

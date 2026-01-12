@@ -1,10 +1,14 @@
-import * as React from 'react';
-import { Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import * as React from 'react';
+import { Alert } from 'react-native';
 
 import type { InAppCameraCapture } from '../../components/InAppCameraModal';
-import type { DocumentPickerAssetLike, ImagePickerAssetLike, PendingMediaItem } from './attachments';
+import type {
+  DocumentPickerAssetLike,
+  ImagePickerAssetLike,
+  PendingMediaItem,
+} from './attachments';
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
@@ -22,8 +26,12 @@ function getErrorMessage(err: unknown): string {
 export function useChatAttachmentPickers(opts: {
   showAlert: (title: string, message: string) => void;
   addPickedMediaItems: (items: PendingMediaItem[]) => void;
-  pendingMediaFromImagePickerAssets: (assets: ReadonlyArray<ImagePickerAssetLike>) => PendingMediaItem[];
-  pendingMediaFromDocumentPickerAssets: (assets: ReadonlyArray<DocumentPickerAssetLike>) => PendingMediaItem[];
+  pendingMediaFromImagePickerAssets: (
+    assets: ReadonlyArray<ImagePickerAssetLike>,
+  ) => PendingMediaItem[];
+  pendingMediaFromDocumentPickerAssets: (
+    assets: ReadonlyArray<DocumentPickerAssetLike>,
+  ) => PendingMediaItem[];
   pendingMediaFromInAppCameraCapture: (cap: InAppCameraCapture) => PendingMediaItem;
   setCameraOpen: (open: boolean) => void;
 }): {
@@ -102,4 +110,3 @@ export function useChatAttachmentPickers(opts: {
 
   return { pickFromLibrary, pickDocument, openCamera, handleInAppCameraCaptured };
 }
-

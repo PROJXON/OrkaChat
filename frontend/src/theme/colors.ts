@@ -254,4 +254,3 @@ export function getAppThemeColors(isDark: boolean): AppThemeColors {
 export function getAppColors(isDark: boolean): SemanticAppColors {
   return isDark ? APP_COLORS.dark : APP_COLORS.light;
 }
-

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Image, Platform, StyleSheet, View } from 'react-native';
+
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_THEME_COLORS } from '../../../theme/colors';
 
@@ -24,7 +25,11 @@ export function ChatBackgroundLayer({ styles, isDark, resolvedChatBg }: Props) {
           styles.chatBgBase,
           ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
           resolvedChatBg.mode === 'default'
-            ? { backgroundColor: isDark ? APP_THEME_COLORS.dark.appBackground : APP_THEME_COLORS.light.appBackground }
+            ? {
+                backgroundColor: isDark
+                  ? APP_THEME_COLORS.dark.appBackground
+                  : APP_THEME_COLORS.light.appBackground,
+              }
             : resolvedChatBg.mode === 'color'
               ? { backgroundColor: resolvedChatBg.color }
               : null,
@@ -33,7 +38,10 @@ export function ChatBackgroundLayer({ styles, isDark, resolvedChatBg }: Props) {
       />
       {resolvedChatBg.mode === 'image' ? (
         <View
-          style={[StyleSheet.absoluteFill, ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : [])]}
+          style={[
+            StyleSheet.absoluteFill,
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+          ]}
           pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
         >
           <Image

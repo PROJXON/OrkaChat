@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
@@ -34,7 +35,10 @@ type Props = {
   scrollContentHRef: React.MutableRefObject<number>;
   lastAutoScrollAtRef: React.MutableRefObject<number>;
   lastAutoScrollContentHRef: React.MutableRefObject<number>;
-  autoScrollRetryRef: React.MutableRefObject<{ timer: ReturnType<typeof setTimeout> | null; attempts: number }>;
+  autoScrollRetryRef: React.MutableRefObject<{
+    timer: ReturnType<typeof setTimeout> | null;
+    attempts: number;
+  }>;
   autoScrollIntentRef: React.MutableRefObject<null | 'thinking' | 'answer'>;
   autoScroll: () => void;
 };
@@ -74,7 +78,9 @@ export function AiHelperModal({
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.modalOverlay}>
         <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>AI Helper</Text>
+          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
+            AI Helper
+          </Text>
 
           {hasAnyOutput ? (
             <ScrollView
@@ -103,7 +109,9 @@ export function AiHelperModal({
               <View ref={scrollContentRef} collapsable={false}>
                 {thread.length ? (
                   <View style={styles.helperBlock}>
-                    <Text style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}>
+                    <Text
+                      style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}
+                    >
                       Conversation
                     </Text>
                     <View style={{ gap: 8 }}>
@@ -138,27 +146,54 @@ export function AiHelperModal({
                             <View
                               style={[
                                 styles.helperTurnBubble,
-                                t.role === 'user' ? styles.helperTurnBubbleUser : styles.helperTurnBubbleAssistant,
+                                t.role === 'user'
+                                  ? styles.helperTurnBubbleUser
+                                  : styles.helperTurnBubbleAssistant,
                                 isDark ? styles.helperTurnBubbleDark : null,
-                                isDark && t.role === 'user' ? styles.helperTurnBubbleUserDark : null,
-                                isDark && t.role === 'assistant' ? styles.helperTurnBubbleAssistantDark : null,
+                                isDark && t.role === 'user'
+                                  ? styles.helperTurnBubbleUserDark
+                                  : null,
+                                isDark && t.role === 'assistant'
+                                  ? styles.helperTurnBubbleAssistantDark
+                                  : null,
                               ]}
                             >
-                              <Text style={[styles.helperTurnLabel, isDark ? styles.summaryTextDark : null]}>
+                              <Text
+                                style={[
+                                  styles.helperTurnLabel,
+                                  isDark ? styles.summaryTextDark : null,
+                                ]}
+                              >
                                 {t.role === 'user' ? 'You' : 'AI'}
                               </Text>
                               {t.thinking ? (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                  <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
+                                <View
+                                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.summaryText,
+                                      isDark ? styles.summaryTextDark : null,
+                                    ]}
+                                  >
                                     Thinking
                                   </Text>
                                   <AnimatedDots
-                                    color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary}
+                                    color={
+                                      isDark
+                                        ? APP_COLORS.dark.text.body
+                                        : APP_COLORS.light.text.secondary
+                                    }
                                     size={18}
                                   />
                                 </View>
                               ) : (
-                                <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
+                                <Text
+                                  style={[
+                                    styles.summaryText,
+                                    isDark ? styles.summaryTextDark : null,
+                                  ]}
+                                >
                                   {t.text}
                                 </Text>
                               )}
@@ -176,35 +211,61 @@ export function AiHelperModal({
                 */}
                 {!thread.length && answer.length ? (
                   <View style={styles.helperBlock}>
-                    <Text style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}>Answer</Text>
-                    <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>{answer}</Text>
+                    <Text
+                      style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}
+                    >
+                      Answer
+                    </Text>
+                    <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
+                      {answer}
+                    </Text>
                   </View>
                 ) : null}
 
                 {suggestions.length ? (
                   <View style={styles.helperBlock}>
-                    <Text style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}>
+                    <Text
+                      style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}
+                    >
                       Reply options
                     </Text>
                     <View style={{ gap: 10 }}>
                       {suggestions.map((s, idx) => (
                         <View
                           key={`sugg:${idx}`}
-                          style={[styles.helperSuggestionBubble, isDark ? styles.helperSuggestionBubbleDark : null]}
+                          style={[
+                            styles.helperSuggestionBubble,
+                            isDark ? styles.helperSuggestionBubbleDark : null,
+                          ]}
                         >
-                          <Text style={[styles.helperSuggestionText, isDark ? styles.summaryTextDark : null]}>{s}</Text>
+                          <Text
+                            style={[
+                              styles.helperSuggestionText,
+                              isDark ? styles.summaryTextDark : null,
+                            ]}
+                          >
+                            {s}
+                          </Text>
                           <View style={styles.helperSuggestionActions}>
                             <Pressable
                               style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
                               onPress={() => onCopySuggestion(s)}
                             >
-                              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Copy</Text>
+                              <Text
+                                style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                              >
+                                Copy
+                              </Text>
                             </Pressable>
                             <Pressable
                               style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
                               onPress={() => onUseSuggestion(s)}
                             >
-                              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Use</Text>
+                              <Text
+                                style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                              >
+                                Use
+                              </Text>
                             </Pressable>
                           </View>
                         </View>
@@ -219,7 +280,9 @@ export function AiHelperModal({
           <TextInput
             value={instruction}
             onChangeText={onChangeInstruction}
-            placeholder={hasAnyOutput ? 'Ask a follow-up…' : 'How do you want to respond to this message?'}
+            placeholder={
+              hasAnyOutput ? 'Ask a follow-up…' : 'How do you want to respond to this message?'
+            }
             placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
             style={[
               styles.helperInput,
@@ -294,8 +357,13 @@ export function AiHelperModal({
             >
               {loading ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Thinking</Text>
-                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary} size={18} />
+                  <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                    Thinking
+                  </Text>
+                  <AnimatedDots
+                    color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary}
+                    size={18}
+                  />
                 </View>
               ) : (
                 <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
@@ -309,11 +377,18 @@ export function AiHelperModal({
               disabled={loading}
               onPress={onResetThread}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>New thread</Text>
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                New thread
+              </Text>
             </Pressable>
 
-            <Pressable style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]} onPress={onClose}>
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
+            <Pressable
+              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+              onPress={onClose}
+            >
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                Close
+              </Text>
             </Pressable>
           </View>
         </View>

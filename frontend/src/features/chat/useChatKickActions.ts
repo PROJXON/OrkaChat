@@ -1,5 +1,5 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
 
 export function useChatKickActions(opts: {
   wsRef: RefObject<WebSocket | null>;
@@ -11,7 +11,9 @@ export function useChatKickActions(opts: {
   const { wsRef, activeConversationId, isGroup, isChannel, showAlert } = opts;
 
   // UI-only: prevent accidental/spammy repeated kicks (per-user cooldown).
-  const [kickCooldownUntilBySub, setKickCooldownUntilBySub] = React.useState<Record<string, number>>({});
+  const [kickCooldownUntilBySub, setKickCooldownUntilBySub] = React.useState<
+    Record<string, number>
+  >({});
   const kickCooldownTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const applyKickCooldown = React.useCallback((targetSub: string) => {
@@ -44,7 +46,14 @@ export function useChatKickActions(opts: {
       }
       const sub = applyKickCooldown(targetSub);
       if (!sub) return;
-      ws.send(JSON.stringify({ action: 'kick', conversationId: activeConversationId, targetSub: sub, createdAt: Date.now() }));
+      ws.send(
+        JSON.stringify({
+          action: 'kick',
+          conversationId: activeConversationId,
+          targetSub: sub,
+          createdAt: Date.now(),
+        }),
+      );
     },
     [activeConversationId, applyKickCooldown, showAlert, wsRef],
   );
@@ -82,4 +91,3 @@ export function useChatKickActions(opts: {
 
   return { kickCooldownUntilBySub, groupKick, channelKick };
 }
-

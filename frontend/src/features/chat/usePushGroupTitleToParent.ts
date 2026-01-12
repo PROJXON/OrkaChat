@@ -7,7 +7,13 @@ export function usePushGroupTitleToParent(opts: {
   computeDefaultTitle: () => string;
   onConversationTitleChanged?: (conversationId: string, title: string) => void;
 }): void {
-  const { enabled, activeConversationId, groupName, computeDefaultTitle, onConversationTitleChanged } = opts;
+  const {
+    enabled,
+    activeConversationId,
+    groupName,
+    computeDefaultTitle,
+    onConversationTitleChanged,
+  } = opts;
 
   // Keep parent Chats list/unreads in sync whenever the effective group title changes
   // (e.g. another admin renamed the group and we refreshed group meta).
@@ -16,7 +22,9 @@ export function usePushGroupTitleToParent(opts: {
   React.useEffect(() => {
     if (!enabled) return;
     const effective =
-      groupName && String(groupName).trim() ? String(groupName).trim() : String(computeDefaultTitle() || '').trim();
+      groupName && String(groupName).trim()
+        ? String(groupName).trim()
+        : String(computeDefaultTitle() || '').trim();
     if (!effective) return;
     if (effective === lastPushedTitleRef.current) return;
     lastPushedTitleRef.current = effective;
@@ -27,4 +35,3 @@ export function usePushGroupTitleToParent(opts: {
     }
   }, [enabled, activeConversationId, groupName, computeDefaultTitle, onConversationTitleChanged]);
 }
-

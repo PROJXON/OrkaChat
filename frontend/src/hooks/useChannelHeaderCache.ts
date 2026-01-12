@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 export type ChannelHeaderCache = {
   v: 1;
@@ -15,10 +15,10 @@ export type ChannelHeaderCache = {
   savedAt: number;
 };
 
-export function useChannelHeaderCache(opts: {
-  enabled: boolean;
-  channelId: string;
-}): { cached: ChannelHeaderCache | null; save: (next: Omit<ChannelHeaderCache, 'v' | 'savedAt' | 'channelId'>) => void } {
+export function useChannelHeaderCache(opts: { enabled: boolean; channelId: string }): {
+  cached: ChannelHeaderCache | null;
+  save: (next: Omit<ChannelHeaderCache, 'v' | 'savedAt' | 'channelId'>) => void;
+} {
   const enabled = !!opts.enabled;
   const channelId = String(opts.channelId || '').trim();
   const key = channelId ? `ui:channelCache:${channelId}` : '';
@@ -68,4 +68,3 @@ export function useChannelHeaderCache(opts: {
 
   return React.useMemo(() => ({ cached, save }), [cached, save]);
 }
-

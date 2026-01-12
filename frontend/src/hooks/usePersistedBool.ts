@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 // Persists a boolean as "1" / "0".
 // Important: if the stored value is missing/unknown, we DO NOT overwrite current state
@@ -48,4 +48,3 @@ export function usePersistedBool(opts: {
     })();
   }, [enabled, key, value]);
 }
-

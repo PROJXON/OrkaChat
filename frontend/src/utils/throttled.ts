@@ -4,7 +4,9 @@ export function throttleByRef(opts: {
   now?: number;
   run: () => void;
 }): void {
-  const minIntervalMs = Number.isFinite(opts.minIntervalMs) ? Math.max(0, Math.floor(opts.minIntervalMs)) : 0;
+  const minIntervalMs = Number.isFinite(opts.minIntervalMs)
+    ? Math.max(0, Math.floor(opts.minIntervalMs))
+    : 0;
   const now = typeof opts.now === 'number' && Number.isFinite(opts.now) ? opts.now : Date.now();
   const prev = opts.lastAtRef.current || 0;
   if (now - prev > minIntervalMs) {
@@ -12,4 +14,3 @@ export function throttleByRef(opts: {
     opts.run();
   }
 }
-

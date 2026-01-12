@@ -5,16 +5,9 @@
     "user_pool_client_id": "314g39eeml02vfl8u5rl3iln45",
     "identity_pool_id": "us-east-2:95c46618-64a7-4f34-81f2-711bc526fdec",
     "mfa_methods": [],
-    "standard_required_attributes": [
-      "email",
-      "preferred_username"
-    ],
-    "username_attributes": [
-      "email"
-    ],
-    "user_verification_types": [
-      "email"
-    ],
+    "standard_required_attributes": ["email", "preferred_username"],
+    "username_attributes": ["email"],
+    "user_verification_types": ["email"],
     "groups": [],
     "mfa_configuration": "NONE",
     "password_policy": {
@@ -36,33 +29,15 @@
         "aws_region": "us-east-2",
         "paths": {
           "uploads/channels/*": {
-            "authenticated": [
-              "get",
-              "list",
-              "write"
-            ],
-            "guest": [
-              "get",
-              "list"
-            ]
+            "authenticated": ["get", "list", "write"],
+            "guest": ["get", "list"]
           },
           "uploads/public/*": {
-            "authenticated": [
-              "get",
-              "list",
-              "write"
-            ],
-            "guest": [
-              "get",
-              "list"
-            ]
+            "authenticated": ["get", "list", "write"],
+            "guest": ["get", "list"]
           },
           "uploads/dm/*": {
-            "authenticated": [
-              "get",
-              "list",
-              "write"
-            ]
+            "authenticated": ["get", "list", "write"]
           }
         }
       }
@@ -74,4 +49,3 @@
     "dmKeyPairId": "KCFRN8XWVM5A0"
   }
 }
-

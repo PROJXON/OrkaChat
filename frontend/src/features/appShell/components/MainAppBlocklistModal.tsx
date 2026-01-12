@@ -1,6 +1,6 @@
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
@@ -32,16 +32,27 @@ export function MainAppBlocklistModal({
   addBlockByUsername: () => void | Promise<void>;
 
   blocklistLoading: boolean;
-  blockedUsers: Array<{ blockedSub: string; blockedDisplayName?: string; blockedUsernameLower?: string }>;
+  blockedUsers: Array<{
+    blockedSub: string;
+    blockedDisplayName?: string;
+    blockedUsernameLower?: string;
+  }>;
   unblockUser: (sub: string, label?: string) => void | Promise<void>;
 }): React.JSX.Element {
   return (
-    <Modal visible={blocklistOpen} transparent animationType="fade" onRequestClose={() => setBlocklistOpen(false)}>
+    <Modal
+      visible={blocklistOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setBlocklistOpen(false)}
+    >
       <View style={styles.modalOverlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={() => setBlocklistOpen(false)} />
         <View style={[styles.blocksCard, isDark ? styles.blocksCardDark : null]}>
           <View style={styles.blocksTopRow}>
-            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Blocklist</Text>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+              Blocklist
+            </Text>
           </View>
 
           <View style={styles.blocksSearchRow}>
@@ -61,22 +72,43 @@ export function MainAppBlocklistModal({
             />
             <Pressable
               onPress={() => void Promise.resolve(addBlockByUsername())}
-              style={({ pressed }) => [styles.blocksBtn, isDark ? styles.blocksBtnDark : null, pressed ? { opacity: 0.9 } : null]}
+              style={({ pressed }) => [
+                styles.blocksBtn,
+                isDark ? styles.blocksBtnDark : null,
+                pressed ? { opacity: 0.9 } : null,
+              ]}
               accessibilityRole="button"
               accessibilityLabel="Block user"
             >
-              <Text style={[styles.blocksBtnText, isDark ? styles.blocksBtnTextDark : null]}>Block</Text>
+              <Text style={[styles.blocksBtnText, isDark ? styles.blocksBtnTextDark : null]}>
+                Block
+              </Text>
             </Pressable>
           </View>
 
-          {blockError ? <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{blockError}</Text> : null}
+          {blockError ? (
+            <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>
+              {blockError}
+            </Text>
+          ) : null}
 
           <ScrollView style={styles.blocksScroll}>
             {blocklistLoading ? (
               <View style={styles.chatsLoadingRow}>
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, styles.chatsLoadingText]}>Loading</Text>
+                <Text
+                  style={[
+                    styles.modalHelperText,
+                    isDark ? styles.modalHelperTextDark : null,
+                    styles.chatsLoadingText,
+                  ]}
+                >
+                  Loading
+                </Text>
                 <View style={styles.chatsLoadingDotsWrap}>
-                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
+                  <AnimatedDots
+                    color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                    size={18}
+                  />
                 </View>
               </View>
             ) : blockedUsers.length ? (
@@ -88,12 +120,22 @@ export function MainAppBlocklistModal({
                   ),
                 )
                 .map((b) => (
-                  <View key={`blocked:${b.blockedSub}`} style={[styles.blockRow, isDark ? styles.blockRowDark : null]}>
-                    <Text style={[styles.blockRowName, isDark ? styles.blockRowNameDark : null]} numberOfLines={1}>
+                  <View
+                    key={`blocked:${b.blockedSub}`}
+                    style={[styles.blockRow, isDark ? styles.blockRowDark : null]}
+                  >
+                    <Text
+                      style={[styles.blockRowName, isDark ? styles.blockRowNameDark : null]}
+                      numberOfLines={1}
+                    >
                       {b.blockedDisplayName || b.blockedUsernameLower || b.blockedSub}
                     </Text>
                     <Pressable
-                      onPress={() => void Promise.resolve(unblockUser(b.blockedSub, b.blockedDisplayName || b.blockedUsernameLower))}
+                      onPress={() =>
+                        void Promise.resolve(
+                          unblockUser(b.blockedSub, b.blockedDisplayName || b.blockedUsernameLower),
+                        )
+                      }
                       style={({ pressed }) => [
                         styles.blockActionBtn,
                         isDark ? styles.blockActionBtnDark : null,
@@ -105,21 +147,31 @@ export function MainAppBlocklistModal({
                       <Feather
                         name="user-check"
                         size={16}
-                        color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                        color={
+                          isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                        }
                       />
                     </Pressable>
                   </View>
                 ))
             ) : (
-              <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>No blocked users</Text>
+              <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                No blocked users
+              </Text>
             )}
           </ScrollView>
           <View style={styles.modalButtons}>
             <Pressable
-              style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+              style={[
+                styles.modalButton,
+                styles.modalButtonSmall,
+                isDark ? styles.modalButtonDark : null,
+              ]}
               onPress={() => setBlocklistOpen(false)}
             >
-              <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+              <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                Close
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -127,4 +179,3 @@ export function MainAppBlocklistModal({
     </Modal>
   );
 }
-

@@ -1,14 +1,15 @@
 import React from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+
 import { AvatarBubble } from '../../../components/AvatarBubble';
 import { MediaStackCarousel } from '../../../components/MediaStackCarousel';
 import { RichText } from '../../../components/RichText';
-import type { MediaItem } from '../../../types/media';
-import { resolveMediaUrlWithFallback } from '../../../utils/resolveMediaUrl';
-import { calcCappedMediaSize } from '../../../utils/mediaSizing';
-import type { GuestMessage } from '../types';
-import { formatGuestTimestamp } from '../parsers';
 import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
+import type { MediaItem } from '../../../types/media';
+import { calcCappedMediaSize } from '../../../utils/mediaSizing';
+import { resolveMediaUrlWithFallback } from '../../../utils/resolveMediaUrl';
+import { formatGuestTimestamp } from '../parsers';
+import type { GuestMessage } from '../types';
 
 export function GuestMessageRow({
   item,
@@ -52,7 +53,10 @@ export function GuestMessageRow({
   const [thumbAspect, setThumbAspect] = React.useState<number | null>(null);
   const [thumbUriByPath, setThumbUriByPath] = React.useState<Record<string, string>>({});
 
-  const mediaList = React.useMemo(() => item.mediaList ?? (item.media ? [item.media] : []), [item.mediaList, item.media]);
+  const mediaList = React.useMemo(
+    () => item.mediaList ?? (item.media ? [item.media] : []),
+    [item.mediaList, item.media],
+  );
   const primaryMedia = mediaList.length ? mediaList[0] : null;
   const extraCount = Math.max(0, mediaList.length - 1);
 
@@ -87,7 +91,11 @@ export function GuestMessageRow({
     (async () => {
       const preferredPath = primaryMedia?.thumbPath || primaryMedia?.path;
       if (!preferredPath) return;
-      const u = await resolveMediaUrlWithFallback(resolvePathUrl, preferredPath, primaryMedia?.path);
+      const u = await resolveMediaUrlWithFallback(
+        resolvePathUrl,
+        preferredPath,
+        primaryMedia?.path,
+      );
       if (!cancelled) setThumbUrl(u);
     })();
     return () => {
@@ -200,11 +208,17 @@ export function GuestMessageRow({
             <View style={[styles.guestMediaHeader, isDark ? styles.guestMediaHeaderDark : null]}>
               <View style={styles.guestMediaHeaderTopRow}>
                 <View style={styles.guestMediaHeaderTopLeft}>
-                  <Text style={[styles.guestMetaLine, isDark ? styles.guestMetaLineDark : null]}>{metaLine}</Text>
+                  <Text style={[styles.guestMetaLine, isDark ? styles.guestMetaLineDark : null]}>
+                    {metaLine}
+                  </Text>
                 </View>
                 <View style={styles.guestMediaHeaderTopRight}>
                   {isEdited && !captionHasText ? (
-                    <Text style={[styles.guestEditedLabel, isDark ? styles.guestEditedLabelDark : null]}>Edited</Text>
+                    <Text
+                      style={[styles.guestEditedLabel, isDark ? styles.guestEditedLabelDark : null]}
+                    >
+                      Edited
+                    </Text>
                   ) : null}
                 </View>
               </View>
@@ -225,7 +239,14 @@ export function GuestMessageRow({
                   />
                   {isEdited ? (
                     <View style={styles.guestMediaCaptionIndicators}>
-                      <Text style={[styles.guestEditedLabel, isDark ? styles.guestEditedLabelDark : null]}>Edited</Text>
+                      <Text
+                        style={[
+                          styles.guestEditedLabel,
+                          isDark ? styles.guestEditedLabelDark : null,
+                        ]}
+                      >
+                        Edited
+                      </Text>
                     </View>
                   ) : null}
                 </View>
@@ -273,7 +294,9 @@ export function GuestMessageRow({
                       </View>
                     </View>
                   ) : (
-                    <View style={[styles.guestMediaFileChip, isDark && styles.guestMediaFileChipDark]}>
+                    <View
+                      style={[styles.guestMediaFileChip, isDark && styles.guestMediaFileChipDark]}
+                    >
                       <Text
                         style={[styles.guestMediaFileText, isDark && styles.guestMediaFileTextDark]}
                         numberOfLines={1}
@@ -290,7 +313,12 @@ export function GuestMessageRow({
 
                 {extraCount ? (
                   <View style={styles.guestExtraMediaRow}>
-                    <Text style={[styles.guestExtraMediaText, isDark ? styles.guestExtraMediaTextDark : null]}>
+                    <Text
+                      style={[
+                        styles.guestExtraMediaText,
+                        isDark ? styles.guestExtraMediaTextDark : null,
+                      ]}
+                    >
                       +{extraCount} more
                     </Text>
                   </View>
@@ -312,7 +340,11 @@ export function GuestMessageRow({
                 <Pressable
                   key={`${item.id}:${emoji}`}
                   onPress={() =>
-                    onOpenReactionInfo(String(emoji), (info?.userSubs || []).map(String), item.reactionUsers)
+                    onOpenReactionInfo(
+                      String(emoji),
+                      (info?.userSubs || []).map(String),
+                      item.reactionUsers,
+                    )
                   }
                   style={[styles.guestReactionChip, isDark && styles.guestReactionChipDark]}
                   accessibilityRole="button"
@@ -330,19 +362,29 @@ export function GuestMessageRow({
       ) : (
         <View style={[styles.guestBubbleOuter, { maxWidth: textMaxW }]}>
           <View style={[styles.bubble, isDark && styles.bubbleDark, { maxWidth: textMaxW }]}>
-            <Text style={[styles.guestMetaLine, isDark ? styles.guestMetaLineDark : null]}>{metaLine}</Text>
+            <Text style={[styles.guestMetaLine, isDark ? styles.guestMetaLineDark : null]}>
+              {metaLine}
+            </Text>
             {item.text?.trim() ? (
               <View style={styles.guestTextRow}>
                 <RichText
                   text={String(item.text || '')}
                   isDark={isDark}
-                  style={[styles.msgText, ...(isDark ? [styles.msgTextDark] : []), styles.guestTextFlex]}
+                  style={[
+                    styles.msgText,
+                    ...(isDark ? [styles.msgTextDark] : []),
+                    styles.guestTextFlex,
+                  ]}
                   enableMentions={true}
                   variant="neutral"
                   onOpenUrl={onOpenUrl}
                 />
                 {isEdited ? (
-                  <Text style={[styles.guestEditedInline, isDark ? styles.guestEditedLabelDark : null]}>Edited</Text>
+                  <Text
+                    style={[styles.guestEditedInline, isDark ? styles.guestEditedLabelDark : null]}
+                  >
+                    Edited
+                  </Text>
                 ) : null}
               </View>
             ) : null}
@@ -360,7 +402,11 @@ export function GuestMessageRow({
                 <Pressable
                   key={`${item.id}:${emoji}`}
                   onPress={() =>
-                    onOpenReactionInfo(String(emoji), (info?.userSubs || []).map(String), item.reactionUsers)
+                    onOpenReactionInfo(
+                      String(emoji),
+                      (info?.userSubs || []).map(String),
+                      item.reactionUsers,
+                    )
                   }
                   style={[styles.guestReactionChip, isDark && styles.guestReactionChipDark]}
                   accessibilityRole="button"
@@ -392,7 +438,13 @@ const styles = StyleSheet.create({
 
   // Wrapper used for positioning the reaction overlay.
   // Max width is set per-row (pixel) for reliability on web; keep this style flexible.
-  guestBubbleOuter: { alignSelf: 'flex-start', position: 'relative', overflow: 'visible', flexShrink: 1, minWidth: 0 },
+  guestBubbleOuter: {
+    alignSelf: 'flex-start',
+    position: 'relative',
+    overflow: 'visible',
+    flexShrink: 1,
+    minWidth: 0,
+  },
   bubble: {
     // Slightly wider bubbles; also keep responsive on web.
     maxWidth: '96%',
@@ -485,10 +537,23 @@ const styles = StyleSheet.create({
     color: APP_COLORS.light.text.primary,
     lineHeight: 20,
   },
-  guestMediaHeaderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  guestMediaHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   guestMediaHeaderTopLeft: { flex: 1, paddingRight: 10 },
-  guestMediaHeaderTopRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
-  guestMediaCaptionRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 4 },
+  guestMediaHeaderTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  guestMediaCaptionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
   guestMediaCaptionFlex: { flex: 1, marginTop: 0 },
   guestMediaCaptionIndicators: {
     flexDirection: 'row',
@@ -496,7 +561,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginLeft: 10,
   },
-  guestEditedLabel: { fontSize: 12, fontStyle: 'italic', fontWeight: '400', color: APP_COLORS.light.text.secondary },
+  guestEditedLabel: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    fontWeight: '400',
+    color: APP_COLORS.light.text.secondary,
+  },
   guestEditedLabelDark: { color: APP_COLORS.dark.text.muted },
   guestMediaCaptionDark: {
     color: APP_COLORS.dark.text.primary,
@@ -516,7 +586,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     ...(Platform.OS === 'web'
       ? { textShadow: `0px 2px 6px ${withAlpha(PALETTE.black, 0.6)}` }
-      : { textShadowColor: withAlpha(PALETTE.black, 0.6), textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }),
+      : {
+          textShadowColor: withAlpha(PALETTE.black, 0.6),
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 6,
+        }),
   },
   mediaFill: { width: '100%', height: '100%' },
   guestMediaFileChip: {

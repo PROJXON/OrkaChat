@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 export type ChatBackgroundState =
   | { mode: 'default' }
@@ -30,12 +30,16 @@ export function useChatBackgroundSettings(): {
   bgEffectOpacity: number;
   setBgEffectOpacity: (v: number) => void;
 } {
-  const [chatBackground, setChatBackground] = React.useState<ChatBackgroundState>({ mode: 'default' });
+  const [chatBackground, setChatBackground] = React.useState<ChatBackgroundState>({
+    mode: 'default',
+  });
   const [backgroundOpen, setBackgroundOpen] = React.useState<boolean>(false);
   const [backgroundSaving, setBackgroundSaving] = React.useState<boolean>(false);
   const backgroundSavingRef = React.useRef<boolean>(false);
   const [backgroundError, setBackgroundError] = React.useState<string | null>(null);
-  const [backgroundDraft, setBackgroundDraft] = React.useState<ChatBackgroundState>({ mode: 'default' });
+  const [backgroundDraft, setBackgroundDraft] = React.useState<ChatBackgroundState>({
+    mode: 'default',
+  });
   const [backgroundDraftImageUri, setBackgroundDraftImageUri] = React.useState<string | null>(null);
 
   // Background "effects" are local draft controls for photo backgrounds.
@@ -58,7 +62,8 @@ export function useChatBackgroundSettings(): {
           setChatBackground({
             mode: 'image',
             uri: obj.uri,
-            blur: typeof obj.blur === 'number' ? Math.max(0, Math.min(10, Math.round(obj.blur))) : 0,
+            blur:
+              typeof obj.blur === 'number' ? Math.max(0, Math.min(10, Math.round(obj.blur))) : 0,
             opacity: typeof obj.opacity === 'number' ? obj.opacity : 1,
           });
         } else if (obj && obj.mode === 'default') {
@@ -112,4 +117,3 @@ export function useChatBackgroundSettings(): {
     setBgEffectOpacity,
   };
 }
-

@@ -1,17 +1,18 @@
 import React from 'react';
-import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
+import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
+
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AvatarBubble } from '../../../components/AvatarBubble';
 import { RichText } from '../../../components/RichText';
+import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
 import { getPreviewKind } from '../../../utils/mediaKinds';
-import type { ChatMessage } from '../types';
-import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
-import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 import type { PendingMediaItem } from '../attachments';
-import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
+import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
+import type { ChatMessage } from '../types';
 
 // NOTE:
 // This component is intentionally a “dumb view” extracted from `ChatScreen.tsx`.
@@ -156,7 +157,12 @@ export function ChatMessageRow(props: {
         onLongPressMessage(e);
       }}
     >
-      <View style={[styles.messageRow, isOutgoing ? styles.messageRowOutgoing : styles.messageRowIncoming]}>
+      <View
+        style={[
+          styles.messageRow,
+          isOutgoing ? styles.messageRowOutgoing : styles.messageRowIncoming,
+        ]}
+      >
         {!isOutgoing && showAvatarForIncoming ? (
           <View style={[styles.avatarGutter, { width: AVATAR_SIZE, marginTop: AVATAR_TOP_OFFSET }]}>
             <AvatarBubble
@@ -172,7 +178,12 @@ export function ChatMessageRow(props: {
         ) : null}
 
         {hasMedia && !isDeleted ? (
-          <View style={[styles.mediaMsg, isOutgoing ? styles.mediaMsgOutgoing : styles.mediaMsgIncoming]}>
+          <View
+            style={[
+              styles.mediaMsg,
+              isOutgoing ? styles.mediaMsgOutgoing : styles.mediaMsgIncoming,
+            ]}
+          >
             <View style={[styles.mediaCardOuter, { width: capped.w }]}>
               <View
                 style={[
@@ -215,7 +226,9 @@ export function ChatMessageRow(props: {
 
                   {!isDeleted && item.replyToMessageId && item.replyToPreview
                     ? (() => {
-                        const origin = visibleMessages.find((m) => m && m.id === item.replyToMessageId);
+                        const origin = visibleMessages.find(
+                          (m) => m && m.id === item.replyToMessageId,
+                        );
                         let thumbUri: string | null = null;
                         let count = 0;
                         let kind: 'image' | 'video' | 'file' = 'file';
@@ -261,7 +274,10 @@ export function ChatMessageRow(props: {
                             {count ? (
                               <Pressable
                                 onPress={openOriginMedia}
-                                style={({ pressed }) => [styles.replyThumbWrap, pressed ? { opacity: 0.9 } : null]}
+                                style={({ pressed }) => [
+                                  styles.replyThumbWrap,
+                                  pressed ? { opacity: 0.9 } : null,
+                                ]}
                                 accessibilityRole="button"
                                 accessibilityLabel="Open replied media"
                               >
@@ -270,13 +286,19 @@ export function ChatMessageRow(props: {
                                 ) : (
                                   <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
                                     <Text style={styles.replyThumbPlaceholderText}>
-                                      {kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'File'}
+                                      {kind === 'image'
+                                        ? 'Photo'
+                                        : kind === 'video'
+                                          ? 'Video'
+                                          : 'File'}
                                     </Text>
                                   </View>
                                 )}
                                 {count > 1 ? (
                                   <View style={styles.replyThumbCountBadge}>
-                                    <Text style={styles.replyThumbCountText}>{`+${count - 1}`}</Text>
+                                    <Text
+                                      style={styles.replyThumbCountText}
+                                    >{`+${count - 1}`}</Text>
                                   </View>
                                 ) : null}
                               </Pressable>
@@ -296,7 +318,8 @@ export function ChatMessageRow(props: {
                                 item.replyToUserSub
                                   ? String(item.replyToUserSub) === String(myUserId)
                                     ? 'You'
-                                    : avatarProfileBySub[String(item.replyToUserSub)]?.displayName ||
+                                    : avatarProfileBySub[String(item.replyToUserSub)]
+                                        ?.displayName ||
                                       nameBySub[String(item.replyToUserSub)] ||
                                       'user'
                                   : 'user'
@@ -325,7 +348,9 @@ export function ChatMessageRow(props: {
                       <TextInput
                         style={[
                           styles.inlineEditInput,
-                          isOutgoing ? styles.inlineEditInputOutgoing : styles.inlineEditInputIncoming,
+                          isOutgoing
+                            ? styles.inlineEditInputOutgoing
+                            : styles.inlineEditInputIncoming,
                         ]}
                         value={inlineEditDraft}
                         onChangeText={setInlineEditDraft}
@@ -403,14 +428,18 @@ export function ChatMessageRow(props: {
                               <Text
                                 style={[
                                   styles.inlineEditBtnText,
-                                  isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
+                                  isOutgoing
+                                    ? styles.inlineEditBtnTextOutgoing
+                                    : styles.inlineEditBtnTextIncoming,
                                 ]}
                               >
                                 Uploading
                               </Text>
                               <AnimatedDots
                                 color={
-                                  isOutgoing ? withAlpha(PALETTE.white, 0.95) : APP_COLORS.light.text.primary
+                                  isOutgoing
+                                    ? withAlpha(PALETTE.white, 0.95)
+                                    : APP_COLORS.light.text.primary
                                 }
                                 size={16}
                               />
@@ -419,7 +448,9 @@ export function ChatMessageRow(props: {
                             <Text
                               style={[
                                 styles.inlineEditBtnText,
-                                isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
+                                isOutgoing
+                                  ? styles.inlineEditBtnTextOutgoing
+                                  : styles.inlineEditBtnTextIncoming,
                               ]}
                             >
                               Save
@@ -444,7 +475,9 @@ export function ChatMessageRow(props: {
                           <Text
                             style={[
                               styles.inlineEditBtnText,
-                              isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
+                              isOutgoing
+                                ? styles.inlineEditBtnTextOutgoing
+                                : styles.inlineEditBtnTextIncoming,
                             ]}
                           >
                             Cancel
@@ -499,12 +532,21 @@ export function ChatMessageRow(props: {
                         style={({ pressed }) => [
                           styles.reactionMiniChip,
                           isDark ? styles.reactionMiniChipDark : null,
-                          mine ? (isDark ? styles.reactionMiniChipMineDark : styles.reactionMiniChipMine) : null,
+                          mine
+                            ? isDark
+                              ? styles.reactionMiniChipMineDark
+                              : styles.reactionMiniChipMine
+                            : null,
                           idx ? styles.reactionMiniChipStacked : null,
                           pressed ? { opacity: 0.85 } : null,
                         ]}
                       >
-                        <Text style={[styles.reactionMiniText, isDark ? styles.reactionMiniTextDark : null]}>
+                        <Text
+                          style={[
+                            styles.reactionMiniText,
+                            isDark ? styles.reactionMiniTextDark : null,
+                          ]}
+                        >
                           {r.emoji}
                           {r.count > 1 ? ` ${r.count}` : ''}
                         </Text>
@@ -524,7 +566,9 @@ export function ChatMessageRow(props: {
                 : isDark
                   ? styles.messageBubbleIncomingDark
                   : styles.messageBubbleIncoming,
-              inlineEditTargetId && item.id === inlineEditTargetId ? styles.messageBubbleEditing : null,
+              inlineEditTargetId && item.id === inlineEditTargetId
+                ? styles.messageBubbleEditing
+                : null,
             ]}
           >
             {metaLine ? (
@@ -558,13 +602,17 @@ export function ChatMessageRow(props: {
             ) : null}
 
             {displayText?.length ? (
-              <View style={[styles.messageTextRow, isOutgoing ? styles.messageTextRowOutgoing : null]}>
+              <View
+                style={[styles.messageTextRow, isOutgoing ? styles.messageTextRowOutgoing : null]}
+              >
                 {inlineEditTargetId && item.id === inlineEditTargetId && !isDeleted ? (
                   <View style={styles.inlineEditWrap}>
                     <TextInput
                       style={[
                         styles.inlineEditInput,
-                        isOutgoing ? styles.inlineEditInputOutgoing : styles.inlineEditInputIncoming,
+                        isOutgoing
+                          ? styles.inlineEditInputOutgoing
+                          : styles.inlineEditInputIncoming,
                       ]}
                       value={inlineEditDraft}
                       onChangeText={setInlineEditDraft}
@@ -633,7 +681,9 @@ export function ChatMessageRow(props: {
                   <Text
                     style={[
                       styles.sendStatusInline,
-                      isDark ? styles.sendStatusInlineOutgoingDark : styles.sendStatusInlineOutgoing,
+                      isDark
+                        ? styles.sendStatusInlineOutgoingDark
+                        : styles.sendStatusInlineOutgoing,
                     ]}
                   >
                     {item.localStatus === 'sending' ? '…' : '✓'}
@@ -692,12 +742,21 @@ export function ChatMessageRow(props: {
                       style={({ pressed }) => [
                         styles.reactionMiniChip,
                         isDark ? styles.reactionMiniChipDark : null,
-                        mine ? (isDark ? styles.reactionMiniChipMineDark : styles.reactionMiniChipMine) : null,
+                        mine
+                          ? isDark
+                            ? styles.reactionMiniChipMineDark
+                            : styles.reactionMiniChipMine
+                          : null,
                         idx ? styles.reactionMiniChipStacked : null,
                         pressed ? { opacity: 0.85 } : null,
                       ]}
                     >
-                      <Text style={[styles.reactionMiniText, isDark ? styles.reactionMiniTextDark : null]}>
+                      <Text
+                        style={[
+                          styles.reactionMiniText,
+                          isDark ? styles.reactionMiniTextDark : null,
+                        ]}
+                      >
                         {r.emoji}
                         {r.count > 1 ? ` ${r.count}` : ''}
                       </Text>

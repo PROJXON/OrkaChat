@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+
 import type { ReactionInfoModalStyles } from '../features/chat/components/ReactionInfoModal';
 import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 

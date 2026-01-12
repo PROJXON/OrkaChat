@@ -1,8 +1,15 @@
 import * as React from 'react';
 import { Animated, Easing, Platform, Text, View } from 'react-native';
+
 import { styles } from '../../../screens/ChatScreen.styles';
 
-export function TypingIndicator({ text, color }: { text: string; color: string }): React.JSX.Element {
+export function TypingIndicator({
+  text,
+  color,
+}: {
+  text: string;
+  color: string;
+}): React.JSX.Element {
   const dot1 = React.useRef(new Animated.Value(0)).current;
   const dot2 = React.useRef(new Animated.Value(0)).current;
   const dot3 = React.useRef(new Animated.Value(0)).current;
@@ -60,4 +67,3 @@ export function TypingIndicator({ text, color }: { text: string; color: string }
     </View>
   );
 }
-

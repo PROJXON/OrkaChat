@@ -1,8 +1,8 @@
-import type { ChatMessage } from './types';
 import type { EncryptedChatPayloadV1 } from '../../types/crypto';
-import type { EncryptedGroupPayloadV1 } from './types';
 import type { ReactionMap } from '../../types/reactions';
 import { timestampId } from '../../utils/ids';
+import type { ChatMessage } from './types';
+import type { EncryptedGroupPayloadV1 } from './types';
 
 export function buildIncomingChatMessageFromWsPayload(opts: {
   payload: unknown;
@@ -12,7 +12,10 @@ export function buildIncomingChatMessageFromWsPayload(opts: {
   normalizeUser: (v: unknown) => string;
   normalizeReactions: (v: unknown) => ReactionMap | undefined;
 }): ChatMessage {
-  const payload = typeof opts.payload === 'object' && opts.payload != null ? (opts.payload as Record<string, unknown>) : {};
+  const payload =
+    typeof opts.payload === 'object' && opts.payload != null
+      ? (opts.payload as Record<string, unknown>)
+      : {};
   const rawText =
     typeof payload.text === 'string'
       ? payload.text
@@ -26,7 +29,9 @@ export function buildIncomingChatMessageFromWsPayload(opts: {
   const messageIdRaw = payload.messageId;
   const idRaw = payload.id;
   const stableId =
-    (typeof messageIdRaw === 'string' || typeof messageIdRaw === 'number' ? String(messageIdRaw) : '') ||
+    (typeof messageIdRaw === 'string' || typeof messageIdRaw === 'number'
+      ? String(messageIdRaw)
+      : '') ||
     (typeof idRaw === 'string' || typeof idRaw === 'number' ? String(idRaw) : '') ||
     timestampId(createdAt);
 
@@ -40,9 +45,12 @@ export function buildIncomingChatMessageFromWsPayload(opts: {
         : typeof payload.user === 'string'
           ? opts.normalizeUser(payload.user)
           : undefined,
-    avatarBgColor: typeof payload.avatarBgColor === 'string' ? String(payload.avatarBgColor) : undefined,
-    avatarTextColor: typeof payload.avatarTextColor === 'string' ? String(payload.avatarTextColor) : undefined,
-    avatarImagePath: typeof payload.avatarImagePath === 'string' ? String(payload.avatarImagePath) : undefined,
+    avatarBgColor:
+      typeof payload.avatarBgColor === 'string' ? String(payload.avatarBgColor) : undefined,
+    avatarTextColor:
+      typeof payload.avatarTextColor === 'string' ? String(payload.avatarTextColor) : undefined,
+    avatarImagePath:
+      typeof payload.avatarImagePath === 'string' ? String(payload.avatarImagePath) : undefined,
     reactions: opts.normalizeReactions(payload.reactions),
     rawText,
     encrypted: encrypted ?? undefined,
@@ -55,11 +63,14 @@ export function buildIncomingChatMessageFromWsPayload(opts: {
     editedAt: typeof payload.editedAt === 'number' ? payload.editedAt : undefined,
     deletedAt: typeof payload.deletedAt === 'number' ? payload.deletedAt : undefined,
     deletedBySub: typeof payload.deletedBySub === 'string' ? payload.deletedBySub : undefined,
-    mentions: Array.isArray(payload.mentions) ? payload.mentions.map(String).filter(Boolean) : undefined,
-    replyToCreatedAt: typeof payload.replyToCreatedAt === 'number' ? payload.replyToCreatedAt : undefined,
-    replyToMessageId: typeof payload.replyToMessageId === 'string' ? payload.replyToMessageId : undefined,
+    mentions: Array.isArray(payload.mentions)
+      ? payload.mentions.map(String).filter(Boolean)
+      : undefined,
+    replyToCreatedAt:
+      typeof payload.replyToCreatedAt === 'number' ? payload.replyToCreatedAt : undefined,
+    replyToMessageId:
+      typeof payload.replyToMessageId === 'string' ? payload.replyToMessageId : undefined,
     replyToUserSub: typeof payload.replyToUserSub === 'string' ? payload.replyToUserSub : undefined,
     replyToPreview: typeof payload.replyToPreview === 'string' ? payload.replyToPreview : undefined,
   };
 }
-

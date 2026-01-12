@@ -1,6 +1,14 @@
 import * as React from 'react';
-import { Animated, Platform, Text, TextInput, View } from 'react-native';
+import type { TextInput } from 'react-native';
+import { Animated, Platform, Text, View } from 'react-native';
+
+import type { InAppCameraCapture } from '../../../components/InAppCameraModal';
+import { InAppCameraModal } from '../../../components/InAppCameraModal';
 import { MediaViewerModal } from '../../../components/MediaViewerModal';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { MemberRow } from '../../../types/members';
+import type { ChatMessage } from '../types';
+import type { ChatMediaViewerState } from '../viewerTypes';
 import { AiConsentModal } from './AiConsentModal';
 import { AiHelperModal } from './AiHelperModal';
 import { AttachPickerModal } from './AttachPickerModal';
@@ -18,12 +26,6 @@ import { ReactionPickerModal } from './ReactionPickerModal';
 import { ReportModal } from './ReportModal';
 import { SummaryModal } from './SummaryModal';
 import { TtlPickerModal } from './TtlPickerModal';
-import { InAppCameraModal } from '../../../components/InAppCameraModal';
-import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import type { InAppCameraCapture } from '../../../components/InAppCameraModal';
-import type { MemberRow } from '../../../types/members';
-import type { ChatMessage } from '../types';
-import type { ChatMediaViewerState } from '../viewerTypes';
 
 type UiConfirm = React.ComponentProps<typeof MessageActionMenuModal>['uiConfirm'];
 type ReportCdnMedia = React.ComponentProps<typeof ReportModal>['cdnMedia'];
@@ -48,7 +50,9 @@ type AiHelperController = {
   scrollViewportHRef: React.ComponentProps<typeof AiHelperModal>['scrollViewportHRef'];
   scrollContentHRef: React.ComponentProps<typeof AiHelperModal>['scrollContentHRef'];
   lastAutoScrollAtRef: React.ComponentProps<typeof AiHelperModal>['lastAutoScrollAtRef'];
-  lastAutoScrollContentHRef: React.ComponentProps<typeof AiHelperModal>['lastAutoScrollContentHRef'];
+  lastAutoScrollContentHRef: React.ComponentProps<
+    typeof AiHelperModal
+  >['lastAutoScrollContentHRef'];
   autoScrollRetryRef: React.ComponentProps<typeof AiHelperModal>['autoScrollRetryRef'];
   autoScrollIntentRef: React.ComponentProps<typeof AiHelperModal>['autoScrollIntentRef'];
   autoScroll: () => void;
@@ -126,7 +130,11 @@ export type ChatScreenOverlaysProps = {
 
   // AI summary + consent
   aiSummary: { open: boolean; loading: boolean; text: string; close: () => void };
-  aiConsentGate: { open: boolean; onProceed: (run: (a: 'summary' | 'helper') => void) => void; onCancel: () => void };
+  aiConsentGate: {
+    open: boolean;
+    onProceed: (run: (a: 'summary' | 'helper') => void) => void;
+    onCancel: () => void;
+  };
   runAiAction: (a: 'summary' | 'helper') => void;
 
   attach: {
@@ -174,13 +182,23 @@ export type ChatScreenOverlaysProps = {
   emojis: string[];
   closeReactionPicker: () => void;
 
-  cipher: { open: boolean; text: string; setOpen: (v: boolean) => void; setText: (t: string) => void };
+  cipher: {
+    open: boolean;
+    text: string;
+    setOpen: (v: boolean) => void;
+    setText: (t: string) => void;
+  };
 
   reactionInfo: ReactionInfoController;
   nameBySub: Record<string, string>;
 
   // Info modal
-  info: { infoOpen: boolean; infoTitle: string; infoBody: string; setInfoOpen: (v: boolean) => void };
+  info: {
+    infoOpen: boolean;
+    infoTitle: string;
+    infoBody: string;
+    setInfoOpen: (v: boolean) => void;
+  };
 
   // TTL picker
   ttl: {
@@ -198,7 +216,11 @@ export type ChatScreenOverlaysProps = {
   groupActionBusy: boolean;
   groupNameDraft: string;
   setGroupNameDraft: (v: string) => void;
-  groupNameModalActions: { onDefault: () => void | Promise<void>; onSave: () => void | Promise<void>; onCancel: () => void };
+  groupNameModalActions: {
+    onDefault: () => void | Promise<void>;
+    onSave: () => void | Promise<void>;
+    onCancel: () => void;
+  };
 
   groupMembersOpen: boolean;
   groupMeta: { meIsAdmin?: boolean } | null;
@@ -451,14 +473,21 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
               report.setReportKind('user');
               return;
             }
-            const sub = report.reportTargetMessage?.userSub ? String(report.reportTargetMessage.userSub) : '';
+            const sub = report.reportTargetMessage?.userSub
+              ? String(report.reportTargetMessage.userSub)
+              : '';
             if (sub) {
               report.setReportTargetUserSub(sub);
-              report.setReportTargetUserLabel(String(report.reportTargetMessage?.user || '').trim());
+              report.setReportTargetUserLabel(
+                String(report.reportTargetMessage?.user || '').trim(),
+              );
               report.setReportKind('user');
               return;
             }
-            report.setReportNotice({ type: 'error', message: 'Cannot report user: no user was found for this report.' });
+            report.setReportNotice({
+              type: 'error',
+              message: 'Cannot report user: no user was found for this report.',
+            });
             report.setReportKind('message');
             return;
           }
@@ -604,7 +633,9 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         avatarUrlByPath={avatarUrlByPath}
         onKick={(memberSub) => groupKick(memberSub)}
         onUnban={(memberSub) => void groupUpdate('unban', { memberSub })}
-        onToggleAdmin={({ memberSub, isAdmin }) => void groupUpdate(isAdmin ? 'demoteAdmin' : 'promoteAdmin', { memberSub })}
+        onToggleAdmin={({ memberSub, isAdmin }) =>
+          void groupUpdate(isAdmin ? 'demoteAdmin' : 'promoteAdmin', { memberSub })
+        }
         onBan={groupMembersModalActions.onBan}
         onClose={groupMembersModalActions.onClose}
       />
@@ -714,4 +745,3 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
     </>
   );
 }
-

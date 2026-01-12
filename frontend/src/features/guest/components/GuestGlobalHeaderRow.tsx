@@ -1,9 +1,9 @@
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
 
 import { AppBrandIcon } from '../../../components/AppBrandIcon';
-import { useMenuAnchor } from '../../../hooks/useMenuAnchor';
+import type { useMenuAnchor } from '../../../hooks/useMenuAnchor';
 import { APP_COLORS } from '../../../theme/colors';
 
 export function GuestGlobalHeaderRow({
@@ -29,7 +29,13 @@ export function GuestGlobalHeaderRow({
         <Pressable
           onPress={onOpenChannelPicker}
           style={({ pressed }) => [
-            { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 2 },
+            {
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              paddingVertical: 4,
+              paddingHorizontal: 2,
+            },
             pressed ? { opacity: 0.9 } : null,
           ]}
           accessibilityRole="button"
@@ -38,7 +44,11 @@ export function GuestGlobalHeaderRow({
           <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]} numberOfLines={1}>
             {activeChannelTitle}
           </Text>
-          <Feather name="chevron-down" size={16} color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} />
+          <Feather
+            name="chevron-down"
+            size={16}
+            color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+          />
         </Pressable>
         <View style={styles.headerRight}>
           <Pressable
@@ -46,15 +56,24 @@ export function GuestGlobalHeaderRow({
             onPress={() => {
               menu.openFromRef({ enabled: isWideUi, onOpen: () => setMenuOpen(true) });
             }}
-            style={({ pressed }) => [styles.menuIconBtn, isDark && styles.menuIconBtnDark, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [
+              styles.menuIconBtn,
+              isDark && styles.menuIconBtnDark,
+              pressed && { opacity: 0.85 },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Open menu"
           >
-            <AppBrandIcon isDark={isDark} fit="contain" slotWidth={32} slotHeight={32} accessible={false} />
+            <AppBrandIcon
+              isDark={isDark}
+              fit="contain"
+              slotWidth={32}
+              slotHeight={32}
+              accessible={false}
+            />
           </Pressable>
         </View>
       </View>
     </View>
   );
 }
-

@@ -7,6 +7,7 @@ const tsPlugin = require('@typescript-eslint/eslint-plugin');
 const reactPlugin = require('eslint-plugin-react');
 const reactHooksPlugin = require('eslint-plugin-react-hooks');
 const reactNativePlugin = require('eslint-plugin-react-native');
+const simpleImportSortPlugin = require('eslint-plugin-simple-import-sort');
 const unusedImportsPlugin = require('eslint-plugin-unused-imports');
 const prettierPlugin = require('eslint-plugin-prettier');
 
@@ -42,6 +43,7 @@ module.exports = [
       react: reactPlugin,
       'react-hooks': reactHooksPlugin,
       'react-native': reactNativePlugin,
+      'simple-import-sort': simpleImportSortPlugin,
       'unused-imports': unusedImportsPlugin,
       prettier: prettierPlugin,
     },
@@ -52,6 +54,26 @@ module.exports = [
       // React Hooks correctness
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+
+      // Consistency / readability (auto-fixable, low churn)
+      // - JS/TS: single quotes
+      // - JSX: double quotes (matches common JSX/HTML conventions)
+      quotes: ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
+      'jsx-quotes': ['error', 'prefer-double'],
+
+      // Import ordering (auto-fixable)
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
+
+      // Enforce type-only imports (auto-fixable)
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          disallowTypeAnnotations: false,
+          fixStyle: 'separate-type-imports',
+        },
+      ],
 
       // RN: avoid false-positives; keep very light.
       'react-native/no-inline-styles': 'off',
@@ -78,8 +100,8 @@ module.exports = [
       // - Scoped override below: enforce (as warn) in actively-refactored app shell + entrypoints.
       '@typescript-eslint/no-explicit-any': 'off',
 
-      // Formatting: keep off for now; can be enabled repo-wide later.
-      'prettier/prettier': 'off',
+      // Formatting: enforce Prettier (auto-fixable).
+      'prettier/prettier': 'error',
     },
   },
 
@@ -97,4 +119,3 @@ module.exports = [
     },
   },
 ];
-

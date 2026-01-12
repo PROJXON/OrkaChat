@@ -3,4 +3,3 @@ export function normalizeUser(v: unknown): string {
     .trim()
     .toLowerCase();
 }
-

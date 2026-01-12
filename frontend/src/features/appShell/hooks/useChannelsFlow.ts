@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { searchChannels } from '../../../utils/channelSearch';
@@ -57,9 +57,16 @@ export function useChannelsFlow({
   fetchChannelsSearch: (query: string) => Promise<void>;
 
   // join flow
-  joinChannel: (channel: { channelId: string; name: string; isMember?: boolean; hasPassword?: boolean }) => Promise<void>;
+  joinChannel: (channel: {
+    channelId: string;
+    name: string;
+    isMember?: boolean;
+    hasPassword?: boolean;
+  }) => Promise<void>;
   channelPasswordPrompt: null | { channelId: string; name: string };
-  setChannelPasswordPrompt: React.Dispatch<React.SetStateAction<null | { channelId: string; name: string }>>;
+  setChannelPasswordPrompt: React.Dispatch<
+    React.SetStateAction<null | { channelId: string; name: string }>
+  >;
   channelPasswordInput: string;
   setChannelPasswordInput: React.Dispatch<React.SetStateAction<string>>;
   channelJoinError: string | null;
@@ -99,7 +106,9 @@ export function useChannelsFlow({
   const [channelsOpen, setChannelsOpen] = React.useState<boolean>(false);
   const [myChannelsLoading, setMyChannelsLoading] = React.useState<boolean>(false);
   const [myChannelsError, setMyChannelsError] = React.useState<string | null>(null);
-  const [myChannels, setMyChannels] = React.useState<Array<{ channelId: string; name: string }>>([]);
+  const [myChannels, setMyChannels] = React.useState<Array<{ channelId: string; name: string }>>(
+    [],
+  );
 
   // Channel search/join modal (opened from header channel pill).
   const [channelSearchOpen, setChannelSearchOpen] = React.useState<boolean>(false);
@@ -110,7 +119,10 @@ export function useChannelsFlow({
   const [channelsResults, setChannelsResults] = React.useState<ChannelSearchResult[]>([]);
 
   const [channelNameById, setChannelNameById] = React.useState<Record<string, string>>({});
-  const [channelPasswordPrompt, setChannelPasswordPrompt] = React.useState<null | { channelId: string; name: string }>(null);
+  const [channelPasswordPrompt, setChannelPasswordPrompt] = React.useState<null | {
+    channelId: string;
+    name: string;
+  }>(null);
   const [channelPasswordInput, setChannelPasswordInput] = React.useState<string>('');
   const [channelJoinError, setChannelJoinError] = React.useState<string | null>(null);
 
@@ -137,7 +149,7 @@ export function useChannelsFlow({
       setChannelJoinError(null);
       setChannelsQuery('');
     },
-    [setConversationId, setPeer, setPeerInput, setSearchError, setSearchOpen]
+    [setConversationId, setPeer, setPeerInput, setSearchError, setSearchOpen],
   );
 
   const fetchChannelsSearch = React.useCallback(
@@ -167,7 +179,10 @@ export function useChannelsFlow({
           // When opening the modal with empty search, prefer clearing stale counts if not provided.
           setGlobalUserCount(null);
         }
-        const normalized: ChannelSearchResult[] = r.channels.map((c) => ({ ...c, isPublic: !!c.isPublic }));
+        const normalized: ChannelSearchResult[] = r.channels.map((c) => ({
+          ...c,
+          isPublic: !!c.isPublic,
+        }));
         setChannelsResults(normalized);
         setChannelNameById((prev) => {
           const next = { ...prev };
@@ -180,7 +195,7 @@ export function useChannelsFlow({
         setChannelsLoading(false);
       }
     },
-    [apiUrl]
+    [apiUrl],
   );
 
   const debouncedChannelsQuery = useDebouncedValue(channelsQuery, 150, channelSearchOpen);
@@ -191,7 +206,12 @@ export function useChannelsFlow({
   }, [channelSearchOpen, debouncedChannelsQuery, fetchChannelsSearch]);
 
   const joinChannel = React.useCallback(
-    async (channel: { channelId: string; name: string; isMember?: boolean; hasPassword?: boolean }) => {
+    async (channel: {
+      channelId: string;
+      name: string;
+      isMember?: boolean;
+      hasPassword?: boolean;
+    }) => {
       const channelId = String(channel.channelId || '').trim();
       if (!channelId) return;
       if (channel.isMember) {
@@ -231,13 +251,18 @@ export function useChannelsFlow({
       }
       const raw: unknown = await resp.json().catch(() => ({}));
       const rec = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
-      const chRec = typeof rec.channel === 'object' && rec.channel != null ? (rec.channel as Record<string, unknown>) : {};
+      const chRec =
+        typeof rec.channel === 'object' && rec.channel != null
+          ? (rec.channel as Record<string, unknown>)
+          : {};
       const name =
-        typeof chRec.name === 'string' ? String(chRec.name).trim() : String(channel.name || 'Channel').trim();
+        typeof chRec.name === 'string'
+          ? String(chRec.name).trim()
+          : String(channel.name || 'Channel').trim();
       setChannelNameById((prev) => ({ ...prev, [channelId]: name }));
       enterChannelConversation(`ch#${channelId}`);
     },
-    [apiUrl, enterChannelConversation]
+    [apiUrl, enterChannelConversation],
   );
 
   const submitChannelPassword = React.useCallback(async () => {
@@ -277,9 +302,14 @@ export function useChannelsFlow({
     }
     const raw: unknown = await resp.json().catch(() => ({}));
     const rec = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
-    const chRec = typeof rec.channel === 'object' && rec.channel != null ? (rec.channel as Record<string, unknown>) : {};
+    const chRec =
+      typeof rec.channel === 'object' && rec.channel != null
+        ? (rec.channel as Record<string, unknown>)
+        : {};
     const name =
-      typeof chRec.name === 'string' ? String(chRec.name).trim() : String(prompt.name || 'Channel').trim();
+      typeof chRec.name === 'string'
+        ? String(chRec.name).trim()
+        : String(prompt.name || 'Channel').trim();
     setChannelNameById((prev) => ({ ...prev, [channelId]: name }));
     // Save locally for re-join UX (optional).
     try {
@@ -313,7 +343,10 @@ export function useChannelsFlow({
       });
       const joined = r.channels
         .filter((c) => c && c.isMember === true)
-        .map((c) => ({ channelId: String(c.channelId || '').trim(), name: String(c.name || '').trim() }))
+        .map((c) => ({
+          channelId: String(c.channelId || '').trim(),
+          name: String(c.name || '').trim(),
+        }))
         .filter((c) => c.channelId && c.name)
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));
       setMyChannels(joined);
@@ -364,12 +397,14 @@ export function useChannelsFlow({
           void promptAlert('Unable to leave', msg);
           return;
         }
-        setMyChannels((prev) => (Array.isArray(prev) ? prev : []).filter((c) => String(c.channelId) !== cid));
+        setMyChannels((prev) =>
+          (Array.isArray(prev) ? prev : []).filter((c) => String(c.channelId) !== cid),
+        );
       } catch (e: unknown) {
         void promptAlert('Unable to leave', e instanceof Error ? e.message : 'Leave failed');
       }
     },
-    [apiUrl, promptAlert]
+    [apiUrl, promptAlert],
   );
 
   const submitCreateChannelInline = React.useCallback(async () => {
@@ -380,7 +415,7 @@ export function useChannelsFlow({
       setCreateChannelError('Enter a channel name');
       return;
     }
-      const token = await getIdTokenRef.current();
+    const token = await getIdTokenRef.current();
     if (!token) {
       setCreateChannelError('Unable to authenticate');
       return;
@@ -389,7 +424,10 @@ export function useChannelsFlow({
     setCreateChannelError(null);
     try {
       const base = apiUrl.replace(/\/$/, '');
-      const body: { name: string; isPublic: boolean; password?: string } = { name, isPublic: !!createChannelIsPublic };
+      const body: { name: string; isPublic: boolean; password?: string } = {
+        name,
+        isPublic: !!createChannelIsPublic,
+      };
       const pw = String(createChannelPassword || '').trim();
       // Passwords only apply to public channels (private channels aren't joinable via password).
       if (pw && createChannelIsPublic) body.password = pw;
@@ -412,10 +450,15 @@ export function useChannelsFlow({
       }
       const raw: unknown = await resp.json().catch(() => ({}));
       const rec = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
-      const chRec = typeof rec.channel === 'object' && rec.channel != null ? (rec.channel as Record<string, unknown>) : {};
+      const chRec =
+        typeof rec.channel === 'object' && rec.channel != null
+          ? (rec.channel as Record<string, unknown>)
+          : {};
       const channelId = String(chRec.channelId || '').trim();
       const channelName =
-        typeof chRec.name === 'string' ? String(chRec.name).trim() : String(name || 'Channel').trim();
+        typeof chRec.name === 'string'
+          ? String(chRec.name).trim()
+          : String(name || 'Channel').trim();
       if (!channelId) {
         setCreateChannelError('Create failed (missing channelId)');
         return;
@@ -490,4 +533,3 @@ export function useChannelsFlow({
     enterChannelConversation,
   };
 }
-

@@ -1,7 +1,8 @@
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Platform, Pressable, Switch, View } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
+
 import { APP_COLORS } from '../theme/colors';
 
 export type ThemeToggleRowStyles = {
@@ -46,11 +47,13 @@ export function ThemeToggleRow({
         <Switch
           value={isDark}
           onValueChange={(v) => onSetTheme(v ? 'dark' : 'light')}
-          trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+          trackColor={{
+            false: APP_COLORS.light.border.default,
+            true: APP_COLORS.light.border.default,
+          }}
           thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
         />
       )}
     </View>
   );
 }
-

@@ -81,4 +81,3 @@ export async function openGlobalViewerFromMediaList(opts: {
   const idx = Math.max(0, Math.min(items.length - 1, start));
   return { mode: 'viewer', index: idx, items };
 }
-

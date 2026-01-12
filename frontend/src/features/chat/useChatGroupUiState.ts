@@ -1,6 +1,7 @@
 import * as React from 'react';
-import type { GroupMember, GroupMeta } from './useHydrateGroupRoster';
 import type { TextInput } from 'react-native';
+
+import type { GroupMember, GroupMeta } from './useHydrateGroupRoster';
 
 export function useChatGroupUiState() {
   // Group DM state (used for encryption + admin UI)
@@ -39,4 +40,3 @@ export function useChatGroupUiState() {
     setGroupActionBusy,
   };
 }
-

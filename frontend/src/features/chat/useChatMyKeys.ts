@@ -1,12 +1,10 @@
-import * as React from 'react';
 import { fetchUserAttributes } from 'aws-amplify/auth';
-import { derivePublicKey, loadKeyPair } from '../../utils/crypto';
-import type { AmplifyUiUser } from '../../types/amplifyUi';
+import * as React from 'react';
 
-export function useChatMyKeys(opts: {
-  user: AmplifyUiUser;
-  keyEpoch?: number;
-}): {
+import type { AmplifyUiUser } from '../../types/amplifyUi';
+import { derivePublicKey, loadKeyPair } from '../../utils/crypto';
+
+export function useChatMyKeys(opts: { user: AmplifyUiUser; keyEpoch?: number }): {
   myUserId: string | null;
   myPrivateKey: string | null;
   myPublicKey: string | null;
@@ -66,6 +64,8 @@ export function useChatMyKeys(opts: {
     };
   }, [myUserId, myPrivateKey, keyEpoch]);
 
-  return React.useMemo(() => ({ myUserId, myPrivateKey, myPublicKey }), [myUserId, myPrivateKey, myPublicKey]);
+  return React.useMemo(
+    () => ({ myUserId, myPrivateKey, myPublicKey }),
+    [myUserId, myPrivateKey, myPublicKey],
+  );
 }
-

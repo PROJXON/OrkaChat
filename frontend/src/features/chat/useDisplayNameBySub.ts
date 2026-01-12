@@ -1,6 +1,7 @@
-import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
-import { fetchDisplayNamesBySub, type DisplayNameBySub } from './userLookup';
+import * as React from 'react';
+
+import { type DisplayNameBySub, fetchDisplayNamesBySub } from './userLookup';
 
 export function useDisplayNameBySub(apiUrl: string | undefined | null): {
   nameBySub: Record<string, string>;
@@ -20,7 +21,9 @@ export function useDisplayNameBySub(apiUrl: string | undefined | null): {
   const ensureNames = React.useCallback(
     async (subs: string[]) => {
       if (!api) return;
-      const list = Array.isArray(subs) ? subs.map((s) => String(s || '').trim()).filter(Boolean) : [];
+      const list = Array.isArray(subs)
+        ? subs.map((s) => String(s || '').trim()).filter(Boolean)
+        : [];
       if (!list.length) return;
 
       // Only fetch truly missing ones (best-effort cache).
@@ -32,7 +35,12 @@ export function useDisplayNameBySub(apiUrl: string | undefined | null): {
         const idToken = tokens?.idToken?.toString();
         if (!idToken) return;
 
-        const fetched: DisplayNameBySub = await fetchDisplayNamesBySub({ apiUrl: api, idToken, subs: missing, limit: 25 });
+        const fetched: DisplayNameBySub = await fetchDisplayNamesBySub({
+          apiUrl: api,
+          idToken,
+          subs: missing,
+          limit: 25,
+        });
         const entries = Object.entries(fetched);
         if (!entries.length) return;
 
@@ -56,4 +64,3 @@ export function useDisplayNameBySub(apiUrl: string | undefined | null): {
 
   return React.useMemo(() => ({ nameBySub, ensureNames, reset }), [ensureNames, nameBySub, reset]);
 }
-

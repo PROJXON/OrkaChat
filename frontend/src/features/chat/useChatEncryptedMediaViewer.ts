@@ -1,5 +1,12 @@
 import * as React from 'react';
-import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope, GroupMediaEnvelopeV1 } from './types';
+
+import type {
+  ChatMessage,
+  DmMediaEnvelope,
+  DmMediaEnvelopeV1,
+  GroupMediaEnvelope,
+  GroupMediaEnvelopeV1,
+} from './types';
 import type { ChatMediaViewerState } from './viewerTypes';
 
 function getErrorMessage(err: unknown): string {
@@ -21,7 +28,10 @@ type GroupMediaItem = { media: GroupMediaEnvelopeV1['media']; wrap: GroupMediaEn
 export function useChatEncryptedMediaViewer(opts: {
   isDm: boolean;
   isGroup: boolean;
-  viewer: { setState: (next: NonNullable<ChatMediaViewerState>) => void; setOpen: (next: boolean) => void };
+  viewer: {
+    setState: (next: NonNullable<ChatMediaViewerState>) => void;
+    setOpen: (next: boolean) => void;
+  };
   showAlert: (title: string, message: string) => void;
   parseDmMediaEnvelope: (raw: string) => DmMediaEnvelope | null;
   parseGroupMediaEnvelope: (raw: string) => GroupMediaEnvelope | null;
@@ -109,4 +119,3 @@ export function useChatEncryptedMediaViewer(opts: {
 
   return { openDmMediaViewer, openGroupMediaViewer };
 }
-

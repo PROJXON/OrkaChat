@@ -15,12 +15,23 @@ type Props = {
   onCancel: () => void;
 };
 
-export function ChannelNameModal({ visible, isDark, styles, busy, draft, onChangeDraft, onSave, onCancel }: Props) {
+export function ChannelNameModal({
+  visible,
+  isDark,
+  styles,
+  busy,
+  draft,
+  onChangeDraft,
+  onSave,
+  onCancel,
+}: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.modalOverlay}>
         <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Channel Name</Text>
+          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
+            Channel Name
+          </Text>
           <TextInput
             value={draft}
             onChangeText={onChangeDraft}
@@ -46,18 +57,28 @@ export function ChannelNameModal({ visible, isDark, styles, busy, draft, onChang
           />
           <View style={styles.summaryButtons}>
             <Pressable
-              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, busy ? { opacity: 0.6 } : null]}
+              style={[
+                styles.toolBtn,
+                isDark ? styles.toolBtnDark : null,
+                busy ? { opacity: 0.6 } : null,
+              ]}
               disabled={busy}
               onPress={() => void Promise.resolve(onSave())}
             >
               <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
             </Pressable>
             <Pressable
-              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, busy ? { opacity: 0.6 } : null]}
+              style={[
+                styles.toolBtn,
+                isDark ? styles.toolBtnDark : null,
+                busy ? { opacity: 0.6 } : null,
+              ]}
               disabled={busy}
               onPress={onCancel}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                Cancel
+              </Text>
             </Pressable>
           </View>
         </View>

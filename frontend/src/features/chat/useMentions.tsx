@@ -11,7 +11,8 @@ export function useMentions(opts: {
   myUserId: string | null | undefined;
   mentionTextStyle: TextStyle;
 }) {
-  const { enabled, input, setInput, inputRef, textInputRef, messages, myUserId, mentionTextStyle } = opts;
+  const { enabled, input, setInput, inputRef, textInputRef, messages, myUserId, mentionTextStyle } =
+    opts;
 
   const mentionQuery = React.useMemo(() => {
     if (!enabled) return null;
@@ -76,7 +77,8 @@ export function useMentions(opts: {
         const prefix = String(m[1] || '');
         const uname = String(m[2] || '');
         const atIdx = m.index + prefix.length; // index of '@'
-        if (atIdx > last) out.push({ key: `t:${last}`, text: s.slice(last, atIdx), mention: false });
+        if (atIdx > last)
+          out.push({ key: `t:${last}`, text: s.slice(last, atIdx), mention: false });
         out.push({ key: `m:${atIdx}`, text: `@${uname}`, mention: true });
         last = m.index + String(m[0]).length;
       }
@@ -114,4 +116,3 @@ export function useMentions(opts: {
 
   return { mentionSuggestions, insertMention, renderTextWithMentions };
 }
-

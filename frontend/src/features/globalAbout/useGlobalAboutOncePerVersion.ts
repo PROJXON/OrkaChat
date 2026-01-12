@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 export function useGlobalAboutOncePerVersion(version: string): {
   globalAboutOpen: boolean;
@@ -7,7 +7,10 @@ export function useGlobalAboutOncePerVersion(version: string): {
   dismissGlobalAbout: () => Promise<void>;
   globalAboutStorageKey: string;
 } {
-  const globalAboutStorageKey = React.useMemo(() => `ui:globalAboutSeen:${String(version || '').trim()}`, [version]);
+  const globalAboutStorageKey = React.useMemo(
+    () => `ui:globalAboutSeen:${String(version || '').trim()}`,
+    [version],
+  );
   const [globalAboutOpen, setGlobalAboutOpen] = React.useState<boolean>(false);
 
   // Auto-popup Global About once per version.
@@ -38,4 +41,3 @@ export function useGlobalAboutOncePerVersion(version: string): {
 
   return { globalAboutOpen, setGlobalAboutOpen, dismissGlobalAbout, globalAboutStorageKey };
 }
-

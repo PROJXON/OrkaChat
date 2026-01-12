@@ -31,10 +31,19 @@ export function useChannelPasswordModalActions(opts: {
     setChannelMeta((prev) => (prev ? { ...prev, hasPassword: true } : prev));
     setChannelPasswordEditOpen(false);
     setChannelPasswordDraft('');
-  }, [channelPasswordDraft, channelUpdate, setChannelMeta, setChannelPasswordDraft, setChannelPasswordEditOpen, showAlert]);
+  }, [
+    channelPasswordDraft,
+    channelUpdate,
+    setChannelMeta,
+    setChannelPasswordDraft,
+    setChannelPasswordEditOpen,
+    showAlert,
+  ]);
 
-  const onCancel = React.useCallback(() => setChannelPasswordEditOpen(false), [setChannelPasswordEditOpen]);
+  const onCancel = React.useCallback(
+    () => setChannelPasswordEditOpen(false),
+    [setChannelPasswordEditOpen],
+  );
 
   return { onSave, onCancel };
 }
-

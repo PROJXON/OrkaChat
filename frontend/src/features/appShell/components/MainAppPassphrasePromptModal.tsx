@@ -1,6 +1,6 @@
+import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 import React from 'react';
 import { Image, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
-import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
@@ -73,7 +73,9 @@ export function MainAppPassphrasePromptModal({
     <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
       <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{label}</Text>
       {helperText ? (
-        <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>{helperText}</Text>
+        <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+          {helperText}
+        </Text>
       ) : null}
 
       <View style={styles.passphraseFieldWrapper}>
@@ -158,7 +160,9 @@ export function MainAppPassphrasePromptModal({
       ) : null}
 
       {passphraseError ? (
-        <Text style={[styles.passphraseErrorText, isDark ? styles.passphraseErrorTextDark : null]}>{passphraseError}</Text>
+        <Text style={[styles.passphraseErrorText, isDark ? styles.passphraseErrorTextDark : null]}>
+          {passphraseError}
+        </Text>
       ) : null}
 
       <View style={styles.modalButtons}>
@@ -173,7 +177,14 @@ export function MainAppPassphrasePromptModal({
           disabled={submitDisabled}
         >
           {processing ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+              }}
+            >
               <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>{busyLabel}</Text>
               <AnimatedDots color={APP_COLORS.dark.text.primary} size={18} />
             </View>
@@ -183,11 +194,17 @@ export function MainAppPassphrasePromptModal({
         </Pressable>
 
         <Pressable
-          style={[styles.modalButton, isDark ? styles.modalButtonDark : null, processing && { opacity: 0.45 }]}
+          style={[
+            styles.modalButton,
+            isDark ? styles.modalButtonDark : null,
+            processing && { opacity: 0.45 },
+          ]}
           onPress={() => void Promise.resolve(onCancel())}
           disabled={processing}
         >
-          <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
+          <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+            Cancel
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -215,4 +232,3 @@ export function MainAppPassphrasePromptModal({
     </Modal>
   );
 }
-

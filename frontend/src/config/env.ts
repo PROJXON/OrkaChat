@@ -19,12 +19,10 @@ export const API_URL: string = extra.API_URL || '';
 let outputsCdnUrl = '';
 let outputsSignerApiUrl = '';
 try {
-   
   const outputs =
     // Prefer a committed web/prod outputs file so Hosting doesn't accidentally create a new Cognito pool.
-     
+
     (typeof navigator !== 'undefined' ? require('../../amplify_outputs.web.json') : null) ||
-     
     require('../../amplify_outputs.json');
   outputsCdnUrl =
     typeof outputs?.custom?.cdnUrl === 'string'

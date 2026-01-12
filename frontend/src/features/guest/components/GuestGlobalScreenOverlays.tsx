@@ -1,17 +1,25 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { GlobalAboutContent } from '../../../components/globalAbout/GlobalAboutContent';
 import { HeaderMenuModal } from '../../../components/HeaderMenuModal';
+import type { MediaViewerState } from '../../../components/MediaViewerModal';
 import { MediaViewerModal } from '../../../components/MediaViewerModal';
 import { RichText } from '../../../components/RichText';
 import { ThemeToggleRow } from '../../../components/ThemeToggleRow';
-import { GlobalAboutContent } from '../../../components/globalAbout/GlobalAboutContent';
-import { GuestChannelPickerModal } from './GuestChannelPickerModal';
-import { ReactionInfoModal, type ReactionInfoModalStyles } from '../../chat/components/ReactionInfoModal';
 import type { MenuAnchorRect } from '../../../hooks/useMenuAnchor';
-import type { MediaViewerState } from '../../../components/MediaViewerModal';
+import {
+  ReactionInfoModal,
+  type ReactionInfoModalStyles,
+} from '../../chat/components/ReactionInfoModal';
+import { GuestChannelPickerModal } from './GuestChannelPickerModal';
 
-type GuestChannelSearchRow = { channelId: string; name: string; activeMemberCount?: number; hasPassword?: boolean };
+type GuestChannelSearchRow = {
+  channelId: string;
+  name: string;
+  activeMemberCount?: number;
+  hasPassword?: boolean;
+};
 
 export function GuestGlobalScreenOverlays({
   isDark,
@@ -161,12 +169,22 @@ export function GuestGlobalScreenOverlays({
         ]}
       />
 
-      <Modal visible={channelAboutOpen} transparent animationType="fade" onRequestClose={guestChannelAboutModal.onRequestClose}>
+      <Modal
+        visible={channelAboutOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={guestChannelAboutModal.onRequestClose}
+      >
         <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={guestChannelAboutModal.onBackdropPress} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={guestChannelAboutModal.onBackdropPress}
+          />
           <View style={[styles.modalCard, isDark ? styles.modalCardDark : null]}>
             <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
-              {activeChannelTitle && activeChannelTitle !== 'Global' ? `${activeChannelTitle}` : 'About'}
+              {activeChannelTitle && activeChannelTitle !== 'Global'
+                ? `${activeChannelTitle}`
+                : 'About'}
             </Text>
             <ScrollView style={styles.modalScroll}>
               <RichText
@@ -179,8 +197,13 @@ export function GuestGlobalScreenOverlays({
               />
             </ScrollView>
             <View style={styles.modalButtons}>
-              <Pressable style={[styles.modalBtn, isDark ? styles.modalBtnDark : null]} onPress={guestChannelAboutModal.onGotIt}>
-                <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>Got it</Text>
+              <Pressable
+                style={[styles.modalBtn, isDark ? styles.modalBtnDark : null]}
+                onPress={guestChannelAboutModal.onGotIt}
+              >
+                <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>
+                  Got it
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -244,7 +267,9 @@ export function GuestGlobalScreenOverlays({
                 accessibilityRole="button"
                 accessibilityLabel="Sign in"
               >
-                <Text style={[styles.modalBtnText, isDark && styles.modalBtnTextDark]}>Sign in</Text>
+                <Text style={[styles.modalBtnText, isDark && styles.modalBtnTextDark]}>
+                  Sign in
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -264,4 +289,3 @@ export function GuestGlobalScreenOverlays({
     </>
   );
 }
-

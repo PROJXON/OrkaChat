@@ -1,5 +1,5 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
 
 import type { ChannelMeta } from './useChannelRoster';
 
@@ -33,7 +33,10 @@ export function useChannelAboutModalActions(opts: {
     wsRef,
   } = opts;
 
-  const channelId = React.useMemo(() => String(activeConversationId).slice('ch#'.length).trim(), [activeConversationId]);
+  const channelId = React.useMemo(
+    () => String(activeConversationId).slice('ch#'.length).trim(),
+    [activeConversationId],
+  );
 
   const markSeenCurrentVersion = React.useCallback(async () => {
     try {
@@ -106,8 +109,16 @@ export function useChannelAboutModalActions(opts: {
       // ignore
     }
     setChannelAboutEdit(false);
-  }, [activeConversationId, channelAboutDraft, channelId, channelMeta?.aboutVersion, channelUpdate, markChannelAboutSeen, setChannelAboutEdit, wsRef]);
+  }, [
+    activeConversationId,
+    channelAboutDraft,
+    channelId,
+    channelMeta?.aboutVersion,
+    channelUpdate,
+    markChannelAboutSeen,
+    setChannelAboutEdit,
+    wsRef,
+  ]);
 
   return { onRequestClose, onBackdropPress, onSave, onCancelEdit, onGotIt };
 }
-

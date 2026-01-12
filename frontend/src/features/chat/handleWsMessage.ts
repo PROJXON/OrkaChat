@@ -25,7 +25,9 @@ export function handleChatWsMessage(opts: {
   avatarRefetchCooldownMs: number;
   lastAvatarRefetchAtBySubRef: Ref<Record<string, number>>;
   invalidateAvatarProfile: (sub: string) => void;
-  onNewDmNotification: ((conversationId: string, senderLabel: string, senderSub?: string) => void) | undefined;
+  onNewDmNotification:
+    | ((conversationId: string, senderLabel: string, senderSub?: string) => void)
+    | undefined;
   onKickedFromConversation: ((conversationId: string) => void) | undefined;
   openInfo: ((title: string, body: string) => void) | undefined;
   showAlert: (title: string, body: string) => void;
@@ -45,17 +47,28 @@ export function handleChatWsMessage(opts: {
   normalizeReactions: (v: unknown) => ReactionMap | undefined;
 }): void {
   const payload =
-    typeof opts.payload === 'object' && opts.payload != null ? (opts.payload as Record<string, unknown>) : null;
+    typeof opts.payload === 'object' && opts.payload != null
+      ? (opts.payload as Record<string, unknown>)
+      : null;
   if (!payload) return;
   const activeConv = opts.activeConversationId;
 
-  const isPayloadChat = typeof payload?.conversationId === 'string' && payload?.conversationId !== 'global';
+  const isPayloadChat =
+    typeof payload?.conversationId === 'string' && payload?.conversationId !== 'global';
   const isDifferentConversation = payload?.conversationId !== activeConv;
   const payloadSub = typeof payload?.userSub === 'string' ? payload.userSub : '';
   const fromOtherUser =
-    payloadSub && opts.myUserId ? payloadSub !== opts.myUserId : opts.payloadUserLower !== opts.myUserLower;
+    payloadSub && opts.myUserId
+      ? payloadSub !== opts.myUserId
+      : opts.payloadUserLower !== opts.myUserLower;
   const hasText = typeof payload?.text === 'string';
-  if (isPayloadChat && isDifferentConversation && fromOtherUser && hasText && typeof payload.conversationId === 'string') {
+  if (
+    isPayloadChat &&
+    isDifferentConversation &&
+    fromOtherUser &&
+    hasText &&
+    typeof payload.conversationId === 'string'
+  ) {
     // System events shouldn't create "unread message" notifications.
     if (payload?.type === 'system' || payload?.kind === 'system') {
       // ignore
@@ -90,7 +103,8 @@ export function handleChatWsMessage(opts: {
   if (payload && payload.type === 'error') {
     const code = typeof payload.code === 'string' ? String(payload.code) : '';
     if (code === 'media_quota') {
-      const title = typeof payload.title === 'string' ? String(payload.title) : 'Upload limit reached';
+      const title =
+        typeof payload.title === 'string' ? String(payload.title) : 'Upload limit reached';
       const msg =
         typeof payload.message === 'string'
           ? String(payload.message)
@@ -136,7 +150,12 @@ export function handleChatWsMessage(opts: {
   }
 
   // System events (server-authored), e.g. "User was kicked"
-  if (payload && payload.type === 'system' && payload.conversationId === activeConv && typeof payload.text === 'string') {
+  if (
+    payload &&
+    payload.type === 'system' &&
+    payload.conversationId === activeConv &&
+    typeof payload.text === 'string'
+  ) {
     // Membership-related system events should refresh the roster for everyone currently viewing this chat
     // (updates Members modal + any member counts).
     try {
@@ -189,9 +208,13 @@ export function handleChatWsMessage(opts: {
   // Read receipt events (broadcast by backend)
   if (payload && payload.type === 'read' && payload.conversationId === activeConv) {
     const readerSub = typeof payload.userSub === 'string' ? payload.userSub : '';
-    const fromMe = opts.myUserId && readerSub ? readerSub === opts.myUserId : opts.payloadUserLower === opts.myUserLower;
+    const fromMe =
+      opts.myUserId && readerSub
+        ? readerSub === opts.myUserId
+        : opts.payloadUserLower === opts.myUserLower;
     if (payload.user && !fromMe) {
-      const readAt = typeof payload.readAt === 'number' ? payload.readAt : Math.floor(Date.now() / 1000);
+      const readAt =
+        typeof payload.readAt === 'number' ? payload.readAt : Math.floor(Date.now() / 1000);
       // New: per-message receipt (messageCreatedAt). Backward compat: treat readUpTo as a messageCreatedAt.
       const messageCreatedAt =
         typeof payload.messageCreatedAt === 'number'
@@ -211,12 +234,17 @@ export function handleChatWsMessage(opts: {
         // TTL-from-read for outgoing messages: start countdown for that specific message (if it has ttlSeconds).
         opts.setMessages((prev) =>
           prev.map((m) => {
-            const isOutgoingByUserSub = !!opts.myUserId && !!m.userSub && String(m.userSub) === String(opts.myUserId);
+            const isOutgoingByUserSub =
+              !!opts.myUserId && !!m.userSub && String(m.userSub) === String(opts.myUserId);
             const isEncryptedOutgoing =
-              !!m.encrypted && !!opts.myPublicKey && m.encrypted.senderPublicKey === opts.myPublicKey;
+              !!m.encrypted &&
+              !!opts.myPublicKey &&
+              m.encrypted.senderPublicKey === opts.myPublicKey;
             const isPlainOutgoing =
               !m.encrypted &&
-              (isOutgoingByUserSub ? true : opts.normalizeUser(m.userLower ?? m.user ?? 'anon') === opts.myUserLower);
+              (isOutgoingByUserSub
+                ? true
+                : opts.normalizeUser(m.userLower ?? m.user ?? 'anon') === opts.myUserLower);
             const isOutgoing = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
             if (!isOutgoing) return m;
             if (m.createdAt !== messageCreatedAt) return m;
@@ -235,13 +263,16 @@ export function handleChatWsMessage(opts: {
   // { type: 'typing', conversationId, user, isTyping: boolean, createdAt?: number }
   if (payload && payload.type === 'typing') {
     const incomingConv =
-      typeof payload.conversationId === 'string' && payload.conversationId.length > 0 ? payload.conversationId : 'global';
+      typeof payload.conversationId === 'string' && payload.conversationId.length > 0
+        ? payload.conversationId
+        : 'global';
     if (incomingConv !== activeConv) return;
     const u = typeof payload.user === 'string' ? payload.user : 'someone';
     const payloadUserSub = typeof payload.userSub === 'string' ? payload.userSub : '';
     if (payloadUserSub && opts.blockedSubsSet.has(payloadUserSub)) return;
     if (opts.myUserId && payloadUserSub && payloadUserSub === opts.myUserId) return;
-    if (!payloadUserSub && opts.payloadUserLower && opts.payloadUserLower === opts.myUserLower) return;
+    if (!payloadUserSub && opts.payloadUserLower && opts.payloadUserLower === opts.myUserLower)
+      return;
     const isTyping = payload.isTyping === true;
     if (!isTyping) {
       opts.setTypingByUserExpiresAt((prev) => {
@@ -295,7 +326,8 @@ export function handleChatWsMessage(opts: {
   if (payload && payload.type === 'delete') {
     const messageCreatedAt = Number(payload.createdAt);
     const deletedAt = typeof payload.deletedAt === 'number' ? payload.deletedAt : Date.now();
-    const deletedBySub = typeof payload.deletedBySub === 'string' ? payload.deletedBySub : undefined;
+    const deletedBySub =
+      typeof payload.deletedBySub === 'string' ? payload.deletedBySub : undefined;
     if (Number.isFinite(messageCreatedAt)) {
       opts.setMessages((prev) =>
         prev.map((m) =>
@@ -325,7 +357,9 @@ export function handleChatWsMessage(opts: {
     // New shape: payload.reactions is the full map { emoji: {count, userSubs} }
     if (payload.reactions) {
       const normalized = opts.normalizeReactions(payload.reactions);
-      opts.setMessages((prev) => prev.map((m) => (m.createdAt === messageCreatedAt ? { ...m, reactions: normalized } : m)));
+      opts.setMessages((prev) =>
+        prev.map((m) => (m.createdAt === messageCreatedAt ? { ...m, reactions: normalized } : m)),
+      );
       return;
     }
 
@@ -350,12 +384,15 @@ export function handleChatWsMessage(opts: {
     // Only render messages for the currently open conversation.
     // (We still emit DM notifications above for other conversations.)
     const incomingConv =
-      typeof payload.conversationId === 'string' && payload.conversationId.length > 0 ? payload.conversationId : 'global';
+      typeof payload.conversationId === 'string' && payload.conversationId.length > 0
+        ? payload.conversationId
+        : 'global';
     if (incomingConv !== activeConv) return;
 
     // If this sender has changed their avatar recently, invalidate our cached profile
     // so we refetch promptly and old messages update without waiting for TTL.
-    const senderSubForAvatar = typeof payload.userSub === 'string' ? String(payload.userSub).trim() : '';
+    const senderSubForAvatar =
+      typeof payload.userSub === 'string' ? String(payload.userSub).trim() : '';
     if (senderSubForAvatar) {
       const now = Date.now();
       const last = opts.lastAvatarRefetchAtBySubRef.current[senderSubForAvatar] || 0;
@@ -379,7 +416,9 @@ export function handleChatWsMessage(opts: {
       const idx = prev.findIndex((m) => m.id === msg.id);
       if (idx === -1) return [msg, ...prev];
       const existing = prev[idx];
-      const shouldPreservePlaintext = !!existing.decryptedText || (!!existing.text && existing.text !== opts.encryptedPlaceholder);
+      const shouldPreservePlaintext =
+        !!existing.decryptedText ||
+        (!!existing.text && existing.text !== opts.encryptedPlaceholder);
       const merged: ChatMessage = {
         ...msg,
         decryptedText: existing.decryptedText ?? msg.decryptedText,
@@ -405,4 +444,3 @@ export function buildFallbackChatMessageFromWsEventData(eventData: unknown): Cha
     createdAt: Date.now(),
   };
 }
-

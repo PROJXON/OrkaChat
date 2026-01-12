@@ -1,6 +1,7 @@
+import Feather from '@expo/vector-icons/Feather';
 import * as React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
+
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
@@ -13,7 +14,12 @@ export function GuestChannelPickerModal(props: {
   loading: boolean;
   error: string | null;
   globalUserCount: number | null;
-  channels: Array<{ channelId: string; name: string; activeMemberCount?: number; hasPassword?: boolean }>;
+  channels: Array<{
+    channelId: string;
+    name: string;
+    activeMemberCount?: number;
+    hasPassword?: boolean;
+  }>;
   onPickGlobal: () => void;
   onPickChannel: (channelId: string, name: string) => void;
   onLockedChannel: () => void;
@@ -78,9 +84,13 @@ export function GuestChannelPickerModal(props: {
                   minHeight: 44,
                   borderRadius: 12,
                   alignSelf: 'stretch',
-                  backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
+                  backgroundColor: isDark
+                    ? APP_COLORS.dark.bg.header
+                    : APP_COLORS.light.bg.surface2,
                   borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.border.subtle,
+                  borderColor: isDark
+                    ? APP_COLORS.dark.border.subtle
+                    : APP_COLORS.light.border.subtle,
                   marginBottom: 8,
                   opacity: pressed ? 0.85 : 1,
                   flexDirection: 'row',
@@ -92,7 +102,12 @@ export function GuestChannelPickerModal(props: {
               accessibilityRole="button"
               accessibilityLabel="Enter Global"
             >
-              <Text style={{ color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary, fontWeight: '800' }}>
+              <Text
+                style={{
+                  color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                  fontWeight: '800',
+                }}
+              >
                 Global
               </Text>
               <View
@@ -108,7 +123,12 @@ export function GuestChannelPickerModal(props: {
                   justifyContent: 'center',
                 }}
               >
-                <Text style={{ fontWeight: '900', color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary }}>
+                <Text
+                  style={{
+                    fontWeight: '900',
+                    color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                  }}
+                >
                   {typeof globalUserCount === 'number' ? String(globalUserCount) : '—'}
                 </Text>
               </View>
@@ -126,7 +146,10 @@ export function GuestChannelPickerModal(props: {
                   >
                     Loading
                   </Text>
-                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary} size={16} />
+                  <AnimatedDots
+                    color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary}
+                    size={16}
+                  />
                 </View>
               </View>
             ) : channels.length ? (
@@ -140,9 +163,13 @@ export function GuestChannelPickerModal(props: {
                       minHeight: 44,
                       borderRadius: 12,
                       alignSelf: 'stretch',
-                      backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
+                      backgroundColor: isDark
+                        ? APP_COLORS.dark.bg.header
+                        : APP_COLORS.light.bg.surface2,
                       borderWidth: StyleSheet.hairlineWidth,
-                      borderColor: isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.border.subtle,
+                      borderColor: isDark
+                        ? APP_COLORS.dark.border.subtle
+                        : APP_COLORS.light.border.subtle,
                       marginBottom: 8,
                       opacity: pressed ? 0.85 : 1,
                       flexDirection: 'row',
@@ -176,7 +203,11 @@ export function GuestChannelPickerModal(props: {
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10 }}>
                     {c.hasPassword ? (
                       <View style={{ marginRight: 8 }}>
-                        <Feather name="lock" size={14} color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted} />
+                        <Feather
+                          name="lock"
+                          size={14}
+                          color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                        />
                       </View>
                     ) : null}
                     <View
@@ -184,7 +215,9 @@ export function GuestChannelPickerModal(props: {
                         paddingHorizontal: 10,
                         paddingVertical: 5,
                         borderRadius: 999,
-                        backgroundColor: isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app,
+                        backgroundColor: isDark
+                          ? APP_COLORS.dark.border.subtle
+                          : APP_COLORS.light.bg.app,
                         borderWidth: StyleSheet.hairlineWidth,
                         borderColor: isDark ? 'transparent' : APP_COLORS.light.border.subtle,
                         minWidth: 38,
@@ -192,7 +225,14 @@ export function GuestChannelPickerModal(props: {
                         justifyContent: 'center',
                       }}
                     >
-                      <Text style={{ fontWeight: '900', color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary }}>
+                      <Text
+                        style={{
+                          fontWeight: '900',
+                          color: isDark
+                            ? APP_COLORS.dark.text.primary
+                            : APP_COLORS.light.text.primary,
+                        }}
+                      >
                         {String(typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0)}
                       </Text>
                     </View>
@@ -209,9 +249,15 @@ export function GuestChannelPickerModal(props: {
           <View style={styles.modalButtons}>
             <Pressable
               onPress={onClose}
-              style={({ pressed }) => [styles.modalBtn, isDark ? styles.modalBtnDark : null, pressed ? { opacity: 0.92 } : null]}
+              style={({ pressed }) => [
+                styles.modalBtn,
+                isDark ? styles.modalBtnDark : null,
+                pressed ? { opacity: 0.92 } : null,
+              ]}
             >
-              <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>Close</Text>
+              <Text style={[styles.modalBtnText, isDark ? styles.modalBtnTextDark : null]}>
+                Close
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -219,4 +265,3 @@ export function GuestChannelPickerModal(props: {
     </Modal>
   );
 }
-

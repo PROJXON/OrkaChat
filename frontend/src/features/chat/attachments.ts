@@ -1,7 +1,7 @@
 import type { MediaKind } from '../../types/media';
+import { inferKindFromContentType } from '../../utils/mediaKinds';
 import type { PendingUploadMedia } from './uploadMedia';
 import { guessContentTypeFromName } from './uploads';
-import { inferKindFromContentType } from '../../utils/mediaKinds';
 
 export type PendingMediaItem = PendingUploadMedia & {
   // Friendly label for UI (e.g. "From camera") without affecting uploads.
@@ -24,7 +24,9 @@ export type DocumentPickerAssetLike = {
   mimeType?: string | null;
 };
 
-export function pendingMediaFromImagePickerAssets(assets: ReadonlyArray<ImagePickerAssetLike>): PendingMediaItem[] {
+export function pendingMediaFromImagePickerAssets(
+  assets: ReadonlyArray<ImagePickerAssetLike>,
+): PendingMediaItem[] {
   const arr = Array.isArray(assets) ? assets : [];
   return arr
     .map((a): PendingMediaItem | null => {
@@ -49,7 +51,9 @@ export function pendingMediaFromImagePickerAssets(assets: ReadonlyArray<ImagePic
     .filter((it): it is PendingMediaItem => !!it);
 }
 
-export function pendingMediaFromDocumentPickerAssets(assets: ReadonlyArray<DocumentPickerAssetLike>): PendingMediaItem[] {
+export function pendingMediaFromDocumentPickerAssets(
+  assets: ReadonlyArray<DocumentPickerAssetLike>,
+): PendingMediaItem[] {
   const arr = Array.isArray(assets) ? assets : [];
   return arr
     .map((a): PendingMediaItem | null => {
@@ -71,7 +75,10 @@ export function pendingMediaFromDocumentPickerAssets(assets: ReadonlyArray<Docum
     .filter((it): it is PendingMediaItem => !!it);
 }
 
-export function pendingMediaFromInAppCameraCapture(cap: { uri: string; mode: 'photo' | 'video' }): PendingMediaItem {
+export function pendingMediaFromInAppCameraCapture(cap: {
+  uri: string;
+  mode: 'photo' | 'video';
+}): PendingMediaItem {
   const kind: MediaKind = cap.mode === 'video' ? 'video' : 'image';
   // Camera URIs can contain extremely long auto-generated filenames.
   // Use a short, stable filename for uploads, and a friendly UI label.
@@ -79,7 +86,8 @@ export function pendingMediaFromInAppCameraCapture(cap: { uri: string; mode: 'ph
   return {
     uri: cap.uri,
     kind,
-    contentType: guessContentTypeFromName(fileName) ?? (cap.mode === 'video' ? 'video/mp4' : 'image/jpeg'),
+    contentType:
+      guessContentTypeFromName(fileName) ?? (cap.mode === 'video' ? 'video/mp4' : 'image/jpeg'),
     fileName,
     displayName: 'From Camera',
     source: 'camera',

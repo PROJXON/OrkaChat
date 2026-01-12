@@ -8,7 +8,10 @@ export function getChannelAboutSeenKey(scope: ChannelAboutSeenScope, channelId: 
   return `${prefix}${cid}`;
 }
 
-export async function getChannelAboutSeenVersion(scope: ChannelAboutSeenScope, channelId: string): Promise<number> {
+export async function getChannelAboutSeenVersion(
+  scope: ChannelAboutSeenScope,
+  channelId: string,
+): Promise<number> {
   const cid = String(channelId || '').trim();
   if (!cid) return 0;
   try {
@@ -20,7 +23,11 @@ export async function getChannelAboutSeenVersion(scope: ChannelAboutSeenScope, c
   }
 }
 
-export async function markChannelAboutSeen(scope: ChannelAboutSeenScope, channelId: string, aboutVersion: number): Promise<void> {
+export async function markChannelAboutSeen(
+  scope: ChannelAboutSeenScope,
+  channelId: string,
+  aboutVersion: number,
+): Promise<void> {
   const cid = String(channelId || '').trim();
   const v = typeof aboutVersion === 'number' && Number.isFinite(aboutVersion) ? aboutVersion : 0;
   if (!cid || !v) return;
@@ -30,4 +37,3 @@ export async function markChannelAboutSeen(scope: ChannelAboutSeenScope, channel
     // ignore
   }
 }
-

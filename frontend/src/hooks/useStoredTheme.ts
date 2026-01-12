@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 export type StoredTheme = 'light' | 'dark';
 
@@ -51,4 +51,3 @@ export function useStoredTheme({
 
   return { theme, setTheme, isDark: theme === 'dark', ready, reload };
 }
-

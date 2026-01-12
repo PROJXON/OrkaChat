@@ -46,4 +46,3 @@ export function useAiDmConsentGate(opts: { isDm: boolean }) {
     onCancel,
   };
 }
-

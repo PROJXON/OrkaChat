@@ -1,5 +1,5 @@
-import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
+import * as React from 'react';
 
 function parseDmPeerSub(convId: string, mySub: string | null): string | null {
   if (!mySub) return null;
@@ -50,7 +50,9 @@ export function usePeerPublicKey(opts: {
         const timeoutId = setTimeout(() => controller.abort(), 15000);
         const cleanup = () => clearTimeout(timeoutId);
         const base = apiUrl.replace(/\/$/, '');
-        const url = peerSub ? `${base}/users?sub=${encodeURIComponent(peerSub)}` : `${base}/users?username=${encodeURIComponent(peer)}`;
+        const url = peerSub
+          ? `${base}/users?sub=${encodeURIComponent(peerSub)}`
+          : `${base}/users?username=${encodeURIComponent(peer)}`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${idToken}` },
           signal: controller.signal,
@@ -63,7 +65,8 @@ export function usePeerPublicKey(opts: {
         const data = await res.json();
         // Source of truth: DynamoDB Users.currentPublicKey (returned as `public_key`).
         // (We intentionally do not fall back to Cognito custom attributes here.)
-        const pk = (data.public_key as string | undefined) || (data.publicKey as string | undefined);
+        const pk =
+          (data.public_key as string | undefined) || (data.publicKey as string | undefined);
         // Only apply if peer hasn't changed mid-request
         if (currentPeer === peer) {
           setPeerPublicKey(typeof pk === 'string' && pk.length > 0 ? pk : null);
@@ -111,7 +114,9 @@ export function useHydratePeerPublicKey(opts: {
         const timeoutId = setTimeout(() => controller.abort(), 15000);
         const cleanup = () => clearTimeout(timeoutId);
         const base = apiUrl.replace(/\/$/, '');
-        const url = peerSub ? `${base}/users?sub=${encodeURIComponent(peerSub)}` : `${base}/users?username=${encodeURIComponent(peer)}`;
+        const url = peerSub
+          ? `${base}/users?sub=${encodeURIComponent(peerSub)}`
+          : `${base}/users?username=${encodeURIComponent(peer)}`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${idToken}` },
           signal: controller.signal,
@@ -122,7 +127,8 @@ export function useHydratePeerPublicKey(opts: {
           return;
         }
         const data = await res.json();
-        const pk = (data.public_key as string | undefined) || (data.publicKey as string | undefined);
+        const pk =
+          (data.public_key as string | undefined) || (data.publicKey as string | undefined);
         if (currentPeer === peer) {
           setPeerPublicKey(typeof pk === 'string' && pk.length > 0 ? pk : null);
         }
@@ -132,4 +138,3 @@ export function useHydratePeerPublicKey(opts: {
     })();
   }, [peer, enabled, apiUrl, activeConversationId, myUserId, setPeerPublicKey]);
 }
-

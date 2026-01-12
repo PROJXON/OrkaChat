@@ -1,5 +1,7 @@
 import React from 'react';
-import { Linking, Platform, StyleProp, Text, TextStyle } from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
+import { Linking, Platform, Text } from 'react-native';
+
 import { useUiPromptOptional } from '../providers/UiPromptProvider';
 import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
@@ -35,7 +37,9 @@ function tryNormalizeUrlCandidate(raw: string): string | null {
 
   // Heuristic: bare domains / www.* (exclude emails).
   if (s0.includes('@')) return null;
-  const looksLikeDomain = /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d{2,5})?(?:\/[^\s]*)?$/i.test(s0);
+  const looksLikeDomain = /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d{2,5})?(?:\/[^\s]*)?$/i.test(
+    s0,
+  );
   if (!looksLikeDomain) return null;
   // Default to https.
   return tryParseHttpUrl(`https://${s0}`);
@@ -139,7 +143,10 @@ function parseInline(text: string, opts: { enableMentions: boolean }): Segment[]
     }
   };
 
-  const processEmphasisAndMentions = (chunk: string, style?: { bold?: boolean; italic?: boolean }) => {
+  const processEmphasisAndMentions = (
+    chunk: string,
+    style?: { bold?: boolean; italic?: boolean },
+  ) => {
     const str = String(chunk || '');
     if (!str) return;
 
@@ -270,7 +277,6 @@ export function RichText({
 
       // Fallback: legacy behavior for isolated renders outside UiPromptProvider.
       if (Platform.OS === 'web') {
-         
         const ok = typeof window !== 'undefined' ? window.confirm(`${title}\n\n${body}`) : false;
         if (!ok) return;
       }
@@ -294,7 +300,11 @@ export function RichText({
   const v = variant || 'neutral';
   const baseLink: TextStyle =
     v === 'outgoing'
-      ? { color: withAlpha(PALETTE.white, 0.95), textDecorationLine: 'underline', fontWeight: '700' }
+      ? {
+          color: withAlpha(PALETTE.white, 0.95),
+          textDecorationLine: 'underline',
+          fontWeight: '700',
+        }
       : {
           color: isDark ? APP_COLORS.dark.brand.link : APP_COLORS.light.brand.link,
           textDecorationLine: 'underline',
@@ -306,13 +316,16 @@ export function RichText({
     <Text style={style}>
       {segments.map((seg, idx) => {
         if (seg.kind === 'link') {
-          const displayText = tryNormalizeUrlCandidate(seg.text) ? insertSoftBreaksForUrlDisplay(seg.text) : seg.text;
+          const displayText = tryNormalizeUrlCandidate(seg.text)
+            ? insertSoftBreaksForUrlDisplay(seg.text)
+            : seg.text;
           return (
             <Text
               key={`l:${idx}`}
               style={[baseLink, linkStyle]}
               onPress={() => {
-                if (typeof onOpenUrl === 'function') void Promise.resolve(onOpenUrl(seg.url)).catch(() => {});
+                if (typeof onOpenUrl === 'function')
+                  void Promise.resolve(onOpenUrl(seg.url)).catch(() => {});
                 else void confirmAndOpenUrl(seg.url);
               }}
               accessibilityRole="link"
@@ -332,7 +345,10 @@ export function RichText({
         return (
           <Text
             key={`t:${idx}`}
-            style={[seg.bold ? { fontWeight: '900' } : null, seg.italic ? { fontStyle: 'italic' } : null]}
+            style={[
+              seg.bold ? { fontWeight: '900' } : null,
+              seg.italic ? { fontStyle: 'italic' } : null,
+            ]}
           >
             {seg.text}
           </Text>

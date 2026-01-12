@@ -2,14 +2,14 @@ import React from 'react';
 import { FlatList, Platform, RefreshControl, Text, View } from 'react-native';
 
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
+import type { WebPinnedListState } from '../../../hooks/useWebPinnedList';
+import type { useWebWheelRefresh } from '../../../hooks/useWebWheelRefresh';
+import { APP_COLORS } from '../../../theme/colors';
+import type { MediaItem } from '../../../types/media';
 import { ChatHistoryLoadMore } from '../../chat/components/ChatHistoryLoadMore';
 import { renderGuestListItem } from '../renderGuestListItem';
-import type { MediaItem } from '../../../types/media';
-import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 import type { GuestMessage } from '../types';
-import type { WebPinnedListState } from '../../../hooks/useWebPinnedList';
-import { useWebWheelRefresh } from '../../../hooks/useWebWheelRefresh';
-import { APP_COLORS } from '../../../theme/colors';
 
 export function GuestGlobalMessageList({
   apiUrl,
@@ -78,7 +78,14 @@ export function GuestGlobalMessageList({
   return (
     <>
       {error ? (
-        <Text style={[styles.errorText, isDark && styles.errorTextDark, isWideUi ? styles.contentColumn : null]} numberOfLines={3}>
+        <Text
+          style={[
+            styles.errorText,
+            isDark && styles.errorTextDark,
+            isWideUi ? styles.contentColumn : null,
+          ]}
+          numberOfLines={3}
+        >
           {error}
         </Text>
       ) : null}
@@ -95,7 +102,10 @@ export function GuestGlobalMessageList({
             >
               Loading
             </Text>
-            <AnimatedDots color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary} size={16} />
+            <AnimatedDots
+              color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary}
+              size={16}
+            />
           </View>
         </View>
       ) : null}
@@ -169,4 +179,3 @@ export function GuestGlobalMessageList({
     </>
   );
 }
-

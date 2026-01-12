@@ -3,7 +3,11 @@ import * as React from 'react';
 type PassphrasePromptMode = 'setup' | 'restore' | 'change' | 'reset';
 
 type PromptConfirmOptions = { confirmText?: string; cancelText?: string; destructive?: boolean };
-type PromptConfirm = (title: string, message: string, opts?: PromptConfirmOptions) => Promise<boolean>;
+type PromptConfirm = (
+  title: string,
+  message: string,
+  opts?: PromptConfirmOptions,
+) => Promise<boolean>;
 
 type Choice3Result = 'primary' | 'secondary' | 'tertiary';
 // `useUiPrompt().choice3` is typed with multiple call signatures; accept a flexible shape
@@ -74,7 +78,10 @@ export function usePassphrasePrompt({
 
   const handlePromptSubmit = React.useCallback(() => {
     if (!passphrasePrompt || processing) return;
-    const needsConfirm = passphrasePrompt.mode === 'setup' || passphrasePrompt.mode === 'change' || passphrasePrompt.mode === 'reset';
+    const needsConfirm =
+      passphrasePrompt.mode === 'setup' ||
+      passphrasePrompt.mode === 'change' ||
+      passphrasePrompt.mode === 'reset';
     if (needsConfirm) {
       if (passphraseInput.trim() !== passphraseConfirmInput.trim()) {
         setPassphraseError('Passphrases do not match');
@@ -97,7 +104,7 @@ export function usePassphrasePrompt({
         const choice = (await promptChoice3({
           title: 'Forgot your recovery passphrase?',
           message:
-            "If you reset recovery, you’ll create a new keypair and recovery passphrase on this device.\n\nOld encrypted direct messages will become unrecoverable.\n\nIf you might remember it later, you can try again later and you’ll be prompted again the next time you sign in.",
+            'If you reset recovery, you’ll create a new keypair and recovery passphrase on this device.\n\nOld encrypted direct messages will become unrecoverable.\n\nIf you might remember it later, you can try again later and you’ll be prompted again the next time you sign in.',
           primaryText: 'Try Again',
           secondaryText: 'Try Later',
           tertiaryText: 'Reset recovery',
@@ -111,7 +118,9 @@ export function usePassphrasePrompt({
           return;
         }
         closePrompt();
-        passphrasePrompt.reject(new Error(choice === 'tertiary' ? 'Recovery reset requested' : 'Prompt cancelled'));
+        passphrasePrompt.reject(
+          new Error(choice === 'tertiary' ? 'Recovery reset requested' : 'Prompt cancelled'),
+        );
         return;
       }
 
@@ -126,7 +135,7 @@ export function usePassphrasePrompt({
       const ok = await promptConfirm(
         'Skip Recovery Setup?',
         "If you don't set a recovery passphrase, you won't be able to restore older encrypted messages if you switch devices.\n\nWe do NOT store your passphrase, so make sure you remember it.",
-        { confirmText: 'Skip for now', cancelText: 'Go back', destructive: true }
+        { confirmText: 'Skip for now', cancelText: 'Go back', destructive: true },
       );
       if (!ok) return;
       closePrompt();
@@ -167,4 +176,3 @@ export function usePassphrasePrompt({
     },
   };
 }
-

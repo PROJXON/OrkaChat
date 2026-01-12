@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import { buildAiSummaryTranscript } from './aiSummaryContext';
 import type { ChatMessage } from './types';
 
@@ -11,7 +12,8 @@ export function useAiSummary(opts: {
   showAlert: (title: string, body: string) => void;
   openInfo: (title: string, body: string) => void;
 }) {
-  const { apiUrl, activeConversationId, peer, messages, fetchAuthSession, showAlert, openInfo } = opts;
+  const { apiUrl, activeConversationId, peer, messages, fetchAuthSession, showAlert, openInfo } =
+    opts;
 
   const [open, setOpen] = React.useState(false);
   const [text, setText] = React.useState<string>('');
@@ -91,4 +93,3 @@ export function useAiSummary(opts: {
     summarize,
   };
 }
-

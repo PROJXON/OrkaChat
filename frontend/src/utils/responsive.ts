@@ -24,13 +24,20 @@ export function isWebCoarsePointer(): boolean {
   // Fallback: touch-capable browsers often expose maxTouchPoints.
   try {
     type NavigatorLike = { maxTouchPoints?: number; userAgent?: string };
-    const nav: NavigatorLike | undefined = typeof navigator !== 'undefined' ? (navigator as NavigatorLike) : undefined;
+    const nav: NavigatorLike | undefined =
+      typeof navigator !== 'undefined' ? (navigator as NavigatorLike) : undefined;
     const maxTouchPoints = typeof nav?.maxTouchPoints === 'number' ? nav.maxTouchPoints : 0;
     if (maxTouchPoints > 0) return true;
 
     // Last resort: user-agent sniff (helps Android emulator / odd WebViews).
     const ua = String(nav?.userAgent || '').toLowerCase();
-    if (ua.includes('android') || ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return true;
+    if (
+      ua.includes('android') ||
+      ua.includes('iphone') ||
+      ua.includes('ipad') ||
+      ua.includes('ipod')
+    )
+      return true;
     return false;
   } catch {
     return false;

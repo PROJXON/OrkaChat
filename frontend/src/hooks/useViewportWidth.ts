@@ -1,13 +1,17 @@
 import * as React from 'react';
 
-export function useViewportWidth(windowWidth: number, opts?: { wideBreakpointPx?: number; maxContentWidthPx?: number }): {
+export function useViewportWidth(
+  windowWidth: number,
+  opts?: { wideBreakpointPx?: number; maxContentWidthPx?: number },
+): {
   isWide: boolean;
   viewportWidth: number;
   wideBreakpointPx: number;
   maxContentWidthPx: number;
 } {
   const wideBreakpointPx = typeof opts?.wideBreakpointPx === 'number' ? opts.wideBreakpointPx : 900;
-  const maxContentWidthPx = typeof opts?.maxContentWidthPx === 'number' ? opts.maxContentWidthPx : 1040;
+  const maxContentWidthPx =
+    typeof opts?.maxContentWidthPx === 'number' ? opts.maxContentWidthPx : 1040;
   const isWide = windowWidth >= wideBreakpointPx;
   const viewportWidth = isWide ? Math.min(windowWidth, maxContentWidthPx) : windowWidth;
 
@@ -16,4 +20,3 @@ export function useViewportWidth(windowWidth: number, opts?: { wideBreakpointPx?
     [isWide, viewportWidth, wideBreakpointPx, maxContentWidthPx],
   );
 }
-

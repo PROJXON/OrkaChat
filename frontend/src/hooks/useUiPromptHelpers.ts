@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import { useUiPrompt } from '../providers/UiPromptProvider';
 
 export function useUiPromptHelpers(): {
@@ -20,4 +21,3 @@ export function useUiPromptHelpers(): {
 
   return { uiAlert, uiConfirm, showAlert };
 }
-

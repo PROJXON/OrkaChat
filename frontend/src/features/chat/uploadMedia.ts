@@ -1,10 +1,11 @@
+import { gcm } from '@noble/ciphers/aes.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 import { uploadData } from 'aws-amplify/storage';
 import { getRandomBytes } from 'expo-crypto';
-import { bytesToHex } from '@noble/hashes/utils.js';
-import { gcm } from '@noble/ciphers/aes.js';
+
 import type { MediaItem, MediaKind } from '../../types/media';
-import type { DmMediaEnvelopeV1, GroupMediaEnvelopeV1 } from './types';
 import { aesGcmEncryptBytes, deriveChatKeyBytesV1 } from '../../utils/crypto';
+import type { DmMediaEnvelopeV1, GroupMediaEnvelopeV1 } from './types';
 import { assertWithinAttachmentHardLimit, createWebpThumbnailBytes, readUriBytes } from './uploads';
 
 export type PendingUploadMedia = {
@@ -90,7 +91,14 @@ export async function uploadDmMediaEncrypted(args: {
   inputText: string;
   captionOverride?: string;
 }): Promise<DmMediaEnvelopeV1> {
-  const { media, conversationKey, senderPrivateKeyHex, recipientPublicKeyHex, inputText, captionOverride } = args;
+  const {
+    media,
+    conversationKey,
+    senderPrivateKeyHex,
+    recipientPublicKeyHex,
+    inputText,
+    captionOverride,
+  } = args;
 
   const declaredSize = typeof media.size === 'number' ? media.size : undefined;
   if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize);
@@ -109,7 +117,8 @@ export async function uploadDmMediaEncrypted(args: {
   // Keep DM object keys opaque (do not embed filenames).
   const path = `uploads/dm/${conversationKey}/${uploadId}.enc`;
   // NOTE: avoid Blob construction on RN (can throw). uploadData supports Uint8Array directly.
-  await uploadData({ path, data: fileCipher, options: { contentType: 'application/octet-stream' } }).result;
+  await uploadData({ path, data: fileCipher, options: { contentType: 'application/octet-stream' } })
+    .result;
 
   // 4) Create + encrypt thumbnail (also E2EE)
   let thumbPath: string | undefined;
@@ -140,7 +149,9 @@ export async function uploadDmMediaEncrypted(args: {
   return {
     type: 'dm_media_v1',
     v: 1,
-    caption: (typeof captionOverride === 'string' ? captionOverride.trim() : inputText.trim()) || undefined,
+    caption:
+      (typeof captionOverride === 'string' ? captionOverride.trim() : inputText.trim()) ||
+      undefined,
     media: {
       kind: media.kind,
       contentType: media.contentType,
@@ -181,7 +192,8 @@ export async function uploadGroupMediaEncrypted(args: {
   const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   // NOTE: this intentionally reuses the `uploads/dm/...` prefix (existing behavior).
   const path = `uploads/dm/${conversationKey}/${uploadId}.enc`;
-  await uploadData({ path, data: fileCipher, options: { contentType: 'application/octet-stream' } }).result;
+  await uploadData({ path, data: fileCipher, options: { contentType: 'application/octet-stream' } })
+    .result;
 
   // Encrypted thumbnail with same fileKey (Signal-style)
   let thumbPath: string | undefined;
@@ -211,7 +223,9 @@ export async function uploadGroupMediaEncrypted(args: {
   return {
     type: 'gdm_media_v1',
     v: 1,
-    caption: (typeof captionOverride === 'string' ? captionOverride.trim() : inputText.trim()) || undefined,
+    caption:
+      (typeof captionOverride === 'string' ? captionOverride.trim() : inputText.trim()) ||
+      undefined,
     media: {
       kind: media.kind,
       contentType: media.contentType,

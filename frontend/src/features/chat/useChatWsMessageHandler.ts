@@ -1,10 +1,10 @@
 import * as React from 'react';
 
-import type { ChatMessage } from './types';
-import { buildFallbackChatMessageFromWsEventData, handleChatWsMessage } from './handleWsMessage';
 import type { EncryptedChatPayloadV1 } from '../../types/crypto';
-import type { EncryptedGroupPayloadV1 } from './types';
 import type { ReactionMap } from '../../types/reactions';
+import { buildFallbackChatMessageFromWsEventData, handleChatWsMessage } from './handleWsMessage';
+import type { ChatMessage } from './types';
+import type { EncryptedGroupPayloadV1 } from './types';
 
 export function useChatWsMessageHandler(opts: {
   activeConversationIdRef: React.MutableRefObject<string>;
@@ -21,7 +21,9 @@ export function useChatWsMessageHandler(opts: {
   lastAvatarRefetchAtBySubRef: React.MutableRefObject<Record<string, number>>;
   invalidateAvatarProfile: (sub: string) => void;
 
-  onNewDmNotification: ((conversationId: string, senderLabel: string, senderSub?: string) => void) | undefined;
+  onNewDmNotification:
+    | ((conversationId: string, senderLabel: string, senderSub?: string) => void)
+    | undefined;
   onKickedFromConversation: ((conversationId: string) => void) | undefined;
 
   openInfo: (title: string, body: string) => void;
@@ -78,7 +80,9 @@ export function useChatWsMessageHandler(opts: {
   return React.useCallback(
     (event: { data: unknown }) => {
       try {
-        const payload = JSON.parse(typeof event.data === 'string' ? event.data : String(event.data ?? ''));
+        const payload = JSON.parse(
+          typeof event.data === 'string' ? event.data : String(event.data ?? ''),
+        );
         const activeConv = activeConversationIdRef.current;
         const dn = displayNameRef.current;
         const myUserLower = normalizeUser(dn);
@@ -160,4 +164,3 @@ export function useChatWsMessageHandler(opts: {
     ],
   );
 }
-

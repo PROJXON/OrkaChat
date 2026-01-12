@@ -35,4 +35,3 @@ export function useChatConversationJoin(opts: {
     sendJoin(activeConversationId);
   }, [activeConversationId, sendJoin]);
 }
-

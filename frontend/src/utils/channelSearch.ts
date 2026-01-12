@@ -82,18 +82,27 @@ export async function searchChannels(opts: {
   if (!base) return { globalUserCount: null, channels: [] };
 
   const q = String(opts.query || '').trim();
-  const limit = typeof opts.limit === 'number' && Number.isFinite(opts.limit) && opts.limit > 0 ? Math.floor(opts.limit) : 50;
+  const limit =
+    typeof opts.limit === 'number' && Number.isFinite(opts.limit) && opts.limit > 0
+      ? Math.floor(opts.limit)
+      : 50;
 
   const qs = `limit=${encodeURIComponent(String(limit))}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
   const publicPath = opts.paths?.publicSearch ?? '/public/channels/search';
   const authedPath = opts.paths?.authedSearch ?? '/channels/search';
 
-  const candidates: Array<{ url: string; headers?: Record<string, string>; label: string; kind: 'public' | 'authed' }> = [];
+  const candidates: Array<{
+    url: string;
+    headers?: Record<string, string>;
+    label: string;
+    kind: 'public' | 'authed';
+  }> = [];
   const publicUrl = `${base}${publicPath}?${qs}`;
   const authedUrl = `${base}${authedPath}?${qs}`;
   const hasToken = !!(opts.token && String(opts.token).trim());
 
-  const addPublic = () => candidates.push({ url: publicUrl, label: `GET ${publicPath}`, kind: 'public' });
+  const addPublic = () =>
+    candidates.push({ url: publicUrl, label: `GET ${publicPath}`, kind: 'public' });
   const addAuthed = () =>
     candidates.push({
       url: authedUrl,
@@ -136,4 +145,3 @@ export async function searchChannels(opts: {
 
   throw new Error(errors.length ? errors.join('\n') : 'Channel search failed');
 }
-

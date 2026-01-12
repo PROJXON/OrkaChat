@@ -1,7 +1,7 @@
 import * as React from 'react';
 
-import { useModalState } from './useModalState';
 import { saveMediaUrlToDevice } from '../utils/saveMediaToDevice';
+import { useModalState } from './useModalState';
 
 export type MediaViewerSaveItem = {
   url: string;
@@ -49,4 +49,3 @@ export function useMediaViewer<TState>(opts: {
     saveToDevice,
   };
 }
-

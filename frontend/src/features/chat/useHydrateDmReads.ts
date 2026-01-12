@@ -1,5 +1,5 @@
-import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
+import * as React from 'react';
 
 type ReadsResponse = {
   reads?: Array<{
@@ -30,7 +30,15 @@ export function useHydrateDmReads(opts: {
   normalizeUser: (v: unknown) => string;
   setPeerSeenAtByCreatedAt: React.Dispatch<React.SetStateAction<Record<string, number>>>;
 }): void {
-  const { enabled, apiUrl, activeConversationId, myUserId, displayName, normalizeUser, setPeerSeenAtByCreatedAt } = opts;
+  const {
+    enabled,
+    apiUrl,
+    activeConversationId,
+    myUserId,
+    displayName,
+    normalizeUser,
+    setPeerSeenAtByCreatedAt,
+  } = opts;
 
   React.useEffect(() => {
     (async () => {
@@ -56,7 +64,8 @@ export function useHydrateDmReads(opts: {
           const readerName = typeof r.user === 'string' ? String(r.user) : '';
           // Ignore reads from myself
           if (myUserId && readerSub && readerSub === myUserId) continue;
-          if (!readerSub && readerName && normalizeUser(readerName) === normalizeUser(displayName)) continue;
+          if (!readerSub && readerName && normalizeUser(readerName) === normalizeUser(displayName))
+            continue;
           const mc = Number(r.messageCreatedAt ?? r.readUpTo);
           const ra = Number(r.readAt);
           if (!Number.isFinite(mc) || !Number.isFinite(ra)) continue;
@@ -75,6 +84,13 @@ export function useHydrateDmReads(opts: {
         // ignore
       }
     })();
-  }, [enabled, apiUrl, activeConversationId, displayName, myUserId, normalizeUser, setPeerSeenAtByCreatedAt]);
+  }, [
+    enabled,
+    apiUrl,
+    activeConversationId,
+    displayName,
+    myUserId,
+    normalizeUser,
+    setPeerSeenAtByCreatedAt,
+  ]);
 }
-

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import type { ViewStyle } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { APP_COLORS, PALETTE } from '../theme/colors';
 

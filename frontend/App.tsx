@@ -1,44 +1,34 @@
-import React from 'react';
-import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
-import {
-  ActivityIndicator,
-  processColor,
-  View,
-  Platform,
-  useWindowDimensions,
-} from 'react-native';
-import { styles } from './App.styles';
+import 'react-native-get-random-values';
+import 'react-native-url-polyfill/auto';
 
+// IMPORTANT:
+// Import Amplify UI from `dist/*` (compiled JS + .d.ts) so TypeScript does NOT compile Amplify's internal TS
+// sources during `tsc --watch`. Keep all Amplify UI imports on the same `dist/*` path to avoid ThemeContext
+// duplication/mismatches.
+import { fetchAuthSession } from '@aws-amplify/auth';
+import { Authenticator, ThemeProvider } from '@aws-amplify/ui-react-native/dist';
+import { Amplify } from 'aws-amplify';
+import { requireOptionalNativeModule } from 'expo-modules-core';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import React from 'react';
+import { ActivityIndicator, Platform, processColor, useWindowDimensions, View } from 'react-native';
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
   SafeAreaProvider,
   SafeAreaView,
 } from 'react-native-safe-area-context';
-import GuestGlobalScreen from './src/screens/GuestGlobalScreen';
-import * as ScreenOrientation from 'expo-screen-orientation';
-import { requireOptionalNativeModule } from 'expo-modules-core';
 
-import { Amplify } from "aws-amplify";
-import {
-  Authenticator,
-  ThemeProvider,
-} from "@aws-amplify/ui-react-native/dist";
-// IMPORTANT:
-// Import Amplify UI from `dist/*` (compiled JS + .d.ts) so TypeScript does NOT compile Amplify's internal TS
-// sources during `tsc --watch`. Keep all Amplify UI imports on the same `dist/*` path to avoid ThemeContext
-// duplication/mismatches.
-import { fetchAuthSession } from '@aws-amplify/auth';
+import { styles } from './App.styles';
+import { AuthModal } from './src/components/modals/AuthModal';
+import { MainAppContent } from './src/features/appShell/components/MainAppContent';
+import { useAmplifyAuthenticatorConfig } from './src/features/auth/amplifyAuthenticator';
 import { useStoredTheme } from './src/hooks/useStoredTheme';
 import { UiPromptProvider } from './src/providers/UiPromptProvider';
-import { AuthModal } from './src/components/modals/AuthModal';
-import { useAmplifyAuthenticatorConfig } from './src/features/auth/amplifyAuthenticator';
-import { MainAppContent } from './src/features/appShell/components/MainAppContent';
+import GuestGlobalScreen from './src/screens/GuestGlobalScreen';
 import { getAppThemeColors } from './src/theme/colors';
-
-import 'react-native-get-random-values'
-import 'react-native-url-polyfill/auto'
 
 // Keep the native splash visible until we explicitly hide it (prevents a brief
 // "white screen + spinner" flash while JS bootstraps and we check auth session).
@@ -202,45 +192,42 @@ export default function App(): React.JSX.Element {
         onLayout={() => setRootLayoutDone(true)}
       >
         <UiPromptProvider isDark={isDark}>
-        <Authenticator.Provider>
-          {booting ? (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <ActivityIndicator />
-            </View>
-          ) : rootMode === 'guest' ? (
-            <>
-              <GuestGlobalScreen onSignIn={() => setAuthModalOpen(true)} />
+          <Authenticator.Provider>
+            {booting ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator />
+              </View>
+            ) : rootMode === 'guest' ? (
+              <>
+                <GuestGlobalScreen onSignIn={() => setAuthModalOpen(true)} />
 
-              <AuthModal
-                open={authModalOpen}
-                onClose={() => setAuthModalOpen(false)}
-                isDark={isDark}
-                amplifyTheme={amplifyTheme}
-                authComponents={authComponents}
-                onAuthed={() => {
-                  setAuthModalOpen(false);
-                  setRootMode('app');
-                }}
-              />
-            </>
-          ) : (
-            <ThemeProvider theme={amplifyTheme} colorMode={isDark ? 'dark' : 'light'}>
-              <Authenticator
-                loginMechanisms={['email']}
-                signUpAttributes={['preferred_username']}
-                components={authComponents}
-              >
-                <MainAppContent onSignedOut={() => setRootMode('guest')} />
-              </Authenticator>
-            </ThemeProvider>
-          )}
-        </Authenticator.Provider>
+                <AuthModal
+                  open={authModalOpen}
+                  onClose={() => setAuthModalOpen(false)}
+                  isDark={isDark}
+                  amplifyTheme={amplifyTheme}
+                  authComponents={authComponents}
+                  onAuthed={() => {
+                    setAuthModalOpen(false);
+                    setRootMode('app');
+                  }}
+                />
+              </>
+            ) : (
+              <ThemeProvider theme={amplifyTheme} colorMode={isDark ? 'dark' : 'light'}>
+                <Authenticator
+                  loginMechanisms={['email']}
+                  signUpAttributes={['preferred_username']}
+                  components={authComponents}
+                >
+                  <MainAppContent onSignedOut={() => setRootMode('guest')} />
+                </Authenticator>
+              </ThemeProvider>
+            )}
+          </Authenticator.Provider>
         </UiPromptProvider>
 
-        <StatusBar
-          style={isDark ? 'light' : 'dark'}
-          backgroundColor={appColors.appBackground}
-        />
+        <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={appColors.appBackground} />
       </SafeAreaView>
     </AppSafeAreaProvider>
   );

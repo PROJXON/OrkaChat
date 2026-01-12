@@ -1,5 +1,5 @@
-import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
+import * as React from 'react';
 
 import type { ChannelMember, ChannelMeta } from './useChannelRoster';
 import type { GroupMember, GroupMeta } from './useHydrateGroupRoster';
@@ -13,7 +13,12 @@ function toRequestBody(v: unknown): JsonRecord {
   return isRecord(v) ? v : {};
 }
 
-type AuthedPostResult<TJson = unknown> = { ok: boolean; status: number; json?: TJson; text?: string };
+type AuthedPostResult<TJson = unknown> = {
+  ok: boolean;
+  status: number;
+  json?: TJson;
+  text?: string;
+};
 
 async function authedPost(apiUrl: string, path: string, body: unknown): Promise<AuthedPostResult> {
   const { tokens } = await fetchAuthSession();
@@ -40,7 +45,9 @@ function getServerMessage(resp: AuthedPostResult): string {
     const msg = resp.json.message;
     if (typeof msg === 'string' && msg.trim()) return msg.trim();
   }
-  return (typeof resp.text === 'string' && resp.text.trim() ? resp.text.trim() : '') || 'Request failed';
+  return (
+    (typeof resp.text === 'string' && resp.text.trim() ? resp.text.trim() : '') || 'Request failed'
+  );
 }
 
 export function useChatAdminOps(opts: {
@@ -105,7 +112,11 @@ export function useChatAdminOps(opts: {
       setChannelActionBusy(true);
       try {
         const extraBody = toRequestBody(extra);
-        const resp = await authedPost(apiUrl, '/channels/update', { channelId: cid, op, ...extraBody });
+        const resp = await authedPost(apiUrl, '/channels/update', {
+          channelId: cid,
+          op,
+          ...extraBody,
+        });
         if (!resp.ok) {
           showAlert('Channel update failed', getServerMessage(resp));
           return;
@@ -155,7 +166,15 @@ export function useChatAdminOps(opts: {
         setChannelActionBusy(false);
       }
     },
-    [isChannel, apiUrl, activeConversationId, wsRef, showAlert, refreshChannelRoster, setChannelActionBusy],
+    [
+      isChannel,
+      apiUrl,
+      activeConversationId,
+      wsRef,
+      showAlert,
+      refreshChannelRoster,
+      setChannelActionBusy,
+    ],
   );
 
   const channelLeave = React.useCallback(async () => {
@@ -254,7 +273,11 @@ export function useChatAdminOps(opts: {
       setGroupActionBusy(true);
       try {
         const extraBody = toRequestBody(extra);
-        const resp = await authedPost(apiUrl, '/groups/update', { conversationId: activeConversationId, op, ...extraBody });
+        const resp = await authedPost(apiUrl, '/groups/update', {
+          conversationId: activeConversationId,
+          op,
+          ...extraBody,
+        });
         if (!resp.ok) {
           showAlert('Group update failed', getServerMessage(resp));
           return;
@@ -262,12 +285,13 @@ export function useChatAdminOps(opts: {
         // For "addMembers", emit system messages so everyone sees "X was added..." (persisted + broadcast by server).
         if (op === 'addMembers') {
           const addedSubs: string[] =
-            isRecord(resp.json) && Array.isArray(resp.json.addedSubs) ? resp.json.addedSubs.map(String) : [];
+            isRecord(resp.json) && Array.isArray(resp.json.addedSubs)
+              ? resp.json.addedSubs.map(String)
+              : [];
           if (addedSubs.length) {
             const ws = wsRef.current;
             if (ws && ws.readyState === WebSocket.OPEN) {
               for (const sub of addedSubs) {
-                 
                 if (!sub) continue;
                 try {
                   ws.send(
@@ -291,7 +315,15 @@ export function useChatAdminOps(opts: {
         setGroupActionBusy(false);
       }
     },
-    [isGroup, apiUrl, setGroupActionBusy, activeConversationId, showAlert, wsRef, bumpGroupRefreshNonce],
+    [
+      isGroup,
+      apiUrl,
+      setGroupActionBusy,
+      activeConversationId,
+      showAlert,
+      wsRef,
+      bumpGroupRefreshNonce,
+    ],
   );
 
   const groupLeave = React.useCallback(async () => {
@@ -324,7 +356,9 @@ export function useChatAdminOps(opts: {
 
     setGroupActionBusy(true);
     try {
-      const resp = await authedPost(apiUrl, '/groups/leave', { conversationId: activeConversationId });
+      const resp = await authedPost(apiUrl, '/groups/leave', {
+        conversationId: activeConversationId,
+      });
       if (!resp.ok) {
         const msg = getServerMessage(resp);
         // Helpful UX: if the backend isn't updated yet, surface the client-side rule.
@@ -381,4 +415,3 @@ export function useChatAdminOps(opts: {
 
   return { channelUpdate, channelLeave, groupUpdate, groupLeave };
 }
-

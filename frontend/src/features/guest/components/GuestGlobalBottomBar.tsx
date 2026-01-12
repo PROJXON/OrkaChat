@@ -26,14 +26,19 @@ export function GuestGlobalBottomBar({
       <View style={[styles.bottomBarInner, isWideUi ? styles.contentColumn : null]}>
         <Pressable
           onPress={requestSignIn}
-          style={({ pressed }) => [styles.bottomBarCta, isDark && styles.bottomBarCtaDark, pressed && { opacity: 0.9 }]}
+          style={({ pressed }) => [
+            styles.bottomBarCta,
+            isDark && styles.bottomBarCtaDark,
+            pressed && { opacity: 0.9 },
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Sign in to chat"
         >
-          <Text style={[styles.bottomBarCtaText, isDark && styles.bottomBarCtaTextDark]}>Sign in to Chat</Text>
+          <Text style={[styles.bottomBarCtaText, isDark && styles.bottomBarCtaTextDark]}>
+            Sign in to Chat
+          </Text>
         </Pressable>
       </View>
     </View>
   );
 }
-

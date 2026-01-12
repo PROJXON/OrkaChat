@@ -13,7 +13,10 @@ export function useAuthApiHelpers({
 }): {
   uploadRecoveryBlob: (token: string, privateKeyHex: string, passphrase: string) => Promise<void>;
   checkRecoveryBlobExists: (token: string) => Promise<boolean | null>;
-  getIdTokenWithRetry: (opts?: { maxAttempts?: number; delayMs?: number }) => Promise<string | null>;
+  getIdTokenWithRetry: (opts?: {
+    maxAttempts?: number;
+    delayMs?: number;
+  }) => Promise<string | null>;
   uploadPublicKey: (token: string | undefined, publicKey: string) => Promise<void>;
 } {
   const uploadRecoveryBlob = React.useCallback(
@@ -58,7 +61,7 @@ export function useAuthApiHelpers({
         if (timeoutId) clearTimeout(timeoutId);
       }
     },
-    [apiUrl, encryptPrivateKey]
+    [apiUrl, encryptPrivateKey],
   );
 
   const checkRecoveryBlobExists = React.useCallback(
@@ -68,7 +71,10 @@ export function useAuthApiHelpers({
       // Web/dev fix: many API Gateway deployments don't enable CORS for HEAD (preflight fails),
       // so use GET which is already supported by our handlers.
       try {
-        const resp = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
+        const resp = await fetch(url, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (resp.ok) return true;
         if (resp.status === 404) {
           console.log('recovery blob exists check: 404');
@@ -81,7 +87,7 @@ export function useAuthApiHelpers({
         return null;
       }
     },
-    [apiUrl]
+    [apiUrl],
   );
 
   const getIdTokenWithRetry = React.useCallback(
@@ -102,7 +108,7 @@ export function useAuthApiHelpers({
       }
       return null;
     },
-    [fetchAuthSession]
+    [fetchAuthSession],
   );
 
   const uploadPublicKey = React.useCallback(
@@ -124,9 +130,8 @@ export function useAuthApiHelpers({
         console.warn('uploadPublicKey non-2xx', resp.status, text);
       }
     },
-    [apiUrl]
+    [apiUrl],
   );
 
   return { uploadRecoveryBlob, checkRecoveryBlobExists, getIdTokenWithRetry, uploadPublicKey };
 }
-

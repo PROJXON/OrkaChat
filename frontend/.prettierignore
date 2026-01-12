@@ -1,0 +1,16 @@
+# Build outputs
+dist
+web-build
+
+# Expo / Amplify
+.expo
+.amplify
+amplify
+
+# Native
+android
+ios
+
+# Dependencies
+node_modules
+

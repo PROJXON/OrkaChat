@@ -1,9 +1,10 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+
 import { GroupMembersSectionList } from '../../../components/GroupMembersSectionList';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import type { MemberRow } from '../../../types/members';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import type { MemberRow } from '../../../types/members';
 
 type Props = {
   visible: boolean;
@@ -54,7 +55,9 @@ export function GroupMembersModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Members</Text>
+          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
+            Members
+          </Text>
 
           {meIsAdmin ? (
             <View style={{ marginTop: 10 }}>
@@ -66,7 +69,9 @@ export function GroupMembersModal({
                 onChangeText={onChangeAddMembersDraft}
                 placeholder="Add usernames (comma/space separated)"
                 placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                selectionColor={
+                  isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                }
                 cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 // Use a fully explicit style here (avoid theme/style collisions in Android modals).
                 style={{
@@ -76,8 +81,12 @@ export function GroupMembersModal({
                   borderWidth: 1,
                   borderRadius: 10,
                   // Off-color (so it stands out from the modal background).
-                  backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
-                  borderColor: isDark ? APP_COLORS.dark.border.default : APP_COLORS.light.border.subtle,
+                  backgroundColor: isDark
+                    ? APP_COLORS.dark.bg.header
+                    : APP_COLORS.light.bg.surface2,
+                  borderColor: isDark
+                    ? APP_COLORS.dark.border.default
+                    : APP_COLORS.light.border.subtle,
                   color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
                   fontSize: 16,
                 }}
@@ -87,11 +96,17 @@ export function GroupMembersModal({
               />
               <View style={[styles.summaryButtons, { justifyContent: 'flex-end' }]}>
                 <Pressable
-                  style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, busy ? { opacity: 0.6 } : null]}
+                  style={[
+                    styles.toolBtn,
+                    isDark ? styles.toolBtnDark : null,
+                    busy ? { opacity: 0.6 } : null,
+                  ]}
                   disabled={busy}
                   onPress={() => void Promise.resolve(onAddMembers())}
                 >
-                  <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Add</Text>
+                  <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                    Add
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -119,8 +134,13 @@ export function GroupMembersModal({
           </ScrollView>
 
           <View style={styles.summaryButtons}>
-            <Pressable style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]} onPress={onClose}>
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
+            <Pressable
+              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+              onPress={onClose}
+            >
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                Close
+              </Text>
             </Pressable>
           </View>
         </View>

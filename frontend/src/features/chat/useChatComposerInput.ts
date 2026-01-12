@@ -21,4 +21,3 @@ export function useChatComposerInput(opts: {
 
   return { onChangeInput };
 }
-

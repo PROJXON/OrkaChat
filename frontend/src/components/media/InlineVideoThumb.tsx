@@ -1,6 +1,7 @@
+import { useVideoPlayer, VideoView } from 'expo-video';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { VideoView, useVideoPlayer } from 'expo-video';
+
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 
 function tryInvokePlayerMethod(player: unknown, method: 'play' | 'pause'): void {
@@ -15,7 +16,13 @@ function tryInvokePlayerMethod(player: unknown, method: 'play' | 'pause'): void 
   }
 }
 
-export function InlineVideoThumb({ url, onPress }: { url: string; onPress: () => void }): React.JSX.Element {
+export function InlineVideoThumb({
+  url,
+  onPress,
+}: {
+  url: string;
+  onPress: () => void;
+}): React.JSX.Element {
   const player = useVideoPlayer(url, (p: unknown) => {
     // Ensure we don't auto-play in lists.
     tryInvokePlayerMethod(p, 'pause');
@@ -29,7 +36,12 @@ export function InlineVideoThumb({ url, onPress }: { url: string; onPress: () =>
   return (
     <Pressable onPress={onPress}>
       <View style={styles.videoThumbWrap}>
-        <VideoView player={player} style={styles.mediaThumb} contentFit="cover" nativeControls={false} />
+        <VideoView
+          player={player}
+          style={styles.mediaThumb}
+          contentFit="cover"
+          nativeControls={false}
+        />
         <View style={styles.videoPlayOverlay}>
           <Text style={styles.videoPlayText}>▶</Text>
         </View>
@@ -39,7 +51,12 @@ export function InlineVideoThumb({ url, onPress }: { url: string; onPress: () =>
 }
 
 const styles = StyleSheet.create({
-  mediaThumb: { width: '100%', height: '100%', borderRadius: 14, backgroundColor: withAlpha(PALETTE.black, 0.02) },
+  mediaThumb: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+    backgroundColor: withAlpha(PALETTE.black, 0.02),
+  },
   videoThumbWrap: { position: 'relative', overflow: 'hidden', borderRadius: 14 },
   videoPlayOverlay: {
     position: 'absolute',

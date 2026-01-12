@@ -1,10 +1,11 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { AvatarBubble } from '../../../components/AvatarBubble';
+
 import { AnimatedDots } from '../../../components/AnimatedDots';
-import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { AvatarBubble } from '../../../components/AvatarBubble';
 import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS } from '../../../theme/colors';
 
 type Props = {
@@ -40,7 +41,9 @@ export function ChatHeaderStatusRow({
   onPressCaret,
 }: Props) {
   const myProf = myUserId ? avatarProfileBySub[String(myUserId)] : undefined;
-  const myAvatarImageUri = myProf?.avatarImagePath ? avatarUrlByPath[String(myProf.avatarImagePath)] : undefined;
+  const myAvatarImageUri = myProf?.avatarImagePath
+    ? avatarUrlByPath[String(myProf.avatarImagePath)]
+    : undefined;
 
   return (
     <View style={styles.headerSubRow}>
@@ -56,7 +59,11 @@ export function ChatHeaderStatusRow({
           style={styles.welcomeAvatar}
         />
         <Text
-          style={[styles.welcomeText, isDark ? styles.welcomeTextDark : null, styles.welcomeTextFlex]}
+          style={[
+            styles.welcomeText,
+            isDark ? styles.welcomeTextDark : null,
+            styles.welcomeTextFlex,
+          ]}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
@@ -82,7 +89,10 @@ export function ChatHeaderStatusRow({
           ) : null}
           {showCaret ? (
             <Pressable
-              style={({ pressed }) => [styles.dmSettingsCaretBtn, pressed ? { opacity: 0.65 } : null]}
+              style={({ pressed }) => [
+                styles.dmSettingsCaretBtn,
+                pressed ? { opacity: 0.65 } : null,
+              ]}
               onPress={onPressCaret}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"

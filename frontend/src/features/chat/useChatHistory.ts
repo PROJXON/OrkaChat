@@ -1,10 +1,11 @@
-import * as React from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import * as React from 'react';
+
 import type { EncryptedChatPayloadV1 } from '../../types/crypto';
 import type { ReactionMap } from '../../types/reactions';
-import type { ChatMessage, EncryptedGroupPayloadV1 } from './types';
-import { buildHistoryMessagesFromApiItems } from './buildHistoryMessages';
 import { appendUniqueById, dedupeById } from '../../utils/listMerge';
+import { buildHistoryMessagesFromApiItems } from './buildHistoryMessages';
+import type { ChatMessage, EncryptedGroupPayloadV1 } from './types';
 
 export function useChatHistory(opts: {
   apiUrl: string | null | undefined;
@@ -24,7 +25,8 @@ export function useChatHistory(opts: {
   historyLoading: boolean;
   loadOlderHistory: () => void;
 } {
-  const PAGE_SIZE = typeof opts.pageSize === 'number' && Number.isFinite(opts.pageSize) ? opts.pageSize : 50;
+  const PAGE_SIZE =
+    typeof opts.pageSize === 'number' && Number.isFinite(opts.pageSize) ? opts.pageSize : 50;
   const apiUrl = opts.apiUrl;
   const activeConversationId = opts.activeConversationId;
   const hiddenMessageIds = opts.hiddenMessageIds;
@@ -57,10 +59,15 @@ export function useChatHistory(opts: {
           `conversationId=${encodeURIComponent(activeConversationId)}` +
           `&limit=${PAGE_SIZE}` +
           `&cursor=1` +
-          (typeof before === 'number' && Number.isFinite(before) && before > 0 ? `&before=${encodeURIComponent(String(before))}` : '');
+          (typeof before === 'number' && Number.isFinite(before) && before > 0
+            ? `&before=${encodeURIComponent(String(before))}`
+            : '');
         const url = `${base}/messages?${qs}`;
 
-        const res = await fetch(url, idToken ? { headers: { Authorization: `Bearer ${idToken}` } } : undefined);
+        const res = await fetch(
+          url,
+          idToken ? { headers: { Authorization: `Bearer ${idToken}` } } : undefined,
+        );
         if (!res.ok) {
           const text = await res.text().catch(() => '');
           console.warn('fetchHistory failed', res.status, text);
@@ -72,7 +79,9 @@ export function useChatHistory(opts: {
         const rawItems = Array.isArray(json) ? json : Array.isArray(json?.items) ? json.items : [];
         const hasMoreFromServer = typeof json?.hasMore === 'boolean' ? json.hasMore : null;
         const nextCursorFromServer =
-          typeof json?.nextCursor === 'number' && Number.isFinite(json.nextCursor) ? json.nextCursor : null;
+          typeof json?.nextCursor === 'number' && Number.isFinite(json.nextCursor)
+            ? json.nextCursor
+            : null;
 
         const normalized: ChatMessage[] = buildHistoryMessagesFromApiItems({
           rawItems,
@@ -105,11 +114,15 @@ export function useChatHistory(opts: {
           typeof hasMoreFromServer === 'boolean'
             ? hasMoreFromServer
             : Array.isArray(rawItems)
-              ? rawItems.length >= PAGE_SIZE && typeof nextCursor === 'number' && Number.isFinite(nextCursor)
+              ? rawItems.length >= PAGE_SIZE &&
+                typeof nextCursor === 'number' &&
+                Number.isFinite(nextCursor)
               : false;
 
         setHistoryHasMore(!!hasMore);
-        setHistoryCursor(typeof nextCursor === 'number' && Number.isFinite(nextCursor) ? nextCursor : null);
+        setHistoryCursor(
+          typeof nextCursor === 'number' && Number.isFinite(nextCursor) ? nextCursor : null,
+        );
       } catch {
         // ignore fetch errors; WS will still populate
       } finally {
@@ -150,4 +163,3 @@ export function useChatHistory(opts: {
 
   return { historyCursor, historyHasMore, historyLoading, loadOlderHistory };
 }
-

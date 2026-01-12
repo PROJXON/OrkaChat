@@ -1,12 +1,24 @@
 import React from 'react';
-import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import {
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+
 import type { CdnUrlCacheApi } from '../../../hooks/useCdnUrlCache';
-import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
-import { previewLabelForMedia } from '../../../utils/mediaKinds';
-import type { MediaItem } from '../../../types/media';
-import type { ChatMessage } from '../types';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import type { MediaItem } from '../../../types/media';
+import { previewLabelForMedia } from '../../../utils/mediaKinds';
+import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
+import type { ChatMessage } from '../types';
 
 type ReportNotice = { type: 'success' | 'error'; message: string };
 
@@ -110,7 +122,8 @@ export function ReportModal({
       // Only attempt to parse plaintext/global messages for thumbs; encrypted attachments are .enc and not CDN-previewable here.
       const env = !t.encrypted && !t.groupEncrypted ? parseChatEnvelope(rawText) : null;
       const envMediaList: MediaItem[] = env ? normalizeChatMediaList(env.media) : [];
-      const fallbackList: MediaItem[] = Array.isArray(t.mediaList) && t.mediaList.length ? t.mediaList : t.media ? [t.media] : [];
+      const fallbackList: MediaItem[] =
+        Array.isArray(t.mediaList) && t.mediaList.length ? t.mediaList : t.media ? [t.media] : [];
       const previewMediaList: MediaItem[] = envMediaList.length ? envMediaList : fallbackList;
       const media: MediaItem | undefined = previewMediaList[0];
       const thumbPath = String(media?.thumbPath || media?.path || '').trim();
@@ -132,14 +145,17 @@ export function ReportModal({
           <View style={{ flexGrow: 1, flexShrink: 1, minHeight: 0 }}>
             <ScrollView style={styles.summaryScroll} contentContainerStyle={{ paddingBottom: 8 }}>
               <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-                Reports are sent to the developer for review. Add an optional note to help us understand the issue.
+                Reports are sent to the developer for review. Add an optional note to help us
+                understand the issue.
               </Text>
 
               {notice ? (
                 <View
                   style={[
                     styles.reportNoticeBox,
-                    notice.type === 'success' ? styles.reportNoticeBoxSuccess : styles.reportNoticeBoxError,
+                    notice.type === 'success'
+                      ? styles.reportNoticeBoxSuccess
+                      : styles.reportNoticeBoxError,
                     isDark ? styles.reportNoticeBoxDark : null,
                     notice.type === 'success'
                       ? isDark
@@ -153,7 +169,9 @@ export function ReportModal({
                   <Text
                     style={[
                       styles.reportNoticeText,
-                      notice.type === 'success' ? styles.reportNoticeTextSuccess : styles.reportNoticeTextError,
+                      notice.type === 'success'
+                        ? styles.reportNoticeTextSuccess
+                        : styles.reportNoticeTextError,
                       isDark ? styles.reportNoticeTextDark : null,
                       notice.type === 'success'
                         ? isDark
@@ -170,7 +188,12 @@ export function ReportModal({
               ) : null}
 
               <View style={styles.reportTargetSwitchWrap}>
-                <Text style={[styles.reportTargetToggleLabel, isDark ? styles.reportTargetToggleLabelDark : null]}>
+                <Text
+                  style={[
+                    styles.reportTargetToggleLabel,
+                    isDark ? styles.reportTargetToggleLabelDark : null,
+                  ]}
+                >
                   Message
                 </Text>
                 {Platform.OS === 'web' ? (
@@ -186,11 +209,19 @@ export function ReportModal({
                     value={reportKind === 'user'}
                     disabled={submitting}
                     onValueChange={onToggleKind}
-                    trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                    trackColor={{
+                      false: APP_COLORS.light.border.default,
+                      true: APP_COLORS.light.border.default,
+                    }}
                     thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
                   />
                 )}
-                <Text style={[styles.reportTargetToggleLabel, isDark ? styles.reportTargetToggleLabelDark : null]}>
+                <Text
+                  style={[
+                    styles.reportTargetToggleLabel,
+                    isDark ? styles.reportTargetToggleLabelDark : null,
+                  ]}
+                >
                   User
                 </Text>
               </View>
@@ -222,7 +253,11 @@ export function ReportModal({
                         style={[
                           styles.reportChipText,
                           isDark ? styles.reportChipTextDark : null,
-                          active ? (isDark ? styles.reportChipTextActiveDark : styles.reportChipTextActive) : null,
+                          active
+                            ? isDark
+                              ? styles.reportChipTextActiveDark
+                              : styles.reportChipTextActive
+                            : null,
                         ]}
                       >
                         {c.label}
@@ -233,22 +268,39 @@ export function ReportModal({
               </View>
 
               {reportKind === 'message' ? (
-                <View style={[styles.reportPreviewBox, isDark ? styles.reportPreviewBoxDark : null]}>
-                  <Text style={[styles.reportPreviewLabel, isDark ? styles.reportPreviewLabelDark : null]}>
+                <View
+                  style={[styles.reportPreviewBox, isDark ? styles.reportPreviewBoxDark : null]}
+                >
+                  <Text
+                    style={[
+                      styles.reportPreviewLabel,
+                      isDark ? styles.reportPreviewLabelDark : null,
+                    ]}
+                  >
                     Message Preview
                   </Text>
                   {(() => {
                     const t = reportTargetMessage;
                     if (!t) {
                       return (
-                        <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
+                        <Text
+                          style={[
+                            styles.reportPreviewText,
+                            isDark ? styles.reportPreviewTextDark : null,
+                          ]}
+                        >
                           (no message selected)
                         </Text>
                       );
                     }
                     if (t.deletedAt) {
                       return (
-                        <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
+                        <Text
+                          style={[
+                            styles.reportPreviewText,
+                            isDark ? styles.reportPreviewTextDark : null,
+                          ]}
+                        >
                           (deleted)
                         </Text>
                       );
@@ -263,16 +315,25 @@ export function ReportModal({
 
                     // Global/channel media messages often store a JSON chat envelope in `text`.
                     // If we render that raw string, the report preview becomes unreadable.
-                    const env = !t.encrypted && !t.groupEncrypted ? parseChatEnvelope(rawText) : null;
+                    const env =
+                      !t.encrypted && !t.groupEncrypted ? parseChatEnvelope(rawText) : null;
                     const envMediaList: MediaItem[] = env ? normalizeChatMediaList(env.media) : [];
                     const fallbackList =
-                      Array.isArray(t.mediaList) && t.mediaList.length ? t.mediaList : t.media ? [t.media] : [];
-                    const previewMediaList: MediaItem[] = envMediaList.length ? envMediaList : fallbackList;
+                      Array.isArray(t.mediaList) && t.mediaList.length
+                        ? t.mediaList
+                        : t.media
+                          ? [t.media]
+                          : [];
+                    const previewMediaList: MediaItem[] = envMediaList.length
+                      ? envMediaList
+                      : fallbackList;
                     const media: MediaItem | undefined = previewMediaList[0];
                     const mediaCount = previewMediaList.length;
                     const mediaFileNames = (() => {
                       const names = previewMediaList
-                        .map((m) => (typeof m.fileName === 'string' ? String(m.fileName).trim() : ''))
+                        .map((m) =>
+                          typeof m.fileName === 'string' ? String(m.fileName).trim() : '',
+                        )
                         .filter(Boolean);
                       // Keep order, de-dupe.
                       const seen = new Set<string>();
@@ -295,17 +356,27 @@ export function ReportModal({
                     const mediaLabel = (() => {
                       return previewLabelForMedia({
                         kind: media?.kind ?? 'file',
-                        contentType: typeof media?.contentType === 'string' ? media.contentType : undefined,
+                        contentType:
+                          typeof media?.contentType === 'string' ? media.contentType : undefined,
                       });
                     })();
                     const mediaMetaLabel =
-                      mediaCount > 1 ? `${mediaLabel} · ${mediaCount} attachments` : mediaCount === 1 ? mediaLabel : '';
+                      mediaCount > 1
+                        ? `${mediaLabel} · ${mediaCount} attachments`
+                        : mediaCount === 1
+                          ? mediaLabel
+                          : '';
 
                     const text = (() => {
-                      const msgText = env?.text && typeof env.text === 'string' ? env.text.trim() : '';
+                      const msgText =
+                        env?.text && typeof env.text === 'string' ? env.text.trim() : '';
                       if (msgText) return msgText;
                       // Fall back to the raw text ONLY if it doesn't look like a chat envelope.
-                      if (rawText.startsWith('{') && rawText.includes('"type"') && rawText.includes('"chat"'))
+                      if (
+                        rawText.startsWith('{') &&
+                        rawText.includes('"type"') &&
+                        rawText.includes('"chat"')
+                      )
                         return '';
                       return rawText;
                     })();
@@ -323,7 +394,9 @@ export function ReportModal({
                               width: 56,
                               height: 56,
                               borderRadius: 10,
-                              backgroundColor: isDark ? APP_COLORS.dark.bg.header : PALETTE.paper240,
+                              backgroundColor: isDark
+                                ? APP_COLORS.dark.bg.header
+                                : PALETTE.paper240,
                             }}
                             resizeMode="cover"
                           />
@@ -342,7 +415,10 @@ export function ReportModal({
                             ) : null}
                             {text ? (
                               <Text
-                                style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                ]}
                                 numberOfLines={3}
                               >
                                 {text.slice(0, 200)}
@@ -369,7 +445,12 @@ export function ReportModal({
                       const line1 =
                         `${mediaMetaLabel || ''}${text ? `${mediaMetaLabel ? ': ' : ''}${text.slice(0, 200)}` : ''}${isEnc ? ' (encrypted attachment)' : ''}`.trim();
                       return (
-                        <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
+                        <Text
+                          style={[
+                            styles.reportPreviewText,
+                            isDark ? styles.reportPreviewTextDark : null,
+                          ]}
+                        >
                           {line1 || (isEnc ? '(encrypted attachment)' : '')}
                           {mediaFileNamesLines ? `\n${mediaFileNamesLines}` : ''}
                         </Text>
@@ -377,18 +458,32 @@ export function ReportModal({
                     }
 
                     return (
-                      <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
+                      <Text
+                        style={[
+                          styles.reportPreviewText,
+                          isDark ? styles.reportPreviewTextDark : null,
+                        ]}
+                      >
                         {text ? text.slice(0, 200) : '(no text)'}
                       </Text>
                     );
                   })()}
                 </View>
               ) : (
-                <View style={[styles.reportPreviewBox, isDark ? styles.reportPreviewBoxDark : null]}>
-                  <Text style={[styles.reportPreviewLabel, isDark ? styles.reportPreviewLabelDark : null]}>
+                <View
+                  style={[styles.reportPreviewBox, isDark ? styles.reportPreviewBoxDark : null]}
+                >
+                  <Text
+                    style={[
+                      styles.reportPreviewLabel,
+                      isDark ? styles.reportPreviewLabelDark : null,
+                    ]}
+                  >
                     Reporting User
                   </Text>
-                  <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
+                  <Text
+                    style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}
+                  >
                     {(() => {
                       const label = String(reportTargetUserLabel || '').trim();
                       if (label) return label.slice(0, 120);
@@ -422,14 +517,18 @@ export function ReportModal({
               disabled={submitting}
               onPress={onSubmit}
             >
-              <Text style={[styles.reportBtnDangerText]}>{submitting ? 'Reporting…' : 'Report'}</Text>
+              <Text style={[styles.reportBtnDangerText]}>
+                {submitting ? 'Reporting…' : 'Report'}
+              </Text>
             </Pressable>
             <Pressable
               style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
               disabled={submitting}
               onPress={onClose}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                Cancel
+              </Text>
             </Pressable>
           </View>
         </View>

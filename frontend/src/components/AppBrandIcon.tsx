@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 // NOTE:
 // These images have square backgrounds. We intentionally "zoom + clip" them inside a slot
@@ -52,7 +53,11 @@ export function AppBrandIcon({
   const resolvedRounded = typeof rounded === 'boolean' ? rounded : true;
 
   const resolvedZoom =
-    typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0 ? zoom : isDark ? zoomDark : zoomLight;
+    typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0
+      ? zoom
+      : isDark
+        ? zoomDark
+        : zoomLight;
 
   const resolvedContainZoom =
     typeof containZoom === 'number' && Number.isFinite(containZoom) && containZoom > 0

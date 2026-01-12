@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 export function useHiddenMessageIds(storageKey: string): {
   hiddenMessageIds: Record<string, true>;
@@ -62,6 +62,8 @@ export function useHiddenMessageIds(storageKey: string): {
     [key],
   );
 
-  return React.useMemo(() => ({ hiddenMessageIds, hideMessageId, reset }), [hiddenMessageIds, hideMessageId, reset]);
+  return React.useMemo(
+    () => ({ hiddenMessageIds, hideMessageId, reset }),
+    [hiddenMessageIds, hideMessageId, reset],
+  );
 }
-

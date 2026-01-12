@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import type { AmplifyUiUser } from '../../../types/amplifyUi';
 
 export function useDmUnreadsAndPush({
@@ -66,7 +67,9 @@ export function useDmUnreadsAndPush({
   React.useEffect(() => {
     type NotificationSubscription = { remove: () => void };
     type ExpoNotificationsLike = {
-      addNotificationResponseReceivedListener?: (cb: (resp: unknown) => void) => NotificationSubscription;
+      addNotificationResponseReceivedListener?: (
+        cb: (resp: unknown) => void,
+      ) => NotificationSubscription;
     };
     let sub: NotificationSubscription | null = null;
     try {
@@ -74,11 +77,24 @@ export function useDmUnreadsAndPush({
       const addListener = NotificationsModule?.addNotificationResponseReceivedListener ?? null;
       if (!addListener) return;
       sub = addListener((resp: unknown) => {
-        const rec = typeof resp === 'object' && resp != null ? (resp as Record<string, unknown>) : {};
-        const notification = typeof rec.notification === 'object' && rec.notification != null ? (rec.notification as Record<string, unknown>) : {};
-        const request = typeof notification.request === 'object' && notification.request != null ? (notification.request as Record<string, unknown>) : {};
-        const content = typeof request.content === 'object' && request.content != null ? (request.content as Record<string, unknown>) : {};
-        const data = typeof content.data === 'object' && content.data != null ? (content.data as Record<string, unknown>) : {};
+        const rec =
+          typeof resp === 'object' && resp != null ? (resp as Record<string, unknown>) : {};
+        const notification =
+          typeof rec.notification === 'object' && rec.notification != null
+            ? (rec.notification as Record<string, unknown>)
+            : {};
+        const request =
+          typeof notification.request === 'object' && notification.request != null
+            ? (notification.request as Record<string, unknown>)
+            : {};
+        const content =
+          typeof request.content === 'object' && request.content != null
+            ? (request.content as Record<string, unknown>)
+            : {};
+        const data =
+          typeof content.data === 'object' && content.data != null
+            ? (content.data as Record<string, unknown>)
+            : {};
         const kind = typeof data.kind === 'string' ? data.kind : '';
         const convId = typeof data.conversationId === 'string' ? data.conversationId : '';
         const senderName = typeof data.senderDisplayName === 'string' ? data.senderDisplayName : '';
@@ -90,7 +106,11 @@ export function useDmUnreadsAndPush({
           setPeer(senderName || (kind === 'group' ? 'Group DM' : 'Direct Message'));
           return;
         }
-        if ((kind === 'channelMention' || kind === 'channelReply') && convId && convId.startsWith('ch#')) {
+        if (
+          (kind === 'channelMention' || kind === 'channelReply') &&
+          convId &&
+          convId.startsWith('ch#')
+        ) {
           const channelName = typeof data.channelName === 'string' ? data.channelName : '';
           const channelId = convId.slice('ch#'.length).trim();
           if (channelId && channelName.trim()) {
@@ -135,7 +155,7 @@ export function useDmUnreadsAndPush({
         upsertDmThread(newConversationId, sender || 'Direct Message', Date.now());
       }
     },
-    [conversationId, setUnreadDmMap, upsertDmThread]
+    [conversationId, setUnreadDmMap, upsertDmThread],
   );
 
   React.useEffect(() => {
@@ -158,4 +178,3 @@ export function useDmUnreadsAndPush({
 
   return { hasUnreadDms, unreadEntries, handleNewDmNotification };
 }
-

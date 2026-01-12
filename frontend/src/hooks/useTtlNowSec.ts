@@ -3,9 +3,15 @@ import * as React from 'react';
 // DM-only ticking clock for TTL countdown labels:
 // - update every minute normally
 // - switch to every second when any message is within the last minute
-export function useTtlNowSec(opts: { enabled: boolean; messages: Array<{ expiresAt?: number | null | undefined }> }): number {
+export function useTtlNowSec(opts: {
+  enabled: boolean;
+  messages: Array<{ expiresAt?: number | null | undefined }>;
+}): number {
   const enabled = !!opts.enabled;
-  const messages = React.useMemo(() => (Array.isArray(opts.messages) ? opts.messages : []), [opts.messages]);
+  const messages = React.useMemo(
+    () => (Array.isArray(opts.messages) ? opts.messages : []),
+    [opts.messages],
+  );
   const [nowSec, setNowSec] = React.useState<number>(() => Math.floor(Date.now() / 1000));
 
   React.useEffect(() => {
@@ -40,4 +46,3 @@ export function useTtlNowSec(opts: { enabled: boolean; messages: Array<{ expires
 
   return nowSec;
 }
-

@@ -61,7 +61,9 @@ export function applyOptimisticSendForTextOnly(opts: {
     localStatus: 'sending',
   };
 
-  opts.setMessages((prev) => (prev.some((m) => m.id === optimisticMsg.id) ? prev : [optimisticMsg, ...prev]));
+  opts.setMessages((prev) =>
+    prev.some((m) => m.id === optimisticMsg.id) ? prev : [optimisticMsg, ...prev],
+  );
 
   // If we don't see our own echo within a short window, mark as failed.
   // (We don't show "sending…" for text; we only show a failure state.)
@@ -70,10 +72,11 @@ export function applyOptimisticSendForTextOnly(opts: {
   opts.sendTimeoutRef.current[opts.clientMessageId] = setTimeout(() => {
     opts.setMessages((prev) =>
       prev.map((m) =>
-        m.id === opts.clientMessageId && m.localStatus === 'sending' ? { ...m, localStatus: 'failed' } : m,
+        m.id === opts.clientMessageId && m.localStatus === 'sending'
+          ? { ...m, localStatus: 'failed' }
+          : m,
       ),
     );
     delete opts.sendTimeoutRef.current[opts.clientMessageId];
   }, timeoutMs);
 }
-

@@ -8,7 +8,10 @@ export function useGroupReadOnlyRefreshTicker(opts: {
 }): void {
   const enabled = !!opts.enabled;
   const meStatus = typeof opts.meStatus === 'string' ? opts.meStatus : null;
-  const tickMs = typeof opts.tickMs === 'number' && Number.isFinite(opts.tickMs) ? Math.max(250, Math.floor(opts.tickMs)) : 4000;
+  const tickMs =
+    typeof opts.tickMs === 'number' && Number.isFinite(opts.tickMs)
+      ? Math.max(250, Math.floor(opts.tickMs))
+      : 4000;
   const setGroupRefreshNonce = opts.setGroupRefreshNonce;
 
   // If I'm currently read-only in a group, periodically refresh group meta so that
@@ -44,4 +47,3 @@ export function useRefreshGroupRosterOnMembersModalOpen(opts: {
     setGroupRefreshNonce((n) => n + 1);
   }, [groupMembersOpen, enabled, lastGroupRosterRefreshAtRef, setGroupRefreshNonce]);
 }
-

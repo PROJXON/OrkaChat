@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { toCdnUrl } from '../utils/cdn';
 
 export type CdnUrlCacheApi = {
@@ -87,5 +88,8 @@ export function useCdnUrlCache(baseUrl: string | undefined | null): CdnUrlCacheA
 
   const reset = React.useCallback(() => setUrlByPath({}), []);
 
-  return React.useMemo(() => ({ urlByPath, get, resolve, ensure, reset }), [ensure, get, reset, resolve, urlByPath]);
+  return React.useMemo(
+    () => ({ urlByPath, get, resolve, ensure, reset }),
+    [ensure, get, reset, resolve, urlByPath],
+  );
 }

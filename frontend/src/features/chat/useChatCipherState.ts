@@ -5,4 +5,3 @@ export function useChatCipherState() {
   const [cipherText, setCipherText] = React.useState<string>('');
   return { cipherOpen, setCipherOpen, cipherText, setCipherText };
 }
-

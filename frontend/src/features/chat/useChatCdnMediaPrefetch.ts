@@ -1,6 +1,7 @@
 import * as React from 'react';
-import type { ChatMessage } from './types';
+
 import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
+import type { ChatMessage } from './types';
 
 /**
  * Prefetch unsigned/public CDN URLs for channel/global media paths.
@@ -20,7 +21,13 @@ export function useChatCdnMediaPrefetch(opts: {
 
     for (const m of messages) {
       const env = !m.encrypted ? parseChatEnvelope(m.rawText ?? m.text) : null;
-      const list = env ? normalizeChatMediaList(env.media) : m.mediaList ? m.mediaList : m.media ? [m.media] : [];
+      const list = env
+        ? normalizeChatMediaList(env.media)
+        : m.mediaList
+          ? m.mediaList
+          : m.media
+            ? [m.media]
+            : [];
       for (const media of list) {
         const paths: string[] = [];
         if (media?.path) paths.push(media.path);
@@ -37,4 +44,3 @@ export function useChatCdnMediaPrefetch(opts: {
     ensure(needed);
   }, [enabled, messages, mediaUrlByPath, ensure]);
 }
-

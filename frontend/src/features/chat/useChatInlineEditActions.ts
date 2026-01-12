@@ -1,10 +1,16 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
 
-import type { MediaItem } from '../../types/media';
 import type { EncryptedChatPayloadV1 } from '../../types/crypto';
+import type { MediaItem } from '../../types/media';
 import type { PendingMediaItem } from './attachments';
-import type { ChatEnvelope, ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
+import type {
+  ChatEnvelope,
+  ChatMessage,
+  DmMediaEnvelope,
+  DmMediaEnvelopeV1,
+  GroupMediaEnvelope,
+} from './types';
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
@@ -48,7 +54,11 @@ export function useChatInlineEditActions(opts: {
   // crypto
   myPrivateKey: string | null | undefined;
   peerPublicKey: string | null | undefined;
-  encryptChatMessageV1: (plaintext: string, myPrivateKey: string, peerPublicKey: string) => EncryptedChatPayloadV1;
+  encryptChatMessageV1: (
+    plaintext: string,
+    myPrivateKey: string,
+    peerPublicKey: string,
+  ) => EncryptedChatPayloadV1;
   parseEncrypted: (s: string) => EncryptedChatPayloadV1 | null;
 
   // parsing/normalizing (passed in to avoid deep imports)
@@ -149,7 +159,16 @@ export function useChatInlineEditActions(opts: {
       setInlineEditDraft(seed);
       closeMessageActions();
     },
-    [closeMessageActions, isDm, openInfo, parseChatEnvelope, parseDmMediaEnvelope, parseGroupMediaEnvelope, setInlineEditDraft, setInlineEditTargetId],
+    [
+      closeMessageActions,
+      isDm,
+      openInfo,
+      parseChatEnvelope,
+      parseDmMediaEnvelope,
+      parseGroupMediaEnvelope,
+      setInlineEditDraft,
+      setInlineEditTargetId,
+    ],
   );
 
   const commitInlineEdit = React.useCallback(async () => {
@@ -199,13 +218,16 @@ export function useChatInlineEditActions(opts: {
       const existingPlain = String(target.decryptedText || '');
       const existingDmEnv = parseDmMediaEnvelope(existingPlain);
 
-      if (inlineEditAttachmentMode === 'replace' && pendingMediaRef.current && pendingMediaRef.current.length) {
+      if (
+        inlineEditAttachmentMode === 'replace' &&
+        pendingMediaRef.current &&
+        pendingMediaRef.current.length
+      ) {
         // Replace attachment by uploading new encrypted media and updating caption.
         setInlineEditUploading(true);
         try {
           const envs: DmMediaEnvelopeV1[] = [];
           for (const item of pendingMediaRef.current) {
-             
             const dmEnv = await uploadPendingMediaDmEncrypted(
               item,
               activeConversationId,
@@ -229,7 +251,10 @@ export function useChatInlineEditActions(opts: {
           setInlineEditUploading(false);
         }
       } else if (inlineEditAttachmentMode === 'keep' && existingDmEnv) {
-        plaintextToEncrypt = JSON.stringify({ ...existingDmEnv, caption: nextCaption || undefined });
+        plaintextToEncrypt = JSON.stringify({
+          ...existingDmEnv,
+          caption: nextCaption || undefined,
+        });
       }
 
       dmPlaintextSent = plaintextToEncrypt;
@@ -246,7 +271,9 @@ export function useChatInlineEditActions(opts: {
           size: it.media.size,
         }));
         dmMediaSent = dmMediaListSent[0];
-        dmMediaPathsSent = dmItems.flatMap((it) => [it.media.path, it.media.thumbPath].filter(Boolean)).map(String);
+        dmMediaPathsSent = dmItems
+          .flatMap((it) => [it.media.path, it.media.thumbPath].filter(Boolean))
+          .map(String);
       }
 
       const enc = encryptChatMessageV1(plaintextToEncrypt, myPrivateKey, peerPublicKey);
@@ -259,12 +286,15 @@ export function useChatInlineEditActions(opts: {
       const raw = String(target.rawText ?? target.text ?? '');
       const env = parseChatEnvelope(raw);
 
-      if (inlineEditAttachmentMode === 'replace' && pendingMediaRef.current && pendingMediaRef.current.length) {
+      if (
+        inlineEditAttachmentMode === 'replace' &&
+        pendingMediaRef.current &&
+        pendingMediaRef.current.length
+      ) {
         setInlineEditUploading(true);
         try {
           const uploadedItems: MediaItem[] = [];
           for (const item of pendingMediaRef.current) {
-             
             const uploaded = await uploadPendingMedia(item);
             uploadedItems.push(uploaded);
           }
@@ -277,7 +307,11 @@ export function useChatInlineEditActions(opts: {
           setInlineEditUploading(false);
         }
       } else if (inlineEditAttachmentMode === 'keep' && env?.media) {
-        outgoingText = JSON.stringify({ type: 'chat', text: nextCaption || undefined, media: env.media });
+        outgoingText = JSON.stringify({
+          type: 'chat',
+          text: nextCaption || undefined,
+          media: env.media,
+        });
       }
     }
 
@@ -366,4 +400,3 @@ export function useChatInlineEditActions(opts: {
 
   return { beginInlineEdit, cancelInlineEdit, commitInlineEdit };
 }
-

@@ -32,7 +32,11 @@ export function formatChatActivityDate(epochMs: number, nowMs: number = Date.now
 
   const includeYear = diffDays >= 365;
   if (includeYear) {
-    const { month, day, year } = formatParts(d, { month: 'short', day: 'numeric', year: 'numeric' });
+    const { month, day, year } = formatParts(d, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
     return [month, day, year].filter(Boolean).join(' ');
   }
 

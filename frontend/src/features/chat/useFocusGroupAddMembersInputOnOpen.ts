@@ -25,4 +25,3 @@ export function useFocusGroupAddMembersInputOnOpen(opts: {
     return () => clearTimeout(t);
   }, [delayMs, enabled, groupMembersOpen, inputRef, meIsAdmin]);
 }
-

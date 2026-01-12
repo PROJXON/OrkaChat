@@ -1,5 +1,5 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
 
 type GroupUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
 
@@ -16,8 +16,15 @@ export function useGroupMembersModalActions(opts: {
   activeConversationId: string;
   setGroupMembersOpen: (v: boolean) => void;
 }) {
-  const { groupAddMembersDraft, setGroupAddMembersDraft, groupUpdate, uiConfirm, wsRef, activeConversationId, setGroupMembersOpen } =
-    opts;
+  const {
+    groupAddMembersDraft,
+    setGroupAddMembersDraft,
+    groupUpdate,
+    uiConfirm,
+    wsRef,
+    activeConversationId,
+    setGroupMembersOpen,
+  } = opts;
 
   const onAddMembers = React.useCallback(async () => {
     const raw = groupAddMembersDraft.trim();
@@ -84,4 +91,3 @@ export function useGroupMembersModalActions(opts: {
 
   return { onAddMembers, onBan, onClose };
 }
-

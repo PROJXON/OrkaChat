@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 export function useLastChannelConversation({
   conversationId,
@@ -25,7 +25,9 @@ export function useLastChannelConversation({
         if (v === 'global' || v.startsWith('ch#')) {
           lastChannelConversationIdRef.current = v;
           // Only auto-switch if we're not already in a DM.
-          setConversationId((prev) => (prev && (prev.startsWith('dm#') || prev.startsWith('gdm#')) ? prev : v));
+          setConversationId((prev) =>
+            prev && (prev.startsWith('dm#') || prev.startsWith('gdm#')) ? prev : v,
+          );
         }
       } catch {
         // ignore
@@ -55,4 +57,3 @@ export function useLastChannelConversation({
 
   return { channelRestoreDone, lastChannelConversationIdRef };
 }
-

@@ -18,4 +18,3 @@ export function usePruneExpiredMessages<T extends { expiresAt?: number | null | 
     return () => clearInterval(interval);
   }, [enabled, intervalMs, setMessages]);
 }
-

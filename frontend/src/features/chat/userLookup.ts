@@ -13,7 +13,10 @@ export async function fetchDisplayNamesBySub(opts: {
 
   if (!apiUrl || !idToken || !subsRaw.length || limit <= 0) return {};
 
-  const subs = subsRaw.map((s) => String(s || '').trim()).filter(Boolean).slice(0, limit);
+  const subs = subsRaw
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .slice(0, limit);
   if (!subs.length) return {};
 
   const out: Record<string, string> = {};
@@ -38,4 +41,3 @@ export async function fetchDisplayNamesBySub(opts: {
 
   return out;
 }
-

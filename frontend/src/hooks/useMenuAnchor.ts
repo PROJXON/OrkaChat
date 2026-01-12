@@ -15,23 +15,19 @@ export function useMenuAnchor<TRef = unknown>(): {
   const ref = React.useRef<TRef | null>(null);
   const [anchor, setAnchor] = React.useState<MenuAnchorRect | null>(null);
 
-  const openFromRef = React.useCallback(
-    (opts: { enabled: boolean; onOpen: () => void }) => {
-      const { enabled, onOpen } = opts;
-      const node = ref.current as MeasurableNode | null;
-      if (enabled && node && typeof node.measureInWindow === 'function') {
-        node.measureInWindow((x: number, y: number, w: number, h: number) => {
-          setAnchor({ x, y, width: w, height: h });
-          onOpen();
-        });
-        return;
-      }
-      setAnchor(null);
-      onOpen();
-    },
-    [],
-  );
+  const openFromRef = React.useCallback((opts: { enabled: boolean; onOpen: () => void }) => {
+    const { enabled, onOpen } = opts;
+    const node = ref.current as MeasurableNode | null;
+    if (enabled && node && typeof node.measureInWindow === 'function') {
+      node.measureInWindow((x: number, y: number, w: number, h: number) => {
+        setAnchor({ x, y, width: w, height: h });
+        onOpen();
+      });
+      return;
+    }
+    setAnchor(null);
+    onOpen();
+  }, []);
 
   return { ref, anchor, setAnchor, openFromRef };
 }
-

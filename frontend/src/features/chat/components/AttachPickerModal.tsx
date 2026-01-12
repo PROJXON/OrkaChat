@@ -28,7 +28,9 @@ export function AttachPickerModal({
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Attach</Text>
-          <Text style={[styles.summaryLoadingText, isDark ? styles.summaryTextDark : null]}>Choose a source</Text>
+          <Text style={[styles.summaryLoadingText, isDark ? styles.summaryTextDark : null]}>
+            Choose a source
+          </Text>
 
           <View style={{ gap: 10, marginTop: 12 }}>
             <Pressable
@@ -36,7 +38,13 @@ export function AttachPickerModal({
               style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, styles.attachOptionBtn]}
               onPress={onPickLibrary}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null, styles.attachOptionText]}>
+              <Text
+                style={[
+                  styles.toolBtnText,
+                  isDark ? styles.toolBtnTextDark : null,
+                  styles.attachOptionText,
+                ]}
+              >
                 Photos / Videos
               </Text>
             </Pressable>
@@ -46,7 +54,13 @@ export function AttachPickerModal({
               style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, styles.attachOptionBtn]}
               onPress={onPickCamera}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null, styles.attachOptionText]}>
+              <Text
+                style={[
+                  styles.toolBtnText,
+                  isDark ? styles.toolBtnTextDark : null,
+                  styles.attachOptionText,
+                ]}
+              >
                 Camera
               </Text>
             </Pressable>
@@ -56,7 +70,13 @@ export function AttachPickerModal({
               style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, styles.attachOptionBtn]}
               onPress={onPickFile}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null, styles.attachOptionText]}>
+              <Text
+                style={[
+                  styles.toolBtnText,
+                  isDark ? styles.toolBtnTextDark : null,
+                  styles.attachOptionText,
+                ]}
+              >
                 File (GIF, etc.)
               </Text>
             </Pressable>
@@ -68,7 +88,13 @@ export function AttachPickerModal({
               style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, styles.attachOptionBtn]}
               onPress={onClose}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null, styles.attachOptionText]}>
+              <Text
+                style={[
+                  styles.toolBtnText,
+                  isDark ? styles.toolBtnTextDark : null,
+                  styles.attachOptionText,
+                ]}
+              >
                 Close
               </Text>
             </Pressable>

@@ -26,4 +26,3 @@ export function useResolveCdnPathUrl(cdn: CdnLike): {
 
   return React.useMemo(() => ({ resolvePathUrl }), [resolvePathUrl]);
 }
-

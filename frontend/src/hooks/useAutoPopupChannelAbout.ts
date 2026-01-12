@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import { getChannelAboutSeenVersion } from '../utils/channelAboutSeen';
 
 export function useAutoPopupChannelAbout({
@@ -23,7 +24,8 @@ export function useAutoPopupChannelAbout({
       const cid = String(channelId || '').trim();
       if (!cid) return;
       const text = typeof aboutText === 'string' ? aboutText : '';
-      const ver = typeof aboutVersion === 'number' && Number.isFinite(aboutVersion) ? aboutVersion : 0;
+      const ver =
+        typeof aboutVersion === 'number' && Number.isFinite(aboutVersion) ? aboutVersion : 0;
       if (!text.trim()) return;
       if (!ver || ver <= 0) return;
 
@@ -40,4 +42,3 @@ export function useAutoPopupChannelAbout({
     };
   }, [aboutText, aboutVersion, channelId, enabled, onOpen, scope]);
 }
-

@@ -1,14 +1,18 @@
+import { uploadData } from 'aws-amplify/storage';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import { uploadData } from 'aws-amplify/storage';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
-import { AVATAR_DEFAULT_COLORS, AvatarBubble, pickDefaultAvatarColor } from '../../../components/AvatarBubble';
-import type { AvatarState } from '../hooks/useMyAvatarSettings';
+import {
+  AVATAR_DEFAULT_COLORS,
+  AvatarBubble,
+  pickDefaultAvatarColor,
+} from '../../../components/AvatarBubble';
 import { APP_COLORS } from '../../../theme/colors';
+import type { AvatarState } from '../hooks/useMyAvatarSettings';
 
 export function MainAppAvatarModal({
   styles,
@@ -61,7 +65,11 @@ export function MainAppAvatarModal({
   avatarDraftRemoveImage: boolean;
   setAvatarDraftRemoveImage: (v: boolean) => void;
 
-  saveAvatarToStorageAndServer: (next: { bgColor?: string; textColor?: string; imagePath?: string }) => Promise<void>;
+  saveAvatarToStorageAndServer: (next: {
+    bgColor?: string;
+    textColor?: string;
+    imagePath?: string;
+  }) => Promise<void>;
 }): React.JSX.Element {
   const discardDraft = React.useCallback(() => {
     if (avatarSavingRef.current) return;
@@ -70,7 +78,14 @@ export function MainAppAvatarModal({
     setAvatarDraft(myAvatar);
     setAvatarDraftImageUri(null);
     setAvatarDraftRemoveImage(false);
-  }, [avatarSavingRef, myAvatar, setAvatarDraft, setAvatarDraftImageUri, setAvatarDraftRemoveImage, setAvatarOpen]);
+  }, [
+    avatarSavingRef,
+    myAvatar,
+    setAvatarDraft,
+    setAvatarDraftImageUri,
+    setAvatarDraftRemoveImage,
+    setAvatarOpen,
+  ]);
 
   return (
     <Modal visible={avatarOpen} transparent animationType="fade" onRequestClose={discardDraft}>
@@ -86,7 +101,9 @@ export function MainAppAvatarModal({
               seed={String(myUserSub || displayName)}
               label={displayName}
               size={44}
-              backgroundColor={avatarDraft.bgColor || pickDefaultAvatarColor(String(myUserSub || displayName))}
+              backgroundColor={
+                avatarDraft.bgColor || pickDefaultAvatarColor(String(myUserSub || displayName))
+              }
               textColor={avatarDraft.textColor || '#fff'}
               imageUri={avatarDraftImageUri || avatarDraft.imageUri}
               imageBgColor={isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2}
@@ -98,15 +115,29 @@ export function MainAppAvatarModal({
             </View>
           </View>
 
-          {avatarError ? <Text style={[styles.errorText, isDark && styles.errorTextDark]}>{avatarError}</Text> : null}
+          {avatarError ? (
+            <Text style={[styles.errorText, isDark && styles.errorTextDark]}>{avatarError}</Text>
+          ) : null}
 
           {avatarDraftImageUri || avatarDraft.imageUri ? (
-            <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, { marginTop: 6 }]}>
+            <Text
+              style={[
+                styles.modalHelperText,
+                isDark ? styles.modalHelperTextDark : null,
+                { marginTop: 6 },
+              ]}
+            >
               Photo avatar enabled - remove the photo to edit bubble/text colors
             </Text>
           ) : (
             <>
-              <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, styles.profileSectionTitle]}>
+              <Text
+                style={[
+                  styles.modalHelperText,
+                  isDark ? styles.modalHelperTextDark : null,
+                  styles.profileSectionTitle,
+                ]}
+              >
                 Bubble color
               </Text>
               <View style={styles.avatarPaletteRow}>
@@ -119,14 +150,24 @@ export function MainAppAvatarModal({
                       style={[
                         styles.avatarColorDot,
                         { backgroundColor: c },
-                        selected ? (isDark ? styles.avatarColorDotSelectedDark : styles.avatarColorDotSelected) : null,
+                        selected
+                          ? isDark
+                            ? styles.avatarColorDotSelectedDark
+                            : styles.avatarColorDotSelected
+                          : null,
                       ]}
                     />
                   );
                 })}
               </View>
 
-              <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, styles.profileSectionTitle]}>
+              <Text
+                style={[
+                  styles.modalHelperText,
+                  isDark ? styles.modalHelperTextDark : null,
+                  styles.profileSectionTitle,
+                ]}
+              >
                 Text color
               </Text>
               <View style={styles.avatarTextColorRow}>
@@ -136,11 +177,20 @@ export function MainAppAvatarModal({
                     styles.avatarTextColorBtn,
                     isDark ? styles.avatarTextColorBtnDark : null,
                     (avatarDraft.textColor || '#fff') === '#fff'
-                      ? (isDark ? styles.avatarTextColorBtnSelectedDark : styles.avatarTextColorBtnSelected)
+                      ? isDark
+                        ? styles.avatarTextColorBtnSelectedDark
+                        : styles.avatarTextColorBtnSelected
                       : null,
                   ]}
                 >
-                  <Text style={[styles.avatarTextColorLabel, isDark ? styles.avatarTextColorLabelDark : null]}>White</Text>
+                  <Text
+                    style={[
+                      styles.avatarTextColorLabel,
+                      isDark ? styles.avatarTextColorLabelDark : null,
+                    ]}
+                  >
+                    White
+                  </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => setAvatarDraft((prev) => ({ ...prev, textColor: '#111' }))}
@@ -148,11 +198,20 @@ export function MainAppAvatarModal({
                     styles.avatarTextColorBtn,
                     isDark ? styles.avatarTextColorBtnDark : null,
                     (avatarDraft.textColor || '#fff') === '#111'
-                      ? (isDark ? styles.avatarTextColorBtnSelectedDark : styles.avatarTextColorBtnSelected)
+                      ? isDark
+                        ? styles.avatarTextColorBtnSelectedDark
+                        : styles.avatarTextColorBtnSelected
                       : null,
                   ]}
                 >
-                  <Text style={[styles.avatarTextColorLabel, isDark ? styles.avatarTextColorLabelDark : null]}>Black</Text>
+                  <Text
+                    style={[
+                      styles.avatarTextColorLabel,
+                      isDark ? styles.avatarTextColorLabelDark : null,
+                    ]}
+                  >
+                    Black
+                  </Text>
                 </Pressable>
               </View>
             </>
@@ -194,7 +253,9 @@ export function MainAppAvatarModal({
               accessibilityRole="button"
               accessibilityState={{ disabled: avatarSaving }}
             >
-              <Text style={[styles.toolBtnText, isDark && styles.toolBtnTextDark]}>Upload photo</Text>
+              <Text style={[styles.toolBtnText, isDark && styles.toolBtnTextDark]}>
+                Upload photo
+              </Text>
             </Pressable>
 
             {/* Disable "Remove photo" when there's nothing to remove, and while saving. */}
@@ -203,8 +264,12 @@ export function MainAppAvatarModal({
               style={({ pressed }) => [
                 styles.toolBtn,
                 isDark && styles.toolBtnDark,
-                avatarSaving || (!avatarDraftImageUri && !avatarDraft.imageUri) ? { opacity: 0.5 } : null,
-                pressed && !(avatarSaving || (!avatarDraftImageUri && !avatarDraft.imageUri)) ? { opacity: 0.92 } : null,
+                avatarSaving || (!avatarDraftImageUri && !avatarDraft.imageUri)
+                  ? { opacity: 0.5 }
+                  : null,
+                pressed && !(avatarSaving || (!avatarDraftImageUri && !avatarDraft.imageUri))
+                  ? { opacity: 0.92 }
+                  : null,
               ]}
               onPress={() => {
                 setAvatarDraftImageUri(null);
@@ -213,9 +278,13 @@ export function MainAppAvatarModal({
                 setAvatarDraft((prev) => ({ ...prev, imagePath: undefined, imageUri: undefined }));
               }}
               accessibilityRole="button"
-              accessibilityState={{ disabled: avatarSaving || (!avatarDraftImageUri && !avatarDraft.imageUri) }}
+              accessibilityState={{
+                disabled: avatarSaving || (!avatarDraftImageUri && !avatarDraft.imageUri),
+              }}
             >
-              <Text style={[styles.toolBtnText, isDark && styles.toolBtnTextDark]}>Remove photo</Text>
+              <Text style={[styles.toolBtnText, isDark && styles.toolBtnTextDark]}>
+                Remove photo
+              </Text>
             </Pressable>
           </View>
 
@@ -246,7 +315,8 @@ export function MainAppAvatarModal({
                     const blob = await (await fetch(normalized.uri)).blob();
                     // Store avatars under uploads/public/avatars/* so both authenticated users and guests can resolve them.
                     const path = `uploads/public/avatars/${sub}/${Date.now()}.jpg`;
-                    await uploadData({ path, data: blob, options: { contentType: 'image/jpeg' } }).result;
+                    await uploadData({ path, data: blob, options: { contentType: 'image/jpeg' } })
+                      .result;
                     nextImagePath = path;
                     setAvatarDraftImageUri(null);
                     setAvatarDraftRemoveImage(false);
@@ -273,12 +343,28 @@ export function MainAppAvatarModal({
               disabled={avatarSaving}
             >
               {avatarSaving ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                  <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Saving</Text>
-                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 2,
+                  }}
+                >
+                  <Text
+                    style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                  >
+                    Saving
+                  </Text>
+                  <AnimatedDots
+                    color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                    size={18}
+                  />
                 </View>
               ) : (
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Save</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Save
+                </Text>
               )}
             </Pressable>
 
@@ -292,7 +378,9 @@ export function MainAppAvatarModal({
               onPress={discardDraft}
               disabled={avatarSaving}
             >
-              <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+              <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                Close
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -300,4 +388,3 @@ export function MainAppAvatarModal({
     </Modal>
   );
 }
-

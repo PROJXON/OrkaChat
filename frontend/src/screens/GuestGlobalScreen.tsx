@@ -1,53 +1,57 @@
 import React from 'react';
-import {
-  Linking,
-  Platform,
-  Pressable,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import type { Pressable } from 'react-native';
+import { Linking, Platform, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import type { MediaViewerState } from '../components/MediaViewerModal';
 import { API_URL } from '../config/env';
 import { CDN_URL } from '../config/env';
+import { useGlobalAboutOncePerVersion } from '../features/globalAbout/useGlobalAboutOncePerVersion';
+import { GuestGlobalBottomBar } from '../features/guest/components/GuestGlobalBottomBar';
+import { GuestGlobalHeaderRow } from '../features/guest/components/GuestGlobalHeaderRow';
+import { GuestGlobalMessageList } from '../features/guest/components/GuestGlobalMessageList';
+import { GuestGlobalScreenOverlays } from '../features/guest/components/GuestGlobalScreenOverlays';
+import { useGuestChannelAboutModalActions } from '../features/guest/useGuestChannelAboutModalActions';
+import { useGuestChannelHistory } from '../features/guest/useGuestChannelHistory';
+import { useGuestChannelSearch } from '../features/guest/useGuestChannelSearch';
+import { useGuestRequestSignIn } from '../features/guest/useGuestRequestSignIn';
+import { useAutoPopupChannelAbout } from '../hooks/useAutoPopupChannelAbout';
 import { useCdnUrlCache } from '../hooks/useCdnUrlCache';
 import { useConfirmLinkModal } from '../hooks/useConfirmLinkModal';
-import { useStoredTheme } from '../hooks/useStoredTheme';
-import { useViewportWidth } from '../hooks/useViewportWidth';
-import { useMenuAnchor } from '../hooks/useMenuAnchor';
-import { useWebPinnedList } from '../hooks/useWebPinnedList';
-import { usePublicAvatarProfiles } from '../hooks/usePublicAvatarProfiles';
-import { useResolveCdnPathUrl } from '../hooks/useResolveCdnPathUrl';
-import { GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
-import { useUiPromptHelpers } from '../hooks/useUiPromptHelpers';
-import { useGlobalAboutOncePerVersion } from '../features/globalAbout/useGlobalAboutOncePerVersion';
-import { useGuestChannelHistory } from '../features/guest/useGuestChannelHistory';
-import { markChannelAboutSeen } from '../utils/channelAboutSeen';
-import { useAutoPopupChannelAbout } from '../hooks/useAutoPopupChannelAbout';
-import { guestReactionInfoModalStyles, styles } from './GuestGlobalScreen.styles';
-import { useGuestChannelSearch } from '../features/guest/useGuestChannelSearch';
-import { useWebSafeInvertedListData } from '../hooks/useWebSafeInvertedListData';
-import { useReactionInfo } from '../hooks/useReactionInfo';
 import { useMediaViewer } from '../hooks/useMediaViewer';
+import { useMenuAnchor } from '../hooks/useMenuAnchor';
 import { useOpenGlobalViewer } from '../hooks/useOpenGlobalViewer';
-import { useGuestChannelAboutModalActions } from '../features/guest/useGuestChannelAboutModalActions';
+import { usePublicAvatarProfiles } from '../hooks/usePublicAvatarProfiles';
+import { useReactionInfo } from '../hooks/useReactionInfo';
+import { useResolveCdnPathUrl } from '../hooks/useResolveCdnPathUrl';
+import { useStoredTheme } from '../hooks/useStoredTheme';
+import { useUiPromptHelpers } from '../hooks/useUiPromptHelpers';
+import { useViewportWidth } from '../hooks/useViewportWidth';
+import { useWebPinnedList } from '../hooks/useWebPinnedList';
+import { useWebSafeInvertedListData } from '../hooks/useWebSafeInvertedListData';
 import { useWebWheelRefresh } from '../hooks/useWebWheelRefresh';
-import { useGuestRequestSignIn } from '../features/guest/useGuestRequestSignIn';
-import { GuestGlobalScreenOverlays } from '../features/guest/components/GuestGlobalScreenOverlays';
-import { GuestGlobalHeaderRow } from '../features/guest/components/GuestGlobalHeaderRow';
-import { GuestGlobalBottomBar } from '../features/guest/components/GuestGlobalBottomBar';
-import { GuestGlobalMessageList } from '../features/guest/components/GuestGlobalMessageList';
-import type { MediaViewerState } from '../components/MediaViewerModal';
+import { markChannelAboutSeen } from '../utils/channelAboutSeen';
+import { GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
+import { guestReactionInfoModalStyles, styles } from './GuestGlobalScreen.styles';
 
-export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }): React.JSX.Element {
+export default function GuestGlobalScreen({
+  onSignIn,
+}: {
+  onSignIn: () => void;
+}): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const { isWide: isWideUi, viewportWidth } = useViewportWidth(windowWidth, { wideBreakpointPx: 900, maxContentWidthPx: 1040 });
+  const { isWide: isWideUi, viewportWidth } = useViewportWidth(windowWidth, {
+    wideBreakpointPx: 900,
+    maxContentWidthPx: 1040,
+  });
   const { theme: _theme, setTheme, isDark } = useStoredTheme({});
   const onSetTheme = React.useCallback((next: 'light' | 'dark') => setTheme(next), [setTheme]);
 
   // --- Guest onboarding (Option A + C) ---
   // Global About is code-defined + versioned. Show once per version; About menu reopens it.
-  const { globalAboutOpen, setGlobalAboutOpen, dismissGlobalAbout } = useGlobalAboutOncePerVersion(GLOBAL_ABOUT_VERSION);
+  const { globalAboutOpen, setGlobalAboutOpen, dismissGlobalAbout } =
+    useGlobalAboutOncePerVersion(GLOBAL_ABOUT_VERSION);
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
   const menu = useMenuAnchor<React.ElementRef<typeof Pressable>>();
 
@@ -59,8 +63,17 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
   const [activeChannelTitle, setActiveChannelTitle] = React.useState<string>('Global');
   const [channelPickerOpen, setChannelPickerOpen] = React.useState<boolean>(false);
   const [channelQuery, setChannelQuery] = React.useState<string>('');
-  const { loading: channelListLoading, error: channelListError, globalUserCount, results: channelResults } =
-    useGuestChannelSearch({ apiUrl: API_URL, enabled: channelPickerOpen, query: channelQuery, debounceMs: 150 });
+  const {
+    loading: channelListLoading,
+    error: channelListError,
+    globalUserCount,
+    results: channelResults,
+  } = useGuestChannelSearch({
+    apiUrl: API_URL,
+    enabled: channelPickerOpen,
+    query: channelQuery,
+    debounceMs: 150,
+  });
   const { showAlert } = useUiPromptHelpers();
 
   // Web-only: since we render a non-inverted list (and reverse data), explicitly start at the bottom.
@@ -103,8 +116,13 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
       const idx = typeof vs.index === 'number' && Number.isFinite(vs.index) ? vs.index : -1;
       const item = idx >= 0 ? items[idx] : null;
       if (!item?.url) return null;
-      const kind = item.kind === 'video' || item.kind === 'image' || item.kind === 'file' ? item.kind : 'file';
-      return { url: String(item.url), kind, fileName: typeof item.fileName === 'string' ? item.fileName : undefined };
+      const kind =
+        item.kind === 'video' || item.kind === 'image' || item.kind === 'file' ? item.kind : 'file';
+      return {
+        url: String(item.url),
+        kind,
+        fileName: typeof item.fileName === 'string' ? item.fileName : undefined,
+      };
     },
     onError: (msg) => {
       // Keep UX aligned with signed-in viewer: don't interrupt with alerts.
@@ -125,7 +143,10 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
     closeConfirmLink,
   });
 
-  const isChannel = React.useMemo(() => String(activeConversationId || '').startsWith('ch#'), [activeConversationId]);
+  const isChannel = React.useMemo(
+    () => String(activeConversationId || '').startsWith('ch#'),
+    [activeConversationId],
+  );
   const activeChannelId = React.useMemo(
     () => (isChannel ? String(activeConversationId).slice('ch#'.length).trim() : ''),
     [isChannel, activeConversationId],
@@ -166,7 +187,11 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
     openExternalIfFile: true,
     openExternalUrl: (url) => Linking.openURL(url),
     viewer,
-    buildGlobalState: ({ index, items }) => ({ mode: 'global' as const, index, globalItems: items }),
+    buildGlobalState: ({ index, items }) => ({
+      mode: 'global' as const,
+      index,
+      globalItems: items,
+    }),
   });
 
   const reactionNameBySub = React.useMemo(() => {
@@ -182,7 +207,8 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
   const guestChannelAboutModal = useGuestChannelAboutModalActions({
     activeChannelId,
     aboutVersion:
-      typeof activeChannelMeta?.aboutVersion === 'number' && Number.isFinite(activeChannelMeta.aboutVersion)
+      typeof activeChannelMeta?.aboutVersion === 'number' &&
+      Number.isFinite(activeChannelMeta.aboutVersion)
         ? activeChannelMeta.aboutVersion
         : 0,
     markChannelAboutSeen,
@@ -194,13 +220,16 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
     enabled: isChannel,
     scope: 'guest',
     channelId: String(activeChannelId || '').trim(),
-    aboutText: typeof activeChannelMeta?.aboutText === 'string' ? String(activeChannelMeta.aboutText) : '',
+    aboutText:
+      typeof activeChannelMeta?.aboutText === 'string' ? String(activeChannelMeta.aboutText) : '',
     aboutVersion:
-      typeof activeChannelMeta?.aboutVersion === 'number' && Number.isFinite(activeChannelMeta.aboutVersion)
+      typeof activeChannelMeta?.aboutVersion === 'number' &&
+      Number.isFinite(activeChannelMeta.aboutVersion)
         ? activeChannelMeta.aboutVersion
         : 0,
     onOpen: () => {
-      const aboutText = typeof activeChannelMeta?.aboutText === 'string' ? String(activeChannelMeta.aboutText) : '';
+      const aboutText =
+        typeof activeChannelMeta?.aboutText === 'string' ? String(activeChannelMeta.aboutText) : '';
       setChannelAboutText(aboutText);
       setChannelAboutOpen(true);
     },
@@ -266,7 +295,10 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
             setChannelPickerOpen(false);
           }}
           showLockedChannelAlert={() =>
-            showAlert('Locked Channel', 'This channel is password protected. Please sign in to join.')
+            showAlert(
+              'Locked Channel',
+              'This channel is password protected. Please sign in to join.',
+            )
           }
           requestSignIn={requestSignIn}
           reactionInfoOpen={reactionInfo.open}
@@ -319,7 +351,6 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
           requestSignIn={requestSignIn}
           styles={styles}
         />
-
       </View>
     </SafeAreaView>
   );

@@ -4,15 +4,16 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  View,
   useWindowDimensions,
-  ScrollView,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppBrandIcon } from './AppBrandIcon';
+
 import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
+import { AppBrandIcon } from './AppBrandIcon';
 
 export type HeaderMenuItem = {
   key: string;
@@ -93,7 +94,9 @@ export function HeaderMenuModal({
   const ANCHOR_OVERLAP_PX = 2;
   // Guard against weird edge cases (e.g. anchor near/under the status bar).
   const anchorTopMin = Math.max(2, insets.top + 2);
-  const anchorTop = hasAnchor ? Math.max(anchorTopMin, Math.round(anchor!.y - ANCHOR_OVERLAP_PX)) : insets.top + 10;
+  const anchorTop = hasAnchor
+    ? Math.max(anchorTopMin, Math.round(anchor!.y - ANCHOR_OVERLAP_PX))
+    : insets.top + 10;
   const cardLeft = hasAnchor
     ? clamp(anchor!.x + anchor!.width - cardWidth, 10, Math.max(10, windowWidth - cardWidth - 10))
     : 0;
@@ -119,7 +122,12 @@ export function HeaderMenuModal({
               borderColor: border,
               width: cardWidth,
               ...(hasAnchor
-                ? { position: 'absolute' as const, top: anchorTop, left: cardLeft, maxHeight: maxCardH }
+                ? {
+                    position: 'absolute' as const,
+                    top: anchorTop,
+                    left: cardLeft,
+                    maxHeight: maxCardH,
+                  }
                 : null),
             },
           ]}
@@ -140,17 +148,29 @@ export function HeaderMenuModal({
               accessibilityRole="button"
               accessibilityLabel="Close menu"
             >
-              <AppBrandIcon isDark={isDark} fit="contain" slotWidth={32} slotHeight={32} accessible={false} />
+              <AppBrandIcon
+                isDark={isDark}
+                fit="contain"
+                slotWidth={32}
+                slotHeight={32}
+                accessible={false}
+              />
             </Pressable>
           </View>
-          {title ? <Text style={[styles.title, { color: text, borderBottomColor: divider }]}>{title}</Text> : null}
+          {title ? (
+            <Text style={[styles.title, { color: text, borderBottomColor: divider }]}>{title}</Text>
+          ) : null}
           <ScrollView style={styles.listScroll} contentContainerStyle={styles.list} bounces={false}>
             {items.map((it) =>
               it.staticRow ? (
                 // Static rows are used for embedded controls (like Switch).
                 <View key={it.key} style={styles.row}>
                   {it.label ? (
-                    <Text style={[styles.rowText, { color: text }]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text
+                      style={[styles.rowText, { color: text }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
                       {it.label}
                     </Text>
                   ) : null}
@@ -176,7 +196,11 @@ export function HeaderMenuModal({
                   accessibilityLabel={it.label}
                 >
                   <Text
-                    style={[styles.rowText, { color: text }, !it.right ? styles.rowTextCenter : null]}
+                    style={[
+                      styles.rowText,
+                      { color: text },
+                      !it.right ? styles.rowTextCenter : null,
+                    ]}
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
@@ -210,7 +234,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...(Platform.OS === 'web'
       ? { boxShadow: `0px 8px 16px ${withAlpha(PALETTE.black, 0.18)}` }
-      : { shadowColor: PALETTE.black, shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }),
+      : {
+          shadowColor: PALETTE.black,
+          shadowOpacity: 0.18,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 8 },
+        }),
     elevation: 10,
   },
   topRightCloseRow: {

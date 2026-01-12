@@ -1,6 +1,7 @@
+import { useVideoPlayer, VideoView } from 'expo-video';
 import React from 'react';
-import { Platform, StyleProp, ViewStyle } from 'react-native';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import type { StyleProp, ViewStyle } from 'react-native';
+import { Platform } from 'react-native';
 
 function tryInvokePlayerMethod(player: unknown, method: 'play' | 'pause'): void {
   if (!player || typeof player !== 'object') return;
@@ -14,12 +15,19 @@ function tryInvokePlayerMethod(player: unknown, method: 'play' | 'pause'): void 
   }
 }
 
-export function FullscreenVideo({ url, style }: { url: string; style?: StyleProp<ViewStyle> }): React.JSX.Element {
+export function FullscreenVideo({
+  url,
+  style,
+}: {
+  url: string;
+  style?: StyleProp<ViewStyle>;
+}): React.JSX.Element {
   const player = useVideoPlayer(url, (p: unknown) => {
     tryInvokePlayerMethod(p, 'play');
   });
 
-  const androidSurfaceProps: Record<string, unknown> = Platform.OS === 'android' ? { surfaceType: 'textureView' } : {};
+  const androidSurfaceProps: Record<string, unknown> =
+    Platform.OS === 'android' ? { surfaceType: 'textureView' } : {};
 
   return (
     <VideoView

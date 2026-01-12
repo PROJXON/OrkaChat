@@ -1,9 +1,10 @@
-import React from 'react';
-import { Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import React from 'react';
+import { Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { useUiPromptOptional } from '../providers/UiPromptProvider';
 import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
@@ -260,9 +261,13 @@ export function InAppCameraModal({
               onCameraReady={() => setCameraReady(true)}
               // On some Android setups the camera surface can swallow touches; ensure overlays stay clickable.
               pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
-              style={[styles.preview, ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : [])]}
+              style={[
+                styles.preview,
+                ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+              ]}
               onMountError={(e: unknown) => {
-                const rec = typeof e === 'object' && e != null ? (e as Record<string, unknown>) : {};
+                const rec =
+                  typeof e === 'object' && e != null ? (e as Record<string, unknown>) : {};
                 const nativeEvent =
                   typeof rec.nativeEvent === 'object' && rec.nativeEvent != null
                     ? (rec.nativeEvent as Record<string, unknown>)
@@ -280,7 +285,10 @@ export function InAppCameraModal({
 
         {/* Controls overlay */}
         <View
-          style={[styles.overlay, ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : [])]}
+          style={[
+            styles.overlay,
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+          ]}
           pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
         >
           <View
@@ -293,7 +301,10 @@ export function InAppCameraModal({
               },
             ]}
           >
-            <Pressable onPress={closeAndReset} style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}>
+            <Pressable
+              onPress={closeAndReset}
+              style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}
+            >
               <Text style={styles.topBtnText}>Close</Text>
             </Pressable>
             <View
@@ -306,7 +317,10 @@ export function InAppCameraModal({
               <Text style={styles.title}>Camera</Text>
             </View>
             {!captured ? (
-              <Pressable onPress={toggleFacing} style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}>
+              <Pressable
+                onPress={toggleFacing}
+                style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}
+              >
                 <Text style={styles.topBtnText}>Flip</Text>
               </Pressable>
             ) : (
@@ -336,7 +350,10 @@ export function InAppCameraModal({
             >
               {captured ? (
                 <>
-                  <Pressable onPress={retake} style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.9 }]}>
+                  <Pressable
+                    onPress={retake}
+                    style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.9 }]}
+                  >
                     <Text style={styles.actionBtnText}>Retake</Text>
                   </Pressable>
                   <Pressable
@@ -379,7 +396,12 @@ export function InAppCameraModal({
                         pressed ? { opacity: 0.9 } : null,
                       ]}
                     >
-                      <Text style={[styles.modePillText, mode === 'photo' ? styles.modePillTextActive : null]}>
+                      <Text
+                        style={[
+                          styles.modePillText,
+                          mode === 'photo' ? styles.modePillTextActive : null,
+                        ]}
+                      >
                         Photo
                       </Text>
                     </Pressable>
@@ -391,7 +413,12 @@ export function InAppCameraModal({
                         pressed ? { opacity: 0.9 } : null,
                       ]}
                     >
-                      <Text style={[styles.modePillText, mode === 'video' ? styles.modePillTextActive : null]}>
+                      <Text
+                        style={[
+                          styles.modePillText,
+                          mode === 'video' ? styles.modePillTextActive : null,
+                        ]}
+                      >
                         Video
                       </Text>
                     </Pressable>
@@ -468,7 +495,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: APP_COLORS.dark.text.primary },
+  shutterInner: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: APP_COLORS.dark.text.primary,
+  },
   recordRedDot: {
     width: 52,
     height: 52,

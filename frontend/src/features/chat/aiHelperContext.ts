@@ -1,6 +1,6 @@
 import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
-import { formatBytes } from './uploads';
 import type { ChatMessage } from './types';
+import { formatBytes } from './uploads';
 
 export type AiTranscriptItem = {
   user: string;
@@ -27,14 +27,7 @@ export function buildAiHelperContext(opts: {
   maxMessages?: number;
   maxThumbs?: number;
 }): { transcript: AiTranscriptItem[]; attachments: AiAttachmentForAi[] } {
-  const {
-    messages,
-    isDm,
-    mediaUrlByPath,
-    cdnResolve,
-    maxMessages = 50,
-    maxThumbs = 3,
-  } = opts;
+  const { messages, isDm, mediaUrlByPath, cdnResolve, maxMessages = 50, maxThumbs = 3 } = opts;
 
   const recentNewestFirst = Array.isArray(messages) ? messages.slice(0, maxMessages) : [];
   const recent = recentNewestFirst.slice().reverse();
@@ -107,7 +100,8 @@ export function buildAiHelperContext(opts: {
         if (!list.length) return '';
         if (list.length === 1) {
           const media = list[0];
-          const kindLabel = media.kind === 'image' ? 'Image' : media.kind === 'video' ? 'Video' : 'File';
+          const kindLabel =
+            media.kind === 'image' ? 'Image' : media.kind === 'video' ? 'Video' : 'File';
           const name = media.fileName ? ` "${media.fileName}"` : '';
           const size = typeof media.size === 'number' ? ` (${formatBytes(media.size)})` : '';
           return `${kindLabel} attachment${name}${size}`;
@@ -131,4 +125,3 @@ export function buildAiHelperContext(opts: {
 
   return { transcript, attachments: attachmentsForAi.slice(0, maxThumbs) };
 }
-

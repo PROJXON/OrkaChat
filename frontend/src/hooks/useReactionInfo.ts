@@ -20,7 +20,12 @@ export function useReactionInfo<TTarget = unknown>(opts?: {
   }, [subs, sortSubs]);
 
   const openReactionInfo = React.useCallback(
-    async (args: { emoji: string; subs: string[]; target?: TTarget | null; namesBySub?: Record<string, string> }) => {
+    async (args: {
+      emoji: string;
+      subs: string[];
+      target?: TTarget | null;
+      namesBySub?: Record<string, string>;
+    }) => {
       const e = String(args.emoji || '');
       const s = Array.isArray(args.subs) ? args.subs.map(String).filter(Boolean) : [];
       setEmoji(e);
@@ -62,4 +67,3 @@ export function useReactionInfo<TTarget = unknown>(opts?: {
     setSubs,
   };
 }
-

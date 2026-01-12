@@ -3,7 +3,9 @@ export function formatSeenLabel(readAtSec: number, now: Date = new Date()): stri
   if (!Number.isFinite(sec) || sec <= 0) return 'Seen';
   const dt = new Date(sec * 1000);
   const isToday =
-    dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth() && dt.getDate() === now.getDate();
+    dt.getFullYear() === now.getFullYear() &&
+    dt.getMonth() === now.getMonth() &&
+    dt.getDate() === now.getDate();
   const time = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return isToday ? `Seen · ${time}` : `Seen · ${dt.toLocaleDateString()} · ${time}`;
 }
@@ -16,4 +18,3 @@ export function getSeenLabelForCreatedAt(
   if (!Number.isFinite(t) || t <= 0) return null;
   return formatSeenLabel(t);
 }
-

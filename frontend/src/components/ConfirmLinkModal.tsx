@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+
 import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 export function ConfirmLinkModal({

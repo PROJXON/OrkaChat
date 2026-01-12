@@ -1,6 +1,7 @@
+import { fetchAuthSession } from 'aws-amplify/auth';
 import * as React from 'react';
 import { AppState } from 'react-native';
-import { fetchAuthSession } from 'aws-amplify/auth';
+
 import type { AmplifyUiUser } from '../../types/amplifyUi';
 
 function appendQueryParam(url: string, key: string, value: string): string {
@@ -26,7 +27,15 @@ export function useChatWsConnection(opts: {
   setError: (next: string | null) => void;
   onMessage: (event: { data: unknown }) => void;
 }) {
-  const { user, wsUrl, appStateRef, activeConversationIdRef, pendingJoinConversationIdRef, flushPendingRead, setError } = opts;
+  const {
+    user,
+    wsUrl,
+    appStateRef,
+    activeConversationIdRef,
+    pendingJoinConversationIdRef,
+    flushPendingRead,
+    setError,
+  } = opts;
 
   // Keep a stable handler so reconnect logic doesn't flap on re-renders.
   const onMessageRef = React.useRef(opts.onMessage);
@@ -83,7 +92,10 @@ export function useChatWsConnection(opts: {
       return;
     }
     const existing = wsRef.current;
-    if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
+    if (
+      existing &&
+      (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
@@ -161,13 +173,18 @@ export function useChatWsConnection(opts: {
         console.log('WS error:', msg, 'url:', redactWsUrl(ws.url));
         setIsConnecting(false);
         setIsConnected(false);
-        setError(typeof rec.message === 'string' && rec.message ? `WebSocket error: ${rec.message}` : 'WebSocket error');
+        setError(
+          typeof rec.message === 'string' && rec.message
+            ? `WebSocket error: ${rec.message}`
+            : 'WebSocket error',
+        );
         scheduleReconnect();
       };
       ws.onclose = (e) => {
         // Ignore events from stale sockets.
         if (wsRef.current !== ws) return;
-        const rec = typeof e === 'object' && e != null ? (e as { code?: unknown; reason?: unknown }) : {};
+        const rec =
+          typeof e === 'object' && e != null ? (e as { code?: unknown; reason?: unknown }) : {};
         const code = typeof rec.code === 'number' ? rec.code : undefined;
         const reason = typeof rec.reason === 'string' ? rec.reason : undefined;
         console.log('WS close:', code, reason, 'url:', redactWsUrl(ws.url));
@@ -211,4 +228,3 @@ export function useChatWsConnection(opts: {
 
   return { wsRef, isConnecting, isConnected, connectWs, closeWs };
 }
-

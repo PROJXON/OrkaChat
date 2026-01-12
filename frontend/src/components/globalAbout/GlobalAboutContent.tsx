@@ -1,6 +1,7 @@
 import React from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
 import { Text } from 'react-native';
+
 import { GLOBAL_ABOUT_TEXT, GLOBAL_ABOUT_TITLE } from '../../utils/globalAbout';
 import { RichText } from '../RichText';
 
@@ -11,7 +12,12 @@ export type GlobalAboutContentProps = {
   onOpenUrl?: (url: string) => void;
 };
 
-export function GlobalAboutContent({ isDark, titleStyle, bodyStyle, onOpenUrl }: GlobalAboutContentProps): React.JSX.Element {
+export function GlobalAboutContent({
+  isDark,
+  titleStyle,
+  bodyStyle,
+  onOpenUrl,
+}: GlobalAboutContentProps): React.JSX.Element {
   return (
     <>
       <Text style={titleStyle}>{GLOBAL_ABOUT_TITLE}</Text>
@@ -26,4 +32,3 @@ export function GlobalAboutContent({ isDark, titleStyle, bodyStyle, onOpenUrl }:
     </>
   );
 }
-

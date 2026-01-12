@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 export type AvatarState = {
   bgColor?: string;
@@ -36,7 +36,11 @@ export function useMyAvatarSettings({
   avatarDraftRemoveImage: boolean;
   setAvatarDraftRemoveImage: (v: boolean) => void;
 
-  saveAvatarToStorageAndServer: (next: { bgColor?: string; textColor?: string; imagePath?: string }) => Promise<void>;
+  saveAvatarToStorageAndServer: (next: {
+    bgColor?: string;
+    textColor?: string;
+    imagePath?: string;
+  }) => Promise<void>;
 } {
   const [avatarOpen, setAvatarOpen] = React.useState<boolean>(false);
   const [avatarSaving, setAvatarSaving] = React.useState<boolean>(false);
@@ -85,9 +89,12 @@ export function useMyAvatarSettings({
         const { tokens } = await fetchAuthSession();
         const idToken = tokens?.idToken?.toString();
         if (!idToken) return;
-        const resp = await fetch(`${apiUrl.replace(/\/$/, '')}/users?sub=${encodeURIComponent(userSub)}`, {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
+        const resp = await fetch(
+          `${apiUrl.replace(/\/$/, '')}/users?sub=${encodeURIComponent(userSub)}`,
+          {
+            headers: { Authorization: `Bearer ${idToken}` },
+          },
+        );
         if (!resp.ok) return;
         const u = await resp.json();
         if (!cancelled && u && typeof u === 'object') {
@@ -156,7 +163,7 @@ export function useMyAvatarSettings({
         throw new Error(msg);
       }
     },
-    [apiUrl, fetchAuthSession, userSub]
+    [apiUrl, fetchAuthSession, userSub],
   );
 
   return {
@@ -178,4 +185,3 @@ export function useMyAvatarSettings({
     saveAvatarToStorageAndServer,
   };
 }
-

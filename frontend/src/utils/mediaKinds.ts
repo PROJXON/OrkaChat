@@ -1,7 +1,9 @@
 import type { MediaItem, MediaKind } from '../types/media';
 
 export function inferKindFromContentType(contentType?: string): MediaKind {
-  const ct = String(contentType || '').trim().toLowerCase();
+  const ct = String(contentType || '')
+    .trim()
+    .toLowerCase();
   if (ct.startsWith('image/')) return 'image';
   if (ct.startsWith('video/')) return 'video';
   return 'file';
@@ -50,10 +52,11 @@ export function defaultFileExtensionForContentType(contentType?: string): string
   return 'bin';
 }
 
-export function previewLabelForMedia(input: Pick<MediaItem, 'kind' | 'contentType'>): 'Photo' | 'Video' | 'Attachment' {
+export function previewLabelForMedia(
+  input: Pick<MediaItem, 'kind' | 'contentType'>,
+): 'Photo' | 'Video' | 'Attachment' {
   const k = getPreviewKind(input);
   if (k === 'image') return 'Photo';
   if (k === 'video') return 'Video';
   return 'Attachment';
 }
-

@@ -1,5 +1,5 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
 
 import type { ChatMessage } from './types';
 
@@ -101,7 +101,15 @@ export function useChatMessageOps(opts: {
     } catch (e: unknown) {
       showAlert('Delete failed', getErrorMessage(e) || 'Failed to delete message');
     }
-  }, [activeConversationId, closeMessageActions, messageActionTarget, setError, setMessages, showAlert, wsRef]);
+  }, [
+    activeConversationId,
+    closeMessageActions,
+    messageActionTarget,
+    setError,
+    setMessages,
+    showAlert,
+    wsRef,
+  ]);
 
   const sendReaction = React.useCallback(
     (target: ChatMessage, emoji: string) => {
@@ -193,4 +201,3 @@ export function useChatMessageOps(opts: {
     openReactionInfoFor,
   };
 }
-

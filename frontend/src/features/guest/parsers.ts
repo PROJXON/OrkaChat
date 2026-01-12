@@ -9,7 +9,9 @@ export function formatGuestTimestamp(ms: number): string {
   const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const now = new Date();
   const isToday =
-    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
   if (isToday) return time;
   return `${d.toLocaleDateString()} ${time}`;
 }
@@ -45,15 +47,21 @@ export function normalizeGuestMediaList(raw: GuestChatEnvelope['media']): MediaI
       thumbPath: typeof rec.thumbPath === 'string' ? String(rec.thumbPath) : undefined,
       kind,
       contentType: typeof rec.contentType === 'string' ? String(rec.contentType) : undefined,
-      thumbContentType: typeof rec.thumbContentType === 'string' ? String(rec.thumbContentType) : undefined,
+      thumbContentType:
+        typeof rec.thumbContentType === 'string' ? String(rec.thumbContentType) : undefined,
       fileName: typeof rec.fileName === 'string' ? String(rec.fileName) : undefined,
-      size: typeof rec.size === 'number' && Number.isFinite(rec.size) ? (rec.size as number) : undefined,
+      size:
+        typeof rec.size === 'number' && Number.isFinite(rec.size)
+          ? (rec.size as number)
+          : undefined,
     });
   }
   return out;
 }
 
-export function tryParseChatEnvelope(rawText: string): { text: string; mediaList: MediaItem[] } | null {
+export function tryParseChatEnvelope(
+  rawText: string,
+): { text: string; mediaList: MediaItem[] } | null {
   const t = (rawText || '').trim();
   if (!t || !t.startsWith('{') || !t.endsWith('}')) return null;
   try {
@@ -94,7 +102,10 @@ export function normalizeGuestMessages(items: unknown[]): GuestMessage[] {
     const reactionUsers: ReactionUsersMap | undefined =
       rec?.reactionUsers && typeof rec.reactionUsers === 'object'
         ? Object.fromEntries(
-            Object.entries(rec.reactionUsers as Record<string, unknown>).map(([k, v]) => [String(k), String(v)]),
+            Object.entries(rec.reactionUsers as Record<string, unknown>).map(([k, v]) => [
+              String(k),
+              String(v),
+            ]),
           )
         : undefined;
 
@@ -103,8 +114,10 @@ export function normalizeGuestMessages(items: unknown[]): GuestMessage[] {
       user,
       userSub,
       avatarBgColor: typeof rec?.avatarBgColor === 'string' ? String(rec.avatarBgColor) : undefined,
-      avatarTextColor: typeof rec?.avatarTextColor === 'string' ? String(rec.avatarTextColor) : undefined,
-      avatarImagePath: typeof rec?.avatarImagePath === 'string' ? String(rec.avatarImagePath) : undefined,
+      avatarTextColor:
+        typeof rec?.avatarTextColor === 'string' ? String(rec.avatarTextColor) : undefined,
+      avatarImagePath:
+        typeof rec?.avatarImagePath === 'string' ? String(rec.avatarImagePath) : undefined,
       text,
       createdAt,
       editedAt: typeof rec?.editedAt === 'number' ? (rec.editedAt as number) : undefined,

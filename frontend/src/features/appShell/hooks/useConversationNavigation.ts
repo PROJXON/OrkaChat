@@ -67,16 +67,22 @@ export function useConversationNavigation({
           : String(targetConversationId || '').startsWith('dm#')
             ? 'dm'
             : undefined);
-      const serverTitle = server?.peerDisplayName != null ? String(server.peerDisplayName).trim() : '';
+      const serverTitle =
+        server?.peerDisplayName != null ? String(server.peerDisplayName).trim() : '';
       const cachedTitle = cached?.user != null ? String(cached.user).trim() : '';
-      const fallbackTitle = targetConversationId === 'global' ? '' : kind === 'group' ? 'Group DM' : 'Direct Message';
+      const fallbackTitle =
+        targetConversationId === 'global' ? '' : kind === 'group' ? 'Group DM' : 'Direct Message';
       const title = serverTitle || cachedTitle || fallbackTitle;
 
       if (targetConversationId === 'global') setPeer(null);
       else setPeer(title || (kind === 'group' ? 'Group DM' : 'Direct Message'));
 
       if (targetConversationId !== 'global') {
-        upsertDmThread(targetConversationId, title || peer || (kind === 'group' ? 'Group DM' : 'Direct Message'), Date.now());
+        upsertDmThread(
+          targetConversationId,
+          title || peer || (kind === 'group' ? 'Group DM' : 'Direct Message'),
+          Date.now(),
+        );
       }
 
       setSearchOpen(false);
@@ -98,9 +104,8 @@ export function useConversationNavigation({
       setSearchOpen,
       unreadDmMap,
       upsertDmThread,
-    ]
+    ],
   );
 
   return { goToConversation };
 }
-

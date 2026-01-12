@@ -1,5 +1,5 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
 
 import type { GroupMeta } from './useHydrateGroupRoster';
 
@@ -84,7 +84,10 @@ export function useGroupNameModalActions(opts: {
     setGroupMeta((prev) => (prev ? { ...prev, groupName: name ? name : undefined } : prev));
     try {
       if (activeConversationId && onConversationTitleChanged) {
-        onConversationTitleChanged(activeConversationId, name ? name : computeDefaultGroupTitleForMe());
+        onConversationTitleChanged(
+          activeConversationId,
+          name ? name : computeDefaultGroupTitleForMe(),
+        );
       }
     } catch {
       // ignore
@@ -107,4 +110,3 @@ export function useGroupNameModalActions(opts: {
 
   return { onDefault, onSave, onCancel };
 }
-

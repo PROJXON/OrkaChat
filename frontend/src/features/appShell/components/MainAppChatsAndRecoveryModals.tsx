@@ -1,6 +1,6 @@
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
@@ -44,19 +44,31 @@ export function MainAppChatsAndRecoveryModals({
   chatsOpen: boolean;
   setChatsOpen: (v: boolean) => void;
   chatsLoading: boolean;
-  chatsList: Array<{ conversationId: string; peer?: string | null; lastActivityAt?: number | null; unreadCount?: number }>;
+  chatsList: Array<{
+    conversationId: string;
+    peer?: string | null;
+    lastActivityAt?: number | null;
+    unreadCount?: number;
+  }>;
   goToConversation: (conversationId: string) => void;
   deleteConversationFromList: (conversationId: string) => void | Promise<void>;
   formatChatActivityDate: (ts: number) => string;
 }): React.JSX.Element {
   return (
     <>
-      <Modal visible={recoveryOpen} transparent animationType="fade" onRequestClose={() => setRecoveryOpen(false)}>
+      <Modal
+        visible={recoveryOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRecoveryOpen(false)}
+      >
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setRecoveryOpen(false)} />
           <View style={[styles.profileCard, isDark ? styles.profileCardDark : null]}>
             <View style={styles.chatsTopRow}>
-              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Recovery</Text>
+              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+                Recovery
+              </Text>
             </View>
             <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
               {recoveryLocked
@@ -84,7 +96,9 @@ export function MainAppChatsAndRecoveryModals({
                   accessibilityRole="button"
                   accessibilityLabel="Enter recovery passphrase"
                 >
-                  <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>Enter Passphrase</Text>
+                  <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
+                    Enter Passphrase
+                  </Text>
                 </Pressable>
               ) : !recoveryBlobKnown ? null : !hasRecoveryBlob ? (
                 <Pressable
@@ -101,7 +115,9 @@ export function MainAppChatsAndRecoveryModals({
                   accessibilityRole="button"
                   accessibilityLabel="Set up recovery passphrase"
                 >
-                  <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>Set Up Recovery Passphrase</Text>
+                  <Text style={[styles.modalButtonText, styles.modalButtonCtaText]}>
+                    Set Up Recovery Passphrase
+                  </Text>
                 </Pressable>
               ) : (
                 <Pressable
@@ -117,14 +133,20 @@ export function MainAppChatsAndRecoveryModals({
                   accessibilityRole="button"
                   accessibilityLabel="Change recovery passphrase"
                 >
-                  <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  <Text
+                    style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                  >
                     Change Your Recovery Passphrase
                   </Text>
                 </Pressable>
               )}
 
               <Pressable
-                style={({ pressed }) => [styles.modalButton, isDark ? styles.modalButtonDark : null, pressed && { opacity: 0.9 }]}
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  isDark ? styles.modalButtonDark : null,
+                  pressed && { opacity: 0.9 },
+                ]}
                 onPress={async () => {
                   setRecoveryOpen(false);
                   await Promise.resolve(resetRecovery());
@@ -132,7 +154,9 @@ export function MainAppChatsAndRecoveryModals({
                 accessibilityRole="button"
                 accessibilityLabel="Reset recovery"
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Reset Recovery</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Reset Recovery
+                </Text>
               </Pressable>
             </View>
 
@@ -148,14 +172,21 @@ export function MainAppChatsAndRecoveryModals({
                 accessibilityRole="button"
                 accessibilityLabel="Close recovery"
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Close
+                </Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={chatsOpen} transparent animationType="fade" onRequestClose={() => setChatsOpen(false)}>
+      <Modal
+        visible={chatsOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setChatsOpen(false)}
+      >
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setChatsOpen(false)} />
           <View style={[styles.chatsCard, isDark ? styles.chatsCardDark : null]}>
@@ -165,9 +196,20 @@ export function MainAppChatsAndRecoveryModals({
             <ScrollView style={styles.chatsScroll}>
               {chatsLoading ? (
                 <View style={styles.chatsLoadingRow}>
-                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, styles.chatsLoadingText]}>Loading</Text>
+                  <Text
+                    style={[
+                      styles.modalHelperText,
+                      isDark ? styles.modalHelperTextDark : null,
+                      styles.chatsLoadingText,
+                    ]}
+                  >
+                    Loading
+                  </Text>
                   <View style={styles.chatsLoadingDotsWrap}>
-                    <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
+                    <AnimatedDots
+                      color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                      size={18}
+                    />
                   </View>
                 </View>
               ) : chatsList.length ? (
@@ -185,7 +227,10 @@ export function MainAppChatsAndRecoveryModals({
                     }}
                   >
                     <View style={styles.chatRowLeft}>
-                      <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                      <Text
+                        style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]}
+                        numberOfLines={1}
+                      >
                         {t.peer || 'Direct Message'}
                       </Text>
                     </View>
@@ -201,11 +246,20 @@ export function MainAppChatsAndRecoveryModals({
                       ) : null}
                       {(t.unreadCount || 0) > 0 ? (
                         <View style={[styles.unreadChip, isDark ? styles.unreadChipDark : null]}>
-                          <Text style={[styles.unreadChipText, isDark ? styles.unreadChipTextDark : null]}>{t.unreadCount}</Text>
+                          <Text
+                            style={[
+                              styles.unreadChipText,
+                              isDark ? styles.unreadChipTextDark : null,
+                            ]}
+                          >
+                            {t.unreadCount}
+                          </Text>
                         </View>
                       ) : null}
                       <Pressable
-                        onPress={() => void Promise.resolve(deleteConversationFromList(t.conversationId))}
+                        onPress={() =>
+                          void Promise.resolve(deleteConversationFromList(t.conversationId))
+                        }
                         style={({ pressed }) => [
                           styles.chatDeleteBtn,
                           isDark ? styles.chatDeleteBtnDark : null,
@@ -217,22 +271,32 @@ export function MainAppChatsAndRecoveryModals({
                         <Feather
                           name="trash-2"
                           size={16}
-                          color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                          color={
+                            isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                          }
                         />
                       </Pressable>
                     </View>
                   </Pressable>
                 ))
               ) : (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>No active chats</Text>
+                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                  No active chats
+                </Text>
               )}
             </ScrollView>
             <View style={styles.modalButtons}>
               <Pressable
-                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonSmall,
+                  isDark ? styles.modalButtonDark : null,
+                ]}
                 onPress={() => setChatsOpen(false)}
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Close
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -241,4 +305,3 @@ export function MainAppChatsAndRecoveryModals({
     </>
   );
 }
-

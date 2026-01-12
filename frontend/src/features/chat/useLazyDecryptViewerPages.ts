@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import type { ChatMessage, DmMediaEnvelopeV1 } from './types';
 import type { ChatMediaViewerState } from './viewerTypes';
 
@@ -7,7 +8,10 @@ export function useLazyDecryptDmViewerPages(opts: {
   viewerState: ChatMediaViewerState | null | undefined;
   dmFileUriByPath: Record<string, string>;
   inFlightRef: React.MutableRefObject<Set<string>>;
-  decryptDmFileToCacheUri: (msg: ChatMessage, it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }) => Promise<string>;
+  decryptDmFileToCacheUri: (
+    msg: ChatMessage,
+    it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] },
+  ) => Promise<string>;
 }): void {
   const { viewerOpen, viewerState, dmFileUriByPath, inFlightRef, decryptDmFileToCacheUri } = opts;
 
@@ -45,9 +49,13 @@ export function useLazyDecryptGroupViewerPages(opts: {
   viewerState: ChatMediaViewerState | null | undefined;
   dmFileUriByPath: Record<string, string>;
   inFlightRef: React.MutableRefObject<Set<string>>;
-  decryptGroupFileToCacheUri: (msg: ChatMessage, it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }) => Promise<string>;
+  decryptGroupFileToCacheUri: (
+    msg: ChatMessage,
+    it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] },
+  ) => Promise<string>;
 }): void {
-  const { viewerOpen, viewerState, dmFileUriByPath, inFlightRef, decryptGroupFileToCacheUri } = opts;
+  const { viewerOpen, viewerState, dmFileUriByPath, inFlightRef, decryptGroupFileToCacheUri } =
+    opts;
 
   // Fullscreen Group viewer: lazily decrypt the currently visible page (and a neighbor).
   React.useEffect(() => {
@@ -76,4 +84,3 @@ export function useLazyDecryptGroupViewerPages(opts: {
     });
   }, [viewerOpen, viewerState, dmFileUriByPath, decryptGroupFileToCacheUri, inFlightRef]);
 }
-

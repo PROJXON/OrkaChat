@@ -1,12 +1,15 @@
 import type { ChatMessage } from './types';
 
 export function buildSystemChatMessageFromPayload(payload: unknown): ChatMessage {
-  const rec = typeof payload === 'object' && payload != null ? (payload as Record<string, unknown>) : {};
+  const rec =
+    typeof payload === 'object' && payload != null ? (payload as Record<string, unknown>) : {};
   const createdAt = Number(rec.createdAt || Date.now());
   const messageIdRaw = rec.messageId;
   const idRaw = rec.id;
   const stableId =
-    (typeof messageIdRaw === 'string' || typeof messageIdRaw === 'number' ? String(messageIdRaw) : '') ||
+    (typeof messageIdRaw === 'string' || typeof messageIdRaw === 'number'
+      ? String(messageIdRaw)
+      : '') ||
     (typeof idRaw === 'string' || typeof idRaw === 'number' ? String(idRaw) : '') ||
     `sys-${createdAt}-${Math.random().toString(36).slice(2)}`;
 
@@ -26,4 +29,3 @@ export function buildSystemChatMessageFromPayload(payload: unknown): ChatMessage
     localStatus: 'sent',
   };
 }
-

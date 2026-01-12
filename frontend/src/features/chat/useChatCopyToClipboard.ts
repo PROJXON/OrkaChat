@@ -2,9 +2,9 @@ import * as React from 'react';
 
 import { copyToClipboardSafe } from '../../utils/clipboard';
 
-export function useChatCopyToClipboard(opts: {
-  openInfo: (title: string, body: string) => void;
-}): { copyToClipboard: (text: string) => Promise<void> } {
+export function useChatCopyToClipboard(opts: { openInfo: (title: string, body: string) => void }): {
+  copyToClipboard: (text: string) => Promise<void>;
+} {
   const { openInfo } = opts;
 
   const copyToClipboard = React.useCallback(
@@ -24,4 +24,3 @@ export function useChatCopyToClipboard(opts: {
 
   return { copyToClipboard };
 }
-

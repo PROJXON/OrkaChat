@@ -1,22 +1,27 @@
 import React from 'react';
-import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { FlatList, KeyboardAvoidingView, LayoutAnimation, Platform, Text, View } from 'react-native';
+import type {
+  FlatList,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from 'react-native';
+import type { StyleProp, TextInput, ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, LayoutAnimation, Platform, Text, View } from 'react-native';
 
+import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { MediaItem } from '../../../types/media';
 import { getNativeEventNumber } from '../../../utils/nativeEvent';
+import type { PendingMediaItem } from '../attachments';
+import type { ChatMessage } from '../types';
 import { ChannelSettingsPanel } from './ChannelSettingsPanel';
+import type { ResolvedChatBg } from './ChatBackgroundLayer';
 import { ChatBackgroundLayer } from './ChatBackgroundLayer';
 import { ChatComposer } from './ChatComposer';
 import { ChatHeaderStatusRow } from './ChatHeaderStatusRow';
 import { ChatHeaderTitleRow } from './ChatHeaderTitleRow';
 import { ChatMessageList } from './ChatMessageList';
 import { DmSettingsPanel } from './DmSettingsPanel';
-import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
-import type { ResolvedChatBg } from './ChatBackgroundLayer';
-import type { PendingMediaItem } from '../attachments';
-import type { MediaItem } from '../../../types/media';
-import type { ChatMessage } from '../types';
-import type { StyleProp, ViewStyle, TextInput } from 'react-native';
 
 type WebPinnedState = {
   ready: boolean;
@@ -134,7 +139,15 @@ type ChatScreenMainProps = {
   };
 };
 
-export function ChatScreenMain({ styles, isDark, isWideChatLayout, header, body, list, composer }: ChatScreenMainProps): React.JSX.Element {
+export function ChatScreenMain({
+  styles,
+  isDark,
+  isWideChatLayout,
+  header,
+  body,
+  list,
+  composer,
+}: ChatScreenMainProps): React.JSX.Element {
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -162,7 +175,9 @@ export function ChatScreenMain({ styles, isDark, isWideChatLayout, header, body,
             isConnecting={header.isConnecting}
             isConnected={header.isConnected}
             showCaret={!!(header.isEncryptedChat || header.isChannel)}
-            caretExpanded={!!(header.isEncryptedChat ? header.dmSettingsOpen : header.channelSettingsOpen)}
+            caretExpanded={
+              !!(header.isEncryptedChat ? header.dmSettingsOpen : header.channelSettingsOpen)
+            }
             caretA11yLabel={
               header.isEncryptedChat
                 ? header.dmSettingsOpen
@@ -227,7 +242,9 @@ export function ChatScreenMain({ styles, isDark, isWideChatLayout, header, body,
             ) : null
           ) : null}
 
-          {header.error ? <Text style={[styles.error, isDark ? styles.errorDark : null]}>{header.error}</Text> : null}
+          {header.error ? (
+            <Text style={[styles.error, isDark ? styles.errorDark : null]}>{header.error}</Text>
+          ) : null}
         </View>
       </View>
 
@@ -303,4 +320,3 @@ export function ChatScreenMain({ styles, isDark, isWideChatLayout, header, body,
     </KeyboardAvoidingView>
   );
 }
-

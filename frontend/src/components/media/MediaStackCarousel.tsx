@@ -1,10 +1,11 @@
 import React from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AnimatedDots } from '../AnimatedDots';
-import type { MediaItem } from '../../types/media';
-import { getNativeEventNumber } from '../../utils/nativeEvent';
-import { isImageLike, isVideoLike } from '../../utils/mediaKinds';
+
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
+import type { MediaItem } from '../../types/media';
+import { isImageLike, isVideoLike } from '../../utils/mediaKinds';
+import { getNativeEventNumber } from '../../utils/nativeEvent';
+import { AnimatedDots } from '../AnimatedDots';
 
 export function MediaStackCarousel({
   messageId,
@@ -116,7 +117,8 @@ export function MediaStackCarousel({
           scrollXRef.current = x;
           if (!loopEnabled) return;
           const raw = Math.round(x / Math.max(1, width)); // 0..n+1
-          const nextIdx = raw === 0 ? n - 1 : raw === n + 1 ? 0 : Math.max(0, Math.min(n - 1, raw - 1));
+          const nextIdx =
+            raw === 0 ? n - 1 : raw === n + 1 ? 0 : Math.max(0, Math.min(n - 1, raw - 1));
           if (nextIdx !== pageIdxRef.current) setPageIdx(nextIdx);
         }}
         onMomentumScrollEnd={(e: unknown) => {
@@ -155,7 +157,11 @@ export function MediaStackCarousel({
                 const dy = getNativeEventNumber(e, ['nativeEvent', 'deltaY']);
                 if (Math.abs(dy) <= Math.abs(dx)) return;
                 try {
-                  scrollRef.current?.scrollTo({ x: Math.max(0, scrollXRef.current + dy), y: 0, animated: false });
+                  scrollRef.current?.scrollTo({
+                    x: Math.max(0, scrollXRef.current + dy),
+                    y: 0,
+                    animated: false,
+                  });
                 } catch {
                   // ignore
                 }
@@ -168,13 +174,24 @@ export function MediaStackCarousel({
           const looksVideo = isVideoLike(m2);
           const thumbKey = String(m2.thumbPath || m2.path || '');
           const thumbUriFromThumbMap =
-            m2.thumbPath && thumbUriByPath ? String(thumbUriByPath[String(m2.thumbPath)] || '') : '';
-          const thumbUri = thumbUriFromThumbMap || (thumbKey ? String(uriByPath[thumbKey] || '') : '');
+            m2.thumbPath && thumbUriByPath
+              ? String(thumbUriByPath[String(m2.thumbPath)] || '')
+              : '';
+          const thumbUri =
+            thumbUriFromThumbMap || (thumbKey ? String(uriByPath[thumbKey] || '') : '');
 
           // Map extended pages → real index.
-          const realIndex = !loopEnabled ? idx2 : idx2 === 0 ? n - 1 : idx2 === n + 1 ? 0 : idx2 - 1;
+          const realIndex = !loopEnabled
+            ? idx2
+            : idx2 === 0
+              ? n - 1
+              : idx2 === n + 1
+                ? 0
+                : idx2 - 1;
 
-          const loadingText = loadingTextColor ?? (isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary);
+          const loadingText =
+            loadingTextColor ??
+            (isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary);
           const loadingDots = loadingDotsColor ?? loadingText;
           const onPress = () => onOpen(realIndex, mediaList[realIndex]);
 
@@ -194,7 +211,9 @@ export function MediaStackCarousel({
                     resizeMode="contain"
                   />
                 ) : (
-                  <View style={[styles.videoThumbWrap, { width, height, borderRadius: cornerRadius }]}>
+                  <View
+                    style={[styles.videoThumbWrap, { width, height, borderRadius: cornerRadius }]}
+                  >
                     <Image source={{ uri: thumbUri }} style={styles.mediaFill} resizeMode="cover" />
                     <View style={styles.videoPlayOverlay}>
                       <Text style={styles.videoPlayText}>▶</Text>
@@ -205,11 +224,19 @@ export function MediaStackCarousel({
                 <View
                   style={[
                     styles.imageThumbWrap,
-                    { width, height, justifyContent: 'center', alignItems: 'center', borderRadius: cornerRadius },
+                    {
+                      width,
+                      height,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderRadius: cornerRadius,
+                    },
                   ]}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ color: loadingText, fontWeight: '800', fontSize: 14 }}>Loading</Text>
+                    <Text style={{ color: loadingText, fontWeight: '800', fontSize: 14 }}>
+                      Loading
+                    </Text>
                     <AnimatedDots color={loadingDots} size={16} />
                   </View>
                 </View>
@@ -217,10 +244,21 @@ export function MediaStackCarousel({
                 <View
                   style={[
                     styles.imageThumbWrap,
-                    { width, height, justifyContent: 'center', alignItems: 'center', borderRadius: cornerRadius },
+                    {
+                      width,
+                      height,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderRadius: cornerRadius,
+                    },
                   ]}
                 >
-                  <Text style={{ color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary, fontWeight: '800' }}>
+                  <Text
+                    style={{
+                      color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                      fontWeight: '800',
+                    }}
+                  >
                     {m2.fileName ? m2.fileName : 'Attachment'}
                   </Text>
                 </View>
@@ -262,7 +300,10 @@ export function MediaStackCarousel({
       {/* Dots overlay (tap-able) */}
       {n > 1 ? (
         <View
-          style={[styles.mediaDotsOverlay, ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : [])]}
+          style={[
+            styles.mediaDotsOverlay,
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+          ]}
           pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
         >
           <View style={styles.mediaDotsRow}>
@@ -330,7 +371,13 @@ const styles = StyleSheet.create({
   },
   mediaCarouselNavLeft: { left: 10 },
   mediaCarouselNavRight: { right: 10 },
-  mediaCarouselNavText: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 22, lineHeight: 22, marginTop: -1 },
+  mediaCarouselNavText: {
+    color: APP_COLORS.dark.text.primary,
+    fontWeight: '900',
+    fontSize: 22,
+    lineHeight: 22,
+    marginTop: -1,
+  },
   mediaDotsOverlay: {
     position: 'absolute',
     left: 0,

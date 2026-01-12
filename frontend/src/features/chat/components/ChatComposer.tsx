@@ -1,13 +1,14 @@
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
+
 import { AnimatedDots } from '../../../components/AnimatedDots';
-import type { ChatMessage } from '../types';
-import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
 import type { PendingMediaItem } from '../attachments';
-import { APP_COLORS, PALETTE } from '../../../theme/colors';
+import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
+import type { ChatMessage } from '../types';
 
 type ReplyTarget = null | {
   id: string;
@@ -109,7 +110,9 @@ export function ChatComposer(props: {
     <>
       {inlineEditTargetId ? (
         <View style={[styles.editingBar, isDark ? styles.editingBarDark : null]}>
-          <Text style={[styles.editingBarText, isDark ? styles.editingBarTextDark : null]}>Editing message</Text>
+          <Text style={[styles.editingBarText, isDark ? styles.editingBarTextDark : null]}>
+            Editing message
+          </Text>
           <Pressable
             onPress={cancelInlineEdit}
             disabled={inlineEditUploading}
@@ -120,7 +123,11 @@ export function ChatComposer(props: {
               pressed ? { opacity: 0.85 } : null,
             ]}
           >
-            <Text style={[styles.editingBarCancelText, isDark ? styles.editingBarCancelTextDark : null]}>Cancel</Text>
+            <Text
+              style={[styles.editingBarCancelText, isDark ? styles.editingBarCancelTextDark : null]}
+            >
+              Cancel
+            </Text>
           </Pressable>
         </View>
       ) : pendingMedia.length ? (
@@ -152,12 +159,17 @@ export function ChatComposer(props: {
                 const t = messages.find((m) => m && m.id === replyTarget.id);
                 if (!t) return;
                 const raw = String(t.rawText ?? t.text ?? '');
-                const env = !t.encrypted && !t.groupEncrypted && !isDm ? parseChatEnvelope(raw) : null;
+                const env =
+                  !t.encrypted && !t.groupEncrypted && !isDm ? parseChatEnvelope(raw) : null;
                 const envList = env ? normalizeChatMediaList(env.media) : [];
                 if (!envList.length) return;
                 openViewer(envList, 0);
               }}
-              style={({ pressed }) => [styles.replyThumbWrap, { marginRight: 10 }, pressed ? { opacity: 0.9 } : null]}
+              style={({ pressed }) => [
+                styles.replyThumbWrap,
+                { marginRight: 10 },
+                pressed ? { opacity: 0.9 } : null,
+              ]}
               accessibilityRole="button"
               accessibilityLabel="Open replied media"
             >
@@ -166,31 +178,49 @@ export function ChatComposer(props: {
               ) : (
                 <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
                   <Text style={styles.replyThumbPlaceholderText}>
-                    {replyTarget.mediaKind === 'image' ? 'Photo' : replyTarget.mediaKind === 'video' ? 'Video' : 'File'}
+                    {replyTarget.mediaKind === 'image'
+                      ? 'Photo'
+                      : replyTarget.mediaKind === 'video'
+                        ? 'Video'
+                        : 'File'}
                   </Text>
                 </View>
               )}
               {(replyTarget.mediaCount || 0) > 1 ? (
                 <View style={styles.replyThumbCountBadge}>
-                  <Text style={styles.replyThumbCountText}>{`+${(replyTarget.mediaCount || 0) - 1}`}</Text>
+                  <Text
+                    style={styles.replyThumbCountText}
+                  >{`+${(replyTarget.mediaCount || 0) - 1}`}</Text>
                 </View>
               ) : null}
             </Pressable>
           ) : null}
           <View style={{ flex: 1 }}>
-            <Text style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]} numberOfLines={2}>
+            <Text
+              style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
+              numberOfLines={2}
+            >
               {`Replying to ${replyTarget.user || 'user'}: ${replyTarget.preview || ''}`}
             </Text>
           </View>
           <Pressable
             onPress={() => setReplyTarget(null)}
             style={({ pressed }) => [
-              { marginLeft: 10, paddingHorizontal: 10, paddingVertical: 6, opacity: pressed ? 0.85 : 1 },
+              {
+                marginLeft: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                opacity: pressed ? 0.85 : 1,
+              },
             ]}
             accessibilityRole="button"
             accessibilityLabel="Cancel reply"
           >
-            <Text style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}>Cancel</Text>
+            <Text
+              style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
+            >
+              Cancel
+            </Text>
           </Pressable>
         </View>
       ) : null}
@@ -264,7 +294,9 @@ export function ChatComposer(props: {
                 : null,
             ]}
             onPress={handlePickMedia}
-            disabled={isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')}
+            disabled={
+              isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
+            }
           >
             <Text style={[styles.pickTxt, isDark ? styles.pickTxtDark : null]}>＋</Text>
           </Pressable>
@@ -292,7 +324,9 @@ export function ChatComposer(props: {
             cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             value={input}
             onChangeText={onChangeInput}
-            editable={!inlineEditTargetId && !isUploading && !(isGroup && groupMeta?.meStatus !== 'active')}
+            editable={
+              !inlineEditTargetId && !isUploading && !(isGroup && groupMeta?.meStatus !== 'active')
+            }
             onBlur={() => {
               if (isTypingRef.current) sendTyping(false);
             }}
@@ -315,11 +349,22 @@ export function ChatComposer(props: {
                   : null,
             ]}
             onPress={sendMessage}
-            disabled={isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')}
+            disabled={
+              isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
+            }
           >
             {isUploading ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                <Text style={{ color: APP_COLORS.dark.text.primary, fontWeight: '800' }}>Uploading</Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 2,
+                }}
+              >
+                <Text style={{ color: APP_COLORS.dark.text.primary, fontWeight: '800' }}>
+                  Uploading
+                </Text>
                 <AnimatedDots color={APP_COLORS.dark.text.primary} size={18} />
               </View>
             ) : (

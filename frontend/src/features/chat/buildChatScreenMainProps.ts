@@ -1,6 +1,6 @@
 import type React from 'react';
 
-import { ChatScreenMain } from './components/ChatScreenMain';
+import type { ChatScreenMain } from './components/ChatScreenMain';
 
 type MainProps = React.ComponentProps<typeof ChatScreenMain>;
 type HeaderProps = MainProps['header'];
@@ -199,4 +199,3 @@ export function buildChatScreenMainProps(deps: {
     },
   };
 }
-

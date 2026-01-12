@@ -1,9 +1,10 @@
 import React from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { FlatList, Platform } from 'react-native';
+
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { ChatHistoryLoadMore } from './ChatHistoryLoadMore';
 import { ChatReadOnlyBanner } from './ChatReadOnlyBanner';
-import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 
 type Props<T extends { id: string }> = {
   styles: ChatScreenStyles;
@@ -116,7 +117,10 @@ export function ChatMessageList<T extends { id: string }>({
       updateCellsBatchingPeriod={50}
       windowSize={7}
       renderItem={renderItem}
-      contentContainerStyle={[styles.listContent, isWideChatLayout ? styles.chatContentColumn : null]}
+      contentContainerStyle={[
+        styles.listContent,
+        isWideChatLayout ? styles.chatContentColumn : null,
+      ]}
     />
   );
 }

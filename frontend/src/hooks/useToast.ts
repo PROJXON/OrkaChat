@@ -4,11 +4,7 @@ import { Animated, Platform } from 'react-native';
 export type ToastKind = 'success' | 'error';
 export type ToastState = { message: string; kind: ToastKind };
 
-export function useToast(opts?: {
-  visibleMs?: number;
-  fadeInMs?: number;
-  fadeOutMs?: number;
-}): {
+export function useToast(opts?: { visibleMs?: number; fadeInMs?: number; fadeOutMs?: number }): {
   toast: ToastState | null;
   anim: Animated.Value;
   showToast: (message: string, kind?: ToastKind) => void;
@@ -26,7 +22,11 @@ export function useToast(opts?: {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = null;
     anim.stopAnimation();
-    Animated.timing(anim, { toValue: 0, duration: fadeOutMs, useNativeDriver: Platform.OS !== 'web' }).start(() => {
+    Animated.timing(anim, {
+      toValue: 0,
+      duration: fadeOutMs,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(() => {
       setToast(null);
     });
   }, [anim, fadeOutMs]);
@@ -38,7 +38,11 @@ export function useToast(opts?: {
       setToast({ message, kind });
       anim.stopAnimation();
       anim.setValue(0);
-      Animated.timing(anim, { toValue: 1, duration: fadeInMs, useNativeDriver: Platform.OS !== 'web' }).start();
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: fadeInMs,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
       timerRef.current = setTimeout(() => {
         hideToast();
       }, visibleMs);
@@ -54,4 +58,3 @@ export function useToast(opts?: {
 
   return { toast, anim, showToast, hideToast };
 }
-

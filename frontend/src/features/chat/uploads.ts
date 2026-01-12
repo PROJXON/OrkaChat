@@ -1,6 +1,7 @@
 // Shared upload/attachment helpers and limits for chat.
 
 import { toByteArray } from 'base64-js';
+
 import type { MediaKind } from '../../types/media';
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
@@ -45,12 +46,17 @@ export function getAttachmentHardLimitBytes(kind: MediaKind): number {
 export function assertWithinAttachmentHardLimit(kind: MediaKind, sizeBytes: number): void {
   const limit = getAttachmentHardLimitBytes(kind);
   if (Number.isFinite(sizeBytes) && sizeBytes > limit) {
-    throw new Error(`File too large (${formatBytes(sizeBytes)}). Limit for ${kind} is ${formatBytes(limit)}.`);
+    throw new Error(
+      `File too large (${formatBytes(sizeBytes)}). Limit for ${kind} is ${formatBytes(limit)}.`,
+    );
   }
 }
 
 type BlobLike = { arrayBuffer?: () => Promise<ArrayBuffer> };
-type FetchResponseLike = { arrayBuffer?: () => Promise<ArrayBuffer>; blob?: () => Promise<BlobLike> };
+type FetchResponseLike = {
+  arrayBuffer?: () => Promise<ArrayBuffer>;
+  blob?: () => Promise<BlobLike>;
+};
 
 type ExpoFileLike = {
   bytes?: () => Promise<Uint8Array | ArrayBuffer | ArrayBufferView | number[]>;
@@ -73,7 +79,10 @@ type ExpoImageManipulatorLike = {
 };
 
 type ExpoVideoThumbnailsLike = {
-  getThumbnailAsync?: (uri: string, opts: { time: number; quality: number }) => Promise<{ uri?: string }>;
+  getThumbnailAsync?: (
+    uri: string,
+    opts: { time: number; quality: number },
+  ) => Promise<{ uri?: string }>;
 };
 
 export async function readUriBytes(uri: string): Promise<Uint8Array> {
@@ -117,7 +126,10 @@ export async function readUriBytes(uri: string): Promise<Uint8Array> {
   throw new Error('File read API not available');
 }
 
-export async function createWebpThumbnailBytes(args: { kind: MediaKind; uri: string }): Promise<Uint8Array | null> {
+export async function createWebpThumbnailBytes(args: {
+  kind: MediaKind;
+  uri: string;
+}): Promise<Uint8Array | null> {
   const { kind, uri } = args;
   if (kind !== 'image' && kind !== 'video') return null;
 

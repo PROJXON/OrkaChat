@@ -7,4 +7,3 @@ export function timestampId(ts: number, prefix?: string): string {
   const suf = randomBase36Suffix();
   return prefix && String(prefix).length > 0 ? `${prefix}-${t}-${suf}` : `${t}-${suf}`;
 }
-

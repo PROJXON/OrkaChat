@@ -1,5 +1,7 @@
 import * as React from 'react';
-import { UIManager, findNodeHandle, ScrollView, View } from 'react-native';
+import type { ScrollView, View } from 'react-native';
+import { findNodeHandle, UIManager } from 'react-native';
+
 import { buildAiHelperContext } from './aiHelperContext';
 import type { ChatMessage } from './types';
 
@@ -43,8 +45,17 @@ export function useAiHelper(opts: {
   fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
   openInfo: (title: string, body: string) => void;
 }) {
-  const { apiUrl, activeConversationId, peer, messages, isDm, mediaUrlByPath, cdnResolve, fetchAuthSession, openInfo } =
-    opts;
+  const {
+    apiUrl,
+    activeConversationId,
+    peer,
+    messages,
+    isDm,
+    mediaUrlByPath,
+    cdnResolve,
+    fetchAuthSession,
+    openInfo,
+  } = opts;
 
   const [open, setOpen] = React.useState(false);
   const [instruction, setInstruction] = React.useState<string>('');
@@ -60,8 +71,15 @@ export function useAiHelper(opts: {
   const scrollContentHRef = React.useRef<number>(0);
   const scrollContentRef = React.useRef<View | null>(null);
   const lastTurnRef = React.useRef<View | null>(null);
-  const lastTurnLayoutRef = React.useRef<{ y: number; h: number; ok: boolean }>({ y: 0, h: 0, ok: false });
-  const autoScrollRetryRef = React.useRef<{ timer: ReturnType<typeof setTimeout> | null; attempts: number }>({
+  const lastTurnLayoutRef = React.useRef<{ y: number; h: number; ok: boolean }>({
+    y: 0,
+    h: 0,
+    ok: false,
+  });
+  const autoScrollRetryRef = React.useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    attempts: number;
+  }>({
     timer: null,
     attempts: 0,
   });
@@ -175,7 +193,8 @@ export function useAiHelper(opts: {
             const bubbleTopY = Math.max(0, Math.floor(y));
             const latestViewportH = Math.max(0, Math.floor(scrollViewportHRef.current || 0));
             const latestContentH = Math.max(0, Math.floor(scrollContentHRef.current || 0));
-            const latestEndY = latestViewportH > 0 ? Math.max(0, latestContentH - latestViewportH) : 0;
+            const latestEndY =
+              latestViewportH > 0 ? Math.max(0, latestContentH - latestViewportH) : 0;
             const responseH = Math.max(0, Math.floor(latestContentH - bubbleTopY));
             const targetY = responseH > latestViewportH ? bubbleTopY : latestEndY;
             scrollRef.current?.scrollTo({ y: targetY, animated: true });
@@ -288,7 +307,8 @@ export function useAiHelper(opts: {
 
       const data = await resp.json().catch(() => ({}));
       const rec = isRecord(data) ? data : {};
-      const nextAnswer = typeof rec.answer === 'string' ? rec.answer.trim() : String(rec.answer ?? '').trim();
+      const nextAnswer =
+        typeof rec.answer === 'string' ? rec.answer.trim() : String(rec.answer ?? '').trim();
       const nextSuggestions = Array.isArray(rec.suggestions)
         ? rec.suggestions
             .map((s) => (typeof s === 'string' ? s.trim() : String(s ?? '').trim()))
@@ -300,7 +320,9 @@ export function useAiHelper(opts: {
       setSuggestions(nextSuggestions);
 
       if (Array.isArray(rec.thread)) {
-        const parsedThread = rec.thread.map(parseAiHelperTurn).filter((t): t is AiHelperTurn => !!t);
+        const parsedThread = rec.thread
+          .map(parseAiHelperTurn)
+          .filter((t): t is AiHelperTurn => !!t);
         lastTurnRef.current = null;
         if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
         autoScrollRetryRef.current.timer = null;
@@ -315,7 +337,11 @@ export function useAiHelper(opts: {
         autoScrollIntentRef.current = 'answer';
         setThread((prev) => {
           const next = prev.slice();
-          if (next.length && next[next.length - 1]?.role === 'assistant' && next[next.length - 1]?.thinking) {
+          if (
+            next.length &&
+            next[next.length - 1]?.role === 'assistant' &&
+            next[next.length - 1]?.thinking
+          ) {
             next.pop();
           }
           next.push({ role: 'assistant', text: nextAnswer });
@@ -372,4 +398,3 @@ export function useAiHelper(opts: {
     autoScroll: autoScroll,
   };
 }
-

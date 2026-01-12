@@ -1,6 +1,6 @@
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Platform, Pressable, Switch, Text, View } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
 
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS } from '../../../theme/colors';
@@ -100,22 +100,34 @@ export function ChannelSettingsPanel({
             Members
           </Text>
           <Pressable
-            style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, busy ? { opacity: 0.6 } : null]}
+            style={[
+              styles.toolBtn,
+              isDark ? styles.toolBtnDark : null,
+              busy ? { opacity: 0.6 } : null,
+            ]}
             disabled={busy}
             onPress={onOpenMembers}
           >
-            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>{membersCountLabel}</Text>
+            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+              {membersCountLabel}
+            </Text>
           </Pressable>
         </View>
 
         <View style={[styles.channelAdminActions, compact ? { flexWrap: 'wrap' } : null]}>
           {meIsAdmin ? (
             <Pressable
-              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, busy ? { opacity: 0.6 } : null]}
+              style={[
+                styles.toolBtn,
+                isDark ? styles.toolBtnDark : null,
+                busy ? { opacity: 0.6 } : null,
+              ]}
               disabled={busy}
               onPress={onOpenAbout}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>About</Text>
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                About
+              </Text>
             </Pressable>
           ) : null}
 
@@ -152,7 +164,9 @@ export function ChannelSettingsPanel({
       </View>
 
       {/* Row 2: Visibility + Password */}
-      <View style={[styles.channelAdminRow, { marginTop: 8 }, compact ? { flexWrap: 'wrap' } : null]}>
+      <View
+        style={[styles.channelAdminRow, { marginTop: 8 }, compact ? { flexWrap: 'wrap' } : null]}
+      >
         <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
           {meIsAdmin ? (
             <>
@@ -180,7 +194,10 @@ export function ChannelSettingsPanel({
                   value={!!isPublic}
                   disabled={busy}
                   onValueChange={onTogglePublic}
-                  trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                  trackColor={{
+                    false: APP_COLORS.light.border.default,
+                    true: APP_COLORS.light.border.default,
+                  }}
                   thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
                   ios_backgroundColor={APP_COLORS.light.border.default}
                 />
@@ -216,7 +233,11 @@ export function ChannelSettingsPanel({
         {meIsAdmin && isPublic ? (
           <View style={styles.channelAdminActions}>
             <Pressable
-              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, busy ? { opacity: 0.6 } : null]}
+              style={[
+                styles.toolBtn,
+                isDark ? styles.toolBtnDark : null,
+                busy ? { opacity: 0.6 } : null,
+              ]}
               disabled={busy}
               onPress={onPressPassword}
             >

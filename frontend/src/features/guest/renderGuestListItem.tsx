@@ -1,12 +1,12 @@
 import React from 'react';
 
+import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
+import type { MediaItem } from '../../types/media';
 import { getAvatarGutterPx, shouldShowThreadAvatar } from '../../utils/avatarGrouping';
 import { getOlderNeighbor } from '../../utils/listNeighbors';
 import { getGuestSenderKey } from '../../utils/senderKeys';
 import { GuestMessageRow } from './components/GuestMessageRow';
 import type { GuestMessage } from './types';
-import type { MediaItem } from '../../types/media';
-import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
 
 export function renderGuestListItem(args: {
   item: GuestMessage;

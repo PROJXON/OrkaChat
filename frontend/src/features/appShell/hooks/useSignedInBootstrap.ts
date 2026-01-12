@@ -1,7 +1,7 @@
 import * as React from 'react';
 
-import type { BackupBlob } from '../../../types/crypto';
 import type { AmplifyUiUser } from '../../../types/amplifyUi';
+import type { BackupBlob } from '../../../types/crypto';
 
 type KeyPair = { privateKey: string; publicKey: string } | null;
 
@@ -60,7 +60,10 @@ export function useSignedInBootstrap({
   setDisplayName: (v: string) => void;
 
   loadKeyPair: (userSub: string) => Promise<KeyPair>;
-  storeKeyPair: (userSub: string, keyPair: { privateKey: string; publicKey: string }) => Promise<void>;
+  storeKeyPair: (
+    userSub: string,
+    keyPair: { privateKey: string; publicKey: string },
+  ) => Promise<void>;
   derivePublicKey: (privateKeyHex: string) => string;
   decryptPrivateKey: (blob: BackupBlob, passphrase: string) => Promise<string>;
   generateKeypair: () => Promise<{ privateKey: string; publicKey: string }>;
@@ -68,7 +71,10 @@ export function useSignedInBootstrap({
   uploadRecoveryBlob: (token: string, privateKeyHex: string, passphrase: string) => Promise<void>;
   checkRecoveryBlobExists: (token: string) => Promise<boolean | null>;
   applyRecoveryBlobExists: (exists: boolean) => void;
-  getIdTokenWithRetry: (opts?: { maxAttempts?: number; delayMs?: number }) => Promise<string | null>;
+  getIdTokenWithRetry: (opts?: {
+    maxAttempts?: number;
+    delayMs?: number;
+  }) => Promise<string | null>;
   promptPassphrase: (mode: 'setup' | 'restore' | 'change' | 'reset') => Promise<string>;
   closePrompt: () => void;
   bumpKeyEpoch: () => void;
@@ -90,13 +96,10 @@ export function useSignedInBootstrap({
         setProcessing(false);
 
         const attrs = await fetchUserAttributes();
-        const preferredUsername = typeof attrs.preferred_username === 'string' ? attrs.preferred_username : undefined;
+        const preferredUsername =
+          typeof attrs.preferred_username === 'string' ? attrs.preferred_username : undefined;
         const email = typeof attrs.email === 'string' ? attrs.email : undefined;
-        const name =
-          preferredUsername ||
-          email ||
-          getUsernameFromAuthenticatorUser(user) ||
-          'anon';
+        const name = preferredUsername || email || getUsernameFromAuthenticatorUser(user) || 'anon';
         const userId = typeof attrs.sub === 'string' ? attrs.sub : String(attrs.sub || '');
         if (mounted) setMyUserSub(userId);
         if (mounted) setDisplayName(name);
@@ -176,7 +179,10 @@ export function useSignedInBootstrap({
                   recovered = true;
                   closePrompt();
                 } catch (err) {
-                  await promptAlert('Incorrect passphrase', 'You have entered an incorrect passphrase. Try again.');
+                  await promptAlert(
+                    'Incorrect passphrase',
+                    'You have entered an incorrect passphrase. Try again.',
+                  );
                   console.warn('Recovery attempt failed', err);
                   closePrompt();
                   // continue prompting
@@ -256,4 +262,3 @@ export function useSignedInBootstrap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 }
-

@@ -25,4 +25,3 @@ export function isVisibleMemberRow(m: unknown): boolean {
   const rec = m as Record<string, unknown>;
   return rec.status === 'active' || rec.status === 'banned';
 }
-

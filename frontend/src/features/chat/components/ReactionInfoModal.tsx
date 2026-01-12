@@ -1,7 +1,6 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
-
 import type { TextStyle, ViewStyle } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
 export type ReactionInfoModalStyles = {
   modalOverlay: ViewStyle;
@@ -57,7 +56,9 @@ export function ReactionInfoModal({
             {subsSorted.length ? (
               subsSorted.map((sub) => {
                 const isMe = !!myUserId && sub === myUserId;
-                const label = isMe ? 'You' : nameBySub[sub] || `${String(sub).slice(0, 6)}…${String(sub).slice(-4)}`;
+                const label = isMe
+                  ? 'You'
+                  : nameBySub[sub] || `${String(sub).slice(0, 6)}…${String(sub).slice(-4)}`;
                 return (
                   <Pressable
                     key={sub}
@@ -98,12 +99,19 @@ export function ReactionInfoModal({
                 );
               })
             ) : (
-              <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>No reactions.</Text>
+              <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
+                No reactions.
+              </Text>
             )}
           </ScrollView>
           <View style={styles.summaryButtons}>
-            <Pressable style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]} onPress={onClose}>
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>{closeLabel}</Text>
+            <Pressable
+              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+              onPress={onClose}
+            >
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                {closeLabel}
+              </Text>
             </Pressable>
           </View>
         </View>

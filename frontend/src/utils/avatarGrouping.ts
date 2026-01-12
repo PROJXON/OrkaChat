@@ -17,6 +17,10 @@ export function shouldShowIncomingAvatar(args: {
   return shouldShowThreadAvatar(args);
 }
 
-export function getAvatarGutterPx(args: { showAvatar: boolean; size: number; gap: number }): number {
+export function getAvatarGutterPx(args: {
+  showAvatar: boolean;
+  size: number;
+  gap: number;
+}): number {
   return args.showAvatar ? args.size + args.gap : 0;
 }

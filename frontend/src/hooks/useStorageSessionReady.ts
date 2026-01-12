@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import type { AmplifyUiUser } from '../types/amplifyUi';
 
 type AuthCredentialsLike = {
@@ -17,9 +18,14 @@ export function useStorageSessionReady(opts: {
 }): boolean {
   const user = opts.user;
   const fetchAuthSession = opts.fetchAuthSession;
-  const attempts = typeof opts.attempts === 'number' && Number.isFinite(opts.attempts) ? Math.max(1, Math.floor(opts.attempts)) : 6;
+  const attempts =
+    typeof opts.attempts === 'number' && Number.isFinite(opts.attempts)
+      ? Math.max(1, Math.floor(opts.attempts))
+      : 6;
   const baseDelayMs =
-    typeof opts.baseDelayMs === 'number' && Number.isFinite(opts.baseDelayMs) ? Math.max(0, Math.floor(opts.baseDelayMs)) : 250;
+    typeof opts.baseDelayMs === 'number' && Number.isFinite(opts.baseDelayMs)
+      ? Math.max(0, Math.floor(opts.baseDelayMs))
+      : 250;
 
   const [ready, setReady] = React.useState<boolean>(false);
 
@@ -60,4 +66,3 @@ export function useStorageSessionReady(opts: {
 
   return ready;
 }
-

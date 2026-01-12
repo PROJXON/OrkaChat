@@ -15,7 +15,8 @@ export function useMessageActionMenu<TTarget = unknown>() {
     (msg: TTarget, nextAnchor?: { x: number; y: number }) => {
       if (!msg) return;
       setTarget(msg);
-      if (nextAnchor && Number.isFinite(nextAnchor.x) && Number.isFinite(nextAnchor.y)) setAnchor(nextAnchor);
+      if (nextAnchor && Number.isFinite(nextAnchor.x) && Number.isFinite(nextAnchor.y))
+        setAnchor(nextAnchor);
       else setAnchor(null);
       setOpen(true);
       anim.setValue(0);
@@ -52,4 +53,3 @@ export function useMessageActionMenu<TTarget = unknown>() {
     onMeasuredH,
   };
 }
-

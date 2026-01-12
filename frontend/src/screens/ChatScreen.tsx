@@ -1,35 +1,29 @@
-import React from 'react';
-import {
-  AppState,
-  AppStateStatus,
-  useWindowDimensions,
-  Platform,
-  TextInput,
-} from 'react-native';
-import { styles } from './ChatScreen.styles';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WS_URL, API_URL, CDN_URL } from '../config/env';
-import { useAuthenticator } from '@aws-amplify/ui-react-native/dist';
-import { useCdnUrlCache } from '../hooks/useCdnUrlCache';
-import { useMessageActionMenu } from '../features/chat/useMessageActionMenu';
-import { ChatScreenMain } from '../features/chat/components/ChatScreenMain';
 import { fetchAuthSession } from '@aws-amplify/auth';
-import {
-  aesGcmDecryptBytes,
-  decryptChatMessageV1,
-  deriveChatKeyBytesV1,
-  encryptChatMessageV1,
-} from '../utils/crypto';
+import { useAuthenticator } from '@aws-amplify/ui-react-native/dist';
+import { gcm } from '@noble/ciphers/aes.js';
+import { hexToBytes } from '@noble/hashes/utils.js';
+import { fromByteArray } from 'base64-js';
 import { getRandomBytes } from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
-import { fromByteArray } from 'base64-js';
-import { hexToBytes } from '@noble/hashes/utils.js';
-import { gcm } from '@noble/ciphers/aes.js';
-import { getDmMediaSignedUrl } from '../utils/dmSignedUrl';
-import type { MemberRow } from '../types/members';
-import type {
-  ChatMessage,
-} from '../features/chat/types';
+import React from 'react';
+import type { AppStateStatus, TextInput } from 'react-native';
+import { AppState, Platform, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { API_URL, CDN_URL, WS_URL } from '../config/env';
+import { applyOptimisticSendForTextOnly } from '../features/chat/applyOptimisticSend';
+import {
+  pendingMediaFromDocumentPickerAssets,
+  pendingMediaFromImagePickerAssets,
+  pendingMediaFromInAppCameraCapture,
+} from '../features/chat/attachments';
+import { buildChatScreenMainProps } from '../features/chat/buildChatScreenMainProps';
+import { buildChatScreenOverlaysProps } from '../features/chat/buildChatScreenOverlaysProps';
+import type { ResolvedChatBg } from '../features/chat/components/ChatBackgroundLayer';
+import { ChatScreenMain } from '../features/chat/components/ChatScreenMain';
+import { ChatScreenOverlays } from '../features/chat/components/ChatScreenOverlays';
+import { TypingIndicator } from '../features/chat/components/TypingIndicator';
+import { isVisibleMemberRow, toMemberRow } from '../features/chat/memberRows';
 import {
   normalizeDmMediaItems,
   normalizeGroupMediaItems,
@@ -38,110 +32,118 @@ import {
   parseDmMediaEnvelope,
   parseGroupMediaEnvelope,
 } from '../features/chat/parsers';
-import { MAX_ATTACHMENTS_PER_MESSAGE } from '../features/chat/uploads';
-import {
-  pendingMediaFromDocumentPickerAssets,
-  pendingMediaFromImagePickerAssets,
-  pendingMediaFromInAppCameraCapture,
-} from '../features/chat/attachments';
-import { useChatAttachments } from '../features/chat/useChatAttachments';
-import { useDisplayNameBySub } from '../features/chat/useDisplayNameBySub';
-import { useUiPromptHelpers } from '../hooks/useUiPromptHelpers';
-import { renderChatListItem } from '../features/chat/renderChatListItem';
-import { getChatHeaderTitle } from '../utils/conversationTitles';
-import { useConfirmLinkModal } from '../hooks/useConfirmLinkModal';
-import { useViewportWidth } from '../hooks/useViewportWidth';
-import { usePublicAvatarProfiles } from '../hooks/usePublicAvatarProfiles';
-import { markChannelAboutSeen } from '../utils/channelAboutSeen';
-import { getPreviewKind } from '../utils/mediaKinds';
-import { useAiHelper } from '../features/chat/useAiHelper';
-import { useAiSummary } from '../features/chat/useAiSummary';
-import { useAiDmConsentGate } from '../features/chat/useAiDmConsent';
-import { useChatSendActions } from '../features/chat/useChatSendActions';
-import { useChatInlineEditActions } from '../features/chat/useChatInlineEditActions';
-import { useChatReplyActions } from '../features/chat/useChatReplyActions';
-import { useChatMessageOps } from '../features/chat/useChatMessageOps';
-import { useChatKickActions } from '../features/chat/useChatKickActions';
-import { useGroupMembersModalActions } from '../features/chat/useGroupMembersModalActions';
-import { useChannelMembersModalActions } from '../features/chat/useChannelMembersModalActions';
-import { useChannelSettingsPanelActions } from '../features/chat/useChannelSettingsPanelActions';
-import { useGroupNameModalActions } from '../features/chat/useGroupNameModalActions';
-import { useChannelAboutModalActions } from '../features/chat/useChannelAboutModalActions';
-import { useChannelNameModalActions } from '../features/chat/useChannelNameModalActions';
-import { useChannelPasswordModalActions } from '../features/chat/useChannelPasswordModalActions';
-import { useChatPressToDecrypt } from '../features/chat/useChatPressToDecrypt';
-import { MORE_REACTIONS, QUICK_REACTIONS } from '../features/chat/reactionEmojis';
-import { getSeenLabelForCreatedAt } from '../utils/seenLabels';
-import { sortReactionSubs } from '../features/chat/reactionsUi';
-import { isVisibleMemberRow, toMemberRow } from '../features/chat/memberRows';
-
-import { usePersistedNumberMinMap } from '../hooks/usePersistedNumberMinMap';
-import { usePersistedBool } from '../hooks/usePersistedBool';
-import { useTtlNowSec } from '../hooks/useTtlNowSec';
-import { formatRemaining } from '../utils/formatRemaining';
-import { usePruneExpiredMessages } from '../hooks/usePruneExpiredMessages';
-import { useHiddenMessageIds } from '../hooks/useHiddenMessageIds';
-import { useChannelHeaderCache } from '../hooks/useChannelHeaderCache';
-import { normalizeUser } from '../utils/normalizeUser';
-import { useChatDecryptors } from '../features/chat/useChatDecryptors';
-import { useChatMediaDecryptCache } from '../features/chat/useChatMediaDecryptCache';
-import { usePrefetchDmDecryptedThumbs, usePrefetchGroupDecryptedThumbs } from '../features/chat/usePrefetchDecryptedThumbs';
-import { useLazyDecryptDmViewerPages, useLazyDecryptGroupViewerPages } from '../features/chat/useLazyDecryptViewerPages';
-import { useChatMyKeys } from '../features/chat/useChatMyKeys';
-import { useHydratePeerPublicKey } from '../features/chat/usePeerPublicKey';
-import { useHydrateGroupRoster } from '../features/chat/useHydrateGroupRoster';
-import { useGroupReadOnlyRefreshTicker, useRefreshGroupRosterOnMembersModalOpen } from '../features/chat/useGroupRefreshTriggers';
-import { timestampId } from '../utils/ids';
 // (history fetching extracted to useChatHistory)
 import {
   encryptGroupOutgoingEncryptedText,
   prepareDmOutgoingEncryptedText,
   prepareGroupMediaPlaintext,
 } from '../features/chat/prepareOutgoingEncryptedText';
-import { applyOptimisticSendForTextOnly } from '../features/chat/applyOptimisticSend';
-import { useChatWsMessageHandler } from '../features/chat/useChatWsMessageHandler';
-import { useChatHistory } from '../features/chat/useChatHistory';
-import { useChatWsConnection } from '../features/chat/useChatWsConnection';
-import { useChatTyping } from '../features/chat/useChatTyping';
-import { useChatAdminOps } from '../features/chat/useChatAdminOps';
+import { MORE_REACTIONS, QUICK_REACTIONS } from '../features/chat/reactionEmojis';
+import { sortReactionSubs } from '../features/chat/reactionsUi';
+import { renderChatListItem } from '../features/chat/renderChatListItem';
+import type { ChatMessage } from '../features/chat/types';
+import { MAX_ATTACHMENTS_PER_MESSAGE } from '../features/chat/uploads';
+import { useAiDmConsentGate } from '../features/chat/useAiDmConsent';
+import { useAiHelper } from '../features/chat/useAiHelper';
+import { useAiSummary } from '../features/chat/useAiSummary';
+import { useChannelAboutModalActions } from '../features/chat/useChannelAboutModalActions';
+import { useChannelMembersModalActions } from '../features/chat/useChannelMembersModalActions';
+import { useChannelNameModalActions } from '../features/chat/useChannelNameModalActions';
+import { useChannelPasswordModalActions } from '../features/chat/useChannelPasswordModalActions';
 import { useChannelRoster } from '../features/chat/useChannelRoster';
-import { useMentions } from '../features/chat/useMentions';
-import { useChatReport } from '../features/chat/useChatReport';
-import { useReactionInfo } from '../hooks/useReactionInfo';
-import { useMediaViewer } from '../hooks/useMediaViewer';
-import type { ChatMediaViewerState } from '../features/chat/viewerTypes';
-import { useToast } from '../hooks/useToast';
-import { useOpenGlobalViewer } from '../hooks/useOpenGlobalViewer';
-import { useChatEncryptedMediaViewer } from '../features/chat/useChatEncryptedMediaViewer';
-import { useChatImageAspectPrefetch } from '../features/chat/useChatImageAspectPrefetch';
-import { useChatCdnMediaPrefetch } from '../features/chat/useChatCdnMediaPrefetch';
-import { TypingIndicator } from '../features/chat/components/TypingIndicator';
-import { calcCappedMediaSize } from '../utils/mediaSizing';
-import { useRecoverPendingImagePicker } from '../features/chat/useRecoverPendingImagePicker';
-import { useLatestOutgoingMessageId } from '../features/chat/useLatestOutgoingMessageId';
+import { useChannelSettingsPanelActions } from '../features/chat/useChannelSettingsPanelActions';
+import { useChatAdminOps } from '../features/chat/useChatAdminOps';
 import { useChatAttachmentPickers } from '../features/chat/useChatAttachmentPickers';
-import { useStorageSessionReady } from '../hooks/useStorageSessionReady';
-import { useHydrateDmReads } from '../features/chat/useHydrateDmReads';
-import { useChatReadReceipts } from '../features/chat/useChatReadReceipts';
+import { useChatAttachments } from '../features/chat/useChatAttachments';
 import { useChatAutoDecrypt } from '../features/chat/useChatAutoDecrypt';
-import { ChatScreenOverlays } from '../features/chat/components/ChatScreenOverlays';
-import { useChatInfoModal } from '../features/chat/useChatInfoModal';
-import { useChatTtlPickerState } from '../features/chat/useChatTtlPickerState';
+import { useChatCdnMediaPrefetch } from '../features/chat/useChatCdnMediaPrefetch';
 import { useChatChannelUiState } from '../features/chat/useChatChannelUiState';
-import { useChatGroupUiState } from '../features/chat/useChatGroupUiState';
 import { useChatCipherState } from '../features/chat/useChatCipherState';
-import { useChatMessageListState } from '../features/chat/useChatMessageListState';
-import { useChatConversationJoin } from '../features/chat/useChatConversationJoin';
 import { useChatComposerInput } from '../features/chat/useChatComposerInput';
+import { useChatConversationJoin } from '../features/chat/useChatConversationJoin';
 import { useChatCopyToClipboard } from '../features/chat/useChatCopyToClipboard';
-import { usePushGroupTitleToParent } from '../features/chat/usePushGroupTitleToParent';
-import { useFocusGroupAddMembersInputOnOpen } from '../features/chat/useFocusGroupAddMembersInputOnOpen';
+import { useChatDecryptors } from '../features/chat/useChatDecryptors';
+import { useChatEncryptedMediaViewer } from '../features/chat/useChatEncryptedMediaViewer';
+import { useChatGroupUiState } from '../features/chat/useChatGroupUiState';
+import { useChatHistory } from '../features/chat/useChatHistory';
+import { useChatImageAspectPrefetch } from '../features/chat/useChatImageAspectPrefetch';
+import { useChatInfoModal } from '../features/chat/useChatInfoModal';
+import { useChatInlineEditActions } from '../features/chat/useChatInlineEditActions';
+import { useChatKickActions } from '../features/chat/useChatKickActions';
+import { useChatMediaDecryptCache } from '../features/chat/useChatMediaDecryptCache';
+import { useChatMessageListState } from '../features/chat/useChatMessageListState';
+import { useChatMessageOps } from '../features/chat/useChatMessageOps';
+import { useChatMyKeys } from '../features/chat/useChatMyKeys';
+import { useChatPressToDecrypt } from '../features/chat/useChatPressToDecrypt';
+import { useChatReadReceipts } from '../features/chat/useChatReadReceipts';
+import { useChatReplyActions } from '../features/chat/useChatReplyActions';
+import { useChatReport } from '../features/chat/useChatReport';
 import { useChatScreenRefSync } from '../features/chat/useChatScreenRefSync';
-import type { ResolvedChatBg } from '../features/chat/components/ChatBackgroundLayer';
-import { useGroupMembersUi } from '../features/chat/useGroupMembersUi';
+import { useChatSendActions } from '../features/chat/useChatSendActions';
+import { useChatTtlPickerState } from '../features/chat/useChatTtlPickerState';
+import { useChatTyping } from '../features/chat/useChatTyping';
 import { useChatUploadHandlers } from '../features/chat/useChatUploadHandlers';
-import { buildChatScreenMainProps } from '../features/chat/buildChatScreenMainProps';
-import { buildChatScreenOverlaysProps } from '../features/chat/buildChatScreenOverlaysProps';
+import { useChatWsConnection } from '../features/chat/useChatWsConnection';
+import { useChatWsMessageHandler } from '../features/chat/useChatWsMessageHandler';
+import { useDisplayNameBySub } from '../features/chat/useDisplayNameBySub';
+import { useFocusGroupAddMembersInputOnOpen } from '../features/chat/useFocusGroupAddMembersInputOnOpen';
+import { useGroupMembersModalActions } from '../features/chat/useGroupMembersModalActions';
+import { useGroupMembersUi } from '../features/chat/useGroupMembersUi';
+import { useGroupNameModalActions } from '../features/chat/useGroupNameModalActions';
+import {
+  useGroupReadOnlyRefreshTicker,
+  useRefreshGroupRosterOnMembersModalOpen,
+} from '../features/chat/useGroupRefreshTriggers';
+import { useHydrateDmReads } from '../features/chat/useHydrateDmReads';
+import { useHydrateGroupRoster } from '../features/chat/useHydrateGroupRoster';
+import { useLatestOutgoingMessageId } from '../features/chat/useLatestOutgoingMessageId';
+import {
+  useLazyDecryptDmViewerPages,
+  useLazyDecryptGroupViewerPages,
+} from '../features/chat/useLazyDecryptViewerPages';
+import { useMentions } from '../features/chat/useMentions';
+import { useMessageActionMenu } from '../features/chat/useMessageActionMenu';
+import { useHydratePeerPublicKey } from '../features/chat/usePeerPublicKey';
+import {
+  usePrefetchDmDecryptedThumbs,
+  usePrefetchGroupDecryptedThumbs,
+} from '../features/chat/usePrefetchDecryptedThumbs';
+import { usePushGroupTitleToParent } from '../features/chat/usePushGroupTitleToParent';
+import { useRecoverPendingImagePicker } from '../features/chat/useRecoverPendingImagePicker';
+import type { ChatMediaViewerState } from '../features/chat/viewerTypes';
+import { useCdnUrlCache } from '../hooks/useCdnUrlCache';
+import { useChannelHeaderCache } from '../hooks/useChannelHeaderCache';
+import { useConfirmLinkModal } from '../hooks/useConfirmLinkModal';
+import { useHiddenMessageIds } from '../hooks/useHiddenMessageIds';
+import { useMediaViewer } from '../hooks/useMediaViewer';
+import { useOpenGlobalViewer } from '../hooks/useOpenGlobalViewer';
+import { usePersistedBool } from '../hooks/usePersistedBool';
+import { usePersistedNumberMinMap } from '../hooks/usePersistedNumberMinMap';
+import { usePruneExpiredMessages } from '../hooks/usePruneExpiredMessages';
+import { usePublicAvatarProfiles } from '../hooks/usePublicAvatarProfiles';
+import { useReactionInfo } from '../hooks/useReactionInfo';
+import { useStorageSessionReady } from '../hooks/useStorageSessionReady';
+import { useToast } from '../hooks/useToast';
+import { useTtlNowSec } from '../hooks/useTtlNowSec';
+import { useUiPromptHelpers } from '../hooks/useUiPromptHelpers';
+import { useViewportWidth } from '../hooks/useViewportWidth';
+import type { MemberRow } from '../types/members';
+import { markChannelAboutSeen } from '../utils/channelAboutSeen';
+import { getChatHeaderTitle } from '../utils/conversationTitles';
+import {
+  aesGcmDecryptBytes,
+  decryptChatMessageV1,
+  deriveChatKeyBytesV1,
+  encryptChatMessageV1,
+} from '../utils/crypto';
+import { getDmMediaSignedUrl } from '../utils/dmSignedUrl';
+import { formatRemaining } from '../utils/formatRemaining';
+import { timestampId } from '../utils/ids';
+import { getPreviewKind } from '../utils/mediaKinds';
+import { calcCappedMediaSize } from '../utils/mediaSizing';
+import { normalizeUser } from '../utils/normalizeUser';
+import { getSeenLabelForCreatedAt } from '../utils/seenLabels';
+import { styles } from './ChatScreen.styles';
 
 type ChatScreenProps = {
   conversationId?: string | null;
@@ -194,11 +196,17 @@ export default function ChatScreen({
   const insets = useSafeAreaInsets();
   const { user } = useAuthenticator();
   const { width: windowWidth } = useWindowDimensions();
-  const { isWide: isWideChatLayout, viewportWidth: chatViewportWidth } = useViewportWidth(windowWidth, {
-    wideBreakpointPx: 900,
-    maxContentWidthPx: 1040,
-  });
-  const composerSafeAreaStyle = React.useMemo(() => ({ paddingBottom: insets.bottom }), [insets.bottom]);
+  const { isWide: isWideChatLayout, viewportWidth: chatViewportWidth } = useViewportWidth(
+    windowWidth,
+    {
+      wideBreakpointPx: 900,
+      maxContentWidthPx: 1040,
+    },
+  );
+  const composerSafeAreaStyle = React.useMemo(
+    () => ({ paddingBottom: insets.bottom }),
+    [insets.bottom],
+  );
   const composerHorizontalInsetsStyle = React.useMemo(
     () => ({ paddingLeft: 12 + insets.left, paddingRight: 12 + insets.right }),
     [insets.left, insets.right],
@@ -206,8 +214,14 @@ export default function ChatScreen({
   const dmSettingsCompact = windowWidth < 420;
   const [dmSettingsOpen, setDmSettingsOpen] = React.useState<boolean>(true);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
-  const blockedSubsSet = React.useMemo(() => new Set((blockedUserSubs || []).filter(Boolean)), [blockedUserSubs]);
-  const { visibleMessages, messageListData, webPinned } = useChatMessageListState({ messages, blockedSubsSet });
+  const blockedSubsSet = React.useMemo(
+    () => new Set((blockedUserSubs || []).filter(Boolean)),
+    [blockedUserSubs],
+  );
+  const { visibleMessages, messageListData, webPinned } = useChatMessageListState({
+    messages,
+    blockedSubsSet,
+  });
   const AVATAR_SIZE = 44;
   const AVATAR_GAP = 8;
   const AVATAR_GUTTER = AVATAR_SIZE + AVATAR_GAP;
@@ -226,18 +240,28 @@ export default function ChatScreen({
     mediaThumbUri?: string | null;
   }>(null);
   const sendTimeoutRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [typingByUserExpiresAt, setTypingByUserExpiresAt] = React.useState<Record<string, number>>({}); // user -> expiresAtMs
+  const [typingByUserExpiresAt, setTypingByUserExpiresAt] = React.useState<Record<string, number>>(
+    {},
+  ); // user -> expiresAtMs
   const [error, setError] = React.useState<string | null>(null);
   const appStateRef = React.useRef<AppStateStatus>(AppState.currentState);
   const activeConversationIdRef = React.useRef<string>('global');
   const displayNameRef = React.useRef<string>('');
   const myPublicKeyRef = React.useRef<string | null>(null);
   const onNewDmNotificationRef = React.useRef<typeof onNewDmNotification | undefined>(undefined);
-  const onKickedFromConversationRef = React.useRef<typeof onKickedFromConversation | undefined>(undefined);
+  const onKickedFromConversationRef = React.useRef<typeof onKickedFromConversation | undefined>(
+    undefined,
+  );
   const pendingJoinConversationIdRef = React.useRef<string | null>(null);
   const { myUserId, myPrivateKey, myPublicKey } = useChatMyKeys({ user, keyEpoch });
   const [peerPublicKey, setPeerPublicKey] = React.useState<string | null>(null);
-  const { parseEncrypted, parseGroupEncrypted, decryptGroupForDisplay, decryptForDisplay, buildDmMediaKey } = useChatDecryptors({
+  const {
+    parseEncrypted,
+    parseGroupEncrypted,
+    decryptGroupForDisplay,
+    decryptForDisplay,
+    buildDmMediaKey,
+  } = useChatDecryptors({
     myPrivateKey,
     myPublicKey,
     peerPublicKey,
@@ -269,10 +293,11 @@ export default function ChatScreen({
     groupActionBusy,
     setGroupActionBusy,
   } = groupUi;
-  const { groupMembersVisible, groupMembersActiveCount, computeDefaultGroupTitleForMe } = useGroupMembersUi({
-    groupMembers,
-    myUserId,
-  });
+  const { groupMembersVisible, groupMembersActiveCount, computeDefaultGroupTitleForMe } =
+    useGroupMembersUi({
+      groupMembers,
+      myUserId,
+    });
   const [autoDecrypt, setAutoDecrypt] = React.useState<boolean>(false);
   const { cipherOpen, setCipherOpen, cipherText, setCipherText } = useChatCipherState();
   const { nameBySub, ensureNames: ensureNameBySub } = useDisplayNameBySub(API_URL);
@@ -284,11 +309,17 @@ export default function ChatScreen({
   const closeMessageActions = messageActionMenu.closeMenu;
   const [inlineEditTargetId, setInlineEditTargetId] = React.useState<string | null>(null);
   const [inlineEditDraft, setInlineEditDraft] = React.useState<string>('');
-  const [inlineEditAttachmentMode, setInlineEditAttachmentMode] = React.useState<'keep' | 'replace' | 'remove'>('keep');
+  const [inlineEditAttachmentMode, setInlineEditAttachmentMode] = React.useState<
+    'keep' | 'replace' | 'remove'
+  >('keep');
   const [inlineEditUploading, setInlineEditUploading] = React.useState<boolean>(false);
   const hiddenKey = React.useMemo(() => {
     // Keep key stable per-account (prefer sub) and match existing normalization (trim + lowercase).
-    const who = myUserId ? String(myUserId) : String(displayName || 'anon').trim().toLowerCase();
+    const who = myUserId
+      ? String(myUserId)
+      : String(displayName || 'anon')
+          .trim()
+          .toLowerCase();
     const convKey = conversationId && conversationId.length > 0 ? conversationId : 'global';
     return `chat:hidden:${who}:${convKey}`;
   }, [myUserId, displayName, conversationId]);
@@ -308,10 +339,18 @@ export default function ChatScreen({
     pageSize: HISTORY_PAGE_SIZE,
   });
   const infoModal = useChatInfoModal();
-  const { infoOpen, setInfoOpen, infoTitle, infoBody, openInfo, setInfoTitle, setInfoBody } = infoModal;
+  const { infoOpen, setInfoOpen, infoTitle, infoBody, openInfo, setInfoTitle, setInfoBody } =
+    infoModal;
   const wsRef = React.useRef<WebSocket | null>(null);
-  const { TTL_OPTIONS, ttlIdx, setTtlIdx, ttlIdxDraft, setTtlIdxDraft, ttlPickerOpen, setTtlPickerOpen } =
-    useChatTtlPickerState();
+  const {
+    TTL_OPTIONS,
+    ttlIdx,
+    setTtlIdx,
+    ttlIdxDraft,
+    setTtlIdxDraft,
+    ttlPickerOpen,
+    setTtlPickerOpen,
+  } = useChatTtlPickerState();
 
   // NOTE: We intentionally do NOT call `UIManager.setLayoutAnimationEnabledExperimental` here.
   // In React Native New Architecture (Fabric), it's a no-op and spams Metro warnings.
@@ -374,7 +413,11 @@ export default function ChatScreen({
     }
     return subs;
   }, [messages, myUserId]);
-  const { avatarProfileBySub, invalidate: invalidateAvatarProfile, upsertMany: upsertAvatarProfiles } = usePublicAvatarProfiles({
+  const {
+    avatarProfileBySub,
+    invalidate: invalidateAvatarProfile,
+    upsertMany: upsertAvatarProfiles,
+  } = usePublicAvatarProfiles({
     apiUrl: API_URL,
     subs: wantedAvatarSubs,
     // Chat flow refetches by invalidating on new messages; otherwise only fetch missing.
@@ -405,7 +448,8 @@ export default function ChatScreen({
         if (!it?.media?.path) return null;
         const url = dmFileUriByPath[it.media.path];
         if (!url) return null;
-        const kind = it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
+        const kind =
+          it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
         return { url, kind, fileName: it.media.fileName };
       }
       return null;
@@ -430,8 +474,14 @@ export default function ChatScreen({
     `chat:seen:${activeConversationId}`,
   );
   const isDm = React.useMemo(() => activeConversationId.startsWith('dm#'), [activeConversationId]);
-  const isGroup = React.useMemo(() => activeConversationId.startsWith('gdm#'), [activeConversationId]);
-  const isChannel = React.useMemo(() => activeConversationId.startsWith('ch#'), [activeConversationId]);
+  const isGroup = React.useMemo(
+    () => activeConversationId.startsWith('gdm#'),
+    [activeConversationId],
+  );
+  const isChannel = React.useMemo(
+    () => activeConversationId.startsWith('ch#'),
+    [activeConversationId],
+  );
   const isEncryptedChat = isDm || isGroup;
 
   const { kickCooldownUntilBySub, groupKick, channelKick } = useChatKickActions({
@@ -473,14 +523,16 @@ export default function ChatScreen({
     },
     [aiHelper, aiSummary],
   );
-  const { sendReadReceipts, onToggleReadReceipts, sendReadReceipt, flushPendingRead } = useChatReadReceipts({
-    enabled: isEncryptedChat,
-    myUserId,
-    conversationIdForStorage: conversationId && conversationId.length > 0 ? conversationId : 'global',
-    activeConversationId,
-    displayName,
-    wsRef,
-  });
+  const { sendReadReceipts, onToggleReadReceipts, sendReadReceipt, flushPendingRead } =
+    useChatReadReceipts({
+      enabled: isEncryptedChat,
+      myUserId,
+      conversationIdForStorage:
+        conversationId && conversationId.length > 0 ? conversationId : 'global',
+      activeConversationId,
+      displayName,
+      wsRef,
+    });
   useHydratePeerPublicKey({
     enabled: isDm,
     apiUrl: API_URL,
@@ -493,7 +545,10 @@ export default function ChatScreen({
     () => (isChannel ? String(activeConversationId).slice('ch#'.length).trim() : ''),
     [isChannel, activeConversationId],
   );
-  const channelHeaderCache = useChannelHeaderCache({ enabled: isChannel, channelId: activeChannelId });
+  const channelHeaderCache = useChannelHeaderCache({
+    enabled: isChannel,
+    channelId: activeChannelId,
+  });
   const channelUi = useChatChannelUiState();
   const {
     channelMeta,
@@ -525,34 +580,36 @@ export default function ChatScreen({
     channelPasswordDraft,
     setChannelPasswordDraft,
   } = channelUi;
-  const channelRosterMatchesActive = !!activeChannelId && channelRosterChannelId === activeChannelId;
+  const channelRosterMatchesActive =
+    !!activeChannelId && channelRosterChannelId === activeChannelId;
   const channelMembersForUi = React.useMemo(
     () => (channelRosterMatchesActive ? channelMembers : []),
     [channelMembers, channelRosterMatchesActive],
   );
-  const channelMembersVisible = React.useMemo(
-    () => {
-      const rows: MemberRow[] = [];
-      for (const m of channelMembersForUi) {
-        if (!isVisibleMemberRow(m)) continue;
-        const row = toMemberRow(m);
-        if (!row) continue;
-        if (row.status !== 'active' && row.status !== 'banned') continue;
-        rows.push(row);
-      }
-      return rows;
-    },
-    [channelMembersForUi],
-  );
+  const channelMembersVisible = React.useMemo(() => {
+    const rows: MemberRow[] = [];
+    for (const m of channelMembersForUi) {
+      if (!isVisibleMemberRow(m)) continue;
+      const row = toMemberRow(m);
+      if (!row) continue;
+      if (row.status !== 'active' && row.status !== 'banned') continue;
+      rows.push(row);
+    }
+    return rows;
+  }, [channelMembersForUi]);
   const channelMembersActiveCount = React.useMemo(
     () => channelMembersForUi.reduce((acc, m) => (m && m.status === 'active' ? acc + 1 : acc), 0),
     [channelMembersForUi],
   );
   const channelMembersCountLabel = React.useMemo(() => {
     // When roster is loaded for this channel, show the real active count.
-    if (channelRosterMatchesActive && channelMembersForUi.length) return `${channelMembersActiveCount || 0}`;
+    if (channelRosterMatchesActive && channelMembersForUi.length)
+      return `${channelMembersActiveCount || 0}`;
     // Otherwise, show cached hint if we have one; else a neutral placeholder.
-    if (typeof channelMembersActiveCountHint === 'number' && Number.isFinite(channelMembersActiveCountHint)) {
+    if (
+      typeof channelMembersActiveCountHint === 'number' &&
+      Number.isFinite(channelMembersActiveCountHint)
+    ) {
       return `${Math.max(0, Math.floor(channelMembersActiveCountHint))}`;
     }
     return '—';
@@ -654,14 +711,24 @@ export default function ChatScreen({
 
   // Avatar profiles are fetched via shared hook (usePublicAvatarProfiles).
 
-  const latestOutgoingMessageId = useLatestOutgoingMessageId({ messages, myUserId, myPublicKey, displayName, normalizeUser });
+  const latestOutgoingMessageId = useLatestOutgoingMessageId({
+    messages,
+    myUserId,
+    myPublicKey,
+    displayName,
+    normalizeUser,
+  });
 
   const getCappedMediaSize = React.useCallback(
     (aspect: number | undefined, availableWidth?: number) =>
       calcCappedMediaSize({
         aspect,
         availableWidth:
-          typeof availableWidth === 'number' && Number.isFinite(availableWidth) && availableWidth > 0 ? availableWidth : windowWidth,
+          typeof availableWidth === 'number' &&
+          Number.isFinite(availableWidth) &&
+          availableWidth > 0
+            ? availableWidth
+            : windowWidth,
         maxWidthFraction: CHAT_MEDIA_MAX_WIDTH_FRACTION,
         maxHeight: CHAT_MEDIA_MAX_HEIGHT,
         minMaxWidth: 220,
@@ -679,14 +746,15 @@ export default function ChatScreen({
     mergeRecoveredPickerItems,
   });
 
-  const { pickFromLibrary, pickDocument, openCamera, handleInAppCameraCaptured } = useChatAttachmentPickers({
-    showAlert,
-    addPickedMediaItems,
-    pendingMediaFromImagePickerAssets,
-    pendingMediaFromDocumentPickerAssets,
-    pendingMediaFromInAppCameraCapture,
-    setCameraOpen,
-  });
+  const { pickFromLibrary, pickDocument, openCamera, handleInAppCameraCaptured } =
+    useChatAttachmentPickers({
+      showAlert,
+      addPickedMediaItems,
+      pendingMediaFromImagePickerAssets,
+      pendingMediaFromDocumentPickerAssets,
+      pendingMediaFromInAppCameraCapture,
+      setCameraOpen,
+    });
 
   // Attachments: Global = plaintext S3; DM = E2EE (client-side encryption before upload)
   const handlePickMedia = React.useCallback(() => {
@@ -703,10 +771,11 @@ export default function ChatScreen({
     setAttachOpen(true);
   }, [isDm, myPrivateKey, peerPublicKey, showAlert]);
 
-  const { uploadPendingMedia, uploadPendingMediaDmEncrypted, uploadPendingMediaGroupEncrypted } = useChatUploadHandlers({
-    activeConversationId,
-    input,
-  });
+  const { uploadPendingMedia, uploadPendingMediaDmEncrypted, uploadPendingMediaGroupEncrypted } =
+    useChatUploadHandlers({
+      activeConversationId,
+      input,
+    });
 
   // storageSessionReady is managed by useStorageSessionReady()
 
@@ -726,11 +795,16 @@ export default function ChatScreen({
   });
 
   const openViewer = useOpenGlobalViewer<NonNullable<typeof viewer.state>>({
-    resolveUrlForPath: (path) => (mediaUrlByPath[String(path)] ? mediaUrlByPath[String(path)] : null),
+    resolveUrlForPath: (path) =>
+      mediaUrlByPath[String(path)] ? mediaUrlByPath[String(path)] : null,
     includeFilesInViewer: true,
     openExternalIfFile: false,
     viewer,
-    buildGlobalState: ({ index, items }) => ({ mode: 'global' as const, index, globalItems: items }),
+    buildGlobalState: ({ index, items }) => ({
+      mode: 'global' as const,
+      index,
+      globalItems: items,
+    }),
   });
 
   // Fetch persisted read state so "Seen" works even if sender was offline when peer decrypted.
@@ -758,8 +832,18 @@ export default function ChatScreen({
 
   // DM/group media decrypt helpers + caches come from useChatMediaDecryptCache().
 
-  usePrefetchDmDecryptedThumbs({ enabled: isDm, messages, dmThumbUriByPath, decryptDmThumbToDataUri });
-  usePrefetchGroupDecryptedThumbs({ enabled: isGroup, messages, dmThumbUriByPath, decryptGroupThumbToDataUri });
+  usePrefetchDmDecryptedThumbs({
+    enabled: isDm,
+    messages,
+    dmThumbUriByPath,
+    decryptDmThumbToDataUri,
+  });
+  usePrefetchGroupDecryptedThumbs({
+    enabled: isGroup,
+    messages,
+    dmThumbUriByPath,
+    decryptGroupThumbToDataUri,
+  });
 
   const { openDmMediaViewer, openGroupMediaViewer } = useChatEncryptedMediaViewer({
     isDm,
@@ -790,14 +874,17 @@ export default function ChatScreen({
     decryptGroupFileToCacheUri,
   });
 
-  const markMySeen = React.useCallback((messageCreatedAt: number, readAt: number) => {
-    setMySeenAtByCreatedAt((prev) => ({
-      ...prev,
-      [String(messageCreatedAt)]: prev[String(messageCreatedAt)]
-        ? Math.min(prev[String(messageCreatedAt)], readAt)
-        : readAt,
-    }));
-  }, [setMySeenAtByCreatedAt]);
+  const markMySeen = React.useCallback(
+    (messageCreatedAt: number, readAt: number) => {
+      setMySeenAtByCreatedAt((prev) => ({
+        ...prev,
+        [String(messageCreatedAt)]: prev[String(messageCreatedAt)]
+          ? Math.min(prev[String(messageCreatedAt)], readAt)
+          : readAt,
+      }));
+    },
+    [setMySeenAtByCreatedAt],
+  );
 
   // Keypair + myUserId hydration is handled by useChatMyKeys().
 
@@ -1166,8 +1253,14 @@ export default function ChatScreen({
 
   const getSeenLabelFor = React.useCallback(getSeenLabelForCreatedAt, []);
 
-  const onPressSummarize = React.useCallback(() => aiConsentGate.request('summary', runAiAction), [aiConsentGate, runAiAction]);
-  const onPressAiHelper = React.useCallback(() => aiConsentGate.request('helper', runAiAction), [aiConsentGate, runAiAction]);
+  const onPressSummarize = React.useCallback(
+    () => aiConsentGate.request('summary', runAiAction),
+    [aiConsentGate, runAiAction],
+  );
+  const onPressAiHelper = React.useCallback(
+    () => aiConsentGate.request('helper', runAiAction),
+    [aiConsentGate, runAiAction],
+  );
   const onOpenTtlPicker = React.useCallback(() => {
     setTtlIdxDraft(ttlIdx);
     setTtlPickerOpen(true);

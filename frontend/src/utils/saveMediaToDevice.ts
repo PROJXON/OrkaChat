@@ -22,7 +22,10 @@ function getErrorMessage(err: unknown): string {
 type ExpoFileSystemLike = {
   Paths?: { cache?: string; document?: string };
   File?: {
-    new (root: string, name: string): {
+    new (
+      root: string,
+      name: string,
+    ): {
       uri: string;
       write?: (data: string, opts: { encoding: 'base64' }) => Promise<void>;
       downloadFileAsync?: (url: string) => Promise<void>;
@@ -46,7 +49,9 @@ export async function saveMediaUrlToDevice({
   onSuccess?: () => void;
   onError?: (message: string) => void;
 }): Promise<void> {
-  const safeNameWithExt = (fileName || `attachment-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_').slice(0, 120);
+  const safeNameWithExt = (fileName || `attachment-${Date.now()}`)
+    .replace(/[^\w.\-() ]+/g, '_')
+    .slice(0, 120);
   const extFromName = (() => {
     const m = safeNameWithExt.match(/\.([a-zA-Z0-9]{1,8})$/);
     return m ? m[1].toLowerCase() : '';
@@ -115,4 +120,3 @@ export async function saveMediaUrlToDevice({
     onError?.(getErrorMessage(e) || 'Could not save attachment');
   }
 }
-

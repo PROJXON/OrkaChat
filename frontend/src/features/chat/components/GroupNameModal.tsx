@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, Text, TextInput, View } from 'react-native';
+
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
@@ -30,7 +31,9 @@ export function GroupNameModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.modalOverlay}>
         <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Group Name</Text>
+          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
+            Group Name
+          </Text>
           <TextInput
             value={draft}
             onChangeText={onChangeDraft}
@@ -68,19 +71,31 @@ export function GroupNameModal({
               disabled={busy}
               onPress={() => void Promise.resolve(onDefault())}
             >
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Default</Text>
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                Default
+              </Text>
             </Pressable>
 
             <Pressable
-              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, busy ? { opacity: 0.6 } : null]}
+              style={[
+                styles.toolBtn,
+                isDark ? styles.toolBtnDark : null,
+                busy ? { opacity: 0.6 } : null,
+              ]}
               disabled={busy}
               onPress={() => void Promise.resolve(onSave())}
             >
               <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
             </Pressable>
 
-            <Pressable style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]} onPress={onCancel} disabled={busy}>
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
+            <Pressable
+              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+              onPress={onCancel}
+              disabled={busy}
+            >
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                Cancel
+              </Text>
             </Pressable>
           </View>
         </View>

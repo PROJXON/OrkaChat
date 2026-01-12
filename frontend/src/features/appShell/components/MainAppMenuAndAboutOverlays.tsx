@@ -2,9 +2,9 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
+import { GlobalAboutContent } from '../../../components/globalAbout/GlobalAboutContent';
 import { HeaderMenuModal } from '../../../components/HeaderMenuModal';
 import { ThemeToggleRow } from '../../../components/ThemeToggleRow';
-import { GlobalAboutContent } from '../../../components/globalAbout/GlobalAboutContent';
 import type { MenuAnchorRect } from '../../../hooks/useMenuAnchor';
 
 export function MainAppMenuAndAboutOverlays({
@@ -260,10 +260,16 @@ export function MainAppMenuAndAboutOverlays({
             </ScrollView>
             <View style={[styles.modalButtons, { justifyContent: 'flex-end', marginTop: 12 }]}>
               <Pressable
-                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonSmall,
+                  isDark ? styles.modalButtonDark : null,
+                ]}
                 onPress={() => void dismissGlobalAbout()}
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Got it</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Got it
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -272,4 +278,3 @@ export function MainAppMenuAndAboutOverlays({
     </>
   );
 }
-

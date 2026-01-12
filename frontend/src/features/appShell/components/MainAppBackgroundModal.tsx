@@ -1,8 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Slider from '@react-native-community/slider';
+import * as ImagePicker from 'expo-image-picker';
 import React from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Slider from '@react-native-community/slider';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
@@ -120,7 +120,12 @@ export function MainAppBackgroundModal({
     try {
       let effective: ChatBackgroundState;
       if (backgroundDraftImageUri) {
-        effective = { mode: 'image', uri: backgroundDraftImageUri, blur: bgEffectBlur, opacity: bgEffectOpacity };
+        effective = {
+          mode: 'image',
+          uri: backgroundDraftImageUri,
+          blur: bgEffectBlur,
+          opacity: bgEffectOpacity,
+        };
       } else if (backgroundDraft.mode === 'image') {
         effective = {
           ...backgroundDraft,
@@ -151,17 +156,24 @@ export function MainAppBackgroundModal({
     setChatBackground,
   ]);
 
-  const effectivePreview =
-    backgroundDraftImageUri ? ({ mode: 'image', uri: backgroundDraftImageUri } as const) : backgroundDraft;
+  const effectivePreview = backgroundDraftImageUri
+    ? ({ mode: 'image', uri: backgroundDraftImageUri } as const)
+    : backgroundDraft;
   const photoEnabled = !!backgroundDraftImageUri || backgroundDraft.mode === 'image';
 
   return (
     <Modal visible={backgroundOpen} transparent animationType="fade" onRequestClose={discardDraft}>
       <View style={styles.modalOverlay}>
-        <Pressable style={StyleSheet.absoluteFill} disabled={backgroundSaving} onPress={discardDraft} />
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          disabled={backgroundSaving}
+          onPress={discardDraft}
+        />
         <View style={[styles.profileCard, isDark ? styles.profileCardDark : null]}>
           <View style={styles.chatsTopRow}>
-            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Background</Text>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+              Background
+            </Text>
           </View>
 
           <View style={styles.profilePreviewRow}>
@@ -174,7 +186,9 @@ export function MainAppBackgroundModal({
                   blurRadius={bgEffectBlur}
                 />
               ) : effectivePreview.mode === 'color' ? (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: effectivePreview.color }]} />
+                <View
+                  style={[StyleSheet.absoluteFill, { backgroundColor: effectivePreview.color }]}
+                />
               ) : (
                 <View
                   style={[
@@ -192,7 +206,9 @@ export function MainAppBackgroundModal({
           </View>
 
           {backgroundError ? (
-            <Text style={[styles.errorText, isDark && styles.errorTextDark]}>{backgroundError}</Text>
+            <Text style={[styles.errorText, isDark && styles.errorTextDark]}>
+              {backgroundError}
+            </Text>
           ) : null}
 
           {!backgroundDraftImageUri && backgroundDraft.mode !== 'image' ? (
@@ -237,7 +253,13 @@ export function MainAppBackgroundModal({
               </View>
             </>
           ) : (
-            <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, { marginTop: 6 }]}>
+            <Text
+              style={[
+                styles.modalHelperText,
+                isDark ? styles.modalHelperTextDark : null,
+                { marginTop: 6 },
+              ]}
+            >
               Photo background enabled - remove the photo to use a solid color
             </Text>
           )}
@@ -256,7 +278,10 @@ export function MainAppBackgroundModal({
                 </Text>
                 <Pressable
                   disabled={backgroundSaving}
-                  style={({ pressed }) => [styles.bgEffectsResetBtn, pressed ? { opacity: 0.85 } : null]}
+                  style={({ pressed }) => [
+                    styles.bgEffectsResetBtn,
+                    pressed ? { opacity: 0.85 } : null,
+                  ]}
                   onPress={() => {
                     setBgEffectBlur(0);
                     setBgEffectOpacity(1);
@@ -264,14 +289,25 @@ export function MainAppBackgroundModal({
                   accessibilityRole="button"
                   accessibilityLabel="Reset background effects"
                 >
-                  <Text style={[styles.bgEffectsResetText, isDark ? styles.bgEffectsResetTextDark : null]}>Reset</Text>
+                  <Text
+                    style={[
+                      styles.bgEffectsResetText,
+                      isDark ? styles.bgEffectsResetTextDark : null,
+                    ]}
+                  >
+                    Reset
+                  </Text>
                 </Pressable>
               </View>
 
               <View style={styles.bgSliderSection}>
                 <View style={styles.bgSliderLabelRow}>
-                  <Text style={[styles.bgSliderLabel, isDark ? styles.bgSliderLabelDark : null]}>Blur</Text>
-                  <Text style={[styles.bgSliderValue, isDark ? styles.bgSliderValueDark : null]}>{bgEffectBlur}</Text>
+                  <Text style={[styles.bgSliderLabel, isDark ? styles.bgSliderLabelDark : null]}>
+                    Blur
+                  </Text>
+                  <Text style={[styles.bgSliderValue, isDark ? styles.bgSliderValueDark : null]}>
+                    {bgEffectBlur}
+                  </Text>
                 </View>
                 <Slider
                   style={styles.bgSlider}
@@ -280,16 +316,24 @@ export function MainAppBackgroundModal({
                   step={1}
                   value={bgEffectBlur}
                   onValueChange={(v: number) => setBgEffectBlur(v)}
-                  onSlidingComplete={(v: number) => setBgEffectBlur(Math.max(0, Math.min(10, Math.round(v))))}
-                  minimumTrackTintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                  onSlidingComplete={(v: number) =>
+                    setBgEffectBlur(Math.max(0, Math.min(10, Math.round(v))))
+                  }
+                  minimumTrackTintColor={
+                    isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                  }
                   maximumTrackTintColor={isDark ? APP_COLORS.dark.border.subtle : PALETTE.slate190}
-                  thumbTintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                  thumbTintColor={
+                    isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                  }
                 />
               </View>
 
               <View style={styles.bgSliderSection}>
                 <View style={styles.bgSliderLabelRow}>
-                  <Text style={[styles.bgSliderLabel, isDark ? styles.bgSliderLabelDark : null]}>Opacity</Text>
+                  <Text style={[styles.bgSliderLabel, isDark ? styles.bgSliderLabelDark : null]}>
+                    Opacity
+                  </Text>
                   <Text style={[styles.bgSliderValue, isDark ? styles.bgSliderValueDark : null]}>
                     {`${Math.round(bgEffectOpacity * 100)}%`}
                   </Text>
@@ -304,9 +348,13 @@ export function MainAppBackgroundModal({
                   onSlidingComplete={(v: number) =>
                     setBgEffectOpacity(Math.max(0.2, Math.min(1, Math.round(v * 100) / 100)))
                   }
-                  minimumTrackTintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                  minimumTrackTintColor={
+                    isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                  }
                   maximumTrackTintColor={isDark ? APP_COLORS.dark.border.subtle : PALETTE.slate190}
-                  thumbTintColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                  thumbTintColor={
+                    isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                  }
                 />
               </View>
             </>
@@ -324,11 +372,15 @@ export function MainAppBackgroundModal({
               onPress={() => void handlePickImage()}
               accessibilityRole="button"
             >
-              <Text style={[styles.toolBtnText, isDark && styles.toolBtnTextDark]}>Choose image</Text>
+              <Text style={[styles.toolBtnText, isDark && styles.toolBtnTextDark]}>
+                Choose image
+              </Text>
             </Pressable>
 
             <Pressable
-              disabled={backgroundSaving || (!backgroundDraftImageUri && backgroundDraft.mode !== 'image')}
+              disabled={
+                backgroundSaving || (!backgroundDraftImageUri && backgroundDraft.mode !== 'image')
+              }
               style={({ pressed }) => [
                 styles.toolBtn,
                 isDark && styles.toolBtnDark,
@@ -336,7 +388,10 @@ export function MainAppBackgroundModal({
                   ? { opacity: 0.5 }
                   : null,
                 pressed &&
-                !(backgroundSaving || (!backgroundDraftImageUri && backgroundDraft.mode !== 'image'))
+                !(
+                  backgroundSaving ||
+                  (!backgroundDraftImageUri && backgroundDraft.mode !== 'image')
+                )
                   ? { opacity: 0.92 }
                   : null,
               ]}
@@ -346,7 +401,9 @@ export function MainAppBackgroundModal({
               }}
               accessibilityRole="button"
             >
-              <Text style={[styles.toolBtnText, isDark && styles.toolBtnTextDark]}>Remove image</Text>
+              <Text style={[styles.toolBtnText, isDark && styles.toolBtnTextDark]}>
+                Remove image
+              </Text>
             </Pressable>
 
             <Pressable
@@ -379,12 +436,28 @@ export function MainAppBackgroundModal({
               disabled={backgroundSaving}
             >
               {backgroundSaving ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                  <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Saving</Text>
-                  <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 2,
+                  }}
+                >
+                  <Text
+                    style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                  >
+                    Saving
+                  </Text>
+                  <AnimatedDots
+                    color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                    size={18}
+                  />
                 </View>
               ) : (
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Save</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Save
+                </Text>
               )}
             </Pressable>
 
@@ -398,7 +471,9 @@ export function MainAppBackgroundModal({
               onPress={discardDraft}
               disabled={backgroundSaving}
             >
-              <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+              <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                Close
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -406,4 +481,3 @@ export function MainAppBackgroundModal({
     </Modal>
   );
 }
-

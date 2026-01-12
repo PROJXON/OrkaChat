@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+
 import { ChannelMembersSectionList } from '../../../components/ChannelMembersSectionList';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import type { MemberRow } from '../../../types/members';
@@ -41,7 +42,9 @@ export function ChannelMembersModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Members</Text>
+          <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
+            Members
+          </Text>
           <ScrollView style={{ maxHeight: 520, alignSelf: 'stretch' }}>
             <ChannelMembersSectionList
               members={members}
@@ -59,8 +62,13 @@ export function ChannelMembersModal({
             />
           </ScrollView>
           <View style={styles.summaryButtons}>
-            <Pressable style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]} onPress={onClose}>
-              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
+            <Pressable
+              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
+              onPress={onClose}
+            >
+              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                Close
+              </Text>
             </Pressable>
           </View>
         </View>

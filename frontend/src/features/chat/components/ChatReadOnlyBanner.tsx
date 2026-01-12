@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, View } from 'react-native';
+
 import { APP_COLORS } from '../../../theme/colors';
 
 type Props = {

@@ -1,10 +1,16 @@
-import * as React from 'react';
 import type { RefObject } from 'react';
+import * as React from 'react';
 
-import type { MediaItem } from '../../types/media';
 import type { EncryptedChatPayloadV1 } from '../../types/crypto';
-import type { ChatEnvelope, ChatMessage, DmMediaEnvelopeV1, EncryptedGroupPayloadV1, GroupMediaEnvelopeV1 } from './types';
+import type { MediaItem } from '../../types/media';
 import type { PendingMediaItem } from './attachments';
+import type {
+  ChatEnvelope,
+  ChatMessage,
+  DmMediaEnvelopeV1,
+  EncryptedGroupPayloadV1,
+  GroupMediaEnvelopeV1,
+} from './types';
 
 export type ReplyTarget = {
   createdAt: number;
@@ -76,7 +82,11 @@ export function useChatSendActions(opts: {
   myPrivateKey: string | null | undefined;
   peerPublicKey: string | null | undefined;
   getRandomBytes: (n: number) => Uint8Array;
-  encryptChatMessageV1: (plaintext: string, myPrivateKey: string, peerPublicKey: string) => EncryptedChatPayloadV1;
+  encryptChatMessageV1: (
+    plaintext: string,
+    myPrivateKey: string,
+    peerPublicKey: string,
+  ) => EncryptedChatPayloadV1;
   prepareDmOutgoingEncryptedText: (args: {
     conversationId: string;
     outgoingText: string;
@@ -278,7 +288,10 @@ export function useChatSendActions(opts: {
 
     const restoreDraftIfUnchanged = () => {
       // Only restore if the user hasn't started typing a new message / attaching new media.
-      if ((inputRef.current || '').length === 0 && (!pendingMediaRef.current || pendingMediaRef.current.length === 0)) {
+      if (
+        (inputRef.current || '').length === 0 &&
+        (!pendingMediaRef.current || pendingMediaRef.current.length === 0)
+      ) {
         setInput(originalInput);
         inputRef.current = originalInput;
         setPendingMediaItems(originalPendingMedia);
@@ -341,7 +354,9 @@ export function useChatSendActions(opts: {
         restoreDraftIfUnchanged();
         return;
       }
-      const activeMembers = groupMembers.filter((m) => m.status === 'active').map((m) => m.memberSub);
+      const activeMembers = groupMembers
+        .filter((m) => m.status === 'active')
+        .map((m) => m.memberSub);
       if (activeMembers.length < 2) {
         showAlert('Group not ready', 'No active members found.');
         restoreDraftIfUnchanged();
@@ -399,7 +414,6 @@ export function useChatSendActions(opts: {
         setIsUploading(true);
         const uploadedItems: MediaItem[] = [];
         for (const item of originalPendingMedia) {
-           
           const uploaded = await uploadPendingMedia(item);
           uploadedItems.push(uploaded);
         }
@@ -452,7 +466,9 @@ export function useChatSendActions(opts: {
       createdAt: Date.now(),
       // TTL-from-read: we send a duration, and the countdown starts when the recipient decrypts.
       ttlSeconds: isDm && ttlSeconds ? ttlSeconds : undefined,
-      ...(isDm && typeof dmMediaPathsToSend !== 'undefined' ? { mediaPaths: dmMediaPathsToSend } : {}),
+      ...(isDm && typeof dmMediaPathsToSend !== 'undefined'
+        ? { mediaPaths: dmMediaPathsToSend }
+        : {}),
       ...(!isDm && !isGroup && originalReplyTarget
         ? {
             replyToCreatedAt: originalReplyTarget.createdAt,
@@ -466,7 +482,9 @@ export function useChatSendActions(opts: {
       wsRef.current.send(JSON.stringify(outgoing));
     } catch {
       // Mark optimistic message as failed if send throws (rare, but possible during reconnect).
-      setMessages((prev) => prev.map((m) => (m.id === clientMessageId ? { ...m, localStatus: 'failed' } : m)));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === clientMessageId ? { ...m, localStatus: 'failed' } : m)),
+      );
       setError('Not connected');
       return;
     }
@@ -529,13 +547,17 @@ export function useChatSendActions(opts: {
       if (!msg.rawText || !msg.rawText.trim()) return;
 
       // Flip back to sending immediately.
-      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, localStatus: 'sending' } : m)));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msg.id ? { ...m, localStatus: 'sending' } : m)),
+      );
 
       // Re-arm timeout.
       if (sendTimeoutRef.current[msg.id]) clearTimeout(sendTimeoutRef.current[msg.id]);
       sendTimeoutRef.current[msg.id] = setTimeout(() => {
         setMessages((prev) =>
-          prev.map((m) => (m.id === msg.id && m.localStatus === 'sending' ? { ...m, localStatus: 'failed' } : m)),
+          prev.map((m) =>
+            m.id === msg.id && m.localStatus === 'sending' ? { ...m, localStatus: 'failed' } : m,
+          ),
         );
         delete sendTimeoutRef.current[msg.id];
       }, 5000);
@@ -553,7 +575,9 @@ export function useChatSendActions(opts: {
           }),
         );
       } catch {
-        setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, localStatus: 'failed' } : m)));
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msg.id ? { ...m, localStatus: 'failed' } : m)),
+        );
       }
     },
     [activeConversationId, displayName, isDm, sendTimeoutRef, setError, setMessages, wsRef],
@@ -561,4 +585,3 @@ export function useChatSendActions(opts: {
 
   return { sendMessage, retryFailedMessage };
 }
-

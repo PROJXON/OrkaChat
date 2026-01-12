@@ -11,7 +11,8 @@ export function useGuestChannelAboutModalActions(opts: {
   const markSeen = React.useCallback(async () => {
     try {
       const cid = String(activeChannelId || '').trim();
-      const v = typeof aboutVersion === 'number' && Number.isFinite(aboutVersion) ? aboutVersion : 0;
+      const v =
+        typeof aboutVersion === 'number' && Number.isFinite(aboutVersion) ? aboutVersion : 0;
       await markChannelAboutSeen('guest', cid, v);
     } catch {
       // ignore
@@ -37,4 +38,3 @@ export function useGuestChannelAboutModalActions(opts: {
 
   return { onRequestClose, onBackdropPress, onGotIt };
 }
-

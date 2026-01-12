@@ -1,7 +1,8 @@
 import * as React from 'react';
+
 import type { MediaItem } from '../types/media';
-import { openGlobalViewerFromMediaList } from '../utils/openGlobalViewer';
 import type { GlobalViewerItem } from '../utils/openGlobalViewer';
+import { openGlobalViewerFromMediaList } from '../utils/openGlobalViewer';
 
 type NoInfer<T> = [T][T extends unknown ? 0 : never];
 
@@ -16,7 +17,14 @@ export function useOpenGlobalViewer<TViewerState>(opts: {
   };
   buildGlobalState: (args: { index: number; items: GlobalViewerItem[] }) => NoInfer<TViewerState>;
 }) {
-  const { resolveUrlForPath, includeFilesInViewer, openExternalIfFile, openExternalUrl, viewer, buildGlobalState } = opts;
+  const {
+    resolveUrlForPath,
+    includeFilesInViewer,
+    openExternalIfFile,
+    openExternalUrl,
+    viewer,
+    buildGlobalState,
+  } = opts;
 
   return React.useCallback(
     async (mediaList: MediaItem[], startIdx: number) => {
@@ -35,7 +43,13 @@ export function useOpenGlobalViewer<TViewerState>(opts: {
       viewer.setState(buildGlobalState({ index: result.index, items: result.items }));
       viewer.setOpen(true);
     },
-    [includeFilesInViewer, openExternalIfFile, openExternalUrl, resolveUrlForPath, viewer, buildGlobalState],
+    [
+      includeFilesInViewer,
+      openExternalIfFile,
+      openExternalUrl,
+      resolveUrlForPath,
+      viewer,
+      buildGlobalState,
+    ],
   );
 }
-

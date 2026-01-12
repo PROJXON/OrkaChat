@@ -130,7 +130,10 @@ export function DmSettingsPanel({
                   value={autoDecrypt}
                   onValueChange={onToggleAutoDecrypt}
                   disabled={!myPrivateKeyReady}
-                  trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                  trackColor={{
+                    false: APP_COLORS.light.border.default,
+                    true: APP_COLORS.light.border.default,
+                  }}
                   thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
                   ios_backgroundColor={APP_COLORS.light.border.default}
                 />
@@ -152,10 +155,16 @@ export function DmSettingsPanel({
                 Self‑Destruct
               </Text>
               <Pressable
-                style={[styles.ttlChip, isDark ? styles.ttlChipDark : null, compact ? styles.ttlChipCompact : null]}
+                style={[
+                  styles.ttlChip,
+                  isDark ? styles.ttlChipDark : null,
+                  compact ? styles.ttlChipCompact : null,
+                ]}
                 onPress={onOpenTtlPicker}
               >
-                <Text style={[styles.ttlChipText, isDark ? styles.ttlChipTextDark : null]}>{ttlLabel}</Text>
+                <Text style={[styles.ttlChipText, isDark ? styles.ttlChipTextDark : null]}>
+                  {ttlLabel}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -191,7 +200,10 @@ export function DmSettingsPanel({
                 <Switch
                   value={sendReadReceipts}
                   onValueChange={onToggleReadReceipts}
-                  trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                  trackColor={{
+                    false: APP_COLORS.light.border.default,
+                    true: APP_COLORS.light.border.default,
+                  }}
                   thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
                   ios_backgroundColor={APP_COLORS.light.border.default}
                 />
@@ -217,7 +229,11 @@ export function DmSettingsPanel({
                 Members
               </Text>
               <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, groupActionBusy ? { opacity: 0.6 } : null]}
+                style={[
+                  styles.toolBtn,
+                  isDark ? styles.toolBtnDark : null,
+                  groupActionBusy ? { opacity: 0.6 } : null,
+                ]}
                 disabled={groupActionBusy}
                 onPress={onOpenGroupMembers}
               >
@@ -262,7 +278,10 @@ export function DmSettingsPanel({
                   value={autoDecrypt}
                   onValueChange={onToggleAutoDecrypt}
                   disabled={!myPrivateKeyReady}
-                  trackColor={{ false: APP_COLORS.light.border.default, true: APP_COLORS.light.border.default }}
+                  trackColor={{
+                    false: APP_COLORS.light.border.default,
+                    true: APP_COLORS.light.border.default,
+                  }}
                   thumbColor={isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.app}
                   ios_backgroundColor={APP_COLORS.light.border.default}
                 />
@@ -282,15 +301,23 @@ export function DmSettingsPanel({
                   disabled={groupActionBusy}
                   onPress={onOpenGroupName}
                 >
-                  <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Name</Text>
+                  <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                    Name
+                  </Text>
                 </Pressable>
               ) : null}
               <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, groupActionBusy ? { opacity: 0.6 } : null]}
+                style={[
+                  styles.toolBtn,
+                  isDark ? styles.toolBtnDark : null,
+                  groupActionBusy ? { opacity: 0.6 } : null,
+                ]}
                 disabled={groupActionBusy}
                 onPress={onLeaveGroup}
               >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Leave</Text>
+                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                  Leave
+                </Text>
               </Pressable>
             </View>
           </View>

@@ -18,7 +18,7 @@ export function useDeleteAccountFlow({
   promptConfirm: (
     title: string,
     message: string,
-    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean }
+    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean },
   ) => Promise<boolean>;
   unregisterDmPushNotifications: () => Promise<void>;
   fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
@@ -35,8 +35,8 @@ export function useDeleteAccountFlow({
 
     const ok = await promptConfirm(
       'Delete account?',
-      "This will permanently delete your OrkaChat account\n\nWhat will be deleted:\n- Your profile (display name / avatar)\n- Your blocklist and chat index (best-effort)\n- Push notification tokens\n- Recovery backup (if set)\n\nWhat may remain:\n- Messages you already sent may still be visible to other users\n- Cached media may take a short time to disappear\n\nTimeline: typically immediate, but some cleanup may take a few minutes\n\nContinue?",
-      { confirmText: 'Delete', cancelText: 'Cancel', destructive: true }
+      'This will permanently delete your OrkaChat account\n\nWhat will be deleted:\n- Your profile (display name / avatar)\n- Your blocklist and chat index (best-effort)\n- Push notification tokens\n- Recovery backup (if set)\n\nWhat may remain:\n- Messages you already sent may still be visible to other users\n- Cached media may take a short time to disappear\n\nTimeline: typically immediate, but some cleanup may take a few minutes\n\nContinue?',
+      { confirmText: 'Delete', cancelText: 'Cancel', destructive: true },
     );
     if (!ok) return;
 
@@ -115,4 +115,3 @@ export function useDeleteAccountFlow({
 
   return { deleteMyAccount };
 }
-

@@ -11,6 +11,8 @@ import {
   Text,
   View,
 } from 'react-native';
+
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import {
   normalizeChatMediaList,
   normalizeDmMediaItems,
@@ -19,7 +21,6 @@ import {
   parseDmMediaEnvelope,
   parseGroupMediaEnvelope,
 } from '../parsers';
-import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import type { ChatMessage } from '../types';
 
 function getErrorMessage(err: unknown): string {
@@ -142,14 +143,21 @@ export function MessageActionMenuModal({
                   ? ((window as { visualViewport?: VisualViewportLike }).visualViewport ?? null)
                   : null;
               // On web, prefer the *visual viewport* (handles mobile browser toolbars/URL bar correctly).
-              const w = (vv && typeof vv.width === 'number' ? vv.width : null) ?? Dimensions.get('window').width;
-              const h = (vv && typeof vv.height === 'number' ? vv.height : null) ?? Dimensions.get('window').height;
+              const w =
+                (vv && typeof vv.width === 'number' ? vv.width : null) ??
+                Dimensions.get('window').width;
+              const h =
+                (vv && typeof vv.height === 'number' ? vv.height : null) ??
+                Dimensions.get('window').height;
               const cardW = Math.min(w - 36, 360);
               const left = Math.max(18, (w - cardW) / 2);
               const anchorY = anchor?.y ?? h / 2;
               const safeTop = Math.max(12, 12 + (insets.top || 0));
               // Web often reports 0 bottom insets; keep a comfortable bottom margin anyway.
-              const safeBottom = Math.max(12, 12 + (insets.bottom || 0) + (Platform.OS === 'web' ? 16 : 0));
+              const safeBottom = Math.max(
+                12,
+                12 + (insets.bottom || 0) + (Platform.OS === 'web' ? 16 : 0),
+              );
               // Reposition-only (no scrolling): clamp the card so it stays fully visible.
               // Use a best-effort measured height when available, otherwise fall back to a conservative estimate.
               const cardH = Math.max(220, Math.floor(measuredH || measuredHRef.current || 360));
@@ -172,7 +180,10 @@ export function MessageActionMenuModal({
                 {
                   translateY: anim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [(anchor?.y ?? 0) > Dimensions.get('window').height / 2 ? 10 : -10, 0],
+                    outputRange: [
+                      (anchor?.y ?? 0) > Dimensions.get('window').height / 2 ? 10 : -10,
+                      0,
+                    ],
                   }),
                 },
               ],
@@ -189,24 +200,34 @@ export function MessageActionMenuModal({
         >
           {/* Message preview (Signal-style) */}
           {target ? (
-            <View style={[styles.actionMenuPreviewRow, isDark ? styles.actionMenuPreviewRowDark : null]}>
+            <View
+              style={[styles.actionMenuPreviewRow, isDark ? styles.actionMenuPreviewRowDark : null]}
+            >
               {(() => {
                 const t = target;
-                const isOutgoingByUserSub = !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
+                const isOutgoingByUserSub =
+                  !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
                 const isEncryptedOutgoing =
                   !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
                 const isPlainOutgoing =
                   !t.encrypted &&
                   (isOutgoingByUserSub
                     ? true
-                    : normalizeUser(t.userLower ?? t.user ?? 'anon') === normalizeUser(displayName));
+                    : normalizeUser(t.userLower ?? t.user ?? 'anon') ===
+                      normalizeUser(displayName));
                 const isOutgoing = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
-                const bubbleStyle = isOutgoing ? styles.messageBubbleOutgoing : styles.messageBubbleIncoming;
-                const textStyle = isOutgoing ? styles.messageTextOutgoing : styles.messageTextIncoming;
+                const bubbleStyle = isOutgoing
+                  ? styles.messageBubbleOutgoing
+                  : styles.messageBubbleIncoming;
+                const textStyle = isOutgoing
+                  ? styles.messageTextOutgoing
+                  : styles.messageTextIncoming;
                 if (t.deletedAt) {
                   return (
                     <View style={[styles.messageBubble, bubbleStyle]}>
-                      <Text style={[styles.messageText, textStyle]}>This message has been deleted</Text>
+                      <Text style={[styles.messageText, textStyle]}>
+                        This message has been deleted
+                      </Text>
                     </View>
                   );
                 }
@@ -235,12 +256,17 @@ export function MessageActionMenuModal({
                     mediaCount = dmItems.length || gItems.length || 0;
                     caption = String((dmEnv?.caption ?? gEnv?.caption) || '');
                     const first = dmItems[0]?.media ?? gItems[0]?.media;
-                    const firstRec = typeof first === 'object' && first != null ? (first as Record<string, unknown>) : null;
+                    const firstRec =
+                      typeof first === 'object' && first != null
+                        ? (first as Record<string, unknown>)
+                        : null;
                     const k = firstRec && typeof firstRec.kind === 'string' ? firstRec.kind : null;
                     kind = k === 'image' || k === 'video' ? k : 'file';
                     // Reuse decrypted thumb cache so message options show actual previews.
                     const thumbKey =
-                      firstRec && (typeof firstRec.thumbPath === 'string' || typeof firstRec.thumbPath === 'number')
+                      firstRec &&
+                      (typeof firstRec.thumbPath === 'string' ||
+                        typeof firstRec.thumbPath === 'number')
                         ? String(firstRec.thumbPath)
                         : null;
                     if (thumbKey && dmThumbUriByPath[thumbKey]) {
@@ -276,24 +302,39 @@ export function MessageActionMenuModal({
                   );
                 }
 
-                const label = kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'Attachment';
+                const label =
+                  kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'Attachment';
                 const multiLabel = mediaCount > 1 ? `${label} · ${mediaCount} attachments` : label;
                 return (
                   <View style={styles.actionMenuMediaPreview}>
                     <View style={styles.actionMenuMediaThumbWrap}>
                       {thumbUri ? (
-                        <Image source={{ uri: thumbUri }} style={styles.actionMenuMediaThumb} resizeMode="cover" />
+                        <Image
+                          source={{ uri: thumbUri }}
+                          style={styles.actionMenuMediaThumb}
+                          resizeMode="cover"
+                        />
                       ) : (
                         <View style={styles.actionMenuMediaThumbPlaceholder}>
                           <Text style={styles.actionMenuMediaThumbPlaceholderText}>{label}</Text>
                         </View>
                       )}
                     </View>
-                    <Text style={[styles.actionMenuMediaMeta, isDark ? styles.actionMenuMediaMetaDark : null]}>
+                    <Text
+                      style={[
+                        styles.actionMenuMediaMeta,
+                        isDark ? styles.actionMenuMediaMetaDark : null,
+                      ]}
+                    >
                       {multiLabel}
                     </Text>
                     {caption.trim().length ? (
-                      <Text style={[styles.actionMenuMediaCaption, isDark ? styles.actionMenuMediaCaptionDark : null]}>
+                      <Text
+                        style={[
+                          styles.actionMenuMediaCaption,
+                          isDark ? styles.actionMenuMediaCaptionDark : null,
+                        ]}
+                      >
                         {caption.trim()}
                       </Text>
                     ) : null}
@@ -318,7 +359,9 @@ export function MessageActionMenuModal({
                   contentContainerStyle={styles.reactionQuickScrollContent}
                 >
                   {quickReactions.map((emoji) => {
-                    const mine = myUserId ? (target.reactions?.[emoji]?.userSubs || []).includes(myUserId) : false;
+                    const mine = myUserId
+                      ? (target.reactions?.[emoji]?.userSubs || []).includes(myUserId)
+                      : false;
                     return (
                       <Pressable
                         key={`quick:${emoji}`}
@@ -329,7 +372,11 @@ export function MessageActionMenuModal({
                         style={({ pressed }) => [
                           styles.reactionQuickBtn,
                           isDark ? styles.reactionQuickBtnDark : null,
-                          mine ? (isDark ? styles.reactionQuickBtnMineDark : styles.reactionQuickBtnMine) : null,
+                          mine
+                            ? isDark
+                              ? styles.reactionQuickBtnMineDark
+                              : styles.reactionQuickBtnMine
+                            : null,
                           pressed ? { opacity: 0.85 } : null,
                         ]}
                         accessibilityRole="button"
@@ -354,7 +401,12 @@ export function MessageActionMenuModal({
                   accessibilityRole="button"
                   accessibilityLabel="More reactions"
                 >
-                  <Text style={[styles.reactionQuickMoreText, isDark ? styles.reactionQuickMoreTextDark : null]}>
+                  <Text
+                    style={[
+                      styles.reactionQuickMoreText,
+                      isDark ? styles.reactionQuickMoreTextDark : null,
+                    ]}
+                  >
                     …
                   </Text>
                 </Pressable>
@@ -368,26 +420,38 @@ export function MessageActionMenuModal({
                   setCipherOpen(true);
                   close();
                 }}
-                style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                style={({ pressed }) => [
+                  styles.actionMenuRow,
+                  pressed ? styles.actionMenuRowPressed : null,
+                ]}
               >
-                <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>View Ciphertext</Text>
+                <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                  View Ciphertext
+                </Text>
               </Pressable>
             ) : null}
 
             {target && !target.deletedAt ? (
               <Pressable
                 onPress={() => beginReply(target)}
-                style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                style={({ pressed }) => [
+                  styles.actionMenuRow,
+                  pressed ? styles.actionMenuRowPressed : null,
+                ]}
               >
-                <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Reply</Text>
+                <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                  Reply
+                </Text>
               </Pressable>
             ) : null}
 
             {(() => {
               const t = target;
               if (!t) return null;
-              const isOutgoingByUserSub = !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
-              const isEncryptedOutgoing = !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
+              const isOutgoingByUserSub =
+                !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
+              const isEncryptedOutgoing =
+                !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
               const isPlainOutgoing =
                 !t.encrypted &&
                 (isOutgoingByUserSub
@@ -415,9 +479,14 @@ export function MessageActionMenuModal({
                         beginInlineEdit(t);
                         handlePickMedia();
                       }}
-                      style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                      style={({ pressed }) => [
+                        styles.actionMenuRow,
+                        pressed ? styles.actionMenuRowPressed : null,
+                      ]}
                     >
-                      <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                      <Text
+                        style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}
+                      >
                         Add attachment
                       </Text>
                     </Pressable>
@@ -430,9 +499,14 @@ export function MessageActionMenuModal({
                         beginInlineEdit(t);
                         handlePickMedia();
                       }}
-                      style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                      style={({ pressed }) => [
+                        styles.actionMenuRow,
+                        pressed ? styles.actionMenuRowPressed : null,
+                      ]}
                     >
-                      <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                      <Text
+                        style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}
+                      >
                         Replace attachment
                       </Text>
                     </Pressable>
@@ -445,9 +519,14 @@ export function MessageActionMenuModal({
                         clearPendingMedia();
                         beginInlineEdit(t);
                       }}
-                      style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                      style={({ pressed }) => [
+                        styles.actionMenuRow,
+                        pressed ? styles.actionMenuRowPressed : null,
+                      ]}
                     >
-                      <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                      <Text
+                        style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}
+                      >
                         Remove attachment
                       </Text>
                     </Pressable>
@@ -458,9 +537,16 @@ export function MessageActionMenuModal({
                       setInlineEditAttachmentMode('keep');
                       beginInlineEdit(t);
                     }}
-                    style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                    style={({ pressed }) => [
+                      styles.actionMenuRow,
+                      pressed ? styles.actionMenuRowPressed : null,
+                    ]}
                   >
-                    <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Edit</Text>
+                    <Text
+                      style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}
+                    >
+                      Edit
+                    </Text>
                   </Pressable>
                 </>
               );
@@ -472,7 +558,8 @@ export function MessageActionMenuModal({
               const label = t?.user ? String(t.user) : '';
               const isMe = !!myUserId && !!sub && String(sub) === String(myUserId);
               const alreadyBlocked = !!sub && blockedSubsSet.has(sub);
-              if (!t || !sub || isMe || alreadyBlocked || typeof onBlockUserSub !== 'function') return null;
+              if (!t || !sub || isMe || alreadyBlocked || typeof onBlockUserSub !== 'function')
+                return null;
               return (
                 <Pressable
                   onPress={async () => {
@@ -490,9 +577,14 @@ export function MessageActionMenuModal({
                       showAlert('Block failed', getErrorMessage(e) || 'Failed to block user');
                     }
                   }}
-                  style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                  style={({ pressed }) => [
+                    styles.actionMenuRow,
+                    pressed ? styles.actionMenuRowPressed : null,
+                  ]}
                 >
-                  <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Block user</Text>
+                  <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                    Block user
+                  </Text>
                 </Pressable>
               );
             })()}
@@ -503,22 +595,30 @@ export function MessageActionMenuModal({
                 void Promise.resolve(deleteForMe(target));
                 close();
               }}
-              style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+              style={({ pressed }) => [
+                styles.actionMenuRow,
+                pressed ? styles.actionMenuRowPressed : null,
+              ]}
             >
-              <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Delete for me</Text>
+              <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                Delete for me
+              </Text>
             </Pressable>
 
             {(() => {
               const t = target;
               if (!t) return null;
-              const isOutgoingByUserSub = !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
-              const isEncryptedOutgoing = !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
+              const isOutgoingByUserSub =
+                !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
+              const isEncryptedOutgoing =
+                !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
               const isPlainOutgoing =
                 !t.encrypted &&
                 (isOutgoingByUserSub
                   ? true
                   : normalizeUser(t.userLower ?? t.user ?? 'anon') === normalizeUser(displayName));
-              const canDeleteForEveryone = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
+              const canDeleteForEveryone =
+                isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
               if (!canDeleteForEveryone) return null;
               return (
                 <Pressable
@@ -526,7 +626,10 @@ export function MessageActionMenuModal({
                     void Promise.resolve(sendDeleteForEveryone());
                     close();
                   }}
-                  style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+                  style={({ pressed }) => [
+                    styles.actionMenuRow,
+                    pressed ? styles.actionMenuRowPressed : null,
+                  ]}
                 >
                   <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
                     Delete for everyone
@@ -541,9 +644,14 @@ export function MessageActionMenuModal({
                 openReportForMessage(target);
                 close();
               }}
-              style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
+              style={({ pressed }) => [
+                styles.actionMenuRow,
+                pressed ? styles.actionMenuRowPressed : null,
+              ]}
             >
-              <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Report…</Text>
+              <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                Report…
+              </Text>
             </Pressable>
           </ScrollView>
         </Animated.View>

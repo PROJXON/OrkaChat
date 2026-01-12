@@ -1,3 +1,4 @@
+import * as ScreenOrientation from 'expo-screen-orientation';
 import React from 'react';
 import {
   Animated,
@@ -12,15 +13,17 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as ScreenOrientation from 'expo-screen-orientation';
+
+import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
+import type { MediaKind } from '../../types/media';
+import { isWebCoarsePointer } from '../../utils/responsive';
 import { AnimatedDots } from '../AnimatedDots';
 import { FullscreenVideo } from './FullscreenVideo';
-import { isWebCoarsePointer } from '../../utils/responsive';
-import type { MediaKind } from '../../types/media';
-import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 
 export type MediaViewerGlobalItem = { url: string; kind: MediaKind; fileName?: string };
-export type MediaViewerEncryptedItem = { media: { path?: string; kind?: MediaKind; fileName?: string } };
+export type MediaViewerEncryptedItem = {
+  media: { path?: string; kind?: MediaKind; fileName?: string };
+};
 
 export type MediaViewerState = null | {
   mode: 'global' | 'dm' | 'gdm';
@@ -294,11 +297,24 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                               key={`viewer:web:${i}`}
                               style={[
                                 styles.viewerTapArea,
-                                { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' },
+                                {
+                                  width: pageW,
+                                  height: pageH,
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                },
                               ]}
                             >
                               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text style={{ color: APP_COLORS.dark.text.primary, fontWeight: '800', fontSize: 16 }}>Loading</Text>
+                                <Text
+                                  style={{
+                                    color: APP_COLORS.dark.text.primary,
+                                    fontWeight: '800',
+                                    fontSize: 16,
+                                  }}
+                                >
+                                  Loading
+                                </Text>
                                 <AnimatedDots color={APP_COLORS.dark.text.primary} size={18} />
                               </View>
                             </View>
@@ -314,7 +330,11 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                               accessibilityRole="button"
                               accessibilityLabel="Toggle controls"
                             >
-                              <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
+                              <Image
+                                source={{ uri: url }}
+                                style={styles.viewerImage}
+                                resizeMode="contain"
+                              />
                             </Pressable>
                           );
                         }
@@ -336,7 +356,12 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                             key={`viewer:web:${i}`}
                             style={[
                               styles.viewerTapArea,
-                              { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' },
+                              {
+                                width: pageW,
+                                height: pageH,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                              },
                             ]}
                           >
                             <Text style={styles.viewerFallback}>No preview available.</Text>
@@ -387,11 +412,24 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                           key={`viewer:${i}`}
                           style={[
                             styles.viewerTapArea,
-                            { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' },
+                            {
+                              width: pageW,
+                              height: pageH,
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                            },
                           ]}
                         >
                           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={{ color: APP_COLORS.dark.text.primary, fontWeight: '800', fontSize: 16 }}>Loading</Text>
+                            <Text
+                              style={{
+                                color: APP_COLORS.dark.text.primary,
+                                fontWeight: '800',
+                                fontSize: 16,
+                              }}
+                            >
+                              Loading
+                            </Text>
                             <AnimatedDots color={APP_COLORS.dark.text.primary} size={18} />
                           </View>
                         </View>
@@ -407,7 +445,11 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                           accessibilityRole="button"
                           accessibilityLabel="Toggle controls"
                         >
-                          <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
+                          <Image
+                            source={{ uri: url }}
+                            style={styles.viewerImage}
+                            resizeMode="contain"
+                          />
                         </Pressable>
                       );
                     }
@@ -433,7 +475,12 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                         key={`viewer:${i}`}
                         style={[
                           styles.viewerTapArea,
-                          { width: pageW, height: pageH, justifyContent: 'center', alignItems: 'center' },
+                          {
+                            width: pageW,
+                            height: pageH,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                          },
                         ]}
                       >
                         <Text style={styles.viewerFallback}>No preview available.</Text>
@@ -457,7 +504,10 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                   };
                   return (
                     <Animated.View
-                      style={[StyleSheet.absoluteFillObject, { opacity: chromeOpacity, zIndex: 11 }]}
+                      style={[
+                        StyleSheet.absoluteFillObject,
+                        { opacity: chromeOpacity, zIndex: 11 },
+                      ]}
                       pointerEvents="box-none"
                     >
                       <Pressable
@@ -515,7 +565,13 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
   },
-  viewerTitle: { color: APP_COLORS.dark.text.primary, fontWeight: '700', fontSize: 14, flex: 1, marginRight: 12 },
+  viewerTitle: {
+    color: APP_COLORS.dark.text.primary,
+    fontWeight: '700',
+    fontSize: 14,
+    flex: 1,
+    marginRight: 12,
+  },
   viewerCloseBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -543,7 +599,13 @@ const styles = StyleSheet.create({
   },
   viewerNavLeft: { left: 12 },
   viewerNavRight: { right: 12 },
-  viewerNavText: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 28, lineHeight: 28, marginTop: -2 },
+  viewerNavText: {
+    color: APP_COLORS.dark.text.primary,
+    fontWeight: '900',
+    fontSize: 28,
+    lineHeight: 28,
+    marginTop: -2,
+  },
   // RN-web deprecates `style.resizeMode`; use the Image prop instead.
   viewerImage: { width: '100%', height: '100%' },
   viewerVideo: { width: '100%', height: '100%' },

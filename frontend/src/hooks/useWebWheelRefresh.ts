@@ -45,4 +45,3 @@ export function useWebWheelRefresh(opts: {
 
   return enabled && Platform.OS === 'web' ? { onWheel } : {};
 }
-

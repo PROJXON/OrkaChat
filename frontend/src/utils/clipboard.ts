@@ -10,4 +10,3 @@ export async function copyToClipboardSafe(opts: {
     onUnavailable();
   }
 }
-

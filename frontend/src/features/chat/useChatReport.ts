@@ -1,5 +1,6 @@
-import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
+import * as React from 'react';
+
 import type { ChatMessage } from './types';
 
 function getErrorMessage(e: unknown): string {
@@ -32,7 +33,10 @@ type ReportPayloadMessage = {
 
 type ReportPayload = ReportPayloadUser | ReportPayloadMessage;
 
-export function useChatReport(opts: { apiUrl: string | null | undefined; activeConversationId: string }) {
+export function useChatReport(opts: {
+  apiUrl: string | null | undefined;
+  activeConversationId: string;
+}) {
   const { apiUrl, activeConversationId } = opts;
 
   const [reportOpen, setReportOpen] = React.useState(false);
@@ -40,7 +44,10 @@ export function useChatReport(opts: { apiUrl: string | null | undefined; activeC
   const [reportTargetMessage, setReportTargetMessage] = React.useState<ChatMessage | null>(null);
   const [reportTargetUserSub, setReportTargetUserSub] = React.useState<string>('');
   const [reportTargetUserLabel, setReportTargetUserLabel] = React.useState<string>('');
-  const [reportNotice, setReportNotice] = React.useState<null | { type: 'error' | 'success'; message: string }>(null);
+  const [reportNotice, setReportNotice] = React.useState<null | {
+    type: 'error' | 'success';
+    message: string;
+  }>(null);
   const [reportCategory, setReportCategory] = React.useState<string>('spam');
   const [reportDetails, setReportDetails] = React.useState<string>('');
   const [reportSubmitting, setReportSubmitting] = React.useState<boolean>(false);
@@ -143,7 +150,10 @@ export function useChatReport(opts: { apiUrl: string | null | undefined; activeC
       }
     } else {
       if (!payload.reportedUserSub && !payload.details) {
-        setReportNotice({ type: 'error', message: 'Report failed: missing user. Try again or add an optional note.' });
+        setReportNotice({
+          type: 'error',
+          message: 'Report failed: missing user. Try again or add an optional note.',
+        });
         return;
       }
     }
@@ -204,4 +214,3 @@ export function useChatReport(opts: { apiUrl: string | null | undefined; activeC
     submitReport,
   };
 }
-

@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 
 function mergeMin(prev: Record<string, number>, parsed: unknown): Record<string, number> {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return prev;
@@ -67,4 +67,3 @@ export function usePersistedNumberMinMap(storageKey: string): {
 
   return React.useMemo(() => ({ map, setMap, reset }), [map, reset]);
 }
-

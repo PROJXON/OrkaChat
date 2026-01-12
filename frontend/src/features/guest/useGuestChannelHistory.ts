@@ -1,10 +1,14 @@
 import * as React from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
-import type { GuestChannelMeta, GuestMessage } from './types';
-import { fetchGuestChannelHistoryPage } from './guestApi';
-import { appendUniqueById, dedupeById, prependUniqueById } from '../../utils/listMerge';
 
-export function useGuestChannelHistory(opts: { activeConversationId: string; pollIntervalMs?: number }) {
+import { appendUniqueById, dedupeById, prependUniqueById } from '../../utils/listMerge';
+import { fetchGuestChannelHistoryPage } from './guestApi';
+import type { GuestChannelMeta, GuestMessage } from './types';
+
+export function useGuestChannelHistory(opts: {
+  activeConversationId: string;
+  pollIntervalMs?: number;
+}) {
   const { activeConversationId, pollIntervalMs } = opts;
 
   const [messages, setMessages] = React.useState<GuestMessage[]>([]);
@@ -45,7 +49,10 @@ export function useGuestChannelHistory(opts: { activeConversationId: string; pol
 
       try {
         setError(null);
-        const page = await fetchGuestChannelHistoryPage({ conversationId: activeConversationId, before });
+        const page = await fetchGuestChannelHistoryPage({
+          conversationId: activeConversationId,
+          before,
+        });
         if (String(activeConversationId || '').startsWith('ch#')) {
           setActiveChannelMeta(page.channelMeta || null);
         } else {
@@ -73,7 +80,11 @@ export function useGuestChannelHistory(opts: { activeConversationId: string; pol
           }
           // Best-effort cursor: if we appended, next cursor is the last message's createdAt.
           if (appendedCount > 0) {
-            setHistoryCursor(messagesRef.current.length ? messagesRef.current[messagesRef.current.length - 1].createdAt : null);
+            setHistoryCursor(
+              messagesRef.current.length
+                ? messagesRef.current[messagesRef.current.length - 1].createdAt
+                : null,
+            );
           }
         }
       } catch (err) {
@@ -92,11 +103,13 @@ export function useGuestChannelHistory(opts: { activeConversationId: string; pol
   const loadOlderHistory = React.useCallback(() => {
     if (!historyHasMore) return;
     // Fire and forget; guarded by historyLoadingRef.
-     
+
     fetchHistoryPage({
       // Use the oldest currently-rendered message as the cursor.
       // This avoids stale `historyCursor` edge-cases (e.g., user taps "Load older" quickly).
-      before: messagesRef.current.length ? messagesRef.current[messagesRef.current.length - 1].createdAt : historyCursor,
+      before: messagesRef.current.length
+        ? messagesRef.current[messagesRef.current.length - 1].createdAt
+        : historyCursor,
       reset: false,
     });
   }, [fetchHistoryPage, historyCursor, historyHasMore]);
@@ -107,7 +120,10 @@ export function useGuestChannelHistory(opts: { activeConversationId: string; pol
     setHistoryLoading(true);
     try {
       setError(null);
-      const page = await fetchGuestChannelHistoryPage({ conversationId: activeConversationId, before: null });
+      const page = await fetchGuestChannelHistoryPage({
+        conversationId: activeConversationId,
+        before: null,
+      });
       setMessages((prev) => {
         // Prepend newest, preserving existing order and removing dupes.
         return dedupeById(prependUniqueById(page.items, prev));
@@ -144,7 +160,8 @@ export function useGuestChannelHistory(opts: { activeConversationId: string; pol
 
   // Poll while the app is in the foreground.
   React.useEffect(() => {
-    const intervalMs = typeof pollIntervalMs === 'number' && pollIntervalMs > 0 ? pollIntervalMs : 60_000;
+    const intervalMs =
+      typeof pollIntervalMs === 'number' && pollIntervalMs > 0 ? pollIntervalMs : 60_000;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     const appStateRef = { current: AppState.currentState as AppStateStatus };
 
@@ -187,4 +204,3 @@ export function useGuestChannelHistory(opts: { activeConversationId: string; pol
     fetchNow,
   };
 }
-

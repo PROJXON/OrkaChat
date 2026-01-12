@@ -29,7 +29,7 @@ export function useRecoveryFlow({
   promptConfirm: (
     title: string,
     message: string,
-    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean }
+    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean },
   ) => Promise<boolean>;
   promptPassphrase: (mode: 'restore' | 'change' | 'setup' | 'reset') => Promise<string>;
   closePrompt: () => void;
@@ -63,7 +63,7 @@ export function useRecoveryFlow({
       }
       return (await resp.json()) as BackupBlob;
     },
-    [apiUrl]
+    [apiUrl],
   );
 
   const resetRecovery = React.useCallback(async () => {
@@ -71,7 +71,7 @@ export function useRecoveryFlow({
     const ok = await promptConfirm(
       'Reset Recovery?',
       'This will generate a new keypair and recovery passphrase on this device.\n\nOld encrypted direct messages will become unrecoverable.',
-      { confirmText: 'Reset', cancelText: 'Cancel', destructive: true }
+      { confirmText: 'Reset', cancelText: 'Cancel', destructive: true },
     );
     if (!ok) return;
     const token = await getIdToken();
@@ -141,7 +141,10 @@ export function useRecoveryFlow({
       try {
         const restoredPrivateKey = await decryptPrivateKey(blob, passphrase);
         const derivedPublicKey = derivePublicKey(restoredPrivateKey);
-        await storeKeyPair(myUserSub, { privateKey: restoredPrivateKey, publicKey: derivedPublicKey });
+        await storeKeyPair(myUserSub, {
+          privateKey: restoredPrivateKey,
+          publicKey: derivedPublicKey,
+        });
         bumpKeyEpoch();
         await uploadPublicKey(token, derivedPublicKey);
         setHasRecoveryBlob(true);
@@ -150,7 +153,10 @@ export function useRecoveryFlow({
         await promptAlert('Recovery Unlocked', 'Your recovery passphrase has been accepted');
         return;
       } catch {
-        await promptAlert('Incorrect passphrase', 'You have entered an incorrect passphrase. Try again.');
+        await promptAlert(
+          'Incorrect passphrase',
+          'You have entered an incorrect passphrase. Try again.',
+        );
       } finally {
         closePrompt();
       }
@@ -184,7 +190,7 @@ export function useRecoveryFlow({
     if (!kp?.privateKey) {
       await promptAlert(
         'Recovery locked',
-        'You need to enter your existing recovery passphrase on this device before you can change it.'
+        'You need to enter your existing recovery passphrase on this device before you can change it.',
       );
       return;
     }
@@ -222,7 +228,7 @@ export function useRecoveryFlow({
     if (!kp?.privateKey) {
       await promptAlert(
         'Recovery locked',
-        'You need to enter your existing recovery passphrase on this device before you can set up recovery.'
+        'You need to enter your existing recovery passphrase on this device before you can set up recovery.',
       );
       return;
     }
@@ -251,4 +257,3 @@ export function useRecoveryFlow({
 
   return { enterRecoveryPassphrase, changeRecoveryPassphrase, setupRecovery, resetRecovery };
 }
-

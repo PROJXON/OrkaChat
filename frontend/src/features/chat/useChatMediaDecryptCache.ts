@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { Image } from 'react-native';
-import type { ChatMessage, DmMediaEnvelopeV1 } from './types';
+
 import { defaultFileExtensionForContentType } from '../../utils/mediaKinds';
+import type { ChatMessage, DmMediaEnvelopeV1 } from './types';
 
 type ExpoFileLike = {
   write?: (b: Uint8Array) => Promise<void>;
@@ -41,7 +42,14 @@ export function useChatMediaDecryptCache(opts: {
     it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] },
   ) => Promise<string>;
 } {
-  const { aesGcmDecryptBytes, hexToBytes, gcm, fromByteArray, getDmMediaSignedUrl, buildDmMediaKey } = opts;
+  const {
+    aesGcmDecryptBytes,
+    hexToBytes,
+    gcm,
+    fromByteArray,
+    getDmMediaSignedUrl,
+    buildDmMediaKey,
+  } = opts;
 
   const [imageAspectByPath, setImageAspectByPath] = React.useState<Record<string, number>>({});
   const [dmThumbUriByPath, setDmThumbUriByPath] = React.useState<Record<string, string>>({});
@@ -63,24 +71,36 @@ export function useChatMediaDecryptCache(opts: {
       const encResp = await fetch(signedUrl);
       if (!encResp.ok) {
         const txt = await encResp.text().catch(() => '');
-        throw new Error(`DM download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`);
+        throw new Error(
+          `DM download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`,
+        );
       }
       const respCt = String(encResp.headers.get('content-type') || '');
-      if (respCt.includes('text') || respCt.includes('xml') || respCt.includes('json') || respCt.includes('html')) {
+      if (
+        respCt.includes('text') ||
+        respCt.includes('xml') ||
+        respCt.includes('json') ||
+        respCt.includes('html')
+      ) {
         const txt = await encResp.text().catch(() => '');
-        throw new Error(`DM download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`);
+        throw new Error(
+          `DM download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`,
+        );
       }
       const encBytes = new Uint8Array(await encResp.arrayBuffer());
       let plainThumbBytes: Uint8Array;
       try {
-        plainThumbBytes = gcm(fileKey, new Uint8Array(hexToBytes(it.media.thumbIv))).decrypt(encBytes);
+        plainThumbBytes = gcm(fileKey, new Uint8Array(hexToBytes(it.media.thumbIv))).decrypt(
+          encBytes,
+        );
       } catch {
         throw new Error('DM decrypt failed (bad key or corrupted download)');
       }
 
       const b64 = fromByteArray(plainThumbBytes);
       const ct =
-        it.media.thumbContentType || (String(it.media.thumbPath || '').includes('.webp') ? 'image/webp' : 'image/jpeg');
+        it.media.thumbContentType ||
+        (String(it.media.thumbPath || '').includes('.webp') ? 'image/webp' : 'image/jpeg');
       const dataUri = `data:${ct};base64,${b64}`;
       setDmThumbUriByPath((prev) => ({ ...prev, [cacheKey]: dataUri }));
 
@@ -95,7 +115,15 @@ export function useChatMediaDecryptCache(opts: {
       );
       return dataUri;
     },
-    [aesGcmDecryptBytes, buildDmMediaKey, dmThumbUriByPath, fromByteArray, gcm, getDmMediaSignedUrl, hexToBytes],
+    [
+      aesGcmDecryptBytes,
+      buildDmMediaKey,
+      dmThumbUriByPath,
+      fromByteArray,
+      gcm,
+      getDmMediaSignedUrl,
+      hexToBytes,
+    ],
   );
 
   const decryptDmFileToCacheUri = React.useCallback(
@@ -113,12 +141,21 @@ export function useChatMediaDecryptCache(opts: {
       const encResp = await fetch(signedUrl);
       if (!encResp.ok) {
         const txt = await encResp.text().catch(() => '');
-        throw new Error(`DM download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`);
+        throw new Error(
+          `DM download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`,
+        );
       }
       const respCt = String(encResp.headers.get('content-type') || '');
-      if (respCt.includes('text') || respCt.includes('xml') || respCt.includes('json') || respCt.includes('html')) {
+      if (
+        respCt.includes('text') ||
+        respCt.includes('xml') ||
+        respCt.includes('json') ||
+        respCt.includes('html')
+      ) {
         const txt = await encResp.text().catch(() => '');
-        throw new Error(`DM download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`);
+        throw new Error(
+          `DM download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`,
+        );
       }
       const encBytes = new Uint8Array(await encResp.arrayBuffer());
       const fileIvBytes = hexToBytes(it.media.iv);
@@ -172,24 +209,36 @@ export function useChatMediaDecryptCache(opts: {
       const encResp = await fetch(signedUrl);
       if (!encResp.ok) {
         const txt = await encResp.text().catch(() => '');
-        throw new Error(`Group download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`);
+        throw new Error(
+          `Group download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`,
+        );
       }
       const respCt = String(encResp.headers.get('content-type') || '');
-      if (respCt.includes('text') || respCt.includes('xml') || respCt.includes('json') || respCt.includes('html')) {
+      if (
+        respCt.includes('text') ||
+        respCt.includes('xml') ||
+        respCt.includes('json') ||
+        respCt.includes('html')
+      ) {
         const txt = await encResp.text().catch(() => '');
-        throw new Error(`Group download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`);
+        throw new Error(
+          `Group download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`,
+        );
       }
       const encBytes = new Uint8Array(await encResp.arrayBuffer());
       let plainThumbBytes: Uint8Array;
       try {
-        plainThumbBytes = gcm(fileKey, new Uint8Array(hexToBytes(it.media.thumbIv))).decrypt(encBytes);
+        plainThumbBytes = gcm(fileKey, new Uint8Array(hexToBytes(it.media.thumbIv))).decrypt(
+          encBytes,
+        );
       } catch {
         throw new Error('Group decrypt failed (bad key or corrupted download)');
       }
 
       const b64 = fromByteArray(plainThumbBytes);
       const ct =
-        it.media.thumbContentType || (String(it.media.thumbPath || '').includes('.webp') ? 'image/webp' : 'image/jpeg');
+        it.media.thumbContentType ||
+        (String(it.media.thumbPath || '').includes('.webp') ? 'image/webp' : 'image/jpeg');
       const dataUri = `data:${ct};base64,${b64}`;
       setDmThumbUriByPath((prev) => ({ ...prev, [cacheKey]: dataUri }));
 
@@ -203,7 +252,15 @@ export function useChatMediaDecryptCache(opts: {
       );
       return dataUri;
     },
-    [aesGcmDecryptBytes, buildGroupMediaKey, dmThumbUriByPath, fromByteArray, gcm, getDmMediaSignedUrl, hexToBytes],
+    [
+      aesGcmDecryptBytes,
+      buildGroupMediaKey,
+      dmThumbUriByPath,
+      fromByteArray,
+      gcm,
+      getDmMediaSignedUrl,
+      hexToBytes,
+    ],
   );
 
   const decryptGroupFileToCacheUri = React.useCallback(
@@ -221,12 +278,21 @@ export function useChatMediaDecryptCache(opts: {
       const encResp = await fetch(signedUrl);
       if (!encResp.ok) {
         const txt = await encResp.text().catch(() => '');
-        throw new Error(`Group download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`);
+        throw new Error(
+          `Group download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`,
+        );
       }
       const respCt = String(encResp.headers.get('content-type') || '');
-      if (respCt.includes('text') || respCt.includes('xml') || respCt.includes('json') || respCt.includes('html')) {
+      if (
+        respCt.includes('text') ||
+        respCt.includes('xml') ||
+        respCt.includes('json') ||
+        respCt.includes('html')
+      ) {
         const txt = await encResp.text().catch(() => '');
-        throw new Error(`Group download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`);
+        throw new Error(
+          `Group download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`,
+        );
       }
       const encBytes = new Uint8Array(await encResp.arrayBuffer());
       const fileIvBytes = hexToBytes(it.media.iv);
@@ -279,4 +345,3 @@ export function useChatMediaDecryptCache(opts: {
     ],
   );
 }
-

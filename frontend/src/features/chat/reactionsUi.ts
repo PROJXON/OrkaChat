@@ -17,9 +17,15 @@ export function sortReactionSubs(opts: {
   myUserId?: string | null;
   nameBySub?: Record<string, string>;
 }): string[] {
-  const subs = Array.isArray(opts.subs) ? opts.subs.slice().map((s) => String(s || '').trim()).filter(Boolean) : [];
+  const subs = Array.isArray(opts.subs)
+    ? opts.subs
+        .slice()
+        .map((s) => String(s || '').trim())
+        .filter(Boolean)
+    : [];
   const me = opts.myUserId ? String(opts.myUserId).trim() : '';
-  const labelFor = (sub: string) => formatReactionSubLabel({ sub, myUserId: me, nameBySub: opts.nameBySub });
+  const labelFor = (sub: string) =>
+    formatReactionSubLabel({ sub, myUserId: me, nameBySub: opts.nameBySub });
   subs.sort((a, b) => {
     const aIsMe = !!me && a === me;
     const bIsMe = !!me && b === me;
@@ -29,4 +35,3 @@ export function sortReactionSubs(opts: {
   });
   return subs;
 }
-

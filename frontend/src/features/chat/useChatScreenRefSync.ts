@@ -65,4 +65,3 @@ export function useChatScreenRefSync(opts: {
     onKickedFromConversationRef.current = onKickedFromConversation;
   }, [onKickedFromConversation, onKickedFromConversationRef]);
 }
-

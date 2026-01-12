@@ -1,4 +1,5 @@
 import { Platform, StyleSheet } from 'react-native';
+
 import { APP_COLORS, APP_THEME_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 export const styles = StyleSheet.create({
@@ -40,14 +41,38 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
-  title: { fontSize: 20, fontWeight: '600', color: APP_COLORS.light.text.heading, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: APP_COLORS.light.text.heading,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
   titleDark: { color: APP_COLORS.dark.text.primary },
-  welcomeText: { fontSize: 14, color: APP_COLORS.light.text.secondary, marginTop: 2, fontWeight: '700' },
+  welcomeText: {
+    fontSize: 14,
+    color: APP_COLORS.light.text.secondary,
+    marginTop: 2,
+    fontWeight: '700',
+  },
   welcomeTextDark: { color: APP_COLORS.dark.text.secondary },
   welcomeTextFlex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  welcomeRow: { flexDirection: 'row', alignItems: 'center', flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  welcomeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
   welcomeAvatar: { marginTop: 2, marginRight: 8, flexShrink: 0 },
-  welcomeStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexShrink: 0 },
+  welcomeStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+    flexShrink: 0,
+  },
   welcomeStatusText: { fontSize: 12, color: APP_COLORS.light.text.muted, fontWeight: '800' },
   headerSubRow: {
     marginTop: 1,
@@ -60,7 +85,12 @@ export const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   statusText: { fontSize: 12, color: APP_COLORS.light.text.muted, marginTop: 6 },
   statusTextDark: { color: APP_COLORS.dark.text.muted },
-  decryptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  decryptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
   decryptLabel: { fontSize: 12, color: APP_COLORS.light.text.secondary, fontWeight: '600' },
   decryptLabelDark: { color: APP_COLORS.dark.text.secondary },
   dmHeaderControls: {
@@ -363,7 +393,12 @@ export const styles = StyleSheet.create({
     marginTop: 8,
     width: '100%',
   },
-  inlineEditBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: withAlpha(PALETTE.black, 0.08) },
+  inlineEditBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: withAlpha(PALETTE.black, 0.08),
+  },
   inlineEditBtnPressed: { opacity: 0.75 },
   // When editing an outgoing media message, the editor sits on a blue header bar.
   // Use a translucent white pill so "Uploading…" doesn't look like a disabled grey block.
@@ -502,7 +537,11 @@ export const styles = StyleSheet.create({
     fontWeight: '900',
     ...(Platform.OS === 'web'
       ? { textShadow: `0px 2px 6px ${withAlpha(PALETTE.black, 0.6)}` }
-      : { textShadowColor: withAlpha(PALETTE.black, 0.6), textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }),
+      : {
+          textShadowColor: withAlpha(PALETTE.black, 0.6),
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 6,
+        }),
   },
   extraThumbRow: {
     flexDirection: 'row',
@@ -536,7 +575,11 @@ export const styles = StyleSheet.create({
     fontWeight: '900',
     ...(Platform.OS === 'web'
       ? { textShadow: `0px 1px 4px ${withAlpha(PALETTE.black, 0.7)}` }
-      : { textShadowColor: withAlpha(PALETTE.black, 0.7), textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }),
+      : {
+          textShadowColor: withAlpha(PALETTE.black, 0.7),
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 4,
+        }),
   },
   extraThumbPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   extraThumbPlaceholderText: { fontSize: 12, fontWeight: '800', color: APP_COLORS.light.text.body },
@@ -567,7 +610,13 @@ export const styles = StyleSheet.create({
   },
   mediaCarouselNavLeft: { left: 10 },
   mediaCarouselNavRight: { right: 10 },
-  mediaCarouselNavText: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 22, lineHeight: 22, marginTop: -1 },
+  mediaCarouselNavText: {
+    color: APP_COLORS.dark.text.primary,
+    fontWeight: '900',
+    fontSize: 22,
+    lineHeight: 22,
+    marginTop: -1,
+  },
   mediaDotsOverlay: {
     position: 'absolute',
     left: 0,
@@ -661,7 +710,12 @@ export const styles = StyleSheet.create({
     borderWidth: 0,
     borderColor: 'transparent',
   },
-  pickTxt: { color: APP_COLORS.light.text.primary, fontWeight: '800', fontSize: 18, lineHeight: 18 },
+  pickTxt: {
+    color: APP_COLORS.light.text.primary,
+    fontWeight: '800',
+    fontSize: 18,
+    lineHeight: 18,
+  },
   pickTxtDark: { color: APP_COLORS.dark.text.primary },
   input: {
     flex: 1,
@@ -788,12 +842,20 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: PALETTE.fog,
   },
-  reportPreviewBoxDark: { backgroundColor: APP_COLORS.dark.bg.header, borderColor: APP_COLORS.dark.border.default },
+  reportPreviewBoxDark: {
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderColor: APP_COLORS.dark.border.default,
+  },
   reportPreviewLabel: { fontWeight: '800', color: APP_COLORS.light.text.primary, marginBottom: 4 },
   reportPreviewLabelDark: { color: APP_COLORS.dark.text.primary },
   reportPreviewText: { color: APP_COLORS.light.text.heading, lineHeight: 18 },
   reportPreviewTextDark: { color: APP_COLORS.dark.text.body },
-  reportTargetLine: { marginTop: 10, marginBottom: 6, color: APP_COLORS.light.text.heading, fontWeight: '700' },
+  reportTargetLine: {
+    marginTop: 10,
+    marginBottom: 6,
+    color: APP_COLORS.light.text.heading,
+    fontWeight: '700',
+  },
   reportTargetLineDark: { color: APP_COLORS.dark.text.body },
   reportNoticeBox: {
     marginTop: 10,
@@ -803,10 +865,22 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   reportNoticeBoxDark: {},
-  reportNoticeBoxError: { backgroundColor: PALETTE.dangerBgLight, borderColor: PALETTE.dangerBorderLight },
-  reportNoticeBoxErrorDark: { backgroundColor: PALETTE.dangerBgDark, borderColor: PALETTE.dangerBorderDark },
-  reportNoticeBoxSuccess: { backgroundColor: PALETTE.successBg, borderColor: PALETTE.successBgStrong },
-  reportNoticeBoxSuccessDark: { backgroundColor: PALETTE.successBgDark, borderColor: PALETTE.successTextDark },
+  reportNoticeBoxError: {
+    backgroundColor: PALETTE.dangerBgLight,
+    borderColor: PALETTE.dangerBorderLight,
+  },
+  reportNoticeBoxErrorDark: {
+    backgroundColor: PALETTE.dangerBgDark,
+    borderColor: PALETTE.dangerBorderDark,
+  },
+  reportNoticeBoxSuccess: {
+    backgroundColor: PALETTE.successBg,
+    borderColor: PALETTE.successBgStrong,
+  },
+  reportNoticeBoxSuccessDark: {
+    backgroundColor: PALETTE.successBgDark,
+    borderColor: PALETTE.successTextDark,
+  },
   reportNoticeText: { fontWeight: '800', lineHeight: 18 },
   reportNoticeTextDark: {},
   reportNoticeTextError: { color: APP_COLORS.light.status.errorText },
@@ -840,10 +914,19 @@ export const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
   },
-  reportChipDark: { borderColor: APP_COLORS.dark.border.default, backgroundColor: APP_COLORS.dark.bg.header },
+  reportChipDark: {
+    borderColor: APP_COLORS.dark.border.default,
+    backgroundColor: APP_COLORS.dark.bg.header,
+  },
   // Keep chips neutral; "Report" should look destructive, not brand-blue.
-  reportChipActive: { borderColor: APP_COLORS.light.text.primary, backgroundColor: APP_COLORS.light.bg.surface2 },
-  reportChipActiveDark: { borderColor: APP_COLORS.dark.text.primary, backgroundColor: PALETTE.slate750 },
+  reportChipActive: {
+    borderColor: APP_COLORS.light.text.primary,
+    backgroundColor: APP_COLORS.light.bg.surface2,
+  },
+  reportChipActiveDark: {
+    borderColor: APP_COLORS.dark.text.primary,
+    backgroundColor: PALETTE.slate750,
+  },
   reportChipText: { color: APP_COLORS.light.text.heading, fontWeight: '800' },
   reportChipTextDark: { color: APP_COLORS.dark.text.body },
   reportChipTextActive: { color: APP_COLORS.light.text.primary },
@@ -859,9 +942,18 @@ export const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
   },
-  reportTargetChipDark: { borderColor: APP_COLORS.dark.border.default, backgroundColor: APP_COLORS.dark.bg.header },
-  reportTargetChipActive: { borderColor: APP_COLORS.light.text.primary, backgroundColor: APP_COLORS.light.bg.surface2 },
-  reportTargetChipActiveDark: { borderColor: APP_COLORS.dark.text.primary, backgroundColor: PALETTE.slate750 },
+  reportTargetChipDark: {
+    borderColor: APP_COLORS.dark.border.default,
+    backgroundColor: APP_COLORS.dark.bg.header,
+  },
+  reportTargetChipActive: {
+    borderColor: APP_COLORS.light.text.primary,
+    backgroundColor: APP_COLORS.light.bg.surface2,
+  },
+  reportTargetChipActiveDark: {
+    borderColor: APP_COLORS.dark.text.primary,
+    backgroundColor: PALETTE.slate750,
+  },
   reportTargetChipText: { color: APP_COLORS.light.text.heading, fontWeight: '900' },
   reportTargetChipTextDark: { color: APP_COLORS.dark.text.body },
   reportTargetChipTextActive: { color: APP_COLORS.light.text.primary },
@@ -885,7 +977,12 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
-  summaryTitle: { fontSize: 18, fontWeight: '700', marginBottom: 10, color: APP_COLORS.light.text.primary },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 10,
+    color: APP_COLORS.light.text.primary,
+  },
   summaryLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   summaryLoadingText: { color: APP_COLORS.light.text.secondary, fontWeight: '600' },
   // IMPORTANT: allow scroll areas inside modals to shrink on small screens
@@ -954,7 +1051,12 @@ export const styles = StyleSheet.create({
   helperHint: { marginTop: 8, fontSize: 12, color: APP_COLORS.light.text.muted, fontWeight: '600' },
   helperHintDark: { color: APP_COLORS.dark.text.muted },
   helperBlock: { marginTop: 10 },
-  helperSectionTitle: { fontSize: 13, fontWeight: '800', marginBottom: 6, color: APP_COLORS.light.text.primary },
+  helperSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 6,
+    color: APP_COLORS.light.text.primary,
+  },
   helperTurnBubble: {
     borderRadius: 12,
     padding: 12,
@@ -994,7 +1096,12 @@ export const styles = StyleSheet.create({
     borderColor: APP_COLORS.dark.border.default,
   },
   helperSuggestionText: { color: APP_COLORS.light.text.heading, lineHeight: 20 },
-  helperSuggestionActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
+  helperSuggestionActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 10,
+  },
   actionMenuOverlay: { flex: 1, backgroundColor: withAlpha(PALETTE.black, 0.35) },
   actionMenuCard: {
     backgroundColor: APP_COLORS.light.bg.app,
@@ -1002,7 +1109,12 @@ export const styles = StyleSheet.create({
     overflow: 'hidden',
     ...(Platform.OS === 'web'
       ? { boxShadow: `0px 10px 18px ${withAlpha(PALETTE.black, 0.22)}` }
-      : { shadowColor: PALETTE.black, shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }),
+      : {
+          shadowColor: PALETTE.black,
+          shadowOpacity: 0.22,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 10 },
+        }),
     elevation: 12,
   },
   actionMenuCardDark: { backgroundColor: APP_COLORS.dark.bg.surface },
@@ -1019,8 +1131,16 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  actionMenuMediaThumbPlaceholderText: { color: APP_COLORS.light.text.secondary, fontWeight: '700' },
-  actionMenuMediaMeta: { color: APP_COLORS.light.text.muted, fontWeight: '700', fontSize: 12, marginTop: -4 },
+  actionMenuMediaThumbPlaceholderText: {
+    color: APP_COLORS.light.text.secondary,
+    fontWeight: '700',
+  },
+  actionMenuMediaMeta: {
+    color: APP_COLORS.light.text.muted,
+    fontWeight: '700',
+    fontSize: 12,
+    marginTop: -4,
+  },
   actionMenuMediaMetaDark: { color: APP_COLORS.dark.text.muted },
   actionMenuMediaCaption: { color: APP_COLORS.light.text.heading, lineHeight: 18 },
   actionMenuMediaCaptionDark: { color: APP_COLORS.dark.text.body },
@@ -1032,7 +1152,13 @@ export const styles = StyleSheet.create({
   },
   actionMenuOptionsContent: { paddingVertical: 6 },
   reactionInfoRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
-  reactionInfoRemoveHint: { opacity: 0.75, fontSize: 12, fontWeight: '700', fontStyle: 'italic', marginLeft: 8 },
+  reactionInfoRemoveHint: {
+    opacity: 0.75,
+    fontSize: 12,
+    fontWeight: '700',
+    fontStyle: 'italic',
+    marginLeft: 8,
+  },
   reactionOverlay: {
     position: 'absolute',
     bottom: -12,
@@ -1044,7 +1170,11 @@ export const styles = StyleSheet.create({
   // so they line up consistently with the sender-side layout.
   reactionOverlayIncoming: { right: 10 },
   reactionOverlayOutgoing: { right: 10, flexDirection: 'row-reverse' },
-  mediaHeaderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  mediaHeaderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   mediaHeaderTopLeft: { flex: 1, paddingRight: 10 },
   mediaHeaderTopRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   mediaHeaderCaptionRow: {
@@ -1054,7 +1184,12 @@ export const styles = StyleSheet.create({
     marginTop: 4,
   },
   mediaHeaderCaptionFlex: { flex: 1, marginTop: 0 },
-  mediaHeaderCaptionIndicators: { flexDirection: 'row', alignItems: 'flex-end', marginLeft: 10, gap: 6 },
+  mediaHeaderCaptionIndicators: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginLeft: 10,
+    gap: 6,
+  },
   reactionMiniChip: {
     borderRadius: 999,
     paddingHorizontal: 6,
@@ -1064,7 +1199,12 @@ export const styles = StyleSheet.create({
     borderColor: APP_COLORS.light.border.subtle,
     ...(Platform.OS === 'web'
       ? { boxShadow: `0px 2px 6px ${withAlpha(PALETTE.black, 0.08)}` }
-      : { shadowColor: PALETTE.black, shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }),
+      : {
+          shadowColor: PALETTE.black,
+          shadowOpacity: 0.08,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 2 },
+        }),
     elevation: 2,
   },
   // Keep reaction chips consistent: no overlapping/stacking.
@@ -1229,7 +1369,13 @@ export const styles = StyleSheet.create({
   },
   viewerNavLeft: { left: 12 },
   viewerNavRight: { right: 12 },
-  viewerNavText: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 28, lineHeight: 28, marginTop: -2 },
+  viewerNavText: {
+    color: APP_COLORS.dark.text.primary,
+    fontWeight: '900',
+    fontSize: 28,
+    lineHeight: 28,
+    marginTop: -2,
+  },
   // RN-web deprecates `style.resizeMode`; use the Image prop instead.
   viewerImage: { width: '100%', height: '100%' },
   viewerVideo: { width: '100%', height: '100%' },

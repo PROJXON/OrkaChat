@@ -33,7 +33,7 @@ type ApiHistoryItem = {
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object";
+  return !!v && typeof v === 'object';
 }
 
 function asApiHistoryItem(v: unknown): ApiHistoryItem {
@@ -71,7 +71,9 @@ export function buildHistoryMessagesFromApiItems(opts: {
       const messageId = it.messageId == null ? '' : String(it.messageId);
 
       const mentions =
-        Array.isArray(it.mentions) && it.mentions.length ? it.mentions.map((m) => String(m)).filter(Boolean) : undefined;
+        Array.isArray(it.mentions) && it.mentions.length
+          ? it.mentions.map((m) => String(m)).filter(Boolean)
+          : undefined;
 
       return {
         id: (messageId || timestampId(createdAt)) as string,
@@ -81,7 +83,7 @@ export function buildHistoryMessagesFromApiItems(opts: {
         actorUser: typeof it.actorUser === 'string' ? it.actorUser : undefined,
         targetSub: typeof it.targetSub === 'string' ? it.targetSub : undefined,
         targetUser: typeof it.targetUser === 'string' ? it.targetUser : undefined,
-        user: kind ? 'System' : (typeof it.user === 'string' ? it.user : 'anon'),
+        user: kind ? 'System' : typeof it.user === 'string' ? it.user : 'anon',
         userSub: kind ? undefined : typeof it.userSub === 'string' ? it.userSub : undefined,
         userLower: kind
           ? 'system'
@@ -114,4 +116,3 @@ export function buildHistoryMessagesFromApiItems(opts: {
 
   return normalized;
 }
-

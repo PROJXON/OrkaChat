@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import { usePersistedBool } from '../../hooks/usePersistedBool';
 import { usePersistedNumber } from '../../hooks/usePersistedNumber';
 
@@ -15,7 +16,8 @@ export function useChatReadReceipts(opts: {
   sendReadReceipt: (messageCreatedAt: number) => void;
   flushPendingRead: () => void;
 } {
-  const { enabled, myUserId, conversationIdForStorage, activeConversationId, displayName, wsRef } = opts;
+  const { enabled, myUserId, conversationIdForStorage, activeConversationId, displayName, wsRef } =
+    opts;
 
   const pendingReadCreatedAtSetRef = React.useRef<Set<number>>(new Set());
   const sentReadCreatedAtSetRef = React.useRef<Set<number>>(new Set());
@@ -39,12 +41,15 @@ export function useChatReadReceipts(opts: {
   }, [readReceiptSuppressUpTo]);
 
   const suppressStorageKey = React.useMemo(() => {
-    const cid = conversationIdForStorage && conversationIdForStorage.length > 0 ? conversationIdForStorage : 'global';
+    const cid =
+      conversationIdForStorage && conversationIdForStorage.length > 0
+        ? conversationIdForStorage
+        : 'global';
     return `chat:readReceiptSuppressUpTo:${cid}`;
   }, [conversationIdForStorage]);
   const normalizeSuppress = React.useCallback(
     (v: number) => (Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0),
-    []
+    [],
   );
 
   usePersistedNumber({
@@ -134,22 +139,18 @@ export function useChatReadReceipts(opts: {
     }
   }, [enabled, sendReadReceipts, wsRef, activeConversationId, displayName]);
 
-  const onToggleReadReceipts = React.useCallback(
-    (next: boolean) => {
-      // If turning OFF, also suppress any queued receipts so they won't send later.
-      if (!next) {
-        const pending = Array.from(pendingReadCreatedAtSetRef.current || []);
-        const maxPending = pending.length ? Math.max(...pending) : 0;
-        if (Number.isFinite(maxPending) && maxPending > 0) {
-          setReadReceiptSuppressUpTo((prev) => (maxPending > prev ? maxPending : prev));
-        }
-        pendingReadCreatedAtSetRef.current = new Set();
+  const onToggleReadReceipts = React.useCallback((next: boolean) => {
+    // If turning OFF, also suppress any queued receipts so they won't send later.
+    if (!next) {
+      const pending = Array.from(pendingReadCreatedAtSetRef.current || []);
+      const maxPending = pending.length ? Math.max(...pending) : 0;
+      if (Number.isFinite(maxPending) && maxPending > 0) {
+        setReadReceiptSuppressUpTo((prev) => (maxPending > prev ? maxPending : prev));
       }
-      setSendReadReceipts(!!next);
-    },
-    [],
-  );
+      pendingReadCreatedAtSetRef.current = new Set();
+    }
+    setSendReadReceipts(!!next);
+  }, []);
 
   return { sendReadReceipts, onToggleReadReceipts, sendReadReceipt, flushPendingRead };
 }
-

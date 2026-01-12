@@ -17,4 +17,3 @@ export function useModalState<T>(): {
 
   return { open, setOpen, state, setState, close };
 }
-

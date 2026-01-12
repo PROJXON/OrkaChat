@@ -1,7 +1,8 @@
 import React from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { UiPrompt } from '../../types/uiPrompt';
+
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
+import type { UiPrompt } from '../../types/uiPrompt';
 
 export function UiPromptModal({
   uiPrompt,
@@ -20,7 +21,9 @@ export function UiPromptModal({
         {/* Prevent "empty modal + OK button" flash during fade-out when uiPrompt has been cleared. */}
         {uiPrompt ? (
           <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
-            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>{uiPrompt.title || ''}</Text>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+              {uiPrompt.title || ''}
+            </Text>
             <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
               {uiPrompt.message || ''}
             </Text>
@@ -34,8 +37,12 @@ export function UiPromptModal({
                     uiPrompt.primaryVariant === 'primary' ? styles.modalButtonPrimary : null,
                     uiPrompt.primaryVariant === 'danger' ? styles.modalButtonDanger : null,
                     isDark ? styles.modalButtonDark : null,
-                    isDark && uiPrompt.primaryVariant === 'primary' ? styles.modalButtonPrimaryDark : null,
-                    isDark && uiPrompt.primaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
+                    isDark && uiPrompt.primaryVariant === 'primary'
+                      ? styles.modalButtonPrimaryDark
+                      : null,
+                    isDark && uiPrompt.primaryVariant === 'danger'
+                      ? styles.modalButtonDangerDark
+                      : null,
                   ]}
                   onPress={() => {
                     const resolve = uiPrompt.resolve;
@@ -62,8 +69,12 @@ export function UiPromptModal({
                     uiPrompt.secondaryVariant === 'primary' ? styles.modalButtonPrimary : null,
                     uiPrompt.secondaryVariant === 'danger' ? styles.modalButtonDanger : null,
                     isDark ? styles.modalButtonDark : null,
-                    isDark && uiPrompt.secondaryVariant === 'primary' ? styles.modalButtonPrimaryDark : null,
-                    isDark && uiPrompt.secondaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
+                    isDark && uiPrompt.secondaryVariant === 'primary'
+                      ? styles.modalButtonPrimaryDark
+                      : null,
+                    isDark && uiPrompt.secondaryVariant === 'danger'
+                      ? styles.modalButtonDangerDark
+                      : null,
                   ]}
                   onPress={() => {
                     const resolve = uiPrompt.resolve;
@@ -74,7 +85,9 @@ export function UiPromptModal({
                   <Text
                     style={[
                       styles.modalButtonText,
-                      uiPrompt.secondaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
+                      uiPrompt.secondaryVariant === 'primary'
+                        ? styles.modalButtonPrimaryText
+                        : null,
                       uiPrompt.secondaryVariant === 'danger' ? styles.modalButtonDangerText : null,
                       isDark ? styles.modalButtonTextDark : null,
                     ]}
@@ -90,8 +103,12 @@ export function UiPromptModal({
                     uiPrompt.tertiaryVariant === 'primary' ? styles.modalButtonPrimary : null,
                     uiPrompt.tertiaryVariant === 'danger' ? styles.modalButtonDanger : null,
                     isDark ? styles.modalButtonDark : null,
-                    isDark && uiPrompt.tertiaryVariant === 'primary' ? styles.modalButtonPrimaryDark : null,
-                    isDark && uiPrompt.tertiaryVariant === 'danger' ? styles.modalButtonDangerDark : null,
+                    isDark && uiPrompt.tertiaryVariant === 'primary'
+                      ? styles.modalButtonPrimaryDark
+                      : null,
+                    isDark && uiPrompt.tertiaryVariant === 'danger'
+                      ? styles.modalButtonDangerDark
+                      : null,
                   ]}
                   onPress={() => {
                     const resolve = uiPrompt.resolve;
@@ -151,7 +168,9 @@ export function UiPromptModal({
                       resolve(false);
                     }}
                   >
-                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                    <Text
+                      style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                    >
                       {uiPrompt.cancelText || 'Cancel'}
                     </Text>
                   </Pressable>

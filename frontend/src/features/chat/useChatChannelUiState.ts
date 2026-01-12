@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import type { ChannelMember, ChannelMeta } from './useChannelRoster';
 
 export function useChatChannelUiState() {
@@ -8,7 +9,9 @@ export function useChatChannelUiState() {
   const [channelRosterChannelId, setChannelRosterChannelId] = React.useState<string>('');
   const [channelMembers, setChannelMembers] = React.useState<ChannelMember[]>([]);
   // Best-effort cached count to avoid flashing "0" before roster loads.
-  const [channelMembersActiveCountHint, setChannelMembersActiveCountHint] = React.useState<number | null>(null);
+  const [channelMembersActiveCountHint, setChannelMembersActiveCountHint] = React.useState<
+    number | null
+  >(null);
 
   const [channelMembersOpen, setChannelMembersOpen] = React.useState<boolean>(false);
   const [channelSettingsOpen, setChannelSettingsOpen] = React.useState<boolean>(true);
@@ -55,4 +58,3 @@ export function useChatChannelUiState() {
     setChannelPasswordDraft,
   };
 }
-

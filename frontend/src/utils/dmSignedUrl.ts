@@ -1,4 +1,5 @@
 import { fetchAuthSession } from '@aws-amplify/auth';
+
 import { API_URL, SIGNER_API_URL } from '../config/env';
 
 type SignedUrlResponse = { url?: string; expires?: number };
@@ -52,7 +53,8 @@ export async function getDmMediaSignedUrl(path: string, ttlSeconds = 300): Promi
   // DM conversationIds include '#', so the signer MUST encode them as %23 in the pathname.
   try {
     const parsed = new URL(u);
-    if (parsed.hash) throw new Error('Signer returned URL with fragment (#); DM paths must encode # as %23');
+    if (parsed.hash)
+      throw new Error('Signer returned URL with fragment (#); DM paths must encode # as %23');
   } catch (e: unknown) {
     // If URL parsing fails, fall through to query checks; fetch will likely fail anyway.
     if (getErrorMessage(e).includes('fragment')) throw e;

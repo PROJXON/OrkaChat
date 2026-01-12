@@ -1,12 +1,17 @@
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
-type ChannelSearchResult = { channelId: string; name: string; hasPassword?: boolean; activeMemberCount?: number };
+type ChannelSearchResult = {
+  channelId: string;
+  name: string;
+  hasPassword?: boolean;
+  activeMemberCount?: number;
+};
 
 export function MainAppChannelsModals({
   styles,
@@ -102,15 +107,26 @@ export function MainAppChannelsModals({
   return (
     <>
       {/* Settings → Channels: list joined channels (like Chats) */}
-      <Modal visible={channelsOpen} transparent animationType="fade" onRequestClose={() => setChannelsOpen(false)}>
+      <Modal
+        visible={channelsOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setChannelsOpen(false)}
+      >
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelsOpen(false)} />
           <View style={[styles.chatsCard, isDark ? styles.chatsCardDark : null]}>
             <View style={styles.chatsTopRow}>
-              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Channels</Text>
+              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+                Channels
+              </Text>
             </View>
 
-            {myChannelsError ? <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{myChannelsError}</Text> : null}
+            {myChannelsError ? (
+              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>
+                {myChannelsError}
+              </Text>
+            ) : null}
 
             {createChannelOpen ? (
               <>
@@ -123,8 +139,12 @@ export function MainAppChannelsModals({
                   placeholder="Channel name"
                   maxLength={21}
                   placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                  selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-                  cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                  selectionColor={
+                    isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                  }
+                  cursorColor={
+                    isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                  }
                   autoCapitalize="words"
                   autoCorrect={false}
                   style={[
@@ -145,16 +165,30 @@ export function MainAppChannelsModals({
                   ]}
                 />
 
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 10 }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginTop: 10,
+                    marginBottom: 10,
+                  }}
+                >
                   <Pressable
                     onPress={() => setCreateChannelIsPublic(true)}
                     style={({ pressed }) => [
                       styles.modalButton,
                       styles.modalButtonSmall,
                       createChannelIsPublic ? styles.modalButtonCta : null,
-                      isDark ? (createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
+                      isDark
+                        ? createChannelIsPublic
+                          ? styles.modalButtonCtaDark
+                          : styles.modalButtonDark
+                        : null,
                       // Dark-mode selector: make the active choice visibly different.
-                      isDark && createChannelIsPublic ? { backgroundColor: APP_COLORS.dark.border.default } : null,
+                      isDark && createChannelIsPublic
+                        ? { backgroundColor: APP_COLORS.dark.border.default }
+                        : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
@@ -162,7 +196,9 @@ export function MainAppChannelsModals({
                       style={[
                         styles.modalButtonText,
                         isDark ? styles.modalButtonTextDark : null,
-                        isDark && !createChannelIsPublic ? { color: APP_COLORS.dark.text.muted } : null,
+                        isDark && !createChannelIsPublic
+                          ? { color: APP_COLORS.dark.text.muted }
+                          : null,
                         createChannelIsPublic ? styles.modalButtonCtaText : null,
                       ]}
                     >
@@ -178,9 +214,15 @@ export function MainAppChannelsModals({
                       styles.modalButton,
                       styles.modalButtonSmall,
                       !createChannelIsPublic ? styles.modalButtonCta : null,
-                      isDark ? (!createChannelIsPublic ? styles.modalButtonCtaDark : styles.modalButtonDark) : null,
+                      isDark
+                        ? !createChannelIsPublic
+                          ? styles.modalButtonCtaDark
+                          : styles.modalButtonDark
+                        : null,
                       // Dark-mode selector: make the active choice visibly different.
-                      isDark && !createChannelIsPublic ? { backgroundColor: APP_COLORS.dark.border.default } : null,
+                      isDark && !createChannelIsPublic
+                        ? { backgroundColor: APP_COLORS.dark.border.default }
+                        : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
@@ -188,7 +230,9 @@ export function MainAppChannelsModals({
                       style={[
                         styles.modalButtonText,
                         isDark ? styles.modalButtonTextDark : null,
-                        isDark && createChannelIsPublic ? { color: APP_COLORS.dark.text.muted } : null,
+                        isDark && createChannelIsPublic
+                          ? { color: APP_COLORS.dark.text.muted }
+                          : null,
                         !createChannelIsPublic ? styles.modalButtonCtaText : null,
                       ]}
                     >
@@ -206,8 +250,12 @@ export function MainAppChannelsModals({
                     }}
                     placeholder="Password (optional)"
                     placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                    selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
-                    cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                    selectionColor={
+                      isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                    }
+                    cursorColor={
+                      isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                    }
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -223,14 +271,18 @@ export function MainAppChannelsModals({
                         lineHeight: 20,
                         paddingVertical: 10,
                         textAlignVertical: 'center',
-                        color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                        color: isDark
+                          ? APP_COLORS.dark.text.primary
+                          : APP_COLORS.light.text.primary,
                       },
                     ]}
                   />
                 ) : null}
 
                 {createChannelError ? (
-                  <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{createChannelError}</Text>
+                  <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>
+                    {createChannelError}
+                  </Text>
                 ) : null}
 
                 <View style={[styles.modalButtons, { justifyContent: 'flex-end', marginTop: 12 }]}>
@@ -249,7 +301,11 @@ export function MainAppChannelsModals({
                     </Text>
                   </Pressable>
                   <Pressable
-                    style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                    style={[
+                      styles.modalButton,
+                      styles.modalButtonSmall,
+                      isDark ? styles.modalButtonDark : null,
+                    ]}
                     onPress={() => {
                       setCreateChannelOpen(false);
                       setCreateChannelError(null);
@@ -259,7 +315,11 @@ export function MainAppChannelsModals({
                       setCreateChannelIsPublic(true);
                     }}
                   >
-                    <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
+                    <Text
+                      style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                    >
+                      Cancel
+                    </Text>
                   </Pressable>
                 </View>
               </>
@@ -268,65 +328,106 @@ export function MainAppChannelsModals({
             <ScrollView style={styles.chatsScroll}>
               <Pressable
                 key="mychannel:global"
-                style={({ pressed }) => [styles.chatRow, isDark ? styles.chatRowDark : null, pressed ? { opacity: 0.9 } : null]}
+                style={({ pressed }) => [
+                  styles.chatRow,
+                  isDark ? styles.chatRowDark : null,
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
                 onPress={() => enterChannelConversation('global')}
               >
                 <View style={styles.chatRowLeft}>
-                  <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                  <Text
+                    style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]}
+                    numberOfLines={1}
+                  >
                     Global
                   </Text>
                 </View>
                 <View style={styles.chatRowRight}>
                   <View style={[styles.defaultChip, isDark ? styles.defaultChipDark : null]}>
-                    <Text style={[styles.defaultChipText, isDark ? styles.defaultChipTextDark : null]}>Default</Text>
+                    <Text
+                      style={[styles.defaultChipText, isDark ? styles.defaultChipTextDark : null]}
+                    >
+                      Default
+                    </Text>
                   </View>
                 </View>
               </Pressable>
 
               {myChannelsLoading ? (
                 <View style={styles.chatsLoadingRow}>
-                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, styles.chatsLoadingText]}>
+                  <Text
+                    style={[
+                      styles.modalHelperText,
+                      isDark ? styles.modalHelperTextDark : null,
+                      styles.chatsLoadingText,
+                    ]}
+                  >
                     Loading
                   </Text>
                   <View style={styles.chatsLoadingDotsWrap}>
-                    <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
+                    <AnimatedDots
+                      color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                      size={18}
+                    />
                   </View>
                 </View>
               ) : myChannels.length ? (
                 myChannels.map((c) => (
                   <Pressable
                     key={`mychannel:${c.channelId}`}
-                    style={({ pressed }) => [styles.chatRow, isDark ? styles.chatRowDark : null, pressed ? { opacity: 0.9 } : null]}
+                    style={({ pressed }) => [
+                      styles.chatRow,
+                      isDark ? styles.chatRowDark : null,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
                     onPress={() => {
                       setChannelsOpen(false);
                       enterChannelConversation(`ch#${c.channelId}`);
                     }}
                   >
                     <View style={styles.chatRowLeft}>
-                      <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                      <Text
+                        style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]}
+                        numberOfLines={1}
+                      >
                         {c.name}
                       </Text>
                     </View>
                     <View style={styles.chatRowRight}>
                       <Pressable
                         onPress={() => void Promise.resolve(leaveChannelFromSettings(c.channelId))}
-                        style={({ pressed }) => [styles.leaveChip, isDark ? styles.leaveChipDark : null, pressed ? { opacity: 0.9 } : null]}
+                        style={({ pressed }) => [
+                          styles.leaveChip,
+                          isDark ? styles.leaveChipDark : null,
+                          pressed ? { opacity: 0.9 } : null,
+                        ]}
                         accessibilityRole="button"
                         accessibilityLabel="Leave channel"
                       >
-                        <Text style={[styles.leaveChipText, isDark ? styles.leaveChipTextDark : null]}>Leave</Text>
+                        <Text
+                          style={[styles.leaveChipText, isDark ? styles.leaveChipTextDark : null]}
+                        >
+                          Leave
+                        </Text>
                       </Pressable>
                     </View>
                   </Pressable>
                 ))
               ) : (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>No joined channels</Text>
+                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                  No joined channels
+                </Text>
               )}
             </ScrollView>
 
             <View style={styles.modalButtons}>
               <Pressable
-                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonSmall,
+                  isDark ? styles.modalButtonDark : null,
+                ]}
                 onPress={() => {
                   setCreateChannelError(null);
                   setCreateChannelLoading(false);
@@ -341,10 +442,16 @@ export function MainAppChannelsModals({
                 </Text>
               </Pressable>
               <Pressable
-                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonSmall,
+                  isDark ? styles.modalButtonDark : null,
+                ]}
                 onPress={() => setChannelsOpen(false)}
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Close
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -352,12 +459,19 @@ export function MainAppChannelsModals({
       </Modal>
 
       {/* Header channel pill: search/join channels (like Start DM) */}
-      <Modal visible={channelSearchOpen} transparent animationType="fade" onRequestClose={() => setChannelSearchOpen(false)}>
+      <Modal
+        visible={channelSearchOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setChannelSearchOpen(false)}
+      >
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelSearchOpen(false)} />
           <View style={[styles.chatsCard, isDark ? styles.chatsCardDark : null]}>
             <View style={styles.chatsTopRow}>
-              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Find Channels</Text>
+              <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+                Find Channels
+              </Text>
             </View>
 
             <View style={styles.blocksSearchRow}>
@@ -370,7 +484,9 @@ export function MainAppChannelsModals({
                 }}
                 placeholder="Search Channels"
                 placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
-                selectionColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                selectionColor={
+                  isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary
+                }
                 cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -378,17 +494,29 @@ export function MainAppChannelsModals({
               />
               <Pressable
                 onPress={() => void Promise.resolve(fetchChannelsSearch(channelsQuery))}
-                style={({ pressed }) => [styles.blocksBtn, isDark ? styles.blocksBtnDark : null, pressed ? { opacity: 0.9 } : null]}
+                style={({ pressed }) => [
+                  styles.blocksBtn,
+                  isDark ? styles.blocksBtnDark : null,
+                  pressed ? { opacity: 0.9 } : null,
+                ]}
                 accessibilityRole="button"
                 accessibilityLabel="Search Channels"
               >
-                <Text style={[styles.blocksBtnText, isDark ? styles.blocksBtnTextDark : null]}>Search</Text>
+                <Text style={[styles.blocksBtnText, isDark ? styles.blocksBtnTextDark : null]}>
+                  Search
+                </Text>
               </Pressable>
             </View>
 
-            {channelsError ? <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{channelsError}</Text> : null}
+            {channelsError ? (
+              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>
+                {channelsError}
+              </Text>
+            ) : null}
             {channelJoinError ? (
-              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{channelJoinError}</Text>
+              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>
+                {channelJoinError}
+              </Text>
             ) : null}
 
             <ScrollView style={styles.chatsScroll}>
@@ -396,17 +524,26 @@ export function MainAppChannelsModals({
               {!String(channelsQuery || '').trim() ? (
                 <Pressable
                   key="searchchannel:global"
-                  style={({ pressed }) => [styles.chatRow, isDark ? styles.chatRowDark : null, pressed ? { opacity: 0.9 } : null]}
+                  style={({ pressed }) => [
+                    styles.chatRow,
+                    isDark ? styles.chatRowDark : null,
+                    pressed ? { opacity: 0.9 } : null,
+                  ]}
                   onPress={() => enterChannelConversation('global')}
                 >
                   <View style={styles.chatRowLeft}>
-                    <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                    <Text
+                      style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]}
+                      numberOfLines={1}
+                    >
                       Global
                     </Text>
                   </View>
                   <View style={[styles.chatRowRight, { marginLeft: 10 }]}>
                     <View style={[styles.memberChip, isDark ? styles.memberChipDark : null]}>
-                      <Text style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}>
+                      <Text
+                        style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}
+                      >
                         {typeof globalUserCount === 'number' ? String(globalUserCount) : '—'}
                       </Text>
                     </View>
@@ -416,22 +553,38 @@ export function MainAppChannelsModals({
 
               {channelsLoading ? (
                 <View style={styles.chatsLoadingRow}>
-                  <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, styles.chatsLoadingText]}>
+                  <Text
+                    style={[
+                      styles.modalHelperText,
+                      isDark ? styles.modalHelperTextDark : null,
+                      styles.chatsLoadingText,
+                    ]}
+                  >
                     Loading
                   </Text>
                   <View style={styles.chatsLoadingDotsWrap}>
-                    <AnimatedDots color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary} size={18} />
+                    <AnimatedDots
+                      color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                      size={18}
+                    />
                   </View>
                 </View>
               ) : channelsResults.length ? (
                 channelsResults.map((c) => (
                   <Pressable
                     key={`searchchannel:${c.channelId}`}
-                    style={({ pressed }) => [styles.chatRow, isDark ? styles.chatRowDark : null, pressed ? { opacity: 0.9 } : null]}
+                    style={({ pressed }) => [
+                      styles.chatRow,
+                      isDark ? styles.chatRowDark : null,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
                     onPress={() => void Promise.resolve(joinChannel(c))}
                   >
                     <View style={styles.chatRowLeft}>
-                      <Text style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]} numberOfLines={1}>
+                      <Text
+                        style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]}
+                        numberOfLines={1}
+                      >
                         {c.name}
                       </Text>
                       {c.hasPassword ? (
@@ -439,31 +592,45 @@ export function MainAppChannelsModals({
                           <Feather
                             name="lock"
                             size={14}
-                            color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                            color={
+                              isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted
+                            }
                           />
                         </View>
                       ) : null}
                     </View>
                     <View style={[styles.chatRowRight, { marginLeft: 10 }]}>
                       <View style={[styles.memberChip, isDark ? styles.memberChipDark : null]}>
-                        <Text style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}>
-                          {String(typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0)}
+                        <Text
+                          style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}
+                        >
+                          {String(
+                            typeof c.activeMemberCount === 'number' ? c.activeMemberCount : 0,
+                          )}
                         </Text>
                       </View>
                     </View>
                   </Pressable>
                 ))
               ) : (
-                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>No channels found</Text>
+                <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+                  No channels found
+                </Text>
               )}
             </ScrollView>
 
             <View style={styles.modalButtons}>
               <Pressable
-                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonSmall,
+                  isDark ? styles.modalButtonDark : null,
+                ]}
                 onPress={() => setChannelSearchOpen(false)}
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Close</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Close
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -477,14 +644,23 @@ export function MainAppChannelsModals({
         onRequestClose={() => setChannelPasswordPrompt(null)}
       >
         <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelPasswordPrompt(null)} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setChannelPasswordPrompt(null)}
+          />
           <View style={[styles.profileCard, isDark ? styles.profileCardDark : null]}>
             <View style={styles.chatsTopRow}>
               <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
                 Join {channelPasswordPrompt?.name || 'Channel'}
               </Text>
             </View>
-            <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null, { marginBottom: 8 }]}>
+            <Text
+              style={[
+                styles.modalHelperText,
+                isDark ? styles.modalHelperTextDark : null,
+                { marginBottom: 8 },
+              ]}
+            >
               Enter Channel Password
             </Text>
             <TextInput
@@ -511,25 +687,40 @@ export function MainAppChannelsModals({
               ]}
             />
             {channelJoinError ? (
-              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>{channelJoinError}</Text>
+              <Text style={[styles.errorText, isDark ? styles.errorTextDark : null]}>
+                {channelJoinError}
+              </Text>
             ) : null}
             <View style={[styles.modalButtons, { marginTop: 2 }]}>
               <Pressable
                 // Keep Join consistent with other modal actions (no heavy "blackened" CTA for this prompt).
-                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonSmall,
+                  isDark ? styles.modalButtonDark : null,
+                ]}
                 onPress={() => void Promise.resolve(submitChannelPassword())}
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Join</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Join
+                </Text>
               </Pressable>
               <Pressable
-                style={[styles.modalButton, styles.modalButtonSmall, isDark ? styles.modalButtonDark : null, { marginLeft: 8 }]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonSmall,
+                  isDark ? styles.modalButtonDark : null,
+                  { marginLeft: 8 },
+                ]}
                 onPress={() => {
                   setChannelPasswordPrompt(null);
                   setChannelPasswordInput('');
                   setChannelJoinError(null);
                 }}
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>Cancel</Text>
+                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
+                  Cancel
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -538,4 +729,3 @@ export function MainAppChannelsModals({
     </>
   );
 }
-

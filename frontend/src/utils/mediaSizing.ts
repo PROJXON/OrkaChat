@@ -13,22 +13,43 @@ export function calcCappedMediaSize(opts: {
   minWWhenCapped?: number;
   rounding?: 'floor' | 'round';
 }): CappedMediaSize {
-  const frac = typeof opts.maxWidthFraction === 'number' && Number.isFinite(opts.maxWidthFraction) ? opts.maxWidthFraction : 0.86;
-  const maxH = typeof opts.maxHeight === 'number' && Number.isFinite(opts.maxHeight) ? opts.maxHeight : 240;
-  const minMaxW = typeof opts.minMaxWidth === 'number' && Number.isFinite(opts.minMaxWidth) ? opts.minMaxWidth : 220;
-  const minAspect = typeof opts.minAspect === 'number' && Number.isFinite(opts.minAspect) ? opts.minAspect : 0;
+  const frac =
+    typeof opts.maxWidthFraction === 'number' && Number.isFinite(opts.maxWidthFraction)
+      ? opts.maxWidthFraction
+      : 0.86;
+  const maxH =
+    typeof opts.maxHeight === 'number' && Number.isFinite(opts.maxHeight) ? opts.maxHeight : 240;
+  const minMaxW =
+    typeof opts.minMaxWidth === 'number' && Number.isFinite(opts.minMaxWidth)
+      ? opts.minMaxWidth
+      : 220;
+  const minAspect =
+    typeof opts.minAspect === 'number' && Number.isFinite(opts.minAspect) ? opts.minAspect : 0;
   const rounding: 'floor' | 'round' = opts.rounding === 'round' ? 'round' : 'floor';
 
   const minW = typeof opts.minW === 'number' && Number.isFinite(opts.minW) ? opts.minW : 0;
   const minH = typeof opts.minH === 'number' && Number.isFinite(opts.minH) ? opts.minH : 0;
-  const minHInitial = typeof opts.minHInitial === 'number' && Number.isFinite(opts.minHInitial) ? opts.minHInitial : undefined;
+  const minHInitial =
+    typeof opts.minHInitial === 'number' && Number.isFinite(opts.minHInitial)
+      ? opts.minHInitial
+      : undefined;
   const minWWhenCapped =
-    typeof opts.minWWhenCapped === 'number' && Number.isFinite(opts.minWWhenCapped) ? opts.minWWhenCapped : undefined;
+    typeof opts.minWWhenCapped === 'number' && Number.isFinite(opts.minWWhenCapped)
+      ? opts.minWWhenCapped
+      : undefined;
 
-  const a0 = typeof opts.aspect === 'number' && Number.isFinite(opts.aspect) && opts.aspect > 0 ? opts.aspect : 1;
+  const a0 =
+    typeof opts.aspect === 'number' && Number.isFinite(opts.aspect) && opts.aspect > 0
+      ? opts.aspect
+      : 1;
   const a = Math.max(minAspect, a0);
 
-  const aw = typeof opts.availableWidth === 'number' && Number.isFinite(opts.availableWidth) && opts.availableWidth > 0 ? opts.availableWidth : 0;
+  const aw =
+    typeof opts.availableWidth === 'number' &&
+    Number.isFinite(opts.availableWidth) &&
+    opts.availableWidth > 0
+      ? opts.availableWidth
+      : 0;
   const maxW = Math.max(minMaxW, Math.floor(aw * frac));
 
   let w = maxW;
@@ -46,4 +67,3 @@ export function calcCappedMediaSize(opts: {
   h = Math.max(minH, h);
   return { w, h };
 }
-

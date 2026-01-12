@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { searchChannels } from '../../utils/channelSearch';
+
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { searchChannels } from '../../utils/channelSearch';
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
@@ -22,7 +23,11 @@ export function useGuestChannelSearch(opts: {
   debounceMs?: number;
 }) {
   const { apiUrl, enabled, query, debounceMs } = opts;
-  const debouncedQuery = useDebouncedValue(query, typeof debounceMs === 'number' ? debounceMs : 150, enabled);
+  const debouncedQuery = useDebouncedValue(
+    query,
+    typeof debounceMs === 'number' ? debounceMs : 150,
+    enabled,
+  );
 
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -60,9 +65,16 @@ export function useGuestChannelSearch(opts: {
         const lower = msg.toLowerCase();
         if (lower.trim() === 'channel search failed') {
           if (!cancelled) setError('Channel browsing requires sign-in on this server.');
-        } else if (lower.includes('/public/channels/search') && (lower.includes('404') || lower.includes('not found'))) {
+        } else if (
+          lower.includes('/public/channels/search') &&
+          (lower.includes('404') || lower.includes('not found'))
+        ) {
           if (!cancelled) setError('Channel browsing requires sign-in on this server.');
-        } else if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('not authenticated')) {
+        } else if (
+          lower.includes('401') ||
+          lower.includes('unauthorized') ||
+          lower.includes('not authenticated')
+        ) {
           if (!cancelled) setError('Channel browsing requires sign-in.');
         } else {
           if (!cancelled) setError(msg);
@@ -78,4 +90,3 @@ export function useGuestChannelSearch(opts: {
 
   return { loading, error, globalUserCount, results };
 }
-

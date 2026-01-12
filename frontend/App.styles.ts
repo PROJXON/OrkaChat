@@ -582,7 +582,10 @@ export const styles = StyleSheet.create({
     zIndex: 2,
     elevation: 8,
   },
-  profileCardDark: { backgroundColor: APP_COLORS.dark.bg.surface, borderColor: APP_COLORS.dark.border.subtle },
+  profileCardDark: {
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderColor: APP_COLORS.dark.border.subtle,
+  },
   profilePreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
   profilePreviewMeta: { flex: 1 },
   bgPreviewBox: {
@@ -602,8 +605,16 @@ export const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: withAlpha(PALETTE.black, 0.25),
   },
-  avatarColorDotSelected: { borderWidth: 2, borderColor: APP_COLORS.light.text.primary, transform: [{ scale: 1.05 }] },
-  avatarColorDotSelectedDark: { borderWidth: 2, borderColor: APP_COLORS.dark.text.primary, transform: [{ scale: 1.05 }] },
+  avatarColorDotSelected: {
+    borderWidth: 2,
+    borderColor: APP_COLORS.light.text.primary,
+    transform: [{ scale: 1.05 }],
+  },
+  avatarColorDotSelectedDark: {
+    borderWidth: 2,
+    borderColor: APP_COLORS.dark.text.primary,
+    transform: [{ scale: 1.05 }],
+  },
   avatarTextColorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatarTextColorBtn: {
     height: 36,
@@ -615,7 +626,10 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarTextColorBtnDark: { backgroundColor: APP_COLORS.dark.bg.header, borderColor: APP_COLORS.dark.border.subtle },
+  avatarTextColorBtnDark: {
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderColor: APP_COLORS.dark.border.subtle,
+  },
   avatarTextColorBtnSelected: { borderWidth: 2, borderColor: APP_COLORS.light.text.primary },
   avatarTextColorBtnSelectedDark: { borderWidth: 2, borderColor: APP_COLORS.dark.text.primary },
   avatarTextColorLabel: { fontWeight: '800', color: APP_COLORS.light.text.primary },
@@ -632,22 +646,42 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toolBtnDark: { backgroundColor: APP_COLORS.dark.bg.header, borderColor: APP_COLORS.dark.border.subtle },
+  toolBtnDark: {
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderColor: APP_COLORS.dark.border.subtle,
+  },
   toolBtnText: { fontWeight: '800', color: APP_COLORS.light.text.primary },
   toolBtnTextDark: { color: APP_COLORS.dark.text.primary },
-  bgEffectsHeaderRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginTop: 10 },
+  bgEffectsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 10,
+  },
   bgEffectsResetBtn: { paddingHorizontal: 6, paddingVertical: 4 },
   bgEffectsResetText: { fontWeight: '900', color: APP_COLORS.light.text.primary, opacity: 0.7 },
   bgEffectsResetTextDark: { fontWeight: '900', color: APP_COLORS.dark.text.primary, opacity: 0.75 },
   // Keep sliders comfortably narrow (about ~2/3 modal width).
   bgSliderSection: { marginTop: 10, alignSelf: 'center', width: '64%', maxWidth: 320 },
-  bgSliderLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 },
+  bgSliderLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 4,
+  },
   bgSliderLabel: { fontWeight: '900', color: APP_COLORS.light.text.primary },
   bgSliderLabelDark: { color: APP_COLORS.dark.text.primary },
   bgSliderValue: { fontWeight: '900', color: APP_COLORS.light.text.primary, opacity: 0.75 },
   bgSliderValueDark: { color: APP_COLORS.dark.text.primary, opacity: 0.8 },
   bgSlider: { width: '100%', height: 34, marginLeft: 4, marginRight: 4 },
-  chatsTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  chatsTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   chatsCloseBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -656,11 +690,21 @@ export const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: APP_COLORS.light.border.subtle,
   },
-  chatsCloseBtnDark: { backgroundColor: PALETTE.slate750, borderWidth: 0, borderColor: 'transparent' },
+  chatsCloseBtnDark: {
+    backgroundColor: PALETTE.slate750,
+    borderWidth: 0,
+    borderColor: 'transparent',
+  },
   chatsCloseText: { color: APP_COLORS.light.text.primary, fontWeight: '800' },
   chatsCloseTextDark: { color: APP_COLORS.dark.text.primary },
   chatsScroll: { maxHeight: 420, marginTop: 8 },
-  chatsLoadingRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, paddingVertical: 6, paddingHorizontal: 2 },
+  chatsLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
   chatsLoadingText: { lineHeight: 18 },
   chatsLoadingDotsWrap: { marginBottom: 1 },
   chatRow: {
@@ -676,10 +720,26 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  chatRowDark: { backgroundColor: APP_COLORS.dark.bg.header, borderColor: APP_COLORS.dark.border.subtle },
-  chatRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  chatRowDark: {
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderColor: APP_COLORS.dark.border.subtle,
+  },
+  chatRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
   chatRowRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  chatRowName: { fontWeight: '800', color: APP_COLORS.light.text.primary, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  chatRowName: {
+    fontWeight: '800',
+    color: APP_COLORS.light.text.primary,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
   chatRowNameDark: { color: APP_COLORS.dark.text.primary },
   chatRowDate: { fontWeight: '800', fontSize: 13, color: APP_COLORS.light.text.primary },
   chatRowDateDark: { color: APP_COLORS.dark.text.primary },
@@ -731,7 +791,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chatDeleteBtnDark: { backgroundColor: PALETTE.slate750, borderWidth: 0, borderColor: 'transparent' },
+  chatDeleteBtnDark: {
+    backgroundColor: PALETTE.slate750,
+    borderWidth: 0,
+    borderColor: 'transparent',
+  },
 
   blocksCard: {
     width: '92%',
@@ -748,9 +812,23 @@ export const styles = StyleSheet.create({
     zIndex: 2,
     elevation: 8,
   },
-  blocksCardDark: { backgroundColor: APP_COLORS.dark.bg.surface, borderColor: APP_COLORS.dark.border.subtle },
-  blocksTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  blocksSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 10 },
+  blocksCardDark: {
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderColor: APP_COLORS.dark.border.subtle,
+  },
+  blocksTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  blocksSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 10,
+  },
   blocksInput: {
     flex: 1,
     height: 40,
@@ -793,7 +871,10 @@ export const styles = StyleSheet.create({
     borderColor: APP_COLORS.light.border.subtle,
     marginBottom: 8,
   },
-  blockRowDark: { backgroundColor: APP_COLORS.dark.bg.header, borderColor: APP_COLORS.dark.border.subtle },
+  blockRowDark: {
+    backgroundColor: APP_COLORS.dark.bg.header,
+    borderColor: APP_COLORS.dark.border.subtle,
+  },
   blockRowName: { fontWeight: '800', color: APP_COLORS.light.text.primary, flexShrink: 1 },
   blockRowNameDark: { color: APP_COLORS.dark.text.primary },
   blockActionBtn: {
@@ -806,7 +887,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  blockActionBtnDark: { backgroundColor: PALETTE.slate750, borderWidth: 0, borderColor: 'transparent' },
+  blockActionBtnDark: {
+    backgroundColor: PALETTE.slate750,
+    borderWidth: 0,
+    borderColor: 'transparent',
+  },
 });
 
 export type AppStyles = typeof styles;

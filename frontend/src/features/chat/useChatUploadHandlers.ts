@@ -3,12 +3,13 @@ import * as React from 'react';
 import type { MediaItem } from '../../types/media';
 import type { PendingMediaItem } from './attachments';
 import type { DmMediaEnvelopeV1, GroupMediaEnvelopeV1 } from './types';
-import { uploadChannelMediaPlain, uploadDmMediaEncrypted, uploadGroupMediaEncrypted } from './uploadMedia';
+import {
+  uploadChannelMediaPlain,
+  uploadDmMediaEncrypted,
+  uploadGroupMediaEncrypted,
+} from './uploadMedia';
 
-export function useChatUploadHandlers(opts: {
-  activeConversationId: string;
-  input: string;
-}): {
+export function useChatUploadHandlers(opts: { activeConversationId: string; input: string }): {
   uploadPendingMedia: (media: PendingMediaItem) => Promise<MediaItem>;
   uploadPendingMediaDmEncrypted: (
     media: PendingMediaItem,
@@ -73,4 +74,3 @@ export function useChatUploadHandlers(opts: {
 
   return { uploadPendingMedia, uploadPendingMediaDmEncrypted, uploadPendingMediaGroupEncrypted };
 }
-

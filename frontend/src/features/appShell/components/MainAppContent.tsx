@@ -1,53 +1,22 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, View, useWindowDimensions } from 'react-native';
+import { fetchAuthSession } from '@aws-amplify/auth';
 import { useAuthenticator } from '@aws-amplify/ui-react-native/dist';
 import { deleteUser, fetchUserAttributes } from 'aws-amplify/auth';
-import { fetchAuthSession } from '@aws-amplify/auth';
+import React, { useState } from 'react';
+import type { Pressable } from 'react-native';
+import { ActivityIndicator, useWindowDimensions, View } from 'react-native';
 
-import { API_URL, CDN_URL } from '../../../config/env';
 import { styles } from '../../../../App.styles';
+import { AVATAR_DEFAULT_COLORS } from '../../../components/AvatarBubble';
+import { API_URL, CDN_URL } from '../../../config/env';
 import { useCdnUrlCache } from '../../../hooks/useCdnUrlCache';
+import { useMenuAnchor } from '../../../hooks/useMenuAnchor';
 import { useStoredTheme } from '../../../hooks/useStoredTheme';
 import { useViewportWidth } from '../../../hooks/useViewportWidth';
-import { useMenuAnchor } from '../../../hooks/useMenuAnchor';
-import {
-  registerForDmPushNotifications,
-  setForegroundNotificationPolicy,
-  unregisterDmPushNotifications,
-} from '../../../utils/pushNotifications';
-import { GLOBAL_ABOUT_VERSION } from '../../../utils/globalAbout';
-import { formatChatActivityDate } from '../../../utils/chatDates';
-import { AVATAR_DEFAULT_COLORS } from '../../../components/AvatarBubble';
-
+import { useUiPrompt } from '../../../providers/UiPromptProvider';
 import ChatScreen from '../../../screens/ChatScreen';
-
-import { MainAppMenuAndAboutOverlays } from './MainAppMenuAndAboutOverlays';
-import { MainAppChatsAndRecoveryModals } from './MainAppChatsAndRecoveryModals';
-import { MainAppChannelsModals } from './MainAppChannelsModals';
-import { MainAppBlocklistModal } from './MainAppBlocklistModal';
-import { MainAppAvatarModal } from './MainAppAvatarModal';
-import { MainAppBackgroundModal } from './MainAppBackgroundModal';
-import { MainAppPassphrasePromptModal } from './MainAppPassphrasePromptModal';
-import { MainAppHeaderTop } from './MainAppHeaderTop';
-
-import { useGlobalAboutOncePerVersion } from '../../globalAbout/useGlobalAboutOncePerVersion';
-import { usePassphrasePrompt } from '../hooks/usePassphrasePrompt';
-import { useSignedInBootstrap } from '../hooks/useSignedInBootstrap';
-import { useChatBackgroundSettings } from '../hooks/useChatBackgroundSettings';
-import { useMyAvatarSettings } from '../hooks/useMyAvatarSettings';
-import { useDmUnreadsAndPush } from '../hooks/useDmUnreadsAndPush';
-import { useChatsInboxData } from '../hooks/useChatsInboxData';
-import { useBlocklistData } from '../hooks/useBlocklistData';
-import { useStartDmFlow } from '../hooks/useStartDmFlow';
-import { useLastChannelConversation } from '../hooks/useLastChannelConversation';
-import { useChannelsFlow } from '../hooks/useChannelsFlow';
-import { useRecoveryFlow } from '../hooks/useRecoveryFlow';
-import { useConversationNavigation } from '../hooks/useConversationNavigation';
-import { useConversationTitleChanged } from '../hooks/useConversationTitleChanged';
-import { useDeleteConversationFromList } from '../hooks/useDeleteConversationFromList';
-import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
-import { useAuthApiHelpers } from '../hooks/useAuthApiHelpers';
-
+import { getAppThemeColors } from '../../../theme/colors';
+import type { AmplifyUiUser } from '../../../types/amplifyUi';
+import { formatChatActivityDate } from '../../../utils/chatDates';
 import {
   decryptPrivateKey,
   derivePublicKey,
@@ -56,9 +25,37 @@ import {
   loadKeyPair,
   storeKeyPair,
 } from '../../../utils/crypto';
-import { useUiPrompt } from '../../../providers/UiPromptProvider';
-import { getAppThemeColors } from '../../../theme/colors';
-import type { AmplifyUiUser } from '../../../types/amplifyUi';
+import { GLOBAL_ABOUT_VERSION } from '../../../utils/globalAbout';
+import {
+  registerForDmPushNotifications,
+  setForegroundNotificationPolicy,
+  unregisterDmPushNotifications,
+} from '../../../utils/pushNotifications';
+import { useGlobalAboutOncePerVersion } from '../../globalAbout/useGlobalAboutOncePerVersion';
+import { useAuthApiHelpers } from '../hooks/useAuthApiHelpers';
+import { useBlocklistData } from '../hooks/useBlocklistData';
+import { useChannelsFlow } from '../hooks/useChannelsFlow';
+import { useChatBackgroundSettings } from '../hooks/useChatBackgroundSettings';
+import { useChatsInboxData } from '../hooks/useChatsInboxData';
+import { useConversationNavigation } from '../hooks/useConversationNavigation';
+import { useConversationTitleChanged } from '../hooks/useConversationTitleChanged';
+import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
+import { useDeleteConversationFromList } from '../hooks/useDeleteConversationFromList';
+import { useDmUnreadsAndPush } from '../hooks/useDmUnreadsAndPush';
+import { useLastChannelConversation } from '../hooks/useLastChannelConversation';
+import { useMyAvatarSettings } from '../hooks/useMyAvatarSettings';
+import { usePassphrasePrompt } from '../hooks/usePassphrasePrompt';
+import { useRecoveryFlow } from '../hooks/useRecoveryFlow';
+import { useSignedInBootstrap } from '../hooks/useSignedInBootstrap';
+import { useStartDmFlow } from '../hooks/useStartDmFlow';
+import { MainAppAvatarModal } from './MainAppAvatarModal';
+import { MainAppBackgroundModal } from './MainAppBackgroundModal';
+import { MainAppBlocklistModal } from './MainAppBlocklistModal';
+import { MainAppChannelsModals } from './MainAppChannelsModals';
+import { MainAppChatsAndRecoveryModals } from './MainAppChatsAndRecoveryModals';
+import { MainAppHeaderTop } from './MainAppHeaderTop';
+import { MainAppMenuAndAboutOverlays } from './MainAppMenuAndAboutOverlays';
+import { MainAppPassphrasePromptModal } from './MainAppPassphrasePromptModal';
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'unknown error';
@@ -82,7 +79,12 @@ function getUsernameFromAuthenticatorUser(user: AmplifyUiUser): string | undefin
 export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const { user } = useAuthenticator();
   const { signOut } = useAuthenticator();
-  const { alert: promptAlert, confirm: promptConfirm, choice3: promptChoice3, isOpen: uiPromptOpen } = useUiPrompt();
+  const {
+    alert: promptAlert,
+    confirm: promptConfirm,
+    choice3: promptChoice3,
+    isOpen: uiPromptOpen,
+  } = useUiPrompt();
   const cdn = useCdnUrlCache(CDN_URL);
   const [displayName, setDisplayName] = useState<string>('anon');
   const [myUserSub, setMyUserSub] = React.useState<string | null>(null);
@@ -137,7 +139,12 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
   // hasRecoveryBlob defaults false; track whether we've actually checked the server this session.
   const [recoveryBlobKnown, setRecoveryBlobKnown] = useState(false);
   const [recoveryLocked, setRecoveryLocked] = React.useState<boolean>(false);
-  const { promptPassphrase, closePrompt, setProcessing, modalProps: passphraseModalProps } = usePassphrasePrompt({
+  const {
+    promptPassphrase,
+    closePrompt,
+    setProcessing,
+    modalProps: passphraseModalProps,
+  } = usePassphrasePrompt({
     uiPromptOpen,
     promptConfirm,
     promptChoice3: promptChoice3 as (...args: unknown[]) => Promise<unknown>,
@@ -161,11 +168,12 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     setHasRecoveryBlob(exists);
   };
 
-  const { uploadRecoveryBlob, checkRecoveryBlobExists, getIdTokenWithRetry, uploadPublicKey } = useAuthApiHelpers({
-    apiUrl: API_URL,
-    fetchAuthSession,
-    encryptPrivateKey,
-  });
+  const { uploadRecoveryBlob, checkRecoveryBlobExists, getIdTokenWithRetry, uploadPublicKey } =
+    useAuthApiHelpers({
+      apiUrl: API_URL,
+      fetchAuthSession,
+      encryptPrivateKey,
+    });
 
   useSignedInBootstrap({
     user,
@@ -196,7 +204,9 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     promptAlert,
   });
 
-  const currentUsername = displayName.length ? displayName : getUsernameFromAuthenticatorUser(user) || 'anon';
+  const currentUsername = displayName.length
+    ? displayName
+    : getUsernameFromAuthenticatorUser(user) || 'anon';
 
   const [conversationId, setConversationId] = useState<string>('global');
   const [peer, setPeer] = useState<string | null>(null);
@@ -282,14 +292,21 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     setSearchError,
   });
 
-  const { theme, setTheme, isDark } = useStoredTheme({ storageKey: 'ui:theme', defaultTheme: 'light' });
+  const { theme, setTheme, isDark } = useStoredTheme({
+    storageKey: 'ui:theme',
+    defaultTheme: 'light',
+  });
   const appColors = getAppThemeColors(isDark);
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
   const menu = useMenuAnchor<React.ElementRef<typeof Pressable>>();
   const { width: windowWidth } = useWindowDimensions();
-  const { isWide: isWideUi } = useViewportWidth(windowWidth, { wideBreakpointPx: 900, maxContentWidthPx: 1040 });
+  const { isWide: isWideUi } = useViewportWidth(windowWidth, {
+    wideBreakpointPx: 900,
+    maxContentWidthPx: 1040,
+  });
   const [channelAboutRequestEpoch, setChannelAboutRequestEpoch] = React.useState<number>(0);
-  const { globalAboutOpen, setGlobalAboutOpen, dismissGlobalAbout } = useGlobalAboutOncePerVersion(GLOBAL_ABOUT_VERSION);
+  const { globalAboutOpen, setGlobalAboutOpen, dismissGlobalAbout } =
+    useGlobalAboutOncePerVersion(GLOBAL_ABOUT_VERSION);
   const [blocklistOpen, setBlocklistOpen] = React.useState<boolean>(false);
   const [recoveryOpen, setRecoveryOpen] = React.useState<boolean>(false);
 
@@ -306,26 +323,27 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     unblockUser,
   } = useBlocklistData({ apiUrl: API_URL, fetchAuthSession, promptConfirm, blocklistOpen });
 
-  const { enterRecoveryPassphrase, setupRecovery, changeRecoveryPassphrase, resetRecovery } = useRecoveryFlow({
-    apiUrl: API_URL,
-    myUserSub,
-    getIdToken,
-    promptAlert,
-    promptConfirm,
-    promptPassphrase,
-    closePrompt,
-    decryptPrivateKey,
-    derivePublicKey,
-    storeKeyPair,
-    loadKeyPair,
-    generateKeypair,
-    uploadPublicKey,
-    uploadRecoveryBlob,
-    bumpKeyEpoch: () => setKeyEpoch((v) => v + 1),
-    setHasRecoveryBlob,
-    setRecoveryBlobKnown,
-    setRecoveryLocked,
-  });
+  const { enterRecoveryPassphrase, setupRecovery, changeRecoveryPassphrase, resetRecovery } =
+    useRecoveryFlow({
+      apiUrl: API_URL,
+      myUserSub,
+      getIdToken,
+      promptAlert,
+      promptConfirm,
+      promptPassphrase,
+      closePrompt,
+      decryptPrivateKey,
+      derivePublicKey,
+      storeKeyPair,
+      loadKeyPair,
+      generateKeypair,
+      uploadPublicKey,
+      uploadRecoveryBlob,
+      bumpKeyEpoch: () => setKeyEpoch((v) => v + 1),
+      setHasRecoveryBlob,
+      setRecoveryBlobKnown,
+      setRecoveryLocked,
+    });
 
   const { handleConversationTitleChanged } = useConversationTitleChanged({
     conversationId,
@@ -642,7 +660,14 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
             onBlockUserSub={addBlockBySub}
           />
         ) : (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: appColors.appBackground }}>
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: appColors.appBackground,
+            }}
+          >
             <ActivityIndicator size="large" color={appColors.appForeground} />
           </View>
         )}
@@ -650,4 +675,3 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     </View>
   );
 };
-

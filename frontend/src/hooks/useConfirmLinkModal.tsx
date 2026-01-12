@@ -1,5 +1,6 @@
 import React from 'react';
 import { Linking } from 'react-native';
+
 import { ConfirmLinkModal } from '../components/ConfirmLinkModal';
 import { useConfirmLink } from './useConfirmLink';
 
@@ -27,6 +28,10 @@ export function useConfirmLinkModal(isDark: boolean): {
     />
   ) : null;
 
-  return { requestOpenLink, closeConfirmLink: close, onLinkConfirmOpened: onOpened, confirmLinkModal };
+  return {
+    requestOpenLink,
+    closeConfirmLink: close,
+    onLinkConfirmOpened: onOpened,
+    confirmLinkModal,
+  };
 }
-

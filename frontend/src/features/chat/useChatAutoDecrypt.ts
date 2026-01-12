@@ -1,4 +1,5 @@
 import * as React from 'react';
+
 import type { MediaItem } from '../../types/media';
 import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
 
@@ -47,7 +48,9 @@ export function useChatAutoDecrypt(opts: {
   // Auto-decrypt pass: whenever enabled and keys are ready, decrypt any encrypted messages once.
   React.useEffect(() => {
     if (!autoDecrypt || !myPrivateKey) return;
-    const needsDecrypt = messages.some((m) => (m.encrypted || m.groupEncrypted) && !m.decryptedText && !m.decryptFailed);
+    const needsDecrypt = messages.some(
+      (m) => (m.encrypted || m.groupEncrypted) && !m.decryptedText && !m.decryptFailed,
+    );
     if (!needsDecrypt) return;
 
     const decryptedIncomingCreatedAts: number[] = [];
@@ -136,4 +139,3 @@ export function useChatAutoDecrypt(opts: {
     setMessages,
   ]);
 }
-

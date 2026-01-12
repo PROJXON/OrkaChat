@@ -1,5 +1,6 @@
-import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
+import * as React from 'react';
+
 import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
 
 export type GroupMeta = {
@@ -27,7 +28,9 @@ export function useHydrateGroupRoster(opts: {
   setGroupMeta: React.Dispatch<React.SetStateAction<GroupMeta | null>>;
   setGroupMembers: React.Dispatch<React.SetStateAction<GroupMember[]>>;
   setGroupPublicKeyBySub: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  upsertAvatarProfiles: (items: Array<{ sub: string; profile: Partial<PublicAvatarProfileLite> }>) => void;
+  upsertAvatarProfiles: (
+    items: Array<{ sub: string; profile: Partial<PublicAvatarProfileLite> }>,
+  ) => void;
 }): void {
   const enabled = !!opts.enabled;
   const apiUrl = String(opts.apiUrl || '');
@@ -66,7 +69,10 @@ export function useHydrateGroupRoster(opts: {
         const raw: unknown = await res.json().catch(() => ({}));
         const data = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
         const groupId = String(data.groupId || '').trim();
-        const me = typeof data.me === 'object' && data.me != null ? (data.me as Record<string, unknown>) : {};
+        const me =
+          typeof data.me === 'object' && data.me != null
+            ? (data.me as Record<string, unknown>)
+            : {};
         const meIsAdmin = !!me.isAdmin;
         const meStatus = typeof me.status === 'string' ? String(me.status) : 'active';
         const membersRaw: unknown[] = Array.isArray(data.members) ? data.members : [];
@@ -75,12 +81,16 @@ export function useHydrateGroupRoster(opts: {
             const rec = typeof m === 'object' && m != null ? (m as Record<string, unknown>) : {};
             return {
               memberSub: String(rec.memberSub || '').trim(),
-              displayName: typeof rec.displayName === 'string' ? String(rec.displayName) : undefined,
+              displayName:
+                typeof rec.displayName === 'string' ? String(rec.displayName) : undefined,
               status: typeof rec.status === 'string' ? String(rec.status) : 'active',
               isAdmin: !!rec.isAdmin,
-              avatarBgColor: typeof rec.avatarBgColor === 'string' ? String(rec.avatarBgColor) : undefined,
-              avatarTextColor: typeof rec.avatarTextColor === 'string' ? String(rec.avatarTextColor) : undefined,
-              avatarImagePath: typeof rec.avatarImagePath === 'string' ? String(rec.avatarImagePath) : undefined,
+              avatarBgColor:
+                typeof rec.avatarBgColor === 'string' ? String(rec.avatarBgColor) : undefined,
+              avatarTextColor:
+                typeof rec.avatarTextColor === 'string' ? String(rec.avatarTextColor) : undefined,
+              avatarImagePath:
+                typeof rec.avatarImagePath === 'string' ? String(rec.avatarImagePath) : undefined,
             };
           })
           .filter((m) => m.memberSub);
@@ -89,7 +99,8 @@ export function useHydrateGroupRoster(opts: {
             groupId
               ? {
                   groupId,
-                  groupName: typeof data.groupName === 'string' ? String(data.groupName) : undefined,
+                  groupName:
+                    typeof data.groupName === 'string' ? String(data.groupName) : undefined,
                   meIsAdmin,
                   meStatus,
                 }
@@ -109,9 +120,12 @@ export function useHydrateGroupRoster(opts: {
               sub: String(m.memberSub || '').trim(),
               profile: {
                 displayName: typeof m.displayName === 'string' ? String(m.displayName) : undefined,
-                avatarBgColor: typeof m.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
-                avatarTextColor: typeof m.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
-                avatarImagePath: typeof m.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
+                avatarBgColor:
+                  typeof m.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
+                avatarTextColor:
+                  typeof m.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
+                avatarImagePath:
+                  typeof m.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
               },
             })),
           );
@@ -135,7 +149,8 @@ export function useHydrateGroupRoster(opts: {
               });
               if (!r.ok) return;
               const u = await r.json().catch(() => ({}));
-              const pk = (u.public_key as string | undefined) || (u.publicKey as string | undefined);
+              const pk =
+                (u.public_key as string | undefined) || (u.publicKey as string | undefined);
               if (typeof pk === 'string' && pk.trim()) nextKeyMap[sub] = pk.trim();
             } catch {
               // ignore
@@ -165,4 +180,3 @@ export function useHydrateGroupRoster(opts: {
     upsertAvatarProfiles,
   ]);
 }
-

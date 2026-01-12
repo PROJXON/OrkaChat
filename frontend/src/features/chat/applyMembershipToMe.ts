@@ -28,4 +28,3 @@ export function applyGroupMembershipSystemEventToMe(opts: {
     opts.setMeStatus('left');
   }
 }
-
