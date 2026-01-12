@@ -33,8 +33,6 @@ type ReportCdnMedia = React.ComponentProps<typeof ReportModal>['cdnMedia'];
 type AiHelperController = {
   open: boolean;
   thread: React.ComponentProps<typeof AiHelperModal>['thread'];
-  answer: string;
-  suggestions: string[];
   instruction: string;
   loading: boolean;
   mode: 'ask' | 'reply';
@@ -46,7 +44,6 @@ type AiHelperController = {
   scrollRef: React.ComponentProps<typeof AiHelperModal>['scrollRef'];
   scrollContentRef: React.ComponentProps<typeof AiHelperModal>['scrollContentRef'];
   lastTurnRef: React.ComponentProps<typeof AiHelperModal>['lastTurnRef'];
-  lastTurnLayoutRef: React.ComponentProps<typeof AiHelperModal>['lastTurnLayoutRef'];
   scrollViewportHRef: React.ComponentProps<typeof AiHelperModal>['scrollViewportHRef'];
   scrollContentHRef: React.ComponentProps<typeof AiHelperModal>['scrollContentHRef'];
   lastAutoScrollAtRef: React.ComponentProps<typeof AiHelperModal>['lastAutoScrollAtRef'];
@@ -423,8 +420,6 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         isDark={isDark}
         styles={styles}
         thread={aiHelper.thread}
-        answer={aiHelper.answer}
-        suggestions={aiHelper.suggestions}
         instruction={aiHelper.instruction}
         loading={aiHelper.loading}
         mode={aiHelper.mode}
@@ -441,7 +436,6 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         scrollRef={aiHelper.scrollRef}
         scrollContentRef={aiHelper.scrollContentRef}
         lastTurnRef={aiHelper.lastTurnRef}
-        lastTurnLayoutRef={aiHelper.lastTurnLayoutRef}
         scrollViewportHRef={aiHelper.scrollViewportHRef}
         scrollContentHRef={aiHelper.scrollContentHRef}
         lastAutoScrollAtRef={aiHelper.lastAutoScrollAtRef}
