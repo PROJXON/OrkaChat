@@ -7,6 +7,7 @@ import 'react-native-url-polyfill/auto';
 // duplication/mismatches.
 import { fetchAuthSession } from '@aws-amplify/auth';
 import { Authenticator, ThemeProvider } from '@aws-amplify/ui-react-native/dist';
+import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { Amplify } from 'aws-amplify';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -69,6 +70,7 @@ function AppSafeAreaProvider({ children }: { children: React.ReactNode }): React
 
 export default function App(): React.JSX.Element {
   const [booting, setBooting] = React.useState<boolean>(true);
+  const [iconFontsReady, setIconFontsReady] = React.useState<boolean>(false);
   const [rootMode, setRootMode] = React.useState<'guest' | 'app'>('guest');
   const [authModalOpen, setAuthModalOpen] = React.useState<boolean>(false);
   const [rootLayoutDone, setRootLayoutDone] = React.useState<boolean>(false);
@@ -78,7 +80,7 @@ export default function App(): React.JSX.Element {
     // Re-read theme when opening the auth modal in case the user toggled it on the guest screen.
     reloadDeps: [authModalOpen ? 1 : 0],
   });
-  const appReady = !booting && themeReady;
+  const appReady = !booting && themeReady && iconFontsReady;
   const appColors = getAppThemeColors(isDark);
 
   // Keep the app portrait by default, but allow camera UI to temporarily unlock orientation.
@@ -95,6 +97,24 @@ export default function App(): React.JSX.Element {
   // (Removed) We previously tried setting global TextInput defaultProps for caret color,
   // but on Android it can be ignored/overridden. We now inject caret colors directly into
   // Amplify Authenticator fields via `components` overrides.
+
+  // Web (esp. mobile browsers): ensure icon fonts are loaded before first paint.
+  // If the icon font isn't available yet, glyphs can render as "random" symbols from a fallback font.
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await Promise.all([Feather.loadFont(), MaterialIcons.loadFont()]);
+      } catch {
+        // ignore (icons will still render once fonts are available)
+      } finally {
+        if (mounted) setIconFontsReady(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     let mounted = true;
