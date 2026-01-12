@@ -1,5 +1,7 @@
 import * as React from 'react';
 
+import type { DmThreads, ServerConversation, UnreadDmMap } from './useChatsInboxData';
+
 export function useDeleteConversationFromList({
   apiUrl,
   fetchAuthSession,
@@ -15,9 +17,9 @@ export function useDeleteConversationFromList({
     message: string,
     opts?: { confirmText?: string; cancelText?: string; destructive?: boolean }
   ) => Promise<boolean>;
-  setServerConversations: React.Dispatch<React.SetStateAction<Array<any>>>;
-  setDmThreads: React.Dispatch<React.SetStateAction<Record<string, any>>>;
-  setUnreadDmMap: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  setServerConversations: React.Dispatch<React.SetStateAction<ServerConversation[]>>;
+  setDmThreads: React.Dispatch<React.SetStateAction<DmThreads>>;
+  setUnreadDmMap: React.Dispatch<React.SetStateAction<UnreadDmMap>>;
 }): { deleteConversationFromList: (conversationIdToDelete: string) => Promise<void> } {
   const deleteConversationFromList = React.useCallback(
     async (conversationIdToDelete: string) => {
@@ -53,7 +55,7 @@ export function useDeleteConversationFromList({
       }
 
       // Optimistic local cleanup
-      setServerConversations((prev) => prev.filter((c: any) => c.conversationId !== convId));
+      setServerConversations((prev) => prev.filter((c) => c.conversationId !== convId));
       setDmThreads((prev) => {
         if (!prev[convId]) return prev;
         const next = { ...prev };

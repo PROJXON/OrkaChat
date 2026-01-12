@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 
+import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 
 export function MainAppBlocklistModal({
@@ -18,7 +19,7 @@ export function MainAppBlocklistModal({
   blockedUsers,
   unblockUser,
 }: {
-  styles: any;
+  styles: AppStyles;
   isDark: boolean;
 
   blocklistOpen: boolean;

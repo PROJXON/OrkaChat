@@ -25,6 +25,16 @@ export function useChatHistory(opts: {
   loadOlderHistory: () => void;
 } {
   const PAGE_SIZE = typeof opts.pageSize === 'number' && Number.isFinite(opts.pageSize) ? opts.pageSize : 50;
+  const apiUrl = opts.apiUrl;
+  const activeConversationId = opts.activeConversationId;
+  const hiddenMessageIds = opts.hiddenMessageIds;
+  const setMessages = opts.setMessages;
+  const setError = opts.setError;
+  const encryptedPlaceholder = opts.encryptedPlaceholder;
+  const parseEncrypted = opts.parseEncrypted;
+  const parseGroupEncrypted = opts.parseGroupEncrypted;
+  const normalizeUser = opts.normalizeUser;
+  const normalizeReactions = opts.normalizeReactions;
 
   const [historyCursor, setHistoryCursor] = React.useState<number | null>(null);
   const [historyHasMore, setHistoryHasMore] = React.useState<boolean>(true);
@@ -33,7 +43,7 @@ export function useChatHistory(opts: {
 
   const fetchHistoryPage = React.useCallback(
     async ({ before, reset }: { before?: number | null; reset?: boolean }) => {
-      if (!opts.apiUrl) return;
+      if (!apiUrl) return;
       if (historyLoadingRef.current) return;
       historyLoadingRef.current = true;
       setHistoryLoading(true);
@@ -42,9 +52,9 @@ export function useChatHistory(opts: {
         // Include the idToken when available; harmless if the route is public.
         const { tokens } = await fetchAuthSession().catch(() => ({ tokens: undefined }));
         const idToken = tokens?.idToken?.toString();
-        const base = opts.apiUrl.replace(/\/$/, '');
+        const base = apiUrl.replace(/\/$/, '');
         const qs =
-          `conversationId=${encodeURIComponent(opts.activeConversationId)}` +
+          `conversationId=${encodeURIComponent(activeConversationId)}` +
           `&limit=${PAGE_SIZE}` +
           `&cursor=1` +
           (typeof before === 'number' && Number.isFinite(before) && before > 0 ? `&before=${encodeURIComponent(String(before))}` : '');
@@ -54,7 +64,7 @@ export function useChatHistory(opts: {
         if (!res.ok) {
           const text = await res.text().catch(() => '');
           console.warn('fetchHistory failed', res.status, text);
-          opts.setError(`History fetch failed (${res.status})`);
+          setError(`History fetch failed (${res.status})`);
           return;
         }
 
@@ -66,20 +76,20 @@ export function useChatHistory(opts: {
 
         const normalized: ChatMessage[] = buildHistoryMessagesFromApiItems({
           rawItems,
-          encryptedPlaceholder: opts.encryptedPlaceholder,
-          parseEncrypted: opts.parseEncrypted,
-          parseGroupEncrypted: opts.parseGroupEncrypted,
-          normalizeUser: opts.normalizeUser,
-          normalizeReactions: opts.normalizeReactions,
+          encryptedPlaceholder,
+          parseEncrypted,
+          parseGroupEncrypted,
+          normalizeUser,
+          normalizeReactions,
         });
 
         // Deduplicate by id (history may overlap with WS delivery)
-        const deduped = dedupeById(normalized).filter((m: ChatMessage) => !opts.hiddenMessageIds[m.id]);
+        const deduped = dedupeById(normalized).filter((m: ChatMessage) => !hiddenMessageIds[m.id]);
 
         if (reset) {
-          opts.setMessages(deduped);
+          setMessages(deduped);
         } else {
-          opts.setMessages((prev) => {
+          setMessages((prev) => {
             return appendUniqueById(prev, deduped).merged;
           });
         }
@@ -108,35 +118,35 @@ export function useChatHistory(opts: {
       }
     },
     [
-      opts.apiUrl,
-      opts.activeConversationId,
-      opts.encryptedPlaceholder,
-      opts.hiddenMessageIds,
-      opts.normalizeReactions,
-      opts.normalizeUser,
-      opts.parseEncrypted,
-      opts.parseGroupEncrypted,
-      opts.setError,
-      opts.setMessages,
+      apiUrl,
+      activeConversationId,
+      encryptedPlaceholder,
+      hiddenMessageIds,
+      normalizeReactions,
+      normalizeUser,
+      parseEncrypted,
+      parseGroupEncrypted,
+      setError,
+      setMessages,
       PAGE_SIZE,
     ],
   );
 
   // Fetch recent history from HTTP API (if configured)
   React.useEffect(() => {
-    if (!opts.apiUrl) return;
+    if (!apiUrl) return;
     // Reset + fetch first page for the active conversation.
-    opts.setMessages([]);
+    setMessages([]);
     setHistoryCursor(null);
     setHistoryHasMore(true);
     fetchHistoryPage({ reset: true });
-  }, [opts.apiUrl, opts.activeConversationId, opts.hiddenMessageIds, fetchHistoryPage, opts.setMessages]);
+  }, [apiUrl, activeConversationId, hiddenMessageIds, fetchHistoryPage, setMessages]);
 
   const loadOlderHistory = React.useCallback(() => {
-    if (!opts.apiUrl) return;
+    if (!apiUrl) return;
     if (!historyHasMore) return;
     fetchHistoryPage({ before: historyCursor, reset: false });
-  }, [opts.apiUrl, fetchHistoryPage, historyCursor, historyHasMore]);
+  }, [apiUrl, fetchHistoryPage, historyCursor, historyHasMore]);
 
   return { historyCursor, historyHasMore, historyLoading, loadOlderHistory };
 }

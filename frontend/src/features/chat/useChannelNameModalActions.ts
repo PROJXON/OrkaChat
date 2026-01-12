@@ -1,20 +1,24 @@
 import * as React from 'react';
 import type { RefObject } from 'react';
 
+import type { ChannelMeta } from './useChannelRoster';
+
+type ChannelUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
+
 export function useChannelNameModalActions(opts: {
   wsRef: RefObject<WebSocket | null>;
   activeConversationId: string;
   channelNameDraft: string;
-  setChannelMeta: React.Dispatch<React.SetStateAction<any>>;
+  setChannelMeta: React.Dispatch<React.SetStateAction<ChannelMeta | null>>;
   setChannelNameEditOpen: (v: boolean) => void;
-  channelUpdate: (op: any, args: any) => Promise<any> | void;
+  channelUpdate: ChannelUpdateFn;
 }) {
   const { wsRef, activeConversationId, channelNameDraft, setChannelMeta, setChannelNameEditOpen, channelUpdate } = opts;
 
   const onSave = React.useCallback(() => {
     const next = String(channelNameDraft || '').trim();
     void channelUpdate('setName', { name: next });
-    setChannelMeta((prev: any) => (prev ? { ...prev, name: next || prev.name } : prev));
+    setChannelMeta((prev) => (prev ? { ...prev, name: next || prev.name } : prev));
     // Broadcast a generic "channel updated" system event so other members refresh titles promptly.
     try {
       const ws = wsRef.current;

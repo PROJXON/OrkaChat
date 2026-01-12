@@ -1,9 +1,9 @@
 import * as React from 'react';
 
-export function usePruneExpiredMessages(opts: {
+export function usePruneExpiredMessages<T extends { expiresAt?: number | null | undefined }>(opts: {
   enabled: boolean;
   intervalMs?: number;
-  setMessages: React.Dispatch<React.SetStateAction<any[]>>;
+  setMessages: React.Dispatch<React.SetStateAction<T[]>>;
 }): void {
   const enabled = !!opts.enabled;
   const intervalMs = Math.max(500, Math.floor(opts.intervalMs ?? 10_000));

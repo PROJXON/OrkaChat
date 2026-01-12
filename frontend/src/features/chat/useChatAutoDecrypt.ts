@@ -1,6 +1,9 @@
 import * as React from 'react';
 import type { MediaItem } from '../../types/media';
-import type { ChatMessage } from './types';
+import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
+
+type DmMediaItem = { media: DmMediaEnvelopeV1['media'] };
+type GroupMediaItem = { media: DmMediaEnvelopeV1['media'] };
 
 export function useChatAutoDecrypt(opts: {
   autoDecrypt: boolean;
@@ -14,10 +17,10 @@ export function useChatAutoDecrypt(opts: {
   setMessages: (next: ChatMessage[]) => void;
   decryptForDisplay: (m: ChatMessage) => string;
   decryptGroupForDisplay: (m: ChatMessage) => { plaintext: string; messageKeyHex: string } | null;
-  parseDmMediaEnvelope: (plaintext: string) => any | null;
-  parseGroupMediaEnvelope: (plaintext: string) => any | null;
-  normalizeDmMediaItems: (env: any) => Array<{ media: any }>;
-  normalizeGroupMediaItems: (env: any) => Array<{ media: any }>;
+  parseDmMediaEnvelope: (plaintext: string) => DmMediaEnvelope | null;
+  parseGroupMediaEnvelope: (plaintext: string) => GroupMediaEnvelope | null;
+  normalizeDmMediaItems: (env: DmMediaEnvelope | null) => DmMediaItem[];
+  normalizeGroupMediaItems: (env: GroupMediaEnvelope | null) => GroupMediaItem[];
   markMySeen: (messageCreatedAt: number, readAt: number) => void;
   sendReadReceipt: (messageCreatedAt: number) => void;
 }): void {
@@ -66,7 +69,8 @@ export function useChatAutoDecrypt(opts: {
         const gEnv = isGroup ? parseGroupMediaEnvelope(plaintext) : null;
         const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
         const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
-        const mediaList: MediaItem[] = (isDm ? dmItems : gItems).map((it) => ({
+        const items = isDm ? dmItems : gItems;
+        const mediaList: MediaItem[] = items.map((it) => ({
           path: it.media.path,
           thumbPath: it.media.thumbPath,
           kind: it.media.kind,
@@ -121,9 +125,15 @@ export function useChatAutoDecrypt(opts: {
     markMySeen,
     messages,
     peerPublicKey,
+    isDm,
     isGroup,
     decryptGroupForDisplay,
     myUserId,
+    normalizeDmMediaItems,
+    normalizeGroupMediaItems,
+    parseDmMediaEnvelope,
+    parseGroupMediaEnvelope,
+    setMessages,
   ]);
 }
 

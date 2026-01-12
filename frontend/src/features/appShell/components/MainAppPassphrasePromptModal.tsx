@@ -2,6 +2,7 @@ import React from 'react';
 import { Image, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 
+import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 
 type PassphrasePromptMode = 'setup' | 'restore' | 'change' | 'reset';
@@ -26,7 +27,7 @@ export function MainAppPassphrasePromptModal({
   onSubmit,
   onCancel,
 }: {
-  styles: any;
+  styles: AppStyles;
   isDark: boolean;
   visible: boolean;
   label: string;

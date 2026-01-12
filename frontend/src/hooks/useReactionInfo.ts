@@ -25,7 +25,7 @@ export function useReactionInfo<TTarget = unknown>(opts?: {
       const s = Array.isArray(args.subs) ? args.subs.map(String).filter(Boolean) : [];
       setEmoji(e);
       setSubs(s);
-      setTarget(typeof args.target === 'undefined' ? null : (args.target as any));
+      setTarget(typeof args.target === 'undefined' ? null : args.target);
       if (args.namesBySub && typeof args.namesBySub === 'object') {
         setNamesBySub(args.namesBySub);
       }

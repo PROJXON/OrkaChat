@@ -1,14 +1,18 @@
 import * as React from 'react';
 import type { RefObject } from 'react';
 
+import type { GroupMeta } from './useHydrateGroupRoster';
+
+type GroupUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
+
 export function useGroupNameModalActions(opts: {
   wsRef: RefObject<WebSocket | null>;
   activeConversationId: string;
   groupNameDraft: string;
   setGroupNameDraft: (v: string) => void;
   setGroupNameEditOpen: (v: boolean) => void;
-  groupUpdate: (op: any, args: any) => Promise<any>;
-  setGroupMeta: React.Dispatch<React.SetStateAction<any>>;
+  groupUpdate: GroupUpdateFn;
+  setGroupMeta: React.Dispatch<React.SetStateAction<GroupMeta | null>>;
   computeDefaultGroupTitleForMe: () => string;
   onConversationTitleChanged?: (conversationId: string, title: string) => void;
 }) {
@@ -49,9 +53,9 @@ export function useGroupNameModalActions(opts: {
 
   const onDefault = React.useCallback(async () => {
     setGroupNameDraft('');
-    await groupUpdate('setName', { name: '' });
+    await Promise.resolve(groupUpdate('setName', { name: '' }));
     // Update local header + Chats list immediately (without waiting for a refetch).
-    setGroupMeta((prev: any) => (prev ? { ...prev, groupName: undefined } : prev));
+    setGroupMeta((prev) => (prev ? { ...prev, groupName: undefined } : prev));
     try {
       if (activeConversationId && onConversationTitleChanged) {
         onConversationTitleChanged(activeConversationId, computeDefaultGroupTitleForMe());
@@ -75,9 +79,9 @@ export function useGroupNameModalActions(opts: {
 
   const onSave = React.useCallback(async () => {
     const name = groupNameDraft.trim();
-    await groupUpdate('setName', { name });
+    await Promise.resolve(groupUpdate('setName', { name }));
     // Update local header + Chats list immediately (without waiting for a refetch).
-    setGroupMeta((prev: any) => (prev ? { ...prev, groupName: name ? name : undefined } : prev));
+    setGroupMeta((prev) => (prev ? { ...prev, groupName: name ? name : undefined } : prev));
     try {
       if (activeConversationId && onConversationTitleChanged) {
         onConversationTitleChanged(activeConversationId, name ? name : computeDefaultGroupTitleForMe());

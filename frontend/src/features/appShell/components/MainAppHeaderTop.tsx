@@ -1,12 +1,13 @@
 import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
+import type { AppStyles } from '../../../../App.styles';
 import { AppBrandIcon } from '../../../components/AppBrandIcon';
 
 export function MainAppHeaderTop({
   styles,
   isDark,
-  isWideUi,
+  isWideUi: _isWideUi,
 
   activeChannelLabel,
   isChannelMode,
@@ -29,7 +30,7 @@ export function MainAppHeaderTop({
   onPressChannelTab,
   onStartDm,
 }: {
-  styles: any;
+  styles: AppStyles;
   isDark: boolean;
   isWideUi: boolean;
 
@@ -48,7 +49,7 @@ export function MainAppHeaderTop({
   unreadEntries: Array<[string, { user: string; count: number }]>;
   goToConversation: (conversationId: string) => void;
 
-  menuRef: any;
+  menuRef: React.MutableRefObject<React.ElementRef<typeof Pressable> | null>;
   openMenu: () => void;
 
   onPressChannelTab: () => void;

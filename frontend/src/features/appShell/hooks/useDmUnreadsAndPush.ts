@@ -63,12 +63,24 @@ export function useDmUnreadsAndPush({
 
   // Handle taps on OS notifications to jump into the DM.
   React.useEffect(() => {
-    let sub: any;
+    type NotificationSubscription = { remove: () => void };
+    let sub: NotificationSubscription | null = null;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const Notifications = require('expo-notifications');
-      sub = Notifications.addNotificationResponseReceivedListener((resp: any) => {
-        const data = resp?.notification?.request?.content?.data || {};
+      const NotificationsModule = require('expo-notifications') as unknown;
+      const addListener =
+        typeof NotificationsModule === 'object' &&
+        NotificationsModule != null &&
+        'addNotificationResponseReceivedListener' in NotificationsModule &&
+        typeof (NotificationsModule as Record<string, unknown>).addNotificationResponseReceivedListener === 'function'
+          ? ((NotificationsModule as Record<string, unknown>).addNotificationResponseReceivedListener as (cb: (resp: unknown) => void) => NotificationSubscription)
+          : null;
+      if (!addListener) return;
+      sub = addListener((resp: unknown) => {
+        const rec = typeof resp === 'object' && resp != null ? (resp as Record<string, unknown>) : {};
+        const notification = typeof rec.notification === 'object' && rec.notification != null ? (rec.notification as Record<string, unknown>) : {};
+        const request = typeof notification.request === 'object' && notification.request != null ? (notification.request as Record<string, unknown>) : {};
+        const content = typeof request.content === 'object' && request.content != null ? (request.content as Record<string, unknown>) : {};
+        const data = typeof content.data === 'object' && content.data != null ? (content.data as Record<string, unknown>) : {};
         const kind = typeof data.kind === 'string' ? data.kind : '';
         const convId = typeof data.conversationId === 'string' ? data.conversationId : '';
         const senderName = typeof data.senderDisplayName === 'string' ? data.senderDisplayName : '';
@@ -98,7 +110,7 @@ export function useDmUnreadsAndPush({
     }
     return () => {
       try {
-        sub?.remove?.();
+        sub?.remove();
       } catch {
         // ignore
       }

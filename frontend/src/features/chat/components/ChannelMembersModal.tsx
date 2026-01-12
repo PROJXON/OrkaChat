@@ -1,12 +1,14 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { ChannelMembersSectionList } from '../../../components/ChannelMembersSectionList';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { MemberRow } from '../../../types/members';
 
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
-  members: any[];
+  styles: ChatScreenStyles;
+  members: MemberRow[];
   mySub: string;
   meIsAdmin: boolean;
   actionBusy: boolean;
@@ -42,7 +44,7 @@ export function ChannelMembersModal({
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Members</Text>
           <ScrollView style={{ maxHeight: 520, alignSelf: 'stretch' }}>
             <ChannelMembersSectionList
-              members={members as any}
+              members={members}
               mySub={mySub}
               isDark={isDark}
               styles={styles}

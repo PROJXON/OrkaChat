@@ -7,6 +7,9 @@ import type { MediaItem } from '../../../types/media';
 import { getPreviewKind } from '../../../utils/mediaKinds';
 import type { ChatMessage } from '../types';
 import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
+import type { PendingMediaItem } from '../attachments';
 
 // NOTE:
 // This component is intentionally a “dumb view” extracted from `ChatScreen.tsx`.
@@ -14,7 +17,7 @@ import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 // We can progressively tighten the prop surface into a smaller view-model later.
 
 export function ChatMessageRow(props: {
-  styles: any;
+  styles: ChatScreenStyles;
   item: ChatMessage;
   index: number;
   messageListData: ChatMessage[];
@@ -26,7 +29,7 @@ export function ChatMessageRow(props: {
   isEncryptedChat: boolean;
 
   myUserId: string | null;
-  avatarProfileBySub: Record<string, any>;
+  avatarProfileBySub: Record<string, PublicAvatarProfileLite>;
   nameBySub: Record<string, string>;
   avatarUrlByPath: Record<string, string>;
 
@@ -55,7 +58,7 @@ export function ChatMessageRow(props: {
   setInlineEditDraft: (v: string) => void;
   inlineEditUploading: boolean;
   inlineEditAttachmentMode: 'keep' | 'remove' | 'replace';
-  pendingMedia: any[];
+  pendingMedia: PendingMediaItem[];
   commitInlineEdit: () => void | Promise<void>;
   cancelInlineEdit: () => void;
 
@@ -90,19 +93,19 @@ export function ChatMessageRow(props: {
     visibleMessages,
     isDark,
     isDm,
-    isGroup,
+    isGroup: _isGroup,
     isEncryptedChat,
     myUserId,
     avatarProfileBySub,
     nameBySub,
-    avatarUrlByPath,
+    avatarUrlByPath: _avatarUrlByPath,
     senderKey,
     isOutgoing,
     showAvatarForIncoming,
     avatarImageUri,
     metaLine,
     captionText,
-    captionHasText,
+    captionHasText: _captionHasText,
     isDeleted,
     displayText,
     isEdited,
@@ -120,13 +123,13 @@ export function ChatMessageRow(props: {
     openReactionInfo,
     sendReaction,
     hasMedia,
-    mediaList,
+    mediaList: _mediaList,
     mediaUrlByPath,
-    dmThumbUriByPath,
+    dmThumbUriByPath: _dmThumbUriByPath,
     capped,
     openViewer,
-    openDmMediaViewer,
-    openGroupMediaViewer,
+    openDmMediaViewer: _openDmMediaViewer,
+    openGroupMediaViewer: _openGroupMediaViewer,
     requestOpenLink,
     onPressMessage,
     onLongPressMessage,

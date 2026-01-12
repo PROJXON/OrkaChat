@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Platform } from 'react-native';
+import type { FlatList } from 'react-native';
 import { getNativeEventNumber } from '../utils/nativeEvent';
 
 export type UseWebPinnedListArgs = {
@@ -15,21 +16,33 @@ export type UseWebPinnedListArgs = {
   bottomThresholdPx?: number;
 };
 
-export function useWebPinnedList({
+export type WebPinnedListState<TItem> = {
+  listRef: React.MutableRefObject<FlatList<TItem> | null>;
+  ready: boolean;
+  didInitialScrollRef: React.MutableRefObject<boolean>;
+  atBottomRef: React.MutableRefObject<boolean>;
+  scrollToBottom: (animated: boolean) => void;
+  kickInitialScrollToEnd: () => void;
+  onLayout?: (e: unknown) => void;
+  onContentSizeChange?: (w: number, h: number) => void;
+  onScroll?: (e: unknown) => void;
+};
+
+export function useWebPinnedList<TItem = unknown>({
   enabled,
   itemCount,
   onNearTop,
   canLoadMore,
   topThresholdPx = 40,
   bottomThresholdPx = 80,
-}: UseWebPinnedListArgs) {
-  const listRef = React.useRef<any>(null);
+}: UseWebPinnedListArgs): WebPinnedListState<TItem> {
+  const listRef = React.useRef<FlatList<TItem> | null>(null);
 
   const didInitialScrollRef = React.useRef<boolean>(false);
   const atBottomRef = React.useRef<boolean>(true);
   const [ready, setReady] = React.useState<boolean>(!enabled || Platform.OS !== 'web');
 
-  const initScrollTimerRef = React.useRef<any>(null);
+  const initScrollTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const initScrollAttemptsRef = React.useRef<number>(0);
   const viewportHRef = React.useRef<number>(0);
   const contentHRef = React.useRef<number>(0);
@@ -37,7 +50,7 @@ export function useWebPinnedList({
   const scrollToBottom = React.useCallback(
     (animated: boolean) => {
       if (!enabled || Platform.OS !== 'web') return;
-      const list: any = listRef.current;
+      const list = listRef.current;
       const viewportH = Math.max(0, Math.floor(viewportHRef.current || 0));
       const contentH = Math.max(0, Math.floor(contentHRef.current || 0));
       const endY = viewportH > 0 ? Math.max(0, contentH - viewportH) : null;

@@ -59,7 +59,7 @@ function insertSoftBreaksForUrlDisplay(s: string): string {
   return str.replace(re, '$1\u200B');
 }
 
-async function defaultConfirmAndOpenUrl(url: string): Promise<void> {
+async function _defaultConfirmAndOpenUrl(url: string): Promise<void> {
   // Legacy no-op: kept only to preserve call sites in older builds.
   // In current app flows, RichText is always rendered under UiPromptProvider so this shouldn't run.
   void url;
@@ -269,7 +269,7 @@ export function RichText({
 
       // Fallback: legacy behavior for isolated renders outside UiPromptProvider.
       if (Platform.OS === 'web') {
-        // eslint-disable-next-line no-alert
+         
         const ok = typeof window !== 'undefined' ? window.confirm(`${title}\n\n${body}`) : false;
         if (!ok) return;
       }

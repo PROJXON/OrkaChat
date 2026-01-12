@@ -12,7 +12,7 @@ type Ref<T> = { current: T };
 type SetState<T> = (updater: (prev: T) => T) => void;
 
 export function handleChatWsMessage(opts: {
-  payload: any;
+  payload: unknown;
   activeConversationId: string;
   displayName: string;
   myUserId: string | null | undefined;
@@ -44,7 +44,9 @@ export function handleChatWsMessage(opts: {
   normalizeUser: (v: unknown) => string;
   normalizeReactions: (v: unknown) => ReactionMap | undefined;
 }): void {
-  const payload = opts.payload;
+  const payload =
+    typeof opts.payload === 'object' && opts.payload != null ? (opts.payload as Record<string, unknown>) : null;
+  if (!payload) return;
   const activeConv = opts.activeConversationId;
 
   const isPayloadChat = typeof payload?.conversationId === 'string' && payload?.conversationId !== 'global';

@@ -16,7 +16,7 @@ export function useMyAvatarSettings({
 }: {
   userSub: string | null;
   apiUrl: string;
-  fetchAuthSession: () => Promise<any>;
+  fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
   cdn: { resolve: (path: string) => string | undefined } | null | undefined;
 }): {
   avatarOpen: boolean;

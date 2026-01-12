@@ -148,7 +148,7 @@ export function usePublicAvatarProfiles(opts: {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [apiUrl, ttlMs, maxBatch, avatarProfileBySub, opts.subs]);
 
   // Best-effort: prefetch avatar image URLs once profiles land.

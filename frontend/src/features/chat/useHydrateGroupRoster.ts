@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
+import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
 
 export type GroupMeta = {
   groupId: string;
@@ -26,7 +27,7 @@ export function useHydrateGroupRoster(opts: {
   setGroupMeta: React.Dispatch<React.SetStateAction<GroupMeta | null>>;
   setGroupMembers: React.Dispatch<React.SetStateAction<GroupMember[]>>;
   setGroupPublicKeyBySub: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  upsertAvatarProfiles: (items: Array<{ sub: string; profile: any }>) => void;
+  upsertAvatarProfiles: (items: Array<{ sub: string; profile: Partial<PublicAvatarProfileLite> }>) => void;
 }): void {
   const enabled = !!opts.enabled;
   const apiUrl = String(opts.apiUrl || '');
@@ -62,23 +63,27 @@ export function useHydrateGroupRoster(opts: {
           }
           return;
         }
-        const data: any = await res.json().catch(() => ({}));
+        const raw: unknown = await res.json().catch(() => ({}));
+        const data = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
         const groupId = String(data.groupId || '').trim();
-        const me = data.me && typeof data.me === 'object' ? data.me : {};
+        const me = typeof data.me === 'object' && data.me != null ? (data.me as Record<string, unknown>) : {};
         const meIsAdmin = !!me.isAdmin;
         const meStatus = typeof me.status === 'string' ? String(me.status) : 'active';
-        const membersRaw = Array.isArray(data.members) ? data.members : [];
+        const membersRaw: unknown[] = Array.isArray(data.members) ? (data.members as unknown[]) : [];
         const members: GroupMember[] = membersRaw
-          .map((m: any) => ({
-            memberSub: String(m.memberSub || '').trim(),
-            displayName: typeof m.displayName === 'string' ? String(m.displayName) : undefined,
-            status: typeof m.status === 'string' ? String(m.status) : 'active',
-            isAdmin: !!m.isAdmin,
-            avatarBgColor: typeof m.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
-            avatarTextColor: typeof m.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
-            avatarImagePath: typeof m.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
-          }))
-          .filter((m: any) => m.memberSub);
+          .map((m) => {
+            const rec = typeof m === 'object' && m != null ? (m as Record<string, unknown>) : {};
+            return {
+              memberSub: String(rec.memberSub || '').trim(),
+              displayName: typeof rec.displayName === 'string' ? String(rec.displayName) : undefined,
+              status: typeof rec.status === 'string' ? String(rec.status) : 'active',
+              isAdmin: !!rec.isAdmin,
+              avatarBgColor: typeof rec.avatarBgColor === 'string' ? String(rec.avatarBgColor) : undefined,
+              avatarTextColor: typeof rec.avatarTextColor === 'string' ? String(rec.avatarTextColor) : undefined,
+              avatarImagePath: typeof rec.avatarImagePath === 'string' ? String(rec.avatarImagePath) : undefined,
+            };
+          })
+          .filter((m) => m.memberSub);
         if (!cancelled) {
           setGroupMeta(
             groupId
@@ -100,13 +105,13 @@ export function useHydrateGroupRoster(opts: {
           });
           // Ensure avatars for roster members are present even if nobody has chatted recently.
           upsertAvatarProfiles(
-            members.map((m: any) => ({
-              sub: String(m?.memberSub || '').trim(),
+            members.map((m) => ({
+              sub: String(m.memberSub || '').trim(),
               profile: {
-                displayName: typeof m?.displayName === 'string' ? String(m.displayName) : undefined,
-                avatarBgColor: typeof m?.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
-                avatarTextColor: typeof m?.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
-                avatarImagePath: typeof m?.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
+                displayName: typeof m.displayName === 'string' ? String(m.displayName) : undefined,
+                avatarBgColor: typeof m.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
+                avatarTextColor: typeof m.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
+                avatarImagePath: typeof m.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
               },
             })),
           );

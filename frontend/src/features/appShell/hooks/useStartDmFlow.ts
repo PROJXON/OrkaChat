@@ -18,8 +18,8 @@ export function useStartDmFlow({
   peerInput: string;
   currentUsername: string;
   blockedSubs: string[];
-  fetchAuthSession: () => Promise<any>;
-  fetchUserAttributes: () => Promise<any>;
+  fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
+  fetchUserAttributes: () => Promise<Record<string, unknown>>;
   setPeer: (v: string | null) => void;
   setConversationId: (v: string) => void;
   upsertDmThread: (convId: string, peerName: string, lastActivityAt?: number) => void;
@@ -28,15 +28,15 @@ export function useStartDmFlow({
   setSearchError: (v: string | null) => void;
 }): { startDM: () => Promise<void> } {
   const startDM = React.useCallback(async () => {
-    const raw = peerInput.trim();
+    const rawInput = peerInput.trim();
     const normalizedCurrent = currentUsername.trim().toLowerCase();
-    if (!raw) {
+    if (!rawInput) {
       setSearchError('Enter a username');
       return;
     }
 
     // Support group DMs: comma/space separated usernames.
-    const tokens = raw
+    const tokens = rawInput
       .split(/[,\s]+/g)
       .map((t) => t.trim())
       .filter(Boolean);
@@ -150,9 +150,10 @@ export function useStartDmFlow({
       setSearchError(msg ? `Group start failed (${res.status}): ${msg}` : `Group start failed (${res.status})`);
       return;
     }
-    const data = await res.json().catch(() => ({}));
-    const convId = String((data as any).conversationId || '').trim();
-    const title = String((data as any).title || 'Group DM').trim();
+    const rawResp: unknown = await res.json().catch(() => ({}));
+    const rec = typeof rawResp === 'object' && rawResp != null ? (rawResp as Record<string, unknown>) : {};
+    const convId = String(rec.conversationId || '').trim();
+    const title = typeof rec.title === 'string' ? String(rec.title).trim() : 'Group DM';
     if (!convId) {
       setSearchError('Group start missing conversationId');
       return;

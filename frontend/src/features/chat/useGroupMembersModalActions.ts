@@ -1,10 +1,12 @@
 import * as React from 'react';
 import type { RefObject } from 'react';
 
+type GroupUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
+
 export function useGroupMembersModalActions(opts: {
   groupAddMembersDraft: string;
   setGroupAddMembersDraft: (v: string) => void;
-  groupUpdate: (op: any, args: any) => Promise<any>;
+  groupUpdate: GroupUpdateFn;
   uiConfirm: (
     title: string,
     body: string,
@@ -29,7 +31,7 @@ export function useGroupMembersModalActions(opts: {
       ),
     );
     if (!usernames.length) return;
-    await groupUpdate('addMembers', { usernames });
+    await Promise.resolve(groupUpdate('addMembers', { usernames }));
     setGroupAddMembersDraft('');
   }, [groupAddMembersDraft, groupUpdate, setGroupAddMembersDraft]);
 
@@ -44,7 +46,7 @@ export function useGroupMembersModalActions(opts: {
         { confirmText: 'Ban', cancelText: 'Cancel', destructive: true },
       );
       if (!ok) return;
-      await groupUpdate('ban', { memberSub });
+      await Promise.resolve(groupUpdate('ban', { memberSub }));
 
       // Add a system note like kick, but for ban.
       // (Server validates admin + persists/broadcasts.)

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, View, useWindowDimensions } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
 import { useAuthenticator } from '@aws-amplify/ui-react-native/dist';
 import { deleteUser, fetchUserAttributes } from 'aws-amplify/auth';
 import { fetchAuthSession } from '@aws-amplify/auth';
@@ -138,10 +137,10 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
   // hasRecoveryBlob defaults false; track whether we've actually checked the server this session.
   const [recoveryBlobKnown, setRecoveryBlobKnown] = useState(false);
   const [recoveryLocked, setRecoveryLocked] = React.useState<boolean>(false);
-  const { promptPassphrase, closePrompt, processing, setProcessing, modalProps: passphraseModalProps } = usePassphrasePrompt({
+  const { promptPassphrase, closePrompt, setProcessing, modalProps: passphraseModalProps } = usePassphrasePrompt({
     uiPromptOpen,
     promptConfirm,
-    promptChoice3: promptChoice3 as any,
+    promptChoice3: promptChoice3 as unknown as (...args: unknown[]) => Promise<unknown>,
   });
 
   const { deleteMyAccount } = useDeleteAccountFlow({
@@ -150,9 +149,9 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     promptAlert,
     promptConfirm,
     unregisterDmPushNotifications,
-    fetchAuthSession: fetchAuthSession as any,
+    fetchAuthSession,
     deleteUser,
-    signOut: signOut as any,
+    signOut: () => Promise.resolve(signOut()),
     onSignedOut,
     getErrorMessage,
   });
@@ -164,7 +163,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
 
   const { uploadRecoveryBlob, checkRecoveryBlobExists, getIdTokenWithRetry, uploadPublicKey } = useAuthApiHelpers({
     apiUrl: API_URL,
-    fetchAuthSession: fetchAuthSession as any,
+    fetchAuthSession,
     encryptPrivateKey,
   });
 
@@ -209,16 +208,13 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
   const {
     unreadDmMap,
     setUnreadDmMap,
-    dmThreads,
     setDmThreads,
     serverConversations,
     setServerConversations,
     chatsLoading,
-    conversationsCacheAt,
     titleOverrideByConvIdRef,
     upsertDmThread,
     chatsList,
-    fetchConversations,
     fetchUnreads,
   } = useChatsInboxData({ apiUrl: API_URL, fetchAuthSession, chatsOpen });
 
@@ -335,19 +331,19 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     conversationId,
     setPeer,
     setChannelNameById,
-    titleOverrideByConvIdRef: titleOverrideByConvIdRef as any,
-    setServerConversations: setServerConversations as any,
-    setUnreadDmMap: setUnreadDmMap as any,
+    titleOverrideByConvIdRef,
+    setServerConversations,
+    setUnreadDmMap,
     upsertDmThread,
   });
 
   const { deleteConversationFromList } = useDeleteConversationFromList({
     apiUrl: API_URL,
-    fetchAuthSession: fetchAuthSession as any,
+    fetchAuthSession,
     promptConfirm,
-    setServerConversations: setServerConversations as any,
-    setDmThreads: setDmThreads as any,
-    setUnreadDmMap: setUnreadDmMap as any,
+    setServerConversations,
+    setDmThreads,
+    setUnreadDmMap,
   });
 
   const { startDM } = useStartDmFlow({
@@ -385,8 +381,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
   }, [activeChannelConversationId, getChannelIdFromConversationId, channelNameById]);
 
   const { goToConversation } = useConversationNavigation({
-    serverConversations: serverConversations as any,
-    unreadDmMap: unreadDmMap as any,
+    serverConversations,
+    unreadDmMap,
     peer,
     upsertDmThread,
     setConversationId,
@@ -432,7 +428,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
       setSearchOpen={setSearchOpen}
       searchError={searchError}
       setSearchError={setSearchError}
-      unreadEntries={unreadEntries as any}
+      unreadEntries={unreadEntries}
       goToConversation={goToConversation}
       menuRef={menu.ref}
       openMenu={() => {
@@ -490,7 +486,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         setBlocklistOpen={setBlocklistOpen}
         deleteMyAccount={deleteMyAccount}
         unregisterDmPushNotifications={unregisterDmPushNotifications}
-        signOut={signOut as any}
+        signOut={signOut}
         onSignedOut={onSignedOut}
         globalAboutOpen={globalAboutOpen}
         dismissGlobalAbout={dismissGlobalAbout}
@@ -508,10 +504,10 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         avatarSavingRef={avatarSavingRef}
         avatarError={avatarError}
         setAvatarError={setAvatarError}
-        myAvatar={myAvatar as any}
-        setMyAvatar={setMyAvatar as any}
-        avatarDraft={avatarDraft as any}
-        setAvatarDraft={setAvatarDraft as any}
+        myAvatar={myAvatar}
+        setMyAvatar={setMyAvatar}
+        avatarDraft={avatarDraft}
+        setAvatarDraft={setAvatarDraft}
         avatarDraftImageUri={avatarDraftImageUri}
         setAvatarDraftImageUri={setAvatarDraftImageUri}
         avatarDraftRemoveImage={avatarDraftRemoveImage}
@@ -557,7 +553,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         chatsOpen={chatsOpen}
         setChatsOpen={setChatsOpen}
         chatsLoading={chatsLoading}
-        chatsList={chatsList as any}
+        chatsList={chatsList}
         goToConversation={goToConversation}
         deleteConversationFromList={deleteConversationFromList}
         formatChatActivityDate={formatChatActivityDate}
@@ -596,7 +592,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         channelJoinError={channelJoinError}
         setChannelJoinError={setChannelJoinError}
         globalUserCount={globalUserCount}
-        channelsResults={channelsResults as any}
+        channelsResults={channelsResults}
         fetchChannelsSearch={fetchChannelsSearch}
         joinChannel={joinChannel}
         channelPasswordPrompt={channelPasswordPrompt}
@@ -617,7 +613,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         setBlockError={setBlockError}
         addBlockByUsername={addBlockByUsername}
         blocklistLoading={blocklistLoading}
-        blockedUsers={blockedUsers as any}
+        blockedUsers={blockedUsers}
         unblockUser={unblockUser}
       />
 

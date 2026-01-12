@@ -1,5 +1,8 @@
 import * as React from 'react';
 
+type OnNewDmNotification = (conversationId: string, user: string, userSub?: string) => void;
+type OnKickedFromConversation = (conversationId: string) => void;
+
 export function useChatScreenRefSync(opts: {
   activeConversationId: string;
   activeConversationIdRef: { current: string };
@@ -10,10 +13,10 @@ export function useChatScreenRefSync(opts: {
   inputRef: { current: string };
   myPublicKey: string | null;
   myPublicKeyRef: { current: string | null };
-  onNewDmNotification?: ((conversationId: string, user: string, userSub?: string) => void) | undefined;
-  onNewDmNotificationRef: { current: any };
-  onKickedFromConversation?: ((conversationId: string) => void) | undefined;
-  onKickedFromConversationRef: { current: any };
+  onNewDmNotification?: OnNewDmNotification | undefined;
+  onNewDmNotificationRef: React.MutableRefObject<OnNewDmNotification | undefined>;
+  onKickedFromConversation?: OnKickedFromConversation | undefined;
+  onKickedFromConversationRef: React.MutableRefObject<OnKickedFromConversation | undefined>;
 }): void {
   const {
     activeConversationId,

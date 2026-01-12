@@ -2,6 +2,9 @@ import * as React from 'react';
 
 import type { ChatMessage } from './types';
 import { buildFallbackChatMessageFromWsEventData, handleChatWsMessage } from './handleWsMessage';
+import type { EncryptedChatPayloadV1 } from '../../types/crypto';
+import type { EncryptedGroupPayloadV1 } from './types';
+import type { ReactionMap } from '../../types/reactions';
 
 export function useChatWsMessageHandler(opts: {
   activeConversationIdRef: React.MutableRefObject<string>;
@@ -11,35 +14,35 @@ export function useChatWsMessageHandler(opts: {
 
   blockedSubsSet: Set<string>;
   // handleChatWsMessage uses a record lookup. Keep this flexible to avoid type drift.
-  hiddenMessageIds: any;
+  hiddenMessageIds: Record<string, true>;
   encryptedPlaceholder: string;
 
   avatarRefetchCooldownMs: number;
   lastAvatarRefetchAtBySubRef: React.MutableRefObject<Record<string, number>>;
   invalidateAvatarProfile: (sub: string) => void;
 
-  onNewDmNotification: ((...args: any[]) => void) | undefined;
-  onKickedFromConversation: ((...args: any[]) => void) | undefined;
+  onNewDmNotification: ((conversationId: string, senderLabel: string, senderSub?: string) => void) | undefined;
+  onKickedFromConversation: ((conversationId: string) => void) | undefined;
 
   openInfo: (title: string, body: string) => void;
   showAlert: (title: string, body: string) => void;
-  showToast: (msg: string, kind?: any) => void;
+  showToast: (msg: string, kind?: 'success' | 'error') => void;
 
   refreshChannelRoster: (() => Promise<void>) | undefined;
   lastGroupRosterRefreshAtRef: React.MutableRefObject<number>;
   lastChannelRosterRefreshAtRef: React.MutableRefObject<number>;
   bumpGroupRefreshNonce: () => void;
-  setGroupMeStatus: (meStatus: any) => void;
+  setGroupMeStatus: (meStatus: string) => void;
 
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   setPeerSeenAtByCreatedAt: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   setTypingByUserExpiresAt: React.Dispatch<React.SetStateAction<Record<string, number>>>;
-  sendTimeoutRef: React.MutableRefObject<Record<string, any>>;
+  sendTimeoutRef: React.MutableRefObject<Record<string, ReturnType<typeof setTimeout> | undefined>>;
 
-  parseEncrypted: (s: string) => any;
-  parseGroupEncrypted: (s: string) => any;
+  parseEncrypted: (s: string) => EncryptedChatPayloadV1 | null;
+  parseGroupEncrypted: (s: string) => EncryptedGroupPayloadV1 | null;
   normalizeUser: (v: unknown) => string;
-  normalizeReactions: (v: unknown) => any;
+  normalizeReactions: (v: unknown) => ReactionMap | undefined;
 }) {
   const {
     activeConversationIdRef,
@@ -73,9 +76,9 @@ export function useChatWsMessageHandler(opts: {
   } = opts;
 
   return React.useCallback(
-    (event: { data: any }) => {
+    (event: { data: unknown }) => {
       try {
-        const payload = JSON.parse(event.data);
+        const payload = JSON.parse(typeof event.data === 'string' ? event.data : String(event.data ?? ''));
         const activeConv = activeConversationIdRef.current;
         const dn = displayNameRef.current;
         const myUserLower = normalizeUser(dn);

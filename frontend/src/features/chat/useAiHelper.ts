@@ -1,18 +1,46 @@
 import * as React from 'react';
 import { UIManager, findNodeHandle, ScrollView, View } from 'react-native';
 import { buildAiHelperContext } from './aiHelperContext';
+import type { ChatMessage } from './types';
 
 export type AiHelperTurn = { role: 'user' | 'assistant'; text: string; thinking?: boolean };
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object';
+}
+
+function parseAiHelperTurn(v: unknown): AiHelperTurn | null {
+  if (!isRecord(v)) return null;
+  const role = v.role;
+  const text = v.text;
+  if (role !== 'user' && role !== 'assistant') return null;
+  if (typeof text !== 'string') return null;
+  const thinking = typeof v.thinking === 'boolean' ? v.thinking : undefined;
+  return { role, text, ...(typeof thinking === 'boolean' ? { thinking } : {}) };
+}
 
 export function useAiHelper(opts: {
   apiUrl: string | null | undefined;
   activeConversationId: string;
-  peer: any;
-  messages: any[];
+  peer: unknown;
+  messages: ChatMessage[];
   isDm: boolean;
   mediaUrlByPath: Record<string, string>;
   cdnResolve: (path: string) => string;
-  fetchAuthSession: () => Promise<any>;
+  fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
   openInfo: (title: string, body: string) => void;
 }) {
   const { apiUrl, activeConversationId, peer, messages, isDm, mediaUrlByPath, cdnResolve, fetchAuthSession, openInfo } =
@@ -33,7 +61,10 @@ export function useAiHelper(opts: {
   const scrollContentRef = React.useRef<View | null>(null);
   const lastTurnRef = React.useRef<View | null>(null);
   const lastTurnLayoutRef = React.useRef<{ y: number; h: number; ok: boolean }>({ y: 0, h: 0, ok: false });
-  const autoScrollRetryRef = React.useRef<{ timer: any; attempts: number }>({ timer: null, attempts: 0 });
+  const autoScrollRetryRef = React.useRef<{ timer: ReturnType<typeof setTimeout> | null; attempts: number }>({
+    timer: null,
+    attempts: 0,
+  });
   const autoScrollIntentRef = React.useRef<null | 'thinking' | 'answer'>(null);
   const lastAutoScrollAtRef = React.useRef<number>(0);
   const lastAutoScrollContentHRef = React.useRef<number>(0);
@@ -79,9 +110,8 @@ export function useAiHelper(opts: {
     const endY = viewportH > 0 ? Math.max(0, contentH - viewportH) : 0;
 
     if (intent === 'thinking') {
-      const sv: any = scrollRef.current as any;
-      if (sv?.scrollToEnd) {
-        sv.scrollToEnd({ animated: true });
+      if (scrollRef.current?.scrollToEnd) {
+        scrollRef.current.scrollToEnd({ animated: true });
         lastAutoScrollAtRef.current = Date.now();
         lastAutoScrollContentHRef.current = Math.max(0, Math.floor(scrollContentHRef.current || 0));
         autoScrollIntentRef.current = null;
@@ -128,8 +158,8 @@ export function useAiHelper(opts: {
     }
 
     const measureLastTurnAndScroll = () => {
-      const contentNode: any = scrollContentRef.current as any;
-      const lastNode: any = lastTurnRef.current as any;
+      const contentNode = scrollContentRef.current;
+      const lastNode = lastTurnRef.current;
       if (!contentNode || !lastNode) return false;
       try {
         const contentHandle = findNodeHandle(contentNode);
@@ -257,10 +287,11 @@ export function useAiHelper(opts: {
       }
 
       const data = await resp.json().catch(() => ({}));
-      const nextAnswer = String((data as any).answer ?? '').trim();
-      const nextSuggestions = Array.isArray((data as any).suggestions)
-        ? (data as any).suggestions
-            .map((s: any) => String(s ?? '').trim())
+      const rec = isRecord(data) ? data : {};
+      const nextAnswer = typeof rec.answer === 'string' ? rec.answer.trim() : String(rec.answer ?? '').trim();
+      const nextSuggestions = Array.isArray(rec.suggestions)
+        ? rec.suggestions
+            .map((s) => (typeof s === 'string' ? s.trim() : String(s ?? '').trim()))
             .filter(Boolean)
             .slice(0, 3)
         : [];
@@ -268,13 +299,14 @@ export function useAiHelper(opts: {
       setAnswer(nextAnswer);
       setSuggestions(nextSuggestions);
 
-      if (Array.isArray((data as any).thread)) {
+      if (Array.isArray(rec.thread)) {
+        const parsedThread = rec.thread.map(parseAiHelperTurn).filter((t): t is AiHelperTurn => !!t);
         lastTurnRef.current = null;
         if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
         autoScrollRetryRef.current.timer = null;
         autoScrollRetryRef.current.attempts = 0;
         autoScrollIntentRef.current = 'answer';
-        setThread((data as any).thread);
+        if (parsedThread.length) setThread(parsedThread);
       } else if (nextAnswer) {
         lastTurnRef.current = null;
         if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
@@ -283,15 +315,15 @@ export function useAiHelper(opts: {
         autoScrollIntentRef.current = 'answer';
         setThread((prev) => {
           const next = prev.slice();
-          if (next.length && next[next.length - 1]?.role === 'assistant' && (next[next.length - 1] as any)?.thinking) {
+          if (next.length && next[next.length - 1]?.role === 'assistant' && next[next.length - 1]?.thinking) {
             next.pop();
           }
           next.push({ role: 'assistant', text: nextAnswer });
           return next;
         });
       }
-    } catch (e: any) {
-      openInfo('AI helper failed', e?.message ?? 'Unknown error');
+    } catch (e: unknown) {
+      openInfo('AI helper failed', getErrorMessage(e));
     } finally {
       setLoading(false);
     }

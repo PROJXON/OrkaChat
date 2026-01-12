@@ -11,7 +11,7 @@ const STORAGE_EXPO_TOKEN = 'push:expoToken';
 
 async function tryImportNotifications(): Promise<ExpoNotificationsModule | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     return require('expo-notifications');
   } catch {
     return null;
@@ -20,7 +20,7 @@ async function tryImportNotifications(): Promise<ExpoNotificationsModule | null>
 
 async function tryImportDevice(): Promise<ExpoDeviceModule | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     return require('expo-device');
   } catch {
     return null;
@@ -37,7 +37,7 @@ async function getOrCreateDeviceId(): Promise<string> {
 
   let id = '';
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const CryptoMod = require('expo-crypto');
     const Crypto = CryptoMod?.default || CryptoMod;
     if (Crypto?.randomUUID) id = String(Crypto.randomUUID());
@@ -138,7 +138,7 @@ export async function registerForDmPushNotifications(): Promise<{
   try {
     let projectId: string | undefined;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const ConstantsMod = require('expo-constants');
       const Constants = ConstantsMod?.default || ConstantsMod;
       projectId =
@@ -149,7 +149,7 @@ export async function registerForDmPushNotifications(): Promise<{
       // ignore
     }
 
-    const tok = await Notifications.getExpoPushTokenAsync(projectId ? ({ projectId } as any) : undefined);
+    const tok = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     expoPushToken = tok?.data ? String(tok.data) : '';
   } catch (err) {
     return { ok: false, reason: `Failed to get Expo push token: ${err instanceof Error ? err.message : String(err)}` };

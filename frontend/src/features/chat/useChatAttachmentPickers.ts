@@ -3,18 +3,34 @@ import { Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 
+import type { InAppCameraCapture } from '../../components/InAppCameraModal';
+import type { PendingMediaItem } from './attachments';
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
 export function useChatAttachmentPickers(opts: {
   showAlert: (title: string, message: string) => void;
-  addPickedMediaItems: (items: any[]) => void;
-  pendingMediaFromImagePickerAssets: (assets: unknown[]) => any[];
-  pendingMediaFromDocumentPickerAssets: (assets: unknown[]) => any[];
-  pendingMediaFromInAppCameraCapture: (cap: { uri: string; mode: 'photo' | 'video' }) => any;
+  addPickedMediaItems: (items: PendingMediaItem[]) => void;
+  pendingMediaFromImagePickerAssets: (assets: unknown[]) => PendingMediaItem[];
+  pendingMediaFromDocumentPickerAssets: (assets: unknown[]) => PendingMediaItem[];
+  pendingMediaFromInAppCameraCapture: (cap: InAppCameraCapture) => PendingMediaItem;
   setCameraOpen: (open: boolean) => void;
 }): {
   pickFromLibrary: () => Promise<void>;
   pickDocument: () => Promise<void>;
   openCamera: () => void;
-  handleInAppCameraCaptured: (cap: { uri: string; mode: 'photo' | 'video' }) => void;
+  handleInAppCameraCaptured: (cap: InAppCameraCapture) => void;
 } {
   const {
     showAlert,
@@ -38,8 +54,7 @@ export function useChatAttachmentPickers(opts: {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        // Use the string union to stay compatible across expo-image-picker typings.
-        mediaTypes: ['images', 'videos'] as any,
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsMultipleSelection: true,
         quality: 1,
       });
@@ -50,8 +65,8 @@ export function useChatAttachmentPickers(opts: {
       const items = pendingMediaFromImagePickerAssets(assets);
       if (!items.length) return;
       addPickedMediaItems(items);
-    } catch (e: any) {
-      showAlert('Picker failed', e?.message ?? 'Unknown error');
+    } catch (e: unknown) {
+      showAlert('Picker failed', getErrorMessage(e));
     }
   }, [showAlert, addPickedMediaItems, pendingMediaFromImagePickerAssets]);
 
@@ -60,7 +75,7 @@ export function useChatAttachmentPickers(opts: {
   }, [setCameraOpen]);
 
   const handleInAppCameraCaptured = React.useCallback(
-    (cap: { uri: string; mode: 'photo' | 'video' }) => {
+    (cap: InAppCameraCapture) => {
       const item = pendingMediaFromInAppCameraCapture(cap);
       addPickedMediaItems([item]);
     },
@@ -80,8 +95,8 @@ export function useChatAttachmentPickers(opts: {
       const items = pendingMediaFromDocumentPickerAssets(assets);
       if (!items.length) return;
       addPickedMediaItems(items);
-    } catch (e: any) {
-      showAlert('File picker failed', e?.message ?? 'Unknown error');
+    } catch (e: unknown) {
+      showAlert('File picker failed', getErrorMessage(e));
     }
   }, [showAlert, addPickedMediaItems, pendingMediaFromDocumentPickerAssets]);
 

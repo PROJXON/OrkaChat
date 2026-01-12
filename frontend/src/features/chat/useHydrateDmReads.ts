@@ -1,6 +1,26 @@
 import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
 
+type ReadsResponse = {
+  reads?: Array<{
+    userSub?: string;
+    user?: string;
+    messageCreatedAt?: number;
+    readUpTo?: number;
+    readAt?: number;
+  }>;
+};
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object';
+}
+
+function asReadsResponse(v: unknown): ReadsResponse {
+  if (!isRecord(v)) return {};
+  const readsRaw = (v as Record<string, unknown>).reads;
+  return { reads: Array.isArray(readsRaw) ? (readsRaw as ReadsResponse['reads']) : undefined };
+}
+
 export function useHydrateDmReads(opts: {
   enabled: boolean;
   apiUrl: string | null | undefined;
@@ -25,20 +45,20 @@ export function useHydrateDmReads(opts: {
           { headers: { Authorization: `Bearer ${idToken}` } },
         );
         if (!res.ok) return;
-        const data = await res.json();
+        const data: unknown = await res.json();
         // Expected shape (new): { reads: [{ userSub?: string, user?: string, messageCreatedAt: number, readAt: number }] }
         // Backward compat: accept { readUpTo } as a messageCreatedAt.
-        const reads = Array.isArray((data as any).reads) ? (data as any).reads : [];
+        const reads = asReadsResponse(data).reads ?? [];
         const map: Record<string, number> = {};
         for (const r of reads) {
           if (!r || typeof r !== 'object') continue;
-          const readerSub = typeof (r as any).userSub === 'string' ? String((r as any).userSub) : '';
-          const readerName = typeof (r as any).user === 'string' ? String((r as any).user) : '';
+          const readerSub = typeof r.userSub === 'string' ? String(r.userSub) : '';
+          const readerName = typeof r.user === 'string' ? String(r.user) : '';
           // Ignore reads from myself
           if (myUserId && readerSub && readerSub === myUserId) continue;
           if (!readerSub && readerName && normalizeUser(readerName) === normalizeUser(displayName)) continue;
-          const mc = Number((r as any).messageCreatedAt ?? (r as any).readUpTo);
-          const ra = Number((r as any).readAt);
+          const mc = Number(r.messageCreatedAt ?? r.readUpTo);
+          const ra = Number(r.readAt);
           if (!Number.isFinite(mc) || !Number.isFinite(ra)) continue;
           const key = String(mc);
           map[key] = map[key] ? Math.min(map[key], ra) : ra;

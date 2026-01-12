@@ -7,7 +7,7 @@ export function useChatDecryptors(opts: {
   myPublicKey: string | null | undefined;
   peerPublicKey: string | null | undefined;
   myUserId: string | null | undefined;
-  decryptChatMessageV1: (payload: any, myPriv: string, theirPub?: string) => string;
+  decryptChatMessageV1: (payload: EncryptedChatPayloadV1, myPriv: string, theirPub?: string) => string;
   aesGcmDecryptBytes: (key: Uint8Array, iv: string, ciphertext: string) => Uint8Array;
   deriveChatKeyBytesV1: (myPriv: string, theirPub: string) => Uint8Array;
   hexToBytes: (hex: string) => Uint8Array;
@@ -21,62 +21,72 @@ export function useChatDecryptors(opts: {
   const { myPrivateKey, myPublicKey, peerPublicKey, myUserId, decryptChatMessageV1, aesGcmDecryptBytes, deriveChatKeyBytesV1, hexToBytes } =
     opts;
 
-  const parseEncrypted = React.useCallback((text: string): EncryptedChatPayloadV1 | null => {
+  const safeJsonParse = React.useCallback((s: string): unknown => {
     try {
-      let obj: any = JSON.parse(text);
-      // Some backends/clients may double-encode payload.text as a JSON-string containing JSON.
-      if (typeof obj === 'string') {
-        try {
-          obj = JSON.parse(obj);
-        } catch {
-          // leave as-is
-        }
-      }
-      if (
-        obj &&
-        obj.v === 1 &&
-        obj.alg === 'secp256k1-ecdh+aes-256-gcm' &&
-        typeof obj.iv === 'string' &&
-        typeof obj.ciphertext === 'string' &&
-        typeof obj.senderPublicKey === 'string' &&
-        (typeof obj.recipientPublicKey === 'undefined' || typeof obj.recipientPublicKey === 'string')
-      ) {
-        return obj as EncryptedChatPayloadV1;
-      }
-      return null;
+      return JSON.parse(s);
     } catch {
       return null;
     }
   }, []);
 
-  const parseGroupEncrypted = React.useCallback((text: string): EncryptedGroupPayloadV1 | null => {
+  const parseEncrypted = React.useCallback((text: string): EncryptedChatPayloadV1 | null => {
     try {
-      let obj: any = JSON.parse(text);
+      let obj: unknown = safeJsonParse(text);
       // Some backends/clients may double-encode payload.text as a JSON-string containing JSON.
       if (typeof obj === 'string') {
         try {
-          obj = JSON.parse(obj);
+          obj = safeJsonParse(obj);
         } catch {
           // leave as-is
         }
       }
+      const rec = typeof obj === 'object' && obj != null ? (obj as Record<string, unknown>) : null;
+      if (!rec) return null;
       if (
-        obj &&
-        obj.type === 'gdm_v1' &&
-        obj.v === 1 &&
-        obj.alg === 'aes-256-gcm+wraps-v1' &&
-        typeof obj.iv === 'string' &&
-        typeof obj.ciphertext === 'string' &&
-        obj.wraps &&
-        typeof obj.wraps === 'object'
+        rec.v === 1 &&
+        rec.alg === 'secp256k1-ecdh+aes-256-gcm' &&
+        typeof rec.iv === 'string' &&
+        typeof rec.ciphertext === 'string' &&
+        typeof rec.senderPublicKey === 'string' &&
+        (typeof rec.recipientPublicKey === 'undefined' || typeof rec.recipientPublicKey === 'string')
       ) {
-        return obj as EncryptedGroupPayloadV1;
+        return rec as unknown as EncryptedChatPayloadV1;
       }
       return null;
     } catch {
       return null;
     }
-  }, []);
+  }, [safeJsonParse]);
+
+  const parseGroupEncrypted = React.useCallback((text: string): EncryptedGroupPayloadV1 | null => {
+    try {
+      let obj: unknown = safeJsonParse(text);
+      // Some backends/clients may double-encode payload.text as a JSON-string containing JSON.
+      if (typeof obj === 'string') {
+        try {
+          obj = safeJsonParse(obj);
+        } catch {
+          // leave as-is
+        }
+      }
+      const rec = typeof obj === 'object' && obj != null ? (obj as Record<string, unknown>) : null;
+      if (!rec) return null;
+      if (
+        rec.type === 'gdm_v1' &&
+        rec.v === 1 &&
+        rec.alg === 'aes-256-gcm+wraps-v1' &&
+        typeof rec.iv === 'string' &&
+        typeof rec.ciphertext === 'string' &&
+        rec.wraps &&
+        typeof rec.wraps === 'object'
+      ) {
+        return rec as unknown as EncryptedGroupPayloadV1;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, [safeJsonParse]);
 
   const decryptGroupForDisplay = React.useCallback(
     (msg: ChatMessage): { plaintext: string; messageKeyHex: string } => {

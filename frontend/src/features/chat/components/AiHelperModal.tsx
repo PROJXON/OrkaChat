@@ -1,13 +1,14 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 
 export type AiHelperTurn = { role: 'user' | 'assistant'; text: string; thinking?: boolean };
 
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
 
   thread: AiHelperTurn[];
   answer: string;
@@ -32,7 +33,7 @@ type Props = {
   scrollContentHRef: React.MutableRefObject<number>;
   lastAutoScrollAtRef: React.MutableRefObject<number>;
   lastAutoScrollContentHRef: React.MutableRefObject<number>;
-  autoScrollRetryRef: React.MutableRefObject<{ timer: any; attempts: number }>;
+  autoScrollRetryRef: React.MutableRefObject<{ timer: ReturnType<typeof setTimeout> | null; attempts: number }>;
   autoScrollIntentRef: React.MutableRefObject<null | 'thinking' | 'answer'>;
   autoScroll: () => void;
 };

@@ -1,10 +1,11 @@
 import * as React from 'react';
+import type { TextInput } from 'react-native';
 
 export function useFocusGroupAddMembersInputOnOpen(opts: {
   enabled: boolean;
   groupMembersOpen: boolean;
   meIsAdmin: boolean;
-  inputRef: { current: any };
+  inputRef: React.MutableRefObject<TextInput | null>;
   delayMs?: number;
 }): void {
   const { enabled, groupMembersOpen, meIsAdmin, inputRef, delayMs = 150 } = opts;

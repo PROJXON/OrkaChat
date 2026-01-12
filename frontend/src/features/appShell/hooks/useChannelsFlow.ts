@@ -88,6 +88,13 @@ export function useChannelsFlow({
   // shared navigation
   enterChannelConversation: (nextConversationId: string) => void;
 } {
+  // `getIdToken` is often passed as an inline closure from the app shell; keep a ref so
+  // effects/callbacks below don't churn and retrigger fetch loops.
+  const getIdTokenRef = React.useRef(getIdToken);
+  React.useEffect(() => {
+    getIdTokenRef.current = getIdToken;
+  }, [getIdToken]);
+
   // "My Channels" modal (opened from Settings → Channels). Lists channels you've joined.
   const [channelsOpen, setChannelsOpen] = React.useState<boolean>(false);
   const [myChannelsLoading, setMyChannelsLoading] = React.useState<boolean>(false);
@@ -139,7 +146,7 @@ export function useChannelsFlow({
       setChannelsLoading(true);
       setChannelsError(null);
       try {
-        const token = await getIdToken();
+        const token = await getIdTokenRef.current();
         if (!token) {
           setChannelsError('Unable to authenticate');
           return;
@@ -160,20 +167,20 @@ export function useChannelsFlow({
           // When opening the modal with empty search, prefer clearing stale counts if not provided.
           setGlobalUserCount(null);
         }
-        const normalized = r.channels.map((c) => ({ ...c, isPublic: !!(c as any).isPublic })) as ChannelSearchResult[];
+        const normalized: ChannelSearchResult[] = r.channels.map((c) => ({ ...c, isPublic: !!c.isPublic }));
         setChannelsResults(normalized);
         setChannelNameById((prev) => {
           const next = { ...prev };
           for (const c of normalized) next[c.channelId] = c.name;
           return next;
         });
-      } catch (e: any) {
-        setChannelsError(String(e?.message || 'Channel search failed'));
+      } catch (e: unknown) {
+        setChannelsError(e instanceof Error ? e.message : 'Channel search failed');
       } finally {
         setChannelsLoading(false);
       }
     },
-    [apiUrl, getIdToken]
+    [apiUrl]
   );
 
   const debouncedChannelsQuery = useDebouncedValue(channelsQuery, 150, channelSearchOpen);
@@ -199,7 +206,7 @@ export function useChannelsFlow({
         return;
       }
       if (!apiUrl) return;
-      const token = await getIdToken();
+      const token = await getIdTokenRef.current();
       if (!token) {
         setChannelJoinError('Unable to authenticate');
         return;
@@ -222,13 +229,15 @@ export function useChannelsFlow({
         setChannelJoinError(msg);
         return;
       }
-      const data = await resp.json().catch(() => ({}));
-      const ch = (data as any)?.channel || {};
-      const name = String(ch.name || channel.name || 'Channel').trim();
+      const raw: unknown = await resp.json().catch(() => ({}));
+      const rec = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
+      const chRec = typeof rec.channel === 'object' && rec.channel != null ? (rec.channel as Record<string, unknown>) : {};
+      const name =
+        typeof chRec.name === 'string' ? String(chRec.name).trim() : String(channel.name || 'Channel').trim();
       setChannelNameById((prev) => ({ ...prev, [channelId]: name }));
       enterChannelConversation(`ch#${channelId}`);
     },
-    [apiUrl, enterChannelConversation, getIdToken]
+    [apiUrl, enterChannelConversation]
   );
 
   const submitChannelPassword = React.useCallback(async () => {
@@ -242,7 +251,7 @@ export function useChannelsFlow({
       return;
     }
     if (!apiUrl) return;
-    const token = await getIdToken();
+    const token = await getIdTokenRef.current();
     if (!token) {
       setChannelJoinError('Unable to authenticate');
       return;
@@ -266,9 +275,11 @@ export function useChannelsFlow({
       setChannelJoinError(msg);
       return;
     }
-    const data = await resp.json().catch(() => ({}));
-    const ch = (data as any)?.channel || {};
-    const name = String(ch.name || prompt.name || 'Channel').trim();
+    const raw: unknown = await resp.json().catch(() => ({}));
+    const rec = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
+    const chRec = typeof rec.channel === 'object' && rec.channel != null ? (rec.channel as Record<string, unknown>) : {};
+    const name =
+      typeof chRec.name === 'string' ? String(chRec.name).trim() : String(prompt.name || 'Channel').trim();
     setChannelNameById((prev) => ({ ...prev, [channelId]: name }));
     // Save locally for re-join UX (optional).
     try {
@@ -279,14 +290,14 @@ export function useChannelsFlow({
     setChannelPasswordPrompt(null);
     setChannelPasswordInput('');
     enterChannelConversation(`ch#${channelId}`);
-  }, [apiUrl, channelPasswordInput, channelPasswordPrompt, enterChannelConversation, getIdToken]);
+  }, [apiUrl, channelPasswordInput, channelPasswordPrompt, enterChannelConversation]);
 
   const fetchMyChannels = React.useCallback(async () => {
     if (!apiUrl) return;
     setMyChannelsLoading(true);
     setMyChannelsError(null);
     try {
-      const token = await getIdToken();
+      const token = await getIdTokenRef.current();
       if (!token) {
         setMyChannelsError('Unable to authenticate');
         return;
@@ -303,20 +314,20 @@ export function useChannelsFlow({
       const joined = r.channels
         .filter((c) => c && c.isMember === true)
         .map((c) => ({ channelId: String(c.channelId || '').trim(), name: String(c.name || '').trim() }))
-        .filter((c: any) => c.channelId && c.name)
-        .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
+        .filter((c) => c.channelId && c.name)
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
       setMyChannels(joined);
       setChannelNameById((prev) => {
         const next = { ...prev };
         for (const c of joined) next[c.channelId] = c.name;
         return next;
       });
-    } catch (e: any) {
-      setMyChannelsError(String(e?.message || 'Failed to load channels'));
+    } catch (e: unknown) {
+      setMyChannelsError(e instanceof Error ? e.message : 'Failed to load channels');
     } finally {
       setMyChannelsLoading(false);
     }
-  }, [apiUrl, getIdToken]);
+  }, [apiUrl]);
 
   React.useEffect(() => {
     if (!channelsOpen) return;
@@ -329,7 +340,7 @@ export function useChannelsFlow({
       if (!cid) return;
       if (!apiUrl) return;
       try {
-        const token = await getIdToken();
+        const token = await getIdTokenRef.current();
         if (!token) {
           setMyChannelsError('Unable to authenticate');
           return;
@@ -354,11 +365,11 @@ export function useChannelsFlow({
           return;
         }
         setMyChannels((prev) => (Array.isArray(prev) ? prev : []).filter((c) => String(c.channelId) !== cid));
-      } catch (e: any) {
-        void promptAlert('Unable to leave', String(e?.message || 'Leave failed'));
+      } catch (e: unknown) {
+        void promptAlert('Unable to leave', e instanceof Error ? e.message : 'Leave failed');
       }
     },
-    [apiUrl, getIdToken, promptAlert]
+    [apiUrl, promptAlert]
   );
 
   const submitCreateChannelInline = React.useCallback(async () => {
@@ -369,7 +380,7 @@ export function useChannelsFlow({
       setCreateChannelError('Enter a channel name');
       return;
     }
-    const token = await getIdToken();
+      const token = await getIdTokenRef.current();
     if (!token) {
       setCreateChannelError('Unable to authenticate');
       return;
@@ -399,10 +410,12 @@ export function useChannelsFlow({
         setCreateChannelError(msg);
         return;
       }
-      const data = await resp.json().catch(() => ({}));
-      const ch = (data as any)?.channel || {};
-      const channelId = String(ch.channelId || '').trim();
-      const channelName = String(ch.name || name || 'Channel').trim();
+      const raw: unknown = await resp.json().catch(() => ({}));
+      const rec = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
+      const chRec = typeof rec.channel === 'object' && rec.channel != null ? (rec.channel as Record<string, unknown>) : {};
+      const channelId = String(chRec.channelId || '').trim();
+      const channelName =
+        typeof chRec.name === 'string' ? String(chRec.name).trim() : String(name || 'Channel').trim();
       if (!channelId) {
         setCreateChannelError('Create failed (missing channelId)');
         return;
@@ -426,7 +439,6 @@ export function useChannelsFlow({
     createChannelPassword,
     enterChannelConversation,
     fetchMyChannels,
-    getIdToken,
   ]);
 
   return {

@@ -1,15 +1,22 @@
 import * as React from 'react';
 import type { RefObject } from 'react';
 
+import type { ChannelMeta } from './useChannelRoster';
+
+type ChannelUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object';
+}
+
 export function useChannelAboutModalActions(opts: {
   activeConversationId: string;
-  channelMeta: any;
+  channelMeta: ChannelMeta | null;
   channelAboutEdit: boolean;
   channelAboutDraft: string;
   setChannelAboutDraft: (v: string) => void;
   setChannelAboutEdit: (v: boolean) => void;
   setChannelAboutOpen: (v: boolean) => void;
-  channelUpdate: (op: any, args: any) => Promise<any>;
+  channelUpdate: ChannelUpdateFn;
   markChannelAboutSeen: (kind: 'member', channelId: string, version: number) => Promise<void>;
   wsRef: RefObject<WebSocket | null>;
 }) {
@@ -68,7 +75,7 @@ export function useChannelAboutModalActions(opts: {
 
   const onSave = React.useCallback(async () => {
     const next = String(channelAboutDraft || '').slice(0, 4000);
-    const upd: any = await channelUpdate('setAbout', { aboutText: next });
+    const upd: unknown = await Promise.resolve(channelUpdate('setAbout', { aboutText: next }));
     // Broadcast an "update" hint so others refresh promptly.
     try {
       const ws = wsRef.current;
@@ -89,8 +96,8 @@ export function useChannelAboutModalActions(opts: {
     // Mark the *new* version as seen (use server-returned aboutVersion when available).
     try {
       const v =
-        typeof upd?.aboutVersion === 'number' && Number.isFinite(upd.aboutVersion)
-          ? upd.aboutVersion
+        isRecord(upd) && typeof upd.aboutVersion === 'number' && Number.isFinite(upd.aboutVersion)
+          ? (upd.aboutVersion as number)
           : typeof channelMeta?.aboutVersion === 'number'
             ? channelMeta.aboutVersion
             : 0;

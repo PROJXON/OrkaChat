@@ -12,15 +12,18 @@ export type PendingMediaItem = PendingUploadMedia & {
 export function pendingMediaFromImagePickerAssets(assets: unknown[]): PendingMediaItem[] {
   const arr = Array.isArray(assets) ? assets : [];
   return arr
-    .map((a: any) => {
-      if (!a?.uri) return null;
-      const type = String(a.type || '');
+    .map((a): PendingMediaItem | null => {
+      const rec = typeof a === 'object' && a != null ? (a as Record<string, unknown>) : {};
+      const uri = typeof rec.uri === 'string' ? rec.uri : '';
+      if (!uri) return null;
+      const type = typeof rec.type === 'string' ? rec.type : String(rec.type ?? '');
       const kind: MediaKind = type === 'video' ? 'video' : type === 'image' ? 'image' : 'file';
-      const fileName = (a.fileName as string | undefined) ?? undefined;
-      const size = (a.fileSize as number | undefined) ?? undefined;
-      const contentType = (a.mimeType as string | undefined) ?? guessContentTypeFromName(fileName);
+      const fileName = typeof rec.fileName === 'string' ? rec.fileName : undefined;
+      const size = typeof rec.fileSize === 'number' ? rec.fileSize : undefined;
+      const mimeType = typeof rec.mimeType === 'string' ? rec.mimeType : undefined;
+      const contentType = mimeType ?? guessContentTypeFromName(fileName);
       return {
-        uri: String(a.uri),
+        uri,
         kind,
         contentType,
         fileName,
@@ -29,27 +32,30 @@ export function pendingMediaFromImagePickerAssets(assets: unknown[]): PendingMed
         size: typeof size === 'number' ? size : undefined,
       } satisfies PendingMediaItem;
     })
-    .filter(Boolean) as PendingMediaItem[];
+    .filter((it): it is PendingMediaItem => !!it);
 }
 
 export function pendingMediaFromDocumentPickerAssets(assets: unknown[]): PendingMediaItem[] {
   const arr = Array.isArray(assets) ? assets : [];
   return arr
-    .map((a: any) => {
-      if (!a?.uri) return null;
-      const fileName = (a.name as string | undefined) ?? undefined;
-      const contentType = (a.mimeType as string | undefined) ?? guessContentTypeFromName(fileName);
+    .map((a): PendingMediaItem | null => {
+      const rec = typeof a === 'object' && a != null ? (a as Record<string, unknown>) : {};
+      const uri = typeof rec.uri === 'string' ? rec.uri : '';
+      if (!uri) return null;
+      const fileName = typeof rec.name === 'string' ? rec.name : undefined;
+      const mimeType = typeof rec.mimeType === 'string' ? rec.mimeType : undefined;
+      const contentType = mimeType ?? guessContentTypeFromName(fileName);
       return {
-        uri: String(a.uri),
+        uri,
         kind: inferKindFromContentType(contentType),
         contentType,
         fileName,
         displayName: fileName,
         source: 'file' as const,
-        size: typeof a.size === 'number' ? a.size : undefined,
+        size: typeof rec.size === 'number' ? rec.size : undefined,
       } satisfies PendingMediaItem;
     })
-    .filter(Boolean) as PendingMediaItem[];
+    .filter((it): it is PendingMediaItem => !!it);
 }
 
 export function pendingMediaFromInAppCameraCapture(cap: { uri: string; mode: 'photo' | 'video' }): PendingMediaItem {

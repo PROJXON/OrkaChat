@@ -30,7 +30,7 @@ export async function prepareDmOutgoingEncryptedText(opts: {
 
   const envs: DmMediaEnvelopeV1[] = [];
   for (const item of pending) {
-    // eslint-disable-next-line no-await-in-loop
+     
     const dmEnv = await opts.uploadPendingMediaDmEncrypted(
       item,
       opts.conversationId,
@@ -74,7 +74,7 @@ export async function prepareGroupMediaPlaintext(opts: {
 
   const envs: GroupMediaEnvelopeV1[] = [];
   for (const item of pending) {
-    // eslint-disable-next-line no-await-in-loop
+     
     const gEnv = await opts.uploadPendingMediaGroupEncrypted(
       item,
       opts.conversationId,

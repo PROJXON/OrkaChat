@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 
+import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 
 export function MainAppChatsAndRecoveryModals({
@@ -26,7 +27,7 @@ export function MainAppChatsAndRecoveryModals({
   deleteConversationFromList,
   formatChatActivityDate,
 }: {
-  styles: any;
+  styles: AppStyles;
   isDark: boolean;
 
   recoveryOpen: boolean;

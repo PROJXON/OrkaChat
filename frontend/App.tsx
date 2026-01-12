@@ -47,13 +47,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const outputs =
     // Prefer a committed web/prod outputs file so Hosting doesn't accidentally create a new Cognito pool.
     // Falls back to local/sandbox outputs for native/dev.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     (Platform.OS === 'web' ? require('./amplify_outputs.web.json') : null) ||
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     require('./amplify_outputs.json');
   Amplify.configure(outputs);
 } catch {
@@ -85,7 +82,7 @@ export default function App(): React.JSX.Element {
   const [rootMode, setRootMode] = React.useState<'guest' | 'app'>('guest');
   const [authModalOpen, setAuthModalOpen] = React.useState<boolean>(false);
   const [rootLayoutDone, setRootLayoutDone] = React.useState<boolean>(false);
-  const { theme: uiTheme, setTheme: setUiTheme, isDark, ready: themeReady } = useStoredTheme({
+  const { isDark, ready: themeReady } = useStoredTheme({
     storageKey: 'ui:theme',
     defaultTheme: 'light',
     // Re-read theme when opening the auth modal in case the user toggled it on the guest screen.
@@ -134,8 +131,21 @@ export default function App(): React.JSX.Element {
       try {
         // Avoid hard dependency on `expo-navigation-bar` (dev clients / emulators can be out of sync).
         // Using an optional native module prevents a hard crash when `ExpoNavigationBar` isn't installed.
-        const ExpoNavigationBar = requireOptionalNativeModule('ExpoNavigationBar') as any;
-        if (!ExpoNavigationBar?.setBackgroundColorAsync || !ExpoNavigationBar?.setButtonStyleAsync) return;
+        type ExpoNavigationBarModule = {
+          setBackgroundColorAsync: (color: number) => Promise<void>;
+          setButtonStyleAsync: (style: 'light' | 'dark') => Promise<void>;
+        };
+        const maybeModule = requireOptionalNativeModule('ExpoNavigationBar') as unknown;
+        const ExpoNavigationBar: ExpoNavigationBarModule | null =
+          typeof maybeModule === 'object' &&
+          maybeModule != null &&
+          'setBackgroundColorAsync' in maybeModule &&
+          'setButtonStyleAsync' in maybeModule &&
+          typeof (maybeModule as Record<string, unknown>).setBackgroundColorAsync === 'function' &&
+          typeof (maybeModule as Record<string, unknown>).setButtonStyleAsync === 'function'
+            ? (maybeModule as ExpoNavigationBarModule)
+            : null;
+        if (!ExpoNavigationBar) return;
         const bgNumber = processColor(bg);
         if (typeof bgNumber === 'number') {
           await ExpoNavigationBar.setBackgroundColorAsync(bgNumber);

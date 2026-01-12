@@ -26,25 +26,40 @@ async function parseErrorMessage(resp: Response, fallback: string): Promise<stri
   return msg;
 }
 
-function normalizeChannelList(data: any): ChannelSearchResponse {
-  const list = Array.isArray(data?.channels) ? data.channels : [];
-  const channels: ChannelSearchItem[] = list
-    .map((c: any) => ({
-      channelId: String(c?.channelId || '').trim(),
-      name: String(c?.name || '').trim(),
-      nameLower: typeof c?.nameLower === 'string' ? String(c.nameLower) : undefined,
-      isPublic: !!c?.isPublic,
-      hasPassword: typeof c?.hasPassword === 'boolean' ? c.hasPassword : undefined,
-      activeMemberCount: typeof c?.activeMemberCount === 'number' ? c.activeMemberCount : undefined,
-      isMember: typeof c?.isMember === 'boolean' ? c.isMember : undefined,
-    }))
-    .filter((c: ChannelSearchItem) => c.channelId && c.name);
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object';
+}
 
-  const globalUserCountRaw = data?.globalUserCount;
-  const globalUserCount =
-    typeof globalUserCountRaw === 'number' && Number.isFinite(globalUserCountRaw) && globalUserCountRaw >= 0
-      ? Math.floor(globalUserCountRaw)
-      : null;
+function toFiniteIntOrNull(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.floor(n);
+  return i >= 0 ? i : null;
+}
+
+function normalizeChannelList(data: unknown): ChannelSearchResponse {
+  const rec = isRecord(data) ? data : {};
+  const listRaw = rec.channels;
+  const list: unknown[] = Array.isArray(listRaw) ? listRaw : [];
+  const channels: ChannelSearchItem[] = list
+    .map((raw): ChannelSearchItem | null => {
+      const c = isRecord(raw) ? raw : {};
+      const channelId = String(c.channelId || '').trim();
+      const name = String(c.name || '').trim();
+      if (!channelId || !name) return null;
+      return {
+        channelId,
+        name,
+        nameLower: typeof c.nameLower === 'string' ? String(c.nameLower) : undefined,
+        isPublic: !!c.isPublic,
+        hasPassword: typeof c.hasPassword === 'boolean' ? c.hasPassword : undefined,
+        activeMemberCount: toFiniteIntOrNull(c.activeMemberCount) ?? undefined,
+        isMember: typeof c.isMember === 'boolean' ? c.isMember : undefined,
+      };
+    })
+    .filter((c): c is ChannelSearchItem => !!c);
+
+  const globalUserCount = toFiniteIntOrNull(rec.globalUserCount);
 
   return { globalUserCount, channels };
 }
@@ -73,16 +88,17 @@ export async function searchChannels(opts: {
   const publicPath = opts.paths?.publicSearch ?? '/public/channels/search';
   const authedPath = opts.paths?.authedSearch ?? '/channels/search';
 
-  const candidates: Array<{ url: string; headers?: Record<string, string>; label: string }> = [];
+  const candidates: Array<{ url: string; headers?: Record<string, string>; label: string; kind: 'public' | 'authed' }> = [];
   const publicUrl = `${base}${publicPath}?${qs}`;
   const authedUrl = `${base}${authedPath}?${qs}`;
   const hasToken = !!(opts.token && String(opts.token).trim());
 
-  const addPublic = () => candidates.push({ url: publicUrl, label: `GET ${publicPath}` });
+  const addPublic = () => candidates.push({ url: publicUrl, label: `GET ${publicPath}`, kind: 'public' });
   const addAuthed = () =>
     candidates.push({
       url: authedUrl,
       label: `GET ${authedPath}`,
+      kind: 'authed',
       headers: hasToken ? { Authorization: `Bearer ${String(opts.token)}` } : undefined,
     });
 
@@ -101,7 +117,9 @@ export async function searchChannels(opts: {
   for (const c of candidates) {
     try {
       // If the authed candidate has no token, skip it (guest mode).
-      if (c.label.includes(authedPath) && !hasToken) {
+      // IMPORTANT: don't use string matching here because `/public/channels/search`
+      // contains `/channels/search` as a suffix and would be incorrectly skipped.
+      if (c.kind === 'authed' && !hasToken) {
         continue;
       }
       const resp = await fetch(c.url, c.headers ? { headers: c.headers } : undefined);

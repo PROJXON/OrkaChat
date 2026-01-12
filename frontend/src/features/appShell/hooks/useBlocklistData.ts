@@ -15,8 +15,12 @@ export function useBlocklistData({
   blocklistOpen,
 }: {
   apiUrl: string;
-  fetchAuthSession: () => Promise<any>;
-  promptConfirm: (title: string, message: string, opts?: any) => Promise<boolean>;
+  fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
+  promptConfirm: (
+    title: string,
+    message: string,
+    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean }
+  ) => Promise<boolean>;
   blocklistOpen: boolean;
 }): {
   blocklistLoading: boolean;
@@ -49,16 +53,21 @@ export function useBlocklistData({
         headers: { Authorization: `Bearer ${idToken}` },
       });
       if (!res.ok) return;
-      const json = await res.json().catch(() => null);
-      const arr = Array.isArray(json?.blocked) ? json.blocked : [];
-      const parsed = arr
-        .map((it: any) => ({
-          blockedSub: String(it?.blockedSub || ''),
-          blockedDisplayName: it?.blockedDisplayName ? String(it.blockedDisplayName) : undefined,
-          blockedUsernameLower: it?.blockedUsernameLower ? String(it.blockedUsernameLower) : undefined,
-          blockedAt: typeof it?.blockedAt === 'number' ? Number(it.blockedAt) : undefined,
-        }))
-        .filter((b: any) => b.blockedSub) as BlockedUser[];
+      const json: unknown = await res.json().catch(() => null);
+      const rec = typeof json === 'object' && json != null ? (json as Record<string, unknown>) : {};
+      const arr: unknown[] = Array.isArray(rec.blocked) ? (rec.blocked as unknown[]) : [];
+      const parsed: BlockedUser[] = arr
+        .map((it) => {
+          const itRec = typeof it === 'object' && it != null ? (it as Record<string, unknown>) : {};
+          const blockedSub = String(itRec.blockedSub || '').trim();
+          return {
+            blockedSub,
+            blockedDisplayName: typeof itRec.blockedDisplayName === 'string' ? String(itRec.blockedDisplayName) : undefined,
+            blockedUsernameLower: typeof itRec.blockedUsernameLower === 'string' ? String(itRec.blockedUsernameLower) : undefined,
+            blockedAt: typeof itRec.blockedAt === 'number' ? Number(itRec.blockedAt) : undefined,
+          };
+        })
+        .filter((b) => b.blockedSub);
       setBlockedUsers(parsed);
       setBlocklistCacheAt(Date.now());
       try {

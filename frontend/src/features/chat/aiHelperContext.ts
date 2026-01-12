@@ -1,5 +1,6 @@
 import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
 import { formatBytes } from './uploads';
+import type { ChatMessage } from './types';
 
 export type AiTranscriptItem = {
   user: string;
@@ -19,7 +20,7 @@ export type AiAttachmentForAi = {
 
 export function buildAiHelperContext(opts: {
   // messages[] is newest-first (FlatList inverted)
-  messages: any[];
+  messages: ChatMessage[];
   isDm: boolean;
   mediaUrlByPath: Record<string, string>;
   cdnResolve: (path: string) => string;

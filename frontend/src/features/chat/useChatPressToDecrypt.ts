@@ -1,7 +1,28 @@
 import * as React from 'react';
 
 import type { MediaItem } from '../../types/media';
-import type { ChatMessage } from './types';
+import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+type GroupDecryptResult = {
+  plaintext?: string;
+  messageKeyHex?: string;
+};
+
+type DmMediaItem = { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] };
+type GroupMediaItem = { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] };
 
 export function useChatPressToDecrypt(opts: {
   isDm: boolean;
@@ -11,12 +32,12 @@ export function useChatPressToDecrypt(opts: {
   myPublicKey: string | null | undefined;
 
   decryptForDisplay: (msg: ChatMessage) => string;
-  decryptGroupForDisplay: (msg: ChatMessage) => any;
+  decryptGroupForDisplay: (msg: ChatMessage) => GroupDecryptResult | null;
 
-  parseDmMediaEnvelope: (raw: string) => any;
-  parseGroupMediaEnvelope: (raw: string) => any;
-  normalizeDmMediaItems: (env: any) => Array<{ media: any; wrap: any }>;
-  normalizeGroupMediaItems: (env: any) => Array<{ media: any; wrap: any }>;
+  parseDmMediaEnvelope: (raw: string) => DmMediaEnvelope | null;
+  parseGroupMediaEnvelope: (raw: string) => GroupMediaEnvelope | null;
+  normalizeDmMediaItems: (env: DmMediaEnvelope | null) => DmMediaItem[];
+  normalizeGroupMediaItems: (env: GroupMediaEnvelope | null) => GroupMediaItem[];
 
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   sendReadReceipt: (messageCreatedAtMs: number) => void;
@@ -26,7 +47,7 @@ export function useChatPressToDecrypt(opts: {
   const {
     isDm,
     isGroup,
-    encryptedPlaceholder,
+    encryptedPlaceholder: _encryptedPlaceholder,
     myUserId,
     myPublicKey,
     decryptForDisplay,
@@ -55,7 +76,8 @@ export function useChatPressToDecrypt(opts: {
         const gEnv = isGroup && groupDec ? parseGroupMediaEnvelope(plaintext) : null;
         const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
 
-        const mediaList: MediaItem[] = (dmEnv ? dmItems : gEnv ? gItems : []).map((it) => ({
+        const mediaItems = dmEnv ? dmItems : gEnv ? gItems : [];
+        const mediaList: MediaItem[] = mediaItems.map((it) => ({
           path: it.media.path,
           thumbPath: it.media.thumbPath,
           kind: it.media.kind,
@@ -93,8 +115,8 @@ export function useChatPressToDecrypt(opts: {
         );
         if (!isFromMe && isDm) sendReadReceipt(msg.createdAt);
         if (!isFromMe) markMySeen(msg.createdAt, readAt);
-      } catch (e: any) {
-        const rawMsg = typeof e?.message === 'string' ? e.message : '';
+      } catch (e: unknown) {
+        const rawMsg = getErrorMessage(e);
         const lower = rawMsg.toLowerCase();
         const hint =
           lower.includes('ghash') || lower.includes('tag') || lower.includes('aes')
@@ -106,7 +128,6 @@ export function useChatPressToDecrypt(opts: {
     [
       decryptForDisplay,
       decryptGroupForDisplay,
-      encryptedPlaceholder, // keep dependency parity even though only used via closure paths
       isDm,
       isGroup,
       markMySeen,

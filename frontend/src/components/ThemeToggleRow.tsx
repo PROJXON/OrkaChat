@@ -1,14 +1,15 @@
 import React from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { Platform, Pressable, Switch, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 
 export type ThemeToggleRowStyles = {
-  themeToggle: any;
-  themeToggleDark?: any;
-  webToggleTrack: any;
-  webToggleTrackOn?: any;
-  webToggleThumb: any;
-  webToggleThumbOn?: any;
+  themeToggle: StyleProp<ViewStyle>;
+  themeToggleDark?: StyleProp<ViewStyle>;
+  webToggleTrack: StyleProp<ViewStyle>;
+  webToggleTrackOn?: StyleProp<ViewStyle>;
+  webToggleThumb: StyleProp<ViewStyle>;
+  webToggleThumbOn?: StyleProp<ViewStyle>;
 };
 
 export function ThemeToggleRow({

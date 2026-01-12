@@ -2,6 +2,7 @@ import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { applyTitleOverridesToUnreadMap, setTitleOverride } from '../../../utils/conversationTitles';
+import type { ServerConversation, UnreadDmMap } from './useChatsInboxData';
 
 type TitleOverrideRef = React.MutableRefObject<Record<string, string>>;
 
@@ -18,8 +19,8 @@ export function useConversationTitleChanged({
   setPeer: (v: string | null) => void;
   setChannelNameById: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   titleOverrideByConvIdRef: TitleOverrideRef;
-  setServerConversations: React.Dispatch<React.SetStateAction<Array<any>>>;
-  setUnreadDmMap: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  setServerConversations: React.Dispatch<React.SetStateAction<ServerConversation[]>>;
+  setUnreadDmMap: React.Dispatch<React.SetStateAction<UnreadDmMap>>;
   upsertDmThread: (conversationId: string, title: string, lastActivityAt: number) => void;
 }): { handleConversationTitleChanged: (convIdRaw: string, titleRaw: string) => void } {
   const handleConversationTitleChanged = React.useCallback(
@@ -47,7 +48,7 @@ export function useConversationTitleChanged({
 
       // Update server-backed conversations cache + DM threads list (best-effort).
       setServerConversations((prev) => {
-        const next = prev.map((c: any) => (c.conversationId === convId ? { ...c, peerDisplayName: title } : c));
+        const next = prev.map((c) => (c.conversationId === convId ? { ...c, peerDisplayName: title } : c));
         try {
           AsyncStorage.setItem('conversations:cache:v1', JSON.stringify({ at: Date.now(), conversations: next })).catch(() => {});
         } catch {
@@ -58,7 +59,7 @@ export function useConversationTitleChanged({
 
       // If there's a pending "Added to group: ..." unread label for this conversation, keep it in sync.
       setUnreadDmMap((prev) => {
-        return applyTitleOverridesToUnreadMap(prev as any, { [convId]: title }) as any;
+        return applyTitleOverridesToUnreadMap(prev, { [convId]: title });
       });
       upsertDmThread(convId, title, Date.now());
     },

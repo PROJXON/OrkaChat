@@ -5,6 +5,8 @@ import { getOlderNeighbor } from '../../utils/listNeighbors';
 import { getGuestSenderKey } from '../../utils/senderKeys';
 import { GuestMessageRow } from './components/GuestMessageRow';
 import type { GuestMessage } from './types';
+import type { MediaItem } from '../../types/media';
+import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
 
 export function renderGuestListItem(args: {
   item: GuestMessage;
@@ -12,12 +14,12 @@ export function renderGuestListItem(args: {
   messageListData: GuestMessage[];
   isDark: boolean;
   viewportWidth: number;
-  avatarProfileBySub: Record<string, any>;
+  avatarProfileBySub: Record<string, PublicAvatarProfileLite>;
   cdnGet: (path: string) => string;
   requestOpenLink: (url: string) => void;
   resolvePathUrl: (path: string) => Promise<string | null>;
   openReactionInfo: (emoji: string, subs: string[], namesBySub?: Record<string, string>) => void;
-  openViewer: (mediaList: any[], startIdx: number) => void;
+  openViewer: (mediaList: MediaItem[], startIdx: number) => void;
 }): React.JSX.Element {
   const {
     item,
@@ -56,7 +58,7 @@ export function renderGuestListItem(args: {
       onOpenUrl={requestOpenLink}
       resolvePathUrl={resolvePathUrl}
       onOpenReactionInfo={openReactionInfo}
-      onOpenViewer={openViewer as any}
+      onOpenViewer={openViewer}
       avatarSize={AVATAR_SIZE}
       avatarGutter={avatarGutter}
       avatarSeed={senderKey}

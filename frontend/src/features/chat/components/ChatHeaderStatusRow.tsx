@@ -3,14 +3,16 @@ import { Pressable, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { AvatarBubble } from '../../../components/AvatarBubble';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 
 type Props = {
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   isDark: boolean;
   displayName: string;
 
   myUserId: string | null | undefined;
-  avatarProfileBySub: Record<string, any>;
+  avatarProfileBySub: Record<string, PublicAvatarProfileLite>;
   avatarUrlByPath: Record<string, string>;
 
   isConnecting: boolean;

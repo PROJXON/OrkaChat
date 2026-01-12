@@ -35,7 +35,7 @@ export function useChatsInboxData({
   chatsOpen,
 }: {
   apiUrl: string;
-  fetchAuthSession: () => Promise<any>;
+  fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
   chatsOpen: boolean;
 }): {
   unreadDmMap: UnreadDmMap;
@@ -111,25 +111,33 @@ export function useChatsInboxData({
         headers: { Authorization: `Bearer ${idToken}` },
       });
       if (!res.ok) return;
-      const json = await res.json().catch(() => null);
-      const convos = Array.isArray(json?.conversations) ? json.conversations : [];
-      const parsed = convos
-        .map((c: any) => ({
-          conversationId: String(c?.conversationId || ''),
-          peerDisplayName: c?.peerDisplayName ? String(c.peerDisplayName) : undefined,
-          peerSub: c?.peerSub ? String(c.peerSub) : undefined,
-          conversationKind: c?.conversationKind === 'group' ? 'group' : c?.conversationKind === 'dm' ? 'dm' : undefined,
-          memberStatus:
-            c?.memberStatus === 'active'
+      const json: unknown = await res.json().catch(() => null);
+      const jsonRec = typeof json === 'object' && json != null ? (json as Record<string, unknown>) : {};
+      const convos: unknown[] = Array.isArray(jsonRec.conversations) ? (jsonRec.conversations as unknown[]) : [];
+      const parsed: ServerConversation[] = convos
+        .map((c) => {
+          const rec = typeof c === 'object' && c != null ? (c as Record<string, unknown>) : {};
+          const conversationId = String(rec.conversationId || '').trim();
+          const conversationKind =
+            rec.conversationKind === 'group' ? 'group' : rec.conversationKind === 'dm' ? 'dm' : undefined;
+          const memberStatus =
+            rec.memberStatus === 'active'
               ? 'active'
-              : c?.memberStatus === 'left'
+              : rec.memberStatus === 'left'
                 ? 'left'
-                : c?.memberStatus === 'banned'
+                : rec.memberStatus === 'banned'
                   ? 'banned'
-                  : undefined,
-          lastMessageAt: Number(c?.lastMessageAt ?? 0),
-        }))
-        .filter((c: any) => c.conversationId) as ServerConversation[];
+                  : undefined;
+          return {
+            conversationId,
+            peerDisplayName: typeof rec.peerDisplayName === 'string' ? String(rec.peerDisplayName) : undefined,
+            peerSub: typeof rec.peerSub === 'string' ? String(rec.peerSub) : undefined,
+            conversationKind,
+            memberStatus,
+            lastMessageAt: Number(rec.lastMessageAt ?? 0),
+          } as ServerConversation;
+        })
+        .filter((c) => c.conversationId);
 
       // Apply any local overrides (e.g. group name changed in-chat).
       const parsedWithOverrides = applyTitleOverridesToConversations(parsed, titleOverrideByConvIdRef.current);
@@ -148,8 +156,8 @@ export function useChatsInboxData({
       try {
         const titleByConvId = new Map(
           parsedWithOverrides
-            .map((c: any) => [String(c.conversationId || ''), String(c.peerDisplayName || '').trim()] as const)
-            .filter(([id, t]: readonly [string, string]) => id && t)
+            .map((c) => [String(c.conversationId || ''), String(c.peerDisplayName || '').trim()] as const)
+            .filter(([id, t]) => id && t)
         );
         setUnreadDmMap((prev) => {
           const next = { ...prev };

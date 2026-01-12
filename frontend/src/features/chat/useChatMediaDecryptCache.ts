@@ -123,18 +123,23 @@ export function useChatMediaDecryptCache(opts: {
       const ct = it.media.contentType || 'application/octet-stream';
       const ext = defaultFileExtensionForContentType(ct);
       const fileNameSafe = (it.media.fileName || `dm-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_');
-      const fsAny: any = require('expo-file-system');
-      const Paths = fsAny?.Paths;
-      const File = fsAny?.File;
-      const root = (Paths?.cache || Paths?.document) as any;
+      const fsMod = require('expo-file-system') as unknown;
+      const fsRec = typeof fsMod === 'object' && fsMod != null ? (fsMod as Record<string, unknown>) : {};
+      const Paths = fsRec.Paths as unknown;
+      const File = fsRec.File as unknown;
+      const pathsRec = typeof Paths === 'object' && Paths != null ? (Paths as Record<string, unknown>) : {};
+      const root = (typeof pathsRec.cache === 'string' ? pathsRec.cache : undefined) || (typeof pathsRec.document === 'string' ? pathsRec.document : undefined);
       if (!root) throw new Error('No writable cache directory');
       if (!File) throw new Error('File API not available');
-      const outFile = new File(root, `dm-${fileNameSafe}.${ext}`);
-      if (typeof outFile?.write !== 'function') throw new Error('File write API not available');
-      await outFile.write(plainBytes);
+      const outFile = new (File as new (dir: string, name: string) => unknown)(root, `dm-${fileNameSafe}.${ext}`);
+      const outRec = typeof outFile === 'object' && outFile != null ? (outFile as Record<string, unknown>) : {};
+      if (typeof outRec.write !== 'function') throw new Error('File write API not available');
+      await (outRec.write as (b: Uint8Array) => Promise<unknown>)(plainBytes);
 
-      setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: outFile.uri }));
-      return outFile.uri;
+      const uri = typeof outRec.uri === 'string' ? outRec.uri : '';
+      if (!uri) throw new Error('File write produced no URI');
+      setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
+      return uri;
     },
     [aesGcmDecryptBytes, buildDmMediaKey, dmFileUriByPath, gcm, getDmMediaSignedUrl, hexToBytes],
   );
@@ -231,18 +236,23 @@ export function useChatMediaDecryptCache(opts: {
       const ct = it.media.contentType || 'application/octet-stream';
       const ext = defaultFileExtensionForContentType(ct);
       const fileNameSafe = (it.media.fileName || `gdm-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_');
-      const fsAny: any = require('expo-file-system');
-      const Paths = fsAny?.Paths;
-      const File = fsAny?.File;
-      const root = (Paths?.cache || Paths?.document) as any;
+      const fsMod = require('expo-file-system') as unknown;
+      const fsRec = typeof fsMod === 'object' && fsMod != null ? (fsMod as Record<string, unknown>) : {};
+      const Paths = fsRec.Paths as unknown;
+      const File = fsRec.File as unknown;
+      const pathsRec = typeof Paths === 'object' && Paths != null ? (Paths as Record<string, unknown>) : {};
+      const root = (typeof pathsRec.cache === 'string' ? pathsRec.cache : undefined) || (typeof pathsRec.document === 'string' ? pathsRec.document : undefined);
       if (!root) throw new Error('No writable cache directory');
       if (!File) throw new Error('File API not available');
-      const outFile = new File(root, `gdm-${fileNameSafe}.${ext}`);
-      if (typeof outFile?.write !== 'function') throw new Error('File write API not available');
-      await outFile.write(plainBytes);
+      const outFile = new (File as new (dir: string, name: string) => unknown)(root, `gdm-${fileNameSafe}.${ext}`);
+      const outRec = typeof outFile === 'object' && outFile != null ? (outFile as Record<string, unknown>) : {};
+      if (typeof outRec.write !== 'function') throw new Error('File write API not available');
+      await (outRec.write as (b: Uint8Array) => Promise<unknown>)(plainBytes);
 
-      setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: outFile.uri }));
-      return outFile.uri;
+      const uri = typeof outRec.uri === 'string' ? outRec.uri : '';
+      if (!uri) throw new Error('File write produced no URI');
+      setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
+      return uri;
     },
     [aesGcmDecryptBytes, buildGroupMediaKey, dmFileUriByPath, gcm, getDmMediaSignedUrl, hexToBytes],
   );

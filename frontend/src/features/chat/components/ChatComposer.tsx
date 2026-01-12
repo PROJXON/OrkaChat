@@ -1,8 +1,12 @@
 import React from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { Image, Pressable, Text, TextInput, View } from 'react-native';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import type { ChatMessage } from '../types';
 import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { MediaItem } from '../../../types/media';
+import type { PendingMediaItem } from '../attachments';
 
 type ReplyTarget = null | {
   id: string;
@@ -16,7 +20,7 @@ type ReplyTarget = null | {
 };
 
 export function ChatComposer(props: {
-  styles: any;
+  styles: ChatScreenStyles;
   isDark: boolean;
   isDm: boolean;
   isGroup: boolean;
@@ -29,15 +33,15 @@ export function ChatComposer(props: {
   cancelInlineEdit: () => void;
 
   // Attachment pill
-  pendingMedia: Array<{ displayName?: string; fileName?: string; kind?: string }>;
-  setPendingMedia: (next: any[]) => void;
+  pendingMedia: PendingMediaItem[];
+  setPendingMedia: (next: PendingMediaItem[]) => void;
   isUploading: boolean;
 
   // Reply pill
   replyTarget: ReplyTarget;
   setReplyTarget: (v: ReplyTarget) => void;
   messages: ChatMessage[];
-  openViewer: (mediaList: any[], startIdx: number) => void;
+  openViewer: (mediaList: MediaItem[], startIdx: number) => void;
 
   // Typing indicator
   typingIndicatorText: string;
@@ -49,8 +53,8 @@ export function ChatComposer(props: {
   insertMention: (u: string) => void;
 
   // Composer container styles
-  composerSafeAreaStyle: any;
-  composerHorizontalInsetsStyle: any;
+  composerSafeAreaStyle: StyleProp<ViewStyle>;
+  composerHorizontalInsetsStyle: StyleProp<ViewStyle>;
   isWideChatLayout: boolean;
 
   // Input

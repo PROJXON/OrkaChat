@@ -1,10 +1,31 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
+import type { TextStyle, ViewStyle } from 'react-native';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+
+export type ReactionInfoModalStyles = {
+  modalOverlay: ViewStyle;
+  summaryModal: ViewStyle;
+  summaryModalDark: ViewStyle;
+  summaryTitle: TextStyle;
+  summaryTitleDark: TextStyle;
+  summaryScroll: ViewStyle;
+  summaryText: TextStyle;
+  summaryTextDark: TextStyle;
+  summaryButtons: ViewStyle;
+  toolBtn: ViewStyle;
+  toolBtnDark: ViewStyle;
+  toolBtnText: TextStyle;
+  toolBtnTextDark: TextStyle;
+  reactionInfoRow: ViewStyle;
+  reactionInfoRemoveHint: TextStyle;
+};
+
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ReactionInfoModalStyles;
   emoji: string;
   subsSorted: string[];
   myUserId: string | null | undefined;

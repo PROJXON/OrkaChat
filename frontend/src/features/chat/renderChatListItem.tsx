@@ -10,11 +10,14 @@ import { getChatSenderKey } from '../../utils/senderKeys';
 import type { ChatMessage } from './types';
 import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
 import { ChatMessageRow } from './components/ChatMessageRow';
+import type { ChatScreenStyles } from '../../screens/ChatScreen.styles';
+import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
+import type { PendingMediaItem } from './attachments';
 
 type Anchor = { x: number; y: number };
 
 export function renderChatListItem(args: {
-  styles: any;
+  styles: ChatScreenStyles;
   item: ChatMessage;
   index: number;
   messageListData: ChatMessage[];
@@ -29,7 +32,7 @@ export function renderChatListItem(args: {
   myPublicKey: string | null | undefined;
   displayName: string;
   nameBySub: Record<string, string>;
-  avatarProfileBySub: Record<string, any>;
+  avatarProfileBySub: Record<string, PublicAvatarProfileLite>;
   avatarUrlByPath: Record<string, string>;
 
   peerSeenAtByCreatedAt: Record<string, number>;
@@ -53,7 +56,7 @@ export function renderChatListItem(args: {
   setInlineEditDraft: (v: string) => void;
   inlineEditUploading: boolean;
   inlineEditAttachmentMode: 'keep' | 'remove' | 'replace';
-  pendingMedia: any[];
+  pendingMedia: PendingMediaItem[];
   commitInlineEdit: () => void | Promise<void>;
   cancelInlineEdit: () => void;
 

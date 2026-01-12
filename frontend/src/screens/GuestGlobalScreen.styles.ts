@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import type { ReactionInfoModalStyles } from '../features/chat/components/ReactionInfoModal';
 
 export const styles = StyleSheet.create({
   container: {
@@ -212,4 +213,4 @@ export const guestReactionInfoModalStyles = {
   toolBtnTextDark: styles.modalBtnTextDark,
   reactionInfoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   reactionInfoRemoveHint: { opacity: 0.7, fontSize: 12 },
-};
+} satisfies ReactionInfoModalStyles;

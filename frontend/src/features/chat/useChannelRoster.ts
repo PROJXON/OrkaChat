@@ -1,6 +1,11 @@
 import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
 import { useAutoPopupChannelAbout } from '../../hooks/useAutoPopupChannelAbout';
+import type { ChannelHeaderCache } from '../../hooks/useChannelHeaderCache';
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object';
+}
 
 export type ChannelMeta = {
   channelId: string;
@@ -28,7 +33,10 @@ export function useChannelRoster(opts: {
   enabled: boolean;
   activeConversationId: string;
   activeChannelId: string;
-  channelHeaderCache: { cached: any; save: (v: any) => void };
+  channelHeaderCache: {
+    cached: ChannelHeaderCache | null;
+    save: (next: Omit<ChannelHeaderCache, 'v' | 'savedAt' | 'channelId'>) => void;
+  };
   channelMembersOpen: boolean;
   channelAboutRequestEpoch: number | undefined;
   uiAlert: (title: string, body: string) => Promise<void> | void;
@@ -78,28 +86,32 @@ export function useChannelRoster(opts: {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     if (!resp.ok) return;
-    const data = await resp.json().catch(() => ({}));
-    const ch = data?.channel || {};
+    const raw: unknown = await resp.json().catch(() => ({}));
+    const data = isRecord(raw) ? raw : {};
+    const ch = isRecord(data.channel) ? data.channel : {};
     const name = typeof ch.name === 'string' ? ch.name.trim() : '';
-    const me = data?.me && typeof data.me === 'object' ? data.me : undefined;
-    const meIsAdmin = !!me?.isAdmin;
-    const meStatus = typeof me?.status === 'string' ? String(me.status) : 'active';
+    const me = isRecord(data.me) ? data.me : {};
+    const meIsAdmin = !!me.isAdmin;
+    const meStatus = typeof me.status === 'string' ? String(me.status) : 'active';
     const isPublic = typeof ch.isPublic === 'boolean' ? ch.isPublic : undefined;
     const hasPassword = typeof ch.hasPassword === 'boolean' ? ch.hasPassword : undefined;
     const aboutText = typeof ch.aboutText === 'string' ? String(ch.aboutText) : '';
     const aboutVersion = typeof ch.aboutVersion === 'number' && Number.isFinite(ch.aboutVersion) ? ch.aboutVersion : 0;
-    const membersRaw = Array.isArray(data?.members) ? data.members : [];
+    const membersRaw: unknown[] = Array.isArray(data.members) ? (data.members as unknown[]) : [];
     const members: ChannelMember[] = membersRaw
-      .map((m: any) => ({
-        memberSub: String(m?.memberSub || '').trim(),
-        displayName: typeof m?.displayName === 'string' ? String(m.displayName) : undefined,
-        status: typeof m?.status === 'string' ? String(m.status) : 'active',
-        isAdmin: !!m?.isAdmin,
-        avatarBgColor: typeof m?.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
-        avatarTextColor: typeof m?.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
-        avatarImagePath: typeof m?.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
-      }))
-      .filter((m: ChannelMember) => m.memberSub);
+      .map((m) => {
+        const rec = isRecord(m) ? m : {};
+        return {
+          memberSub: String(rec.memberSub || '').trim(),
+          displayName: typeof rec.displayName === 'string' ? String(rec.displayName) : undefined,
+          status: typeof rec.status === 'string' ? String(rec.status) : 'active',
+          isAdmin: !!rec.isAdmin,
+          avatarBgColor: typeof rec.avatarBgColor === 'string' ? String(rec.avatarBgColor) : undefined,
+          avatarTextColor: typeof rec.avatarTextColor === 'string' ? String(rec.avatarTextColor) : undefined,
+          avatarImagePath: typeof rec.avatarImagePath === 'string' ? String(rec.avatarImagePath) : undefined,
+        } satisfies ChannelMember;
+      })
+      .filter((m) => m.memberSub);
 
     setChannelRosterChannelId(channelId);
     setChannelMembers(members);

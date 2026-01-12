@@ -5,7 +5,7 @@ import * as React from 'react';
 // - switch to every second when any message is within the last minute
 export function useTtlNowSec(opts: { enabled: boolean; messages: Array<{ expiresAt?: number | null | undefined }> }): number {
   const enabled = !!opts.enabled;
-  const messages = Array.isArray(opts.messages) ? opts.messages : [];
+  const messages = React.useMemo(() => (Array.isArray(opts.messages) ? opts.messages : []), [opts.messages]);
   const [nowSec, setNowSec] = React.useState<number>(() => Math.floor(Date.now() / 1000));
 
   React.useEffect(() => {
@@ -20,7 +20,7 @@ export function useTtlNowSec(opts: { enabled: boolean; messages: Array<{ expires
 
       let minRemaining: number | null = null;
       for (const m of messages) {
-        const expiresAt = (m as any)?.expiresAt;
+        const expiresAt = m.expiresAt;
         if (!expiresAt) continue;
         const remaining = Number(expiresAt) - nextNowSec;
         if (!Number.isFinite(remaining) || remaining <= 0) continue;

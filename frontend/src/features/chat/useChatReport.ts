@@ -2,6 +2,36 @@ import * as React from 'react';
 import { fetchAuthSession } from '@aws-amplify/auth';
 import type { ChatMessage } from './types';
 
+function getErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message || 'unknown error';
+  if (typeof e === 'string') return e || 'unknown error';
+  if (typeof e === 'object' && e != null) {
+    const rec = e as Record<string, unknown>;
+    if (typeof rec.message === 'string' && rec.message) return rec.message;
+  }
+  return 'unknown error';
+}
+
+type ReportPayloadUser = {
+  kind: 'user';
+  reportedUserSub?: string;
+  reason: string;
+  details?: string;
+  conversationId?: string;
+};
+
+type ReportPayloadMessage = {
+  kind: 'message';
+  conversationId: string;
+  messageCreatedAt?: string | number;
+  reportedUserSub?: string;
+  reason: string;
+  details?: string;
+  messagePreview?: string;
+};
+
+type ReportPayload = ReportPayloadUser | ReportPayloadMessage;
+
 export function useChatReport(opts: { apiUrl: string | null | undefined; activeConversationId: string }) {
   const { apiUrl, activeConversationId } = opts;
 
@@ -75,15 +105,23 @@ export function useChatReport(opts: { apiUrl: string | null | undefined; activeC
     const messagePreview = (() => {
       const t = nowTargetMsg;
       if (!t) return '';
-      if ((t as any).deletedAt) return '';
-      if (typeof (t as any).decryptedText === 'string' && String((t as any).decryptedText).trim()) {
-        return String((t as any).decryptedText).trim();
+      const rec = t as unknown as Record<string, unknown>;
+      if (rec.deletedAt) return '';
+      if (typeof rec.decryptedText === 'string' && rec.decryptedText.trim()) {
+        return rec.decryptedText.trim();
       }
-      if (typeof (t as any).text === 'string' && String((t as any).text).trim()) return String((t as any).text).trim();
+      if (typeof rec.text === 'string' && rec.text.trim()) return rec.text.trim();
       return '';
     })();
 
-    const payload =
+    const nowTargetMsgRec = nowTargetMsg as unknown as Record<string, unknown>;
+    const messageCreatedAtRaw = nowTargetMsgRec?.createdAt;
+    const messageCreatedAt =
+      typeof messageCreatedAtRaw === 'string' || typeof messageCreatedAtRaw === 'number' ? messageCreatedAtRaw : undefined;
+    const reportedUserSub =
+      typeof nowTargetMsgRec?.userSub === 'string' ? (nowTargetMsgRec.userSub as string) : undefined;
+
+    const payload: ReportPayload =
       reportKind === 'user'
         ? {
             kind: 'user',
@@ -95,21 +133,21 @@ export function useChatReport(opts: { apiUrl: string | null | undefined; activeC
         : {
             kind: 'message',
             conversationId: activeConversationId,
-            messageCreatedAt: (nowTargetMsg as any)?.createdAt,
-            reportedUserSub: typeof (nowTargetMsg as any)?.userSub === 'string' ? (nowTargetMsg as any).userSub : undefined,
+            messageCreatedAt,
+            reportedUserSub,
             reason: `user_report:${category}`,
             details: details ? details.slice(0, 900) : undefined,
             messagePreview: messagePreview ? messagePreview.slice(0, 400) : undefined,
           };
 
     // Validate required fields client-side so we can show a friendly message.
-    if (reportKind === 'message') {
-      if (!(payload as any).conversationId || !(payload as any).messageCreatedAt) {
+    if (payload.kind === 'message') {
+      if (!payload.conversationId || !payload.messageCreatedAt) {
         setReportNotice({ type: 'error', message: 'Report failed: missing message reference.' });
         return;
       }
     } else {
-      if (!(payload as any).reportedUserSub && !(payload as any).details) {
+      if (!payload.reportedUserSub && !payload.details) {
         setReportNotice({ type: 'error', message: 'Report failed: missing user. Try again or add an optional note.' });
         return;
       }
@@ -131,8 +169,8 @@ export function useChatReport(opts: { apiUrl: string | null | undefined; activeC
       setTimeout(() => {
         setReportOpen(false);
       }, 650);
-    } catch (e: any) {
-      setReportNotice({ type: 'error', message: e?.message ?? 'Report failed: unknown error.' });
+    } catch (e: unknown) {
+      setReportNotice({ type: 'error', message: `Report failed: ${getErrorMessage(e)}.` });
     } finally {
       setReportSubmitting(false);
     }

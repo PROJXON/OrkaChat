@@ -12,7 +12,7 @@ export function GuestGlobalBottomBar({
   isWideUi: boolean;
   bottomInset: number;
   requestSignIn: () => void;
-  styles: any;
+  styles: typeof import('../../../screens/GuestGlobalScreen.styles').styles;
 }): React.JSX.Element {
   return (
     <View

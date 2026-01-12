@@ -3,6 +3,19 @@ import type { RefObject } from 'react';
 
 import type { ChatMessage } from './types';
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
 export function useChatMessageOps(opts: {
   wsRef: RefObject<WebSocket | null>;
   activeConversationId: string;
@@ -85,8 +98,8 @@ export function useChatMessageOps(opts: {
         ),
       );
       closeMessageActions();
-    } catch (e: any) {
-      showAlert('Delete failed', e?.message ?? 'Failed to delete message');
+    } catch (e: unknown) {
+      showAlert('Delete failed', getErrorMessage(e) || 'Failed to delete message');
     }
   }, [activeConversationId, closeMessageActions, messageActionTarget, setError, setMessages, showAlert, wsRef]);
 

@@ -1,12 +1,13 @@
 import * as React from 'react';
 import { buildAiSummaryTranscript } from './aiSummaryContext';
+import type { ChatMessage } from './types';
 
 export function useAiSummary(opts: {
   apiUrl: string | null | undefined;
   activeConversationId: string;
-  peer: any;
-  messages: any[];
-  fetchAuthSession: () => Promise<any>;
+  peer: unknown;
+  messages: ChatMessage[];
+  fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
   showAlert: (title: string, body: string) => void;
   openInfo: (title: string, body: string) => void;
 }) {
@@ -66,10 +67,13 @@ export function useAiSummary(opts: {
         throw new Error(`AI summary failed (${resp.status}): ${bodyText || 'no body'}`);
       }
 
-      const data = await resp.json().catch(() => ({}));
-      setText(String((data as any).summary ?? ''));
-    } catch (e: any) {
-      showAlert('Summary failed', e?.message ?? 'Unknown error');
+      const data: unknown = await resp.json().catch(() => ({}));
+      const rec = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+      const summary = typeof rec.summary === 'string' ? rec.summary : String(rec.summary ?? '');
+      setText(summary);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Unknown error';
+      showAlert('Summary failed', msg);
       setOpen(false);
     } finally {
       setLoading(false);

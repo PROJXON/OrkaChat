@@ -1,5 +1,8 @@
 import * as React from 'react';
 import type { RefObject } from 'react';
+import type { ChannelMember } from './useChannelRoster';
+
+type ChannelUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
 
 export function useChannelMembersModalActions(opts: {
   uiConfirm: (
@@ -9,8 +12,8 @@ export function useChannelMembersModalActions(opts: {
   ) => Promise<boolean>;
   wsRef: RefObject<WebSocket | null>;
   activeConversationId: string;
-  channelUpdate: (op: any, args: any) => Promise<any>;
-  setChannelMembers: React.Dispatch<React.SetStateAction<any[]>>;
+  channelUpdate: ChannelUpdateFn;
+  setChannelMembers: React.Dispatch<React.SetStateAction<ChannelMember[]>>;
   setChannelMembersOpen: (v: boolean) => void;
 }) {
   const { uiConfirm, wsRef, activeConversationId, channelUpdate, setChannelMembers, setChannelMembersOpen } = opts;
@@ -65,7 +68,7 @@ export function useChannelMembersModalActions(opts: {
       // Optimistic UI so "last admin" guard reflects immediately.
       setChannelMembers((prev) =>
         (Array.isArray(prev) ? prev : []).map((m) =>
-          m && String((m as any).memberSub) === String(memberSub) ? { ...(m as any), isAdmin: !isAdmin } : m,
+          m && String(m.memberSub) === String(memberSub) ? { ...m, isAdmin: !isAdmin } : m,
         ),
       );
       void channelUpdate(isAdmin ? 'demoteAdmin' : 'promoteAdmin', { memberSub });

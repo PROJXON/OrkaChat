@@ -44,23 +44,6 @@ export function GuestMessageRow({
     String(item?.user || '')
       .trim()
       .toLowerCase() === 'system';
-  if (isSystem) {
-    return (
-      <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-        <Text
-          style={{
-            color: isDark ? '#a7a7b4' : '#666',
-            fontStyle: 'italic',
-            fontWeight: '700',
-            textAlign: 'center',
-            paddingHorizontal: 18,
-          }}
-        >
-          {String(item?.text || '').trim() || '-'}
-        </Text>
-      </View>
-    );
-  }
 
   const AVATAR_TOP_OFFSET = 4;
   const [thumbUrl, setThumbUrl] = React.useState<string | null>(null);
@@ -68,12 +51,13 @@ export function GuestMessageRow({
   const [thumbAspect, setThumbAspect] = React.useState<number | null>(null);
   const [thumbUriByPath, setThumbUriByPath] = React.useState<Record<string, string>>({});
 
-  const mediaList = item.mediaList ?? (item.media ? [item.media] : []);
+  const mediaList = React.useMemo(() => item.mediaList ?? (item.media ? [item.media] : []), [item.mediaList, item.media]);
   const primaryMedia = mediaList.length ? mediaList[0] : null;
   const extraCount = Math.max(0, mediaList.length - 1);
 
   // For multi-media previews, resolve thumb URLs for each page so the carousel can render immediately.
   React.useEffect(() => {
+    if (isSystem) return;
     if (!Array.isArray(mediaList) || mediaList.length <= 1) return;
     let cancelled = false;
     (async () => {
@@ -94,9 +78,10 @@ export function GuestMessageRow({
     return () => {
       cancelled = true;
     };
-  }, [mediaList, resolvePathUrl, thumbUriByPath]);
+  }, [isSystem, mediaList, resolvePathUrl, thumbUriByPath]);
 
   React.useEffect(() => {
+    if (isSystem) return;
     let cancelled = false;
     (async () => {
       const preferredPath = primaryMedia?.thumbPath || primaryMedia?.path;
@@ -107,9 +92,10 @@ export function GuestMessageRow({
     return () => {
       cancelled = true;
     };
-  }, [primaryMedia?.path, primaryMedia?.thumbPath, resolvePathUrl]);
+  }, [isSystem, primaryMedia?.path, primaryMedia?.thumbPath, resolvePathUrl]);
 
   React.useEffect(() => {
+    if (isSystem) return;
     if (!thumbUrl) return;
     let cancelled = false;
     Image.getSize(
@@ -126,7 +112,7 @@ export function GuestMessageRow({
     return () => {
       cancelled = true;
     };
-  }, [thumbUrl]);
+  }, [isSystem, thumbUrl]);
 
   const hasMedia = !!primaryMedia?.path;
   const ts = formatGuestTimestamp(item.createdAt);
@@ -177,7 +163,21 @@ export function GuestMessageRow({
     Math.floor((viewportWidth - Math.max(0, avatarGutter)) * TEXT_BUBBLE_MAX_WIDTH_FRACTION),
   );
 
-  return (
+  return isSystem ? (
+    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+      <Text
+        style={{
+          color: isDark ? '#a7a7b4' : '#666',
+          fontStyle: 'italic',
+          fontWeight: '700',
+          textAlign: 'center',
+          paddingHorizontal: 18,
+        }}
+      >
+        {String(item?.text || '').trim() || '-'}
+      </Text>
+    </View>
+  ) : (
     <View style={[styles.msgRow]}>
       {showAvatar ? (
         <View style={[styles.avatarGutter, { width: avatarSize, marginTop: AVATAR_TOP_OFFSET }]}>
@@ -234,7 +234,7 @@ export function GuestMessageRow({
             {mediaList.length > 1 ? (
               <MediaStackCarousel
                 messageId={item.id}
-                mediaList={mediaList as any}
+                mediaList={mediaList}
                 width={capped.w}
                 height={capped.h}
                 isDark={isDark}

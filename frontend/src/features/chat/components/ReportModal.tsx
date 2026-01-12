@@ -3,6 +3,9 @@ import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text
 import type { CdnUrlCacheApi } from '../../../hooks/useCdnUrlCache';
 import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import { previewLabelForMedia } from '../../../utils/mediaKinds';
+import type { MediaItem } from '../../../types/media';
+import type { ChatMessage } from '../types';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 
 type ReportNotice = { type: 'success' | 'error'; message: string };
 
@@ -17,7 +20,7 @@ function MiniToggle({
   onValueChange: (v: boolean) => void;
   disabled?: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
 }): React.JSX.Element {
   return (
     <Pressable
@@ -50,12 +53,12 @@ function MiniToggle({
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   submitting: boolean;
   notice: ReportNotice | null;
   reportKind: 'message' | 'user';
   reportCategory: string;
-  reportTargetMessage: any | null;
+  reportTargetMessage: ChatMessage | null;
   reportTargetUserSub: string | null | undefined;
   reportTargetUserLabel: string | null | undefined;
   reportDetails: string;
@@ -105,10 +108,10 @@ export function ReportModal({
 
       // Only attempt to parse plaintext/global messages for thumbs; encrypted attachments are .enc and not CDN-previewable here.
       const env = !t.encrypted && !t.groupEncrypted ? parseChatEnvelope(rawText) : null;
-      const envMediaList = env ? normalizeChatMediaList(env.media) : [];
-      const fallbackList = Array.isArray(t.mediaList) && t.mediaList.length ? t.mediaList : t.media ? [t.media] : [];
-      const previewMediaList = (envMediaList.length ? envMediaList : fallbackList) as any[];
-      const media = (previewMediaList.length ? previewMediaList[0] : null) as any;
+      const envMediaList: MediaItem[] = env ? normalizeChatMediaList(env.media) : [];
+      const fallbackList: MediaItem[] = Array.isArray(t.mediaList) && t.mediaList.length ? t.mediaList : t.media ? [t.media] : [];
+      const previewMediaList: MediaItem[] = envMediaList.length ? envMediaList : fallbackList;
+      const media: MediaItem | undefined = previewMediaList[0];
       const thumbPath = String(media?.thumbPath || media?.path || '').trim();
       if (!thumbPath) return;
       if (thumbPath.includes('.enc')) return;
@@ -260,17 +263,15 @@ export function ReportModal({
                     // Global/channel media messages often store a JSON chat envelope in `text`.
                     // If we render that raw string, the report preview becomes unreadable.
                     const env = !t.encrypted && !t.groupEncrypted ? parseChatEnvelope(rawText) : null;
-                    const envMediaList = env ? normalizeChatMediaList(env.media) : [];
+                    const envMediaList: MediaItem[] = env ? normalizeChatMediaList(env.media) : [];
                     const fallbackList =
                       Array.isArray(t.mediaList) && t.mediaList.length ? t.mediaList : t.media ? [t.media] : [];
-                    const previewMediaList = (envMediaList.length ? envMediaList : fallbackList) as any[];
-                    const media = (previewMediaList.length ? previewMediaList[0] : null) as any;
+                    const previewMediaList: MediaItem[] = envMediaList.length ? envMediaList : fallbackList;
+                    const media: MediaItem | undefined = previewMediaList[0];
                     const mediaCount = previewMediaList.length;
                     const mediaFileNames = (() => {
                       const names = previewMediaList
-                        .map((m) =>
-                          m && typeof (m as any).fileName === 'string' ? String((m as any).fileName).trim() : '',
-                        )
+                        .map((m) => (typeof m.fileName === 'string' ? String(m.fileName).trim() : ''))
                         .filter(Boolean);
                       // Keep order, de-dupe.
                       const seen = new Set<string>();
@@ -292,7 +293,7 @@ export function ReportModal({
 
                     const mediaLabel = (() => {
                       return previewLabelForMedia({
-                        kind: media?.kind === 'image' || media?.kind === 'video' || media?.kind === 'file' ? media.kind : 'file',
+                        kind: media?.kind ?? 'file',
                         contentType: typeof media?.contentType === 'string' ? media.contentType : undefined,
                       });
                     })();

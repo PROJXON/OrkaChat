@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Animated, Platform, Text, View } from 'react-native';
+import { Animated, Platform, Text, TextInput, View } from 'react-native';
 import { MediaViewerModal } from '../../../components/MediaViewerModal';
 import { AiConsentModal } from './AiConsentModal';
 import { AiHelperModal } from './AiHelperModal';
@@ -19,10 +19,109 @@ import { ReportModal } from './ReportModal';
 import { SummaryModal } from './SummaryModal';
 import { TtlPickerModal } from './TtlPickerModal';
 import { InAppCameraModal } from '../../../components/InAppCameraModal';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { InAppCameraCapture } from '../../../components/InAppCameraModal';
+import type { MediaViewerState } from '../../../components/MediaViewerModal';
+import type { MemberRow } from '../../../types/members';
+import type { ChatMessage } from '../types';
+
+type UiConfirm = React.ComponentProps<typeof MessageActionMenuModal>['uiConfirm'];
+type ReportCdnMedia = React.ComponentProps<typeof ReportModal>['cdnMedia'];
+
+type AiHelperController = {
+  open: boolean;
+  thread: React.ComponentProps<typeof AiHelperModal>['thread'];
+  answer: string;
+  suggestions: string[];
+  instruction: string;
+  loading: boolean;
+  mode: 'ask' | 'reply';
+  setInstruction: (t: string) => void;
+  setMode: (m: 'ask' | 'reply') => void;
+  submit: () => void;
+  resetHelperThread: () => void;
+  closeHelper: () => void;
+  scrollRef: React.ComponentProps<typeof AiHelperModal>['scrollRef'];
+  scrollContentRef: React.ComponentProps<typeof AiHelperModal>['scrollContentRef'];
+  lastTurnRef: React.ComponentProps<typeof AiHelperModal>['lastTurnRef'];
+  lastTurnLayoutRef: React.ComponentProps<typeof AiHelperModal>['lastTurnLayoutRef'];
+  scrollViewportHRef: React.ComponentProps<typeof AiHelperModal>['scrollViewportHRef'];
+  scrollContentHRef: React.ComponentProps<typeof AiHelperModal>['scrollContentHRef'];
+  lastAutoScrollAtRef: React.ComponentProps<typeof AiHelperModal>['lastAutoScrollAtRef'];
+  lastAutoScrollContentHRef: React.ComponentProps<typeof AiHelperModal>['lastAutoScrollContentHRef'];
+  autoScrollRetryRef: React.ComponentProps<typeof AiHelperModal>['autoScrollRetryRef'];
+  autoScrollIntentRef: React.ComponentProps<typeof AiHelperModal>['autoScrollIntentRef'];
+  autoScroll: () => void;
+};
+
+type ReportController = {
+  reportOpen: boolean;
+  reportSubmitting: boolean;
+  reportNotice: React.ComponentProps<typeof ReportModal>['notice'];
+  reportKind: React.ComponentProps<typeof ReportModal>['reportKind'];
+  reportCategory: React.ComponentProps<typeof ReportModal>['reportCategory'];
+  reportTargetMessage: React.ComponentProps<typeof ReportModal>['reportTargetMessage'];
+  reportTargetUserSub: React.ComponentProps<typeof ReportModal>['reportTargetUserSub'];
+  reportTargetUserLabel: React.ComponentProps<typeof ReportModal>['reportTargetUserLabel'];
+  reportDetails: React.ComponentProps<typeof ReportModal>['reportDetails'];
+  closeReportModal: () => void;
+  submitReport: () => void;
+  setReportKind: (k: React.ComponentProps<typeof ReportModal>['reportKind']) => void;
+  setReportCategory: (c: React.ComponentProps<typeof ReportModal>['reportCategory']) => void;
+  setReportDetails: (t: string) => void;
+  setReportTargetUserSub: (sub: string) => void;
+  setReportTargetUserLabel: (label: string) => void;
+  setReportNotice: (n: React.ComponentProps<typeof ReportModal>['notice']) => void;
+};
+
+type MessageActionMenuController = {
+  open: boolean;
+  anchor: React.ComponentProps<typeof MessageActionMenuModal>['anchor'];
+  anim: React.ComponentProps<typeof MessageActionMenuModal>['anim'];
+  measuredH?: number;
+  measuredHRef: React.ComponentProps<typeof MessageActionMenuModal>['measuredHRef'];
+  onMeasuredH: React.ComponentProps<typeof MessageActionMenuModal>['onMeasuredH'];
+  target: ChatMessage | null;
+  closeMenu: () => void;
+};
+
+type MessageOps = {
+  sendReaction: (msg: ChatMessage, emoji: string) => void;
+  openReactionPicker: (msg: ChatMessage) => void;
+  setCipherText: (t: string) => void;
+  setCipherOpen: (v: boolean) => void;
+  beginReply: (msg: ChatMessage) => void;
+  beginInlineEdit: (msg: ChatMessage) => void;
+  setInlineEditAttachmentMode: (m: 'keep' | 'replace' | 'remove') => void;
+  handlePickMedia: () => void;
+  clearPendingMedia: () => void;
+  deleteForMe: (msg: ChatMessage) => void | Promise<void>;
+  sendDeleteForEveryone: () => void | Promise<void>;
+  openReportModalForMessage: (msg: ChatMessage) => void;
+};
+
+type ReactionInfoController = {
+  open: boolean;
+  emoji: string;
+  subsSorted: string[];
+  target: ChatMessage | null;
+  closeReactionInfo: () => void;
+};
+
+type ViewerController = {
+  open: boolean;
+  state: MediaViewerState;
+  setState: React.Dispatch<React.SetStateAction<MediaViewerState>>;
+  saving?: boolean;
+  saveToDevice: () => void | Promise<void>;
+  close: () => void;
+};
+
+// Ops are validated server-side; keep this surface flexible.
 
 export type ChatScreenOverlaysProps = {
   isDark: boolean;
-  styles: any;
+  styles: ChatScreenStyles;
   insets: { top: number; bottom: number };
 
   // AI summary + consent
@@ -42,20 +141,20 @@ export type ChatScreenOverlaysProps = {
     open: boolean;
     setOpen: (v: boolean) => void;
     showAlert: (title: string, body: string) => void;
-    onCaptured: (cap: any) => void;
+    onCaptured: (cap: InAppCameraCapture) => void;
   };
 
   // AI helper
-  aiHelper: any;
+  aiHelper: AiHelperController;
   copyToClipboard: (text: string) => Promise<void>;
   setInput: (t: string) => void;
 
   // Reporting
-  report: any;
-  cdnMedia: any;
+  report: ReportController;
+  cdnMedia: ReportCdnMedia;
 
   // Message actions + reactions
-  messageActionMenu: any;
+  messageActionMenu: MessageActionMenuController;
   myUserId: string | null | undefined;
   myPublicKey: string | null | undefined;
   displayName: string;
@@ -67,17 +166,17 @@ export type ChatScreenOverlaysProps = {
   quickReactions: string[];
   blockedSubsSet: Set<string>;
   onBlockUserSub?: (blockedSub: string, label?: string) => void | Promise<void>;
-  uiConfirm: any;
-  messageOps: any;
+  uiConfirm: UiConfirm;
+  messageOps: MessageOps;
 
   reactionPickerOpen: boolean;
-  reactionPickerTarget: any;
+  reactionPickerTarget: ChatMessage | null;
   emojis: string[];
   closeReactionPicker: () => void;
 
   cipher: { open: boolean; text: string; setOpen: (v: boolean) => void; setText: (t: string) => void };
 
-  reactionInfo: any;
+  reactionInfo: ReactionInfoController;
   nameBySub: Record<string, string>;
 
   // Info modal
@@ -99,27 +198,35 @@ export type ChatScreenOverlaysProps = {
   groupActionBusy: boolean;
   groupNameDraft: string;
   setGroupNameDraft: (v: string) => void;
-  groupNameModalActions: any;
+  groupNameModalActions: { onDefault: () => void | Promise<void>; onSave: () => void | Promise<void>; onCancel: () => void };
 
   groupMembersOpen: boolean;
-  groupMeta: any;
+  groupMeta: { meIsAdmin?: boolean } | null;
   groupAddMembersDraft: string;
   setGroupAddMembersDraft: (v: string) => void;
-  groupMembersModalActions: any;
-  groupAddMembersInputRef: React.RefObject<any>;
-  groupMembersVisible: any[];
+  groupMembersModalActions: {
+    onAddMembers: () => void | Promise<void>;
+    onBan: (args: { memberSub: string; label: string }) => void | Promise<void>;
+    onClose: () => void;
+  };
+  groupAddMembersInputRef: React.MutableRefObject<TextInput | null>;
+  groupMembersVisible: MemberRow[];
   kickCooldownUntilBySub: Record<string, number>;
   avatarUrlByPath: Record<string, string>;
   groupKick: (memberSub: string) => void;
-  groupUpdate: (op: any, args: any) => Promise<void> | void;
+  groupUpdate: (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
 
   // Channel
   channelMembersOpen: boolean;
-  channelMembersVisible: any[];
-  channelMeta: any;
+  channelMembersVisible: MemberRow[];
+  channelMeta: { meIsAdmin?: boolean; name?: string } | null;
   channelActionBusy: boolean;
-  channelMembersModalActions: any;
-  channelUpdate: (op: any, args: any) => Promise<void> | void;
+  channelMembersModalActions: {
+    onBan: (args: { memberSub: string; label: string }) => void | Promise<void>;
+    onToggleAdmin: (args: { memberSub: string; isAdmin: boolean }) => void;
+    onClose: () => void;
+  };
+  channelUpdate: (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
   channelKick: (memberSub: string) => void;
 
   channelAboutOpen: boolean;
@@ -127,21 +234,27 @@ export type ChatScreenOverlaysProps = {
   channelAboutDraft: string;
   setChannelAboutDraft: (v: string) => void;
   setChannelAboutEdit: (v: boolean) => void;
-  channelAboutModalActions: any;
+  channelAboutModalActions: {
+    onRequestClose: () => void;
+    onBackdropPress: () => void;
+    onSave: () => void | Promise<void>;
+    onCancelEdit: () => void;
+    onGotIt: () => void;
+  };
   requestOpenLink: (url: string) => void;
 
   channelNameEditOpen: boolean;
   channelNameDraft: string;
   setChannelNameDraft: (v: string) => void;
-  channelNameModalActions: any;
+  channelNameModalActions: { onSave: () => void | Promise<void>; onCancel: () => void };
 
   channelPasswordEditOpen: boolean;
   channelPasswordDraft: string;
   setChannelPasswordDraft: (v: string) => void;
-  channelPasswordModalActions: any;
+  channelPasswordModalActions: { onSave: () => void | Promise<void>; onCancel: () => void };
 
   // Viewer
-  viewer: any;
+  viewer: unknown;
   dmFileUriByPath: Record<string, string>;
 
   // Confirm link modal (React node)
@@ -149,7 +262,7 @@ export type ChatScreenOverlaysProps = {
 
   // Toast
   toast: { message: string; kind?: 'success' | 'error' } | null;
-  toastAnim: any;
+  toastAnim: Animated.Value;
 };
 
 export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.Element {
@@ -235,6 +348,15 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
     toastAnim,
   } = props;
 
+  const viewerTyped = viewer as {
+    open: boolean;
+    state: unknown;
+    setState: unknown;
+    saving?: boolean;
+    saveToDevice: () => void | Promise<void>;
+    close: () => void;
+  };
+
   return (
     <>
       <SummaryModal
@@ -317,56 +439,56 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
       />
 
       <ReportModal
-        visible={!!report?.reportOpen}
+        visible={report.reportOpen}
         isDark={isDark}
         styles={styles}
-        submitting={!!report?.reportSubmitting}
-        notice={report?.reportNotice}
-        reportKind={report?.reportKind}
-        reportCategory={report?.reportCategory}
-        reportTargetMessage={report?.reportTargetMessage}
-        reportTargetUserSub={report?.reportTargetUserSub}
-        reportTargetUserLabel={report?.reportTargetUserLabel}
-        reportDetails={report?.reportDetails}
+        submitting={report.reportSubmitting}
+        notice={report.reportNotice}
+        reportKind={report.reportKind}
+        reportCategory={report.reportCategory}
+        reportTargetMessage={report.reportTargetMessage}
+        reportTargetUserSub={report.reportTargetUserSub}
+        reportTargetUserLabel={report.reportTargetUserLabel}
+        reportDetails={report.reportDetails}
         cdnMedia={cdnMedia}
-        onClose={report?.closeReportModal}
-        onSubmit={report?.submitReport}
+        onClose={report.closeReportModal}
+        onSubmit={report.submitReport}
         onToggleKind={(next) => {
           if (next) {
             // Switch to reporting the user (hydrate from the message if needed)
-            if (report?.reportTargetUserSub) {
-              report?.setReportKind?.('user');
+            if (report.reportTargetUserSub) {
+              report.setReportKind('user');
               return;
             }
-            const sub = report?.reportTargetMessage?.userSub ? String(report.reportTargetMessage.userSub) : '';
+            const sub = report.reportTargetMessage?.userSub ? String(report.reportTargetMessage.userSub) : '';
             if (sub) {
-              report?.setReportTargetUserSub?.(sub);
-              report?.setReportTargetUserLabel?.(String(report?.reportTargetMessage?.user || '').trim());
-              report?.setReportKind?.('user');
+              report.setReportTargetUserSub(sub);
+              report.setReportTargetUserLabel(String(report.reportTargetMessage?.user || '').trim());
+              report.setReportKind('user');
               return;
             }
-            report?.setReportNotice?.({ type: 'error', message: 'Cannot report user: no user was found for this report.' });
-            report?.setReportKind?.('message');
+            report.setReportNotice({ type: 'error', message: 'Cannot report user: no user was found for this report.' });
+            report.setReportKind('message');
             return;
           }
           // Switch back to reporting the message (if we have one)
-          if (report?.reportTargetMessage) report?.setReportKind?.('message');
+          if (report.reportTargetMessage) report.setReportKind('message');
         }}
-        onSelectCategory={(key) => report?.setReportCategory?.(key)}
-        onChangeDetails={(t) => report?.setReportDetails?.(t)}
+        onSelectCategory={(key) => report.setReportCategory(key)}
+        onChangeDetails={(t) => report.setReportDetails(t)}
       />
 
       <MessageActionMenuModal
-        visible={!!messageActionMenu?.open}
+        visible={messageActionMenu.open}
         isDark={isDark}
         styles={styles}
         insets={{ top: insets.top, bottom: insets.bottom }}
-        anchor={messageActionMenu?.anchor}
-        anim={messageActionMenu?.anim}
-        measuredH={messageActionMenu?.measuredH ?? 0}
-        measuredHRef={messageActionMenu?.measuredHRef}
-        onMeasuredH={messageActionMenu?.onMeasuredH}
-        target={messageActionMenu?.target}
+        anchor={messageActionMenu.anchor}
+        anim={messageActionMenu.anim}
+        measuredH={messageActionMenu.measuredH ?? 0}
+        measuredHRef={messageActionMenu.measuredHRef}
+        onMeasuredH={messageActionMenu.onMeasuredH}
+        target={messageActionMenu.target}
         myUserId={myUserId}
         myPublicKey={myPublicKey}
         displayName={displayName}
@@ -380,7 +502,7 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         onBlockUserSub={onBlockUserSub}
         uiConfirm={uiConfirm}
         showAlert={camera.showAlert}
-        close={messageActionMenu?.closeMenu}
+        close={messageActionMenu.closeMenu}
         sendReaction={messageOps.sendReaction}
         openReactionPicker={messageOps.openReactionPicker}
         setCipherText={messageOps.setCipherText}
@@ -485,7 +607,7 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         onChangeAddMembersDraft={setGroupAddMembersDraft}
         onAddMembers={groupMembersModalActions.onAddMembers}
         addMembersInputRef={groupAddMembersInputRef}
-        members={groupMembersVisible as any}
+        members={groupMembersVisible}
         mySub={typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : ''}
         kickCooldownUntilBySub={kickCooldownUntilBySub}
         avatarUrlByPath={avatarUrlByPath}
@@ -500,7 +622,7 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         visible={channelMembersOpen}
         isDark={isDark}
         styles={styles}
-        members={channelMembersVisible as any}
+        members={channelMembersVisible}
         mySub={typeof myUserId === 'string' ? myUserId : ''}
         meIsAdmin={!!channelMeta?.meIsAdmin}
         actionBusy={channelActionBusy}
@@ -558,13 +680,13 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
       />
 
       <MediaViewerModal
-        open={viewer.open}
-        viewerState={viewer.state as any}
-        setViewerState={viewer.setState as any}
+        open={viewerTyped.open}
+        viewerState={viewerTyped.state as unknown as MediaViewerState}
+        setViewerState={viewerTyped.setState as unknown as React.Dispatch<React.SetStateAction<MediaViewerState>>}
         dmFileUriByPath={dmFileUriByPath}
-        saving={viewer.saving}
-        onSave={() => void viewer.saveToDevice()}
-        onClose={viewer.close}
+        saving={viewerTyped.saving}
+        onSave={() => void viewerTyped.saveToDevice()}
+        onClose={viewerTyped.close}
       />
 
       {toast ? (

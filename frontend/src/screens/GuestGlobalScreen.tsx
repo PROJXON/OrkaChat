@@ -18,7 +18,6 @@ import { useWebPinnedList } from '../hooks/useWebPinnedList';
 import { usePublicAvatarProfiles } from '../hooks/usePublicAvatarProfiles';
 import { useResolveCdnPathUrl } from '../hooks/useResolveCdnPathUrl';
 import { GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
-import type { MediaItem } from '../types/media';
 import { useUiPromptHelpers } from '../hooks/useUiPromptHelpers';
 import { useGlobalAboutOncePerVersion } from '../features/globalAbout/useGlobalAboutOncePerVersion';
 import { useGuestChannelHistory } from '../features/guest/useGuestChannelHistory';
@@ -37,19 +36,20 @@ import { GuestGlobalScreenOverlays } from '../features/guest/components/GuestGlo
 import { GuestGlobalHeaderRow } from '../features/guest/components/GuestGlobalHeaderRow';
 import { GuestGlobalBottomBar } from '../features/guest/components/GuestGlobalBottomBar';
 import { GuestGlobalMessageList } from '../features/guest/components/GuestGlobalMessageList';
+import type { MediaViewerState } from '../components/MediaViewerModal';
 
 export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const { isWide: isWideUi, viewportWidth } = useViewportWidth(windowWidth, { wideBreakpointPx: 900, maxContentWidthPx: 1040 });
-  const { theme, setTheme, isDark } = useStoredTheme({});
+  const { theme: _theme, setTheme, isDark } = useStoredTheme({});
   const onSetTheme = React.useCallback((next: 'light' | 'dark') => setTheme(next), [setTheme]);
 
   // --- Guest onboarding (Option A + C) ---
   // Global About is code-defined + versioned. Show once per version; About menu reopens it.
   const { globalAboutOpen, setGlobalAboutOpen, dismissGlobalAbout } = useGlobalAboutOncePerVersion(GLOBAL_ABOUT_VERSION);
   const [menuOpen, setMenuOpen] = React.useState<boolean>(false);
-  const menu = useMenuAnchor();
+  const menu = useMenuAnchor<React.ElementRef<typeof Pressable>>();
 
   // theme persistence handled by useStoredTheme
 
@@ -71,7 +71,7 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
     loading,
     refreshing,
     error,
-    setError,
+    setError: _setError,
     historyHasMore,
     historyLoading,
     loadOlderHistory,
@@ -95,16 +95,16 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
     // Guest already passes the exact ordering and names map from the renderer.
   });
 
-  const viewer = useMediaViewer<{
-    mode: 'global';
-    index: number;
-    globalItems: Array<{ url: string; kind: 'image' | 'video' | 'file'; fileName?: string }>;
-  }>({
+  const viewer = useMediaViewer<NonNullable<MediaViewerState>>({
     getSaveItem: (vs) => {
-      if (!vs || (vs as any).mode !== 'global') return null;
-      const item = (vs as any).globalItems?.[(vs as any).index] ?? null;
+      if (!vs) return null;
+      if (vs.mode !== 'global') return null;
+      const items = Array.isArray(vs.globalItems) ? vs.globalItems : [];
+      const idx = typeof vs.index === 'number' && Number.isFinite(vs.index) ? vs.index : -1;
+      const item = idx >= 0 ? items[idx] : null;
       if (!item?.url) return null;
-      return { url: String(item.url), kind: item.kind, fileName: item.fileName };
+      const kind = item.kind === 'video' || item.kind === 'image' || item.kind === 'file' ? item.kind : 'file';
+      return { url: String(item.url), kind, fileName: typeof item.fileName === 'string' ? item.fileName : undefined };
     },
     onError: (msg) => {
       // Keep UX aligned with signed-in viewer: don't interrupt with alerts.
@@ -133,7 +133,7 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
 
   const messageListData = useWebSafeInvertedListData(messages);
 
-  const webPinned = useWebPinnedList({
+  const webPinned = useWebPinnedList<(typeof messages)[number]>({
     enabled: Platform.OS === 'web',
     itemCount: messages.length,
     canLoadMore: () => !!API_URL && !!historyHasMore && !historyLoading,
@@ -159,13 +159,14 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
     [reactionInfo],
   );
 
-  const openViewer = useOpenGlobalViewer({
+  const openViewer = useOpenGlobalViewer<NonNullable<MediaViewerState>>({
     // In guest mode we resolve the tapped item's path directly (no fallback path available here).
     resolveUrlForPath: (path) => resolvePathUrl(String(path)),
     includeFilesInViewer: false,
     openExternalIfFile: true,
     openExternalUrl: (url) => Linking.openURL(url),
     viewer,
+    buildGlobalState: ({ index, items }) => ({ mode: 'global' as const, index, globalItems: items }),
   });
 
   const reactionNameBySub = React.useMemo(() => {
@@ -273,10 +274,10 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
           reactionInfoSubsSorted={reactionInfo.subsSorted}
           reactionNameBySub={reactionNameBySub}
           closeReactionInfo={() => reactionInfo.closeReactionInfo()}
-          guestReactionInfoModalStyles={guestReactionInfoModalStyles as any}
+          guestReactionInfoModalStyles={guestReactionInfoModalStyles}
           viewerOpen={viewer.open}
-          viewerState={viewer.state as any}
-          setViewerState={viewer.setState as any}
+          viewerState={viewer.state}
+          setViewerState={viewer.setState}
           viewerSaving={viewer.saving}
           onSaveViewer={() => void viewer.saveToDevice()}
           closeViewer={viewer.close}
@@ -307,7 +308,7 @@ export default function GuestGlobalScreen({ onSignIn }: { onSignIn: () => void }
           requestOpenLink={requestOpenLink}
           resolvePathUrl={resolvePathUrl}
           openReactionInfo={openReactionInfo}
-          openViewer={openViewer as any}
+          openViewer={openViewer}
         />
 
         {/* Bottom bar CTA (like the chat input row), so messages never render behind it */}

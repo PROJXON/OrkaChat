@@ -1,6 +1,10 @@
 import * as React from 'react';
 
 import type { ChatMessage } from './types';
+import type { MediaItem } from '../../types/media';
+import type { ChatEnvelope, DmMediaEnvelope, GroupMediaEnvelope } from './types';
+import type { ReplyTarget } from './useChatSendActions';
+import { normalizeChatMediaList, normalizeDmMediaItems, normalizeGroupMediaItems, parseChatEnvelope, parseDmMediaEnvelope, parseGroupMediaEnvelope } from './parsers';
 
 export function useChatReplyActions(opts: {
   isDm: boolean;
@@ -9,16 +13,8 @@ export function useChatReplyActions(opts: {
   mediaUrlByPath: Record<string, string>;
   closeMessageActions: () => void;
   focusComposer: () => void;
-  setReplyTarget: (v: any) => void;
-
-  // parsing/normalizing (passed in to avoid deep imports)
-  parseDmMediaEnvelope: (raw: string) => any;
-  parseGroupMediaEnvelope: (raw: string) => any;
-  normalizeDmMediaItems: (env: any) => any[];
-  normalizeGroupMediaItems: (env: any) => any[];
-  parseChatEnvelope: (raw: string) => any;
-  normalizeChatMediaList: (media: any) => any[];
-  getPreviewKind: (m: any) => 'image' | 'video' | 'file';
+  setReplyTarget: (v: ReplyTarget | null) => void;
+  getPreviewKind: (m: MediaItem) => 'image' | 'video' | 'file';
 }) {
   const {
     isDm,
@@ -28,12 +24,6 @@ export function useChatReplyActions(opts: {
     closeMessageActions,
     focusComposer,
     setReplyTarget,
-    parseDmMediaEnvelope,
-    parseGroupMediaEnvelope,
-    normalizeDmMediaItems,
-    normalizeGroupMediaItems,
-    parseChatEnvelope,
-    normalizeChatMediaList,
     getPreviewKind,
   } = opts;
 
@@ -51,22 +41,22 @@ export function useChatReplyActions(opts: {
       try {
         if (target.encrypted || target.groupEncrypted) {
           const plain = String(target.decryptedText || '');
-          const dmEnv = target.encrypted ? parseDmMediaEnvelope(plain) : null;
+          const dmEnv: DmMediaEnvelope | null = target.encrypted ? parseDmMediaEnvelope(plain) : null;
           const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
-          const gEnv = target.groupEncrypted ? parseGroupMediaEnvelope(plain) : null;
+          const gEnv: GroupMediaEnvelope | null = target.groupEncrypted ? parseGroupMediaEnvelope(plain) : null;
           const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
-          const items = (dmItems.length ? dmItems : gItems) as any[];
+          const items = dmItems.length ? dmItems : gItems;
           if (items.length) {
             mediaCount = items.length;
-            const first = (items[0]?.media ?? items[0]) as any;
-            const k = (first?.kind as any) || 'file';
+            const first = items[0]?.media;
+            const k = first?.kind;
             mediaKind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
-            const thumbPath = first?.thumbPath ? String(first.thumbPath) : '';
+            const thumbPath = typeof first?.thumbPath === 'string' ? first.thumbPath : '';
             mediaThumbUri = thumbPath && dmThumbUriByPath[thumbPath] ? dmThumbUriByPath[thumbPath] : null;
           }
         } else {
           const raw = String(target.rawText ?? target.text ?? '');
-          const env = !isDm ? parseChatEnvelope(raw) : null;
+          const env: ChatEnvelope | null = !isDm ? parseChatEnvelope(raw) : null;
           const envList = env ? normalizeChatMediaList(env.media) : [];
           if (envList.length) {
             mediaCount = envList.length;
@@ -85,7 +75,7 @@ export function useChatReplyActions(opts: {
         preview = String(target.decryptedText || encryptedPlaceholder);
       } else {
         const raw = String(target.rawText ?? target.text ?? '');
-        const env = !isDm ? parseChatEnvelope(raw) : null;
+        const env: ChatEnvelope | null = !isDm ? parseChatEnvelope(raw) : null;
         preview = env ? String(env.text || '') : raw;
       }
       preview = preview.replace(/\s+/g, ' ').trim();
@@ -120,12 +110,6 @@ export function useChatReplyActions(opts: {
       getPreviewKind,
       isDm,
       mediaUrlByPath,
-      normalizeChatMediaList,
-      normalizeDmMediaItems,
-      normalizeGroupMediaItems,
-      parseChatEnvelope,
-      parseDmMediaEnvelope,
-      parseGroupMediaEnvelope,
       setReplyTarget,
     ],
   );

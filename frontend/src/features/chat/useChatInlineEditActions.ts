@@ -2,7 +2,25 @@ import * as React from 'react';
 import type { RefObject } from 'react';
 
 import type { MediaItem } from '../../types/media';
-import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1 } from './types';
+import type { EncryptedChatPayloadV1 } from '../../types/crypto';
+import type { PendingMediaItem } from './attachments';
+import type { ChatEnvelope, ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+type DmMediaItem = { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] };
+type GroupMediaItem = { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] };
 
 export function useChatInlineEditActions(opts: {
   wsRef: RefObject<WebSocket | null>;
@@ -24,26 +42,26 @@ export function useChatInlineEditActions(opts: {
   setInlineEditUploading: (v: boolean) => void;
 
   // attachments
-  pendingMediaRef: React.MutableRefObject<any[]>;
+  pendingMediaRef: React.MutableRefObject<PendingMediaItem[]>;
   clearPendingMedia: () => void;
 
   // crypto
   myPrivateKey: string | null | undefined;
   peerPublicKey: string | null | undefined;
-  encryptChatMessageV1: (plaintext: string, myPrivateKey: string, peerPublicKey: string) => any;
-  parseEncrypted: (s: string) => any;
+  encryptChatMessageV1: (plaintext: string, myPrivateKey: string, peerPublicKey: string) => EncryptedChatPayloadV1;
+  parseEncrypted: (s: string) => EncryptedChatPayloadV1 | null;
 
   // parsing/normalizing (passed in to avoid deep imports)
-  parseChatEnvelope: (raw: string) => any;
+  parseChatEnvelope: (raw: string) => ChatEnvelope | null;
   parseDmMediaEnvelope: (raw: string) => DmMediaEnvelope | null;
-  parseGroupMediaEnvelope: (raw: string) => any;
-  normalizeDmMediaItems: (env: any) => Array<{ media: any; wrap: any }>;
-  normalizeGroupMediaItems: (env: any) => Array<{ media: any; wrap: any }>;
+  parseGroupMediaEnvelope: (raw: string) => GroupMediaEnvelope | null;
+  normalizeDmMediaItems: (env: DmMediaEnvelope | null) => DmMediaItem[];
+  normalizeGroupMediaItems: (env: GroupMediaEnvelope | null) => GroupMediaItem[];
 
   // uploads
-  uploadPendingMedia: (media: any) => Promise<MediaItem>;
+  uploadPendingMedia: (media: PendingMediaItem) => Promise<MediaItem>;
   uploadPendingMediaDmEncrypted: (
-    media: any,
+    media: PendingMediaItem,
     conversationKey: string,
     senderPrivateKeyHex: string,
     recipientPublicKeyHex: string,
@@ -80,7 +98,7 @@ export function useChatInlineEditActions(opts: {
     parseDmMediaEnvelope,
     parseGroupMediaEnvelope,
     normalizeDmMediaItems,
-    normalizeGroupMediaItems,
+    normalizeGroupMediaItems: _normalizeGroupMediaItems,
     uploadPendingMedia,
     uploadPendingMediaDmEncrypted,
     openInfo,
@@ -187,7 +205,7 @@ export function useChatInlineEditActions(opts: {
         try {
           const envs: DmMediaEnvelopeV1[] = [];
           for (const item of pendingMediaRef.current) {
-            // eslint-disable-next-line no-await-in-loop
+             
             const dmEnv = await uploadPendingMediaDmEncrypted(
               item,
               activeConversationId,
@@ -246,7 +264,7 @@ export function useChatInlineEditActions(opts: {
         try {
           const uploadedItems: MediaItem[] = [];
           for (const item of pendingMediaRef.current) {
-            // eslint-disable-next-line no-await-in-loop
+             
             const uploaded = await uploadPendingMedia(item);
             uploadedItems.push(uploaded);
           }
@@ -316,8 +334,8 @@ export function useChatInlineEditActions(opts: {
         ),
       );
       cancelInlineEdit();
-    } catch (e: any) {
-      showAlert('Edit failed', e?.message ?? 'Failed to edit message');
+    } catch (e: unknown) {
+      showAlert('Edit failed', getErrorMessage(e) || 'Failed to edit message');
     }
   }, [
     activeConversationId,

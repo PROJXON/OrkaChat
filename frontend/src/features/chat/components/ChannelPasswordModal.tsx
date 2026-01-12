@@ -1,10 +1,12 @@
 import React from 'react';
 import { Modal, Pressable, Text, TextInput, View } from 'react-native';
 
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   busy: boolean;
   draft: string;
   onChangeDraft: (t: string) => void;

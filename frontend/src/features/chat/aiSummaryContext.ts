@@ -4,7 +4,9 @@ export type AiSummaryTranscriptItem = {
   createdAt?: number;
 };
 
-export function buildAiSummaryTranscript(opts: { messages: any[]; maxMessages?: number }): AiSummaryTranscriptItem[] {
+import type { ChatMessage } from './types';
+
+export function buildAiSummaryTranscript(opts: { messages: ChatMessage[]; maxMessages?: number }): AiSummaryTranscriptItem[] {
   const { messages, maxMessages = 50 } = opts;
   // messages[] is newest-first (FlatList inverted), so take the most recent N and send oldest-first.
   const recent = Array.isArray(messages) ? messages.slice(0, maxMessages).slice().reverse() : [];

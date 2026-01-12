@@ -6,7 +6,7 @@ import { AnimatedDots } from '../../../components/AnimatedDots';
 export function GuestChannelPickerModal(props: {
   open: boolean;
   isDark: boolean;
-  styles: any;
+  styles: typeof import('../../../screens/GuestGlobalScreen.styles').styles;
   query: string;
   onChangeQuery: (next: string) => void;
   loading: boolean;

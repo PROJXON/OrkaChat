@@ -6,7 +6,7 @@ type MeasurableNode = {
   measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void;
 };
 
-export function useMenuAnchor<TRef = any>(): {
+export function useMenuAnchor<TRef = unknown>(): {
   ref: React.MutableRefObject<TRef | null>;
   anchor: MenuAnchorRect | null;
   setAnchor: React.Dispatch<React.SetStateAction<MenuAnchorRect | null>>;

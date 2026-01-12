@@ -10,8 +10,9 @@ import { gcm } from '@noble/ciphers/aes.js';
 import type { BackupBlob, EncryptedChatPayloadV1, KeyPair } from '../types/crypto';
 export type { BackupBlob, EncryptedChatPayloadV1, KeyPair } from '../types/crypto';
 
-const PRIVATE_KEY_STORAGE_KEY = '@private_key';
-const PUBLIC_KEY_STORAGE_KEY = '@public_key';
+// Legacy keys (kept for compatibility / reference).
+const _PRIVATE_KEY_STORAGE_KEY = '@private_key';
+const _PUBLIC_KEY_STORAGE_KEY = '@public_key';
 
 export const generateKeypair = async (): Promise<KeyPair> => {
   try {
@@ -28,7 +29,7 @@ export const generateKeypair = async (): Promise<KeyPair> => {
           privateKey: bytesToHex(validPrivatekey),
           publicKey: bytesToHex(publicKeyPoint),
         };
-      } catch (error) {
+      } catch {
         validPrivatekey = getRandomBytes(32);
         attempts++;
       }

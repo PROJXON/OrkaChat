@@ -4,6 +4,7 @@ import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 
+import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 
 type ChatBackgroundState =
@@ -39,7 +40,7 @@ export function MainAppBackgroundModal({
   bgEffectOpacity,
   setBgEffectOpacity,
 }: {
-  styles: any;
+  styles: AppStyles;
   isDark: boolean;
   avatarDefaultColors: string[];
 
@@ -90,7 +91,7 @@ export function MainAppBackgroundModal({
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'] as any,
+        mediaTypes: ['images'] as unknown as never,
         allowsEditing: true,
         aspect: [9, 16],
         quality: 0.9,
@@ -100,8 +101,8 @@ export function MainAppBackgroundModal({
       if (!uri) return;
       setBackgroundDraftImageUri(uri);
       setBackgroundDraft({ mode: 'image', uri, blur: bgEffectBlur, opacity: bgEffectOpacity });
-    } catch (e: any) {
-      setBackgroundError(e?.message || 'Could not pick image.');
+    } catch (e: unknown) {
+      setBackgroundError(e instanceof Error ? e.message : 'Could not pick image.');
     }
   }, [
     bgEffectBlur,
@@ -131,8 +132,8 @@ export function MainAppBackgroundModal({
       setChatBackground(effective);
       await AsyncStorage.setItem('ui:chatBackground', JSON.stringify(effective));
       setBackgroundOpen(false);
-    } catch (e: any) {
-      setBackgroundError(e?.message || 'Failed to save background.');
+    } catch (e: unknown) {
+      setBackgroundError(e instanceof Error ? e.message : 'Failed to save background.');
     } finally {
       backgroundSavingRef.current = false;
       setBackgroundSaving(false);

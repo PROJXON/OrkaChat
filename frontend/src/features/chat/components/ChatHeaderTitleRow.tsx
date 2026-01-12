@@ -1,8 +1,9 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 
 type Props = {
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   isDark: boolean;
   title: string;
   onPressSummarize: () => void;

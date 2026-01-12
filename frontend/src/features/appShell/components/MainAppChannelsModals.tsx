@@ -2,7 +2,10 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 
+import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+
+type ChannelSearchResult = { channelId: string; name: string; hasPassword?: boolean; activeMemberCount?: number };
 
 export function MainAppChannelsModals({
   styles,
@@ -50,7 +53,7 @@ export function MainAppChannelsModals({
   setChannelPasswordInput,
   submitChannelPassword,
 }: {
-  styles: any;
+  styles: AppStyles;
   isDark: boolean;
 
   channelsOpen: boolean;
@@ -85,9 +88,9 @@ export function MainAppChannelsModals({
   channelJoinError: string | null;
   setChannelJoinError: (v: string | null) => void;
   globalUserCount: number | null;
-  channelsResults: Array<{ channelId: string; name: string; hasPassword?: boolean; activeMemberCount?: number }>;
+  channelsResults: ChannelSearchResult[];
   fetchChannelsSearch: (q: string) => void | Promise<void>;
-  joinChannel: (c: any) => void | Promise<void>;
+  joinChannel: (c: ChannelSearchResult) => void | Promise<void>;
 
   channelPasswordPrompt: null | { channelId: string; name: string };
   setChannelPasswordPrompt: (v: null | { channelId: string; name: string }) => void;

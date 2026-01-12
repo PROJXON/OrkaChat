@@ -1,17 +1,43 @@
 import * as React from 'react';
-import type { ChatMessage, DmMediaEnvelopeV1, GroupMediaEnvelopeV1 } from './types';
+import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope, GroupMediaEnvelopeV1 } from './types';
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+type ViewerState = {
+  mode: 'dm' | 'gdm';
+  title?: string;
+  index: number;
+  dmMsg?: ChatMessage;
+  dmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
+  gdmMsg?: ChatMessage;
+  gdmItems?: Array<{ media: GroupMediaEnvelopeV1['media']; wrap: GroupMediaEnvelopeV1['wrap'] }>;
+};
+
+type DmMediaItem = { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] };
+type GroupMediaItem = { media: GroupMediaEnvelopeV1['media']; wrap: GroupMediaEnvelopeV1['wrap'] };
 
 export function useChatEncryptedMediaViewer(opts: {
   isDm: boolean;
   isGroup: boolean;
-  viewer: { setState: (next: any) => void; setOpen: (next: boolean) => void };
+  viewer: { setState: (next: ViewerState) => void; setOpen: (next: boolean) => void };
   showAlert: (title: string, message: string) => void;
-  parseDmMediaEnvelope: (raw: string) => any | null;
-  parseGroupMediaEnvelope: (raw: string) => any | null;
-  normalizeDmMediaItems: (env: any) => Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-  normalizeGroupMediaItems: (env: any) => Array<{ media: GroupMediaEnvelopeV1['media']; wrap: GroupMediaEnvelopeV1['wrap'] }>;
-  decryptDmFileToCacheUri: (msg: ChatMessage, it: any) => Promise<string>;
-  decryptGroupFileToCacheUri: (msg: ChatMessage, it: any) => Promise<string>;
+  parseDmMediaEnvelope: (raw: string) => DmMediaEnvelope | null;
+  parseGroupMediaEnvelope: (raw: string) => GroupMediaEnvelope | null;
+  normalizeDmMediaItems: (env: DmMediaEnvelope | null) => DmMediaItem[];
+  normalizeGroupMediaItems: (env: GroupMediaEnvelope | null) => GroupMediaItem[];
+  decryptDmFileToCacheUri: (msg: ChatMessage, it: DmMediaItem) => Promise<string>;
+  decryptGroupFileToCacheUri: (msg: ChatMessage, it: GroupMediaItem) => Promise<string>;
 }): {
   openDmMediaViewer: (msg: ChatMessage, idx?: number) => Promise<void>;
   openGroupMediaViewer: (msg: ChatMessage, idx?: number) => Promise<void>;
@@ -47,10 +73,10 @@ export function useChatEncryptedMediaViewer(opts: {
           gdmMsg: msg,
           gdmItems: items,
           title: it.media.fileName,
-        } as any);
+        });
         viewer.setOpen(true);
-      } catch (e: any) {
-        showAlert('Open failed', e?.message ?? 'Could not decrypt attachment');
+      } catch (e: unknown) {
+        showAlert('Open failed', getErrorMessage(e) || 'Could not decrypt attachment');
       }
     },
     [
@@ -81,10 +107,10 @@ export function useChatEncryptedMediaViewer(opts: {
           dmMsg: msg,
           dmItems: items,
           title: it.media.fileName,
-        } as any);
+        });
         viewer.setOpen(true);
-      } catch (e: any) {
-        showAlert('Open failed', e?.message ?? 'Could not decrypt attachment');
+      } catch (e: unknown) {
+        showAlert('Open failed', getErrorMessage(e) || 'Could not decrypt attachment');
       }
     },
     [isDm, decryptDmFileToCacheUri, showAlert, viewer, parseDmMediaEnvelope, normalizeDmMediaItems],

@@ -1,4 +1,5 @@
 import { Platform, StyleSheet } from 'react-native';
+import { APP_THEME_COLORS } from '../theme/colors';
 
 export const styles = StyleSheet.create({
   modalOverlay: {
@@ -7,8 +8,8 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  safe: { flex: 1, backgroundColor: '#fff' },
-  safeDark: { backgroundColor: '#0b0b0f' },
+  safe: { flex: 1, backgroundColor: APP_THEME_COLORS.light.appBackground },
+  safeDark: { backgroundColor: APP_THEME_COLORS.dark.appBackground },
   container: { flex: 1 },
   chatContentColumn: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
   chatBody: { flex: 1, position: 'relative' },
@@ -1263,3 +1264,5 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export type ChatScreenStyles = typeof styles;

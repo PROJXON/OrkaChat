@@ -1,11 +1,13 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { ChatMessage } from '../types';
 
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
-  target: any | null;
+  styles: ChatScreenStyles;
+  target: ChatMessage | null;
   myUserId: string | null | undefined;
   emojis: string[];
   onPick: (emoji: string) => void;

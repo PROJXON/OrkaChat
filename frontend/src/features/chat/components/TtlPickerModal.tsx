@@ -1,12 +1,14 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+
 export type TtlOption = { label: string; seconds: number };
 
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   options: TtlOption[];
   draftIdx: number;
   onSelectIdx: (idx: number) => void;

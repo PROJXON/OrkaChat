@@ -1,9 +1,13 @@
 import * as React from 'react';
 
+import type { ChannelMeta } from './useChannelRoster';
+
+type ChannelUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
+
 export function useChannelPasswordModalActions(opts: {
   channelPasswordDraft: string;
-  channelUpdate: (op: any, args: any) => Promise<any> | void;
-  setChannelMeta: React.Dispatch<React.SetStateAction<any>>;
+  channelUpdate: ChannelUpdateFn;
+  setChannelMeta: React.Dispatch<React.SetStateAction<ChannelMeta | null>>;
   setChannelPasswordEditOpen: (v: boolean) => void;
   setChannelPasswordDraft: (v: string) => void;
   showAlert: (title: string, body: string) => void;
@@ -24,7 +28,7 @@ export function useChannelPasswordModalActions(opts: {
       return;
     }
     void channelUpdate('setPassword', { password: pw });
-    setChannelMeta((prev: any) => (prev ? { ...prev, hasPassword: true } : prev));
+    setChannelMeta((prev) => (prev ? { ...prev, hasPassword: true } : prev));
     setChannelPasswordEditOpen(false);
     setChannelPasswordDraft('');
   }, [channelPasswordDraft, channelUpdate, setChannelMeta, setChannelPasswordDraft, setChannelPasswordEditOpen, showAlert]);

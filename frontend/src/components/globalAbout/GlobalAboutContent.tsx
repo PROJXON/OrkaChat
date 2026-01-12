@@ -1,12 +1,13 @@
 import React from 'react';
+import type { StyleProp, TextStyle } from 'react-native';
 import { Text } from 'react-native';
 import { GLOBAL_ABOUT_TEXT, GLOBAL_ABOUT_TITLE } from '../../utils/globalAbout';
 import { RichText } from '../RichText';
 
 export type GlobalAboutContentProps = {
   isDark: boolean;
-  titleStyle: any;
-  bodyStyle: any;
+  titleStyle: StyleProp<TextStyle>;
+  bodyStyle: StyleProp<TextStyle>;
   onOpenUrl?: (url: string) => void;
 };
 

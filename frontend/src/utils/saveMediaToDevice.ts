@@ -2,6 +2,35 @@ import * as MediaLibrary from 'expo-media-library';
 
 export type SaveMediaKind = 'image' | 'video' | 'file';
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object';
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+type ExpoFileSystemLike = {
+  Paths?: { cache?: unknown; document?: unknown };
+  File?: {
+    new (root: unknown, name: string): {
+      uri: string;
+      write?: (data: string, opts: { encoding: 'base64' }) => Promise<void>;
+      downloadFileAsync?: (url: string) => Promise<void>;
+    };
+    downloadFileAsync?: (url: string, dest: { uri: string }) => Promise<void>;
+  };
+};
+
 export async function saveMediaUrlToDevice({
   url,
   kind,
@@ -41,14 +70,14 @@ export async function saveMediaUrlToDevice({
       const isBase64 = /;base64/i.test(header);
       if (!isBase64) throw new Error('Unsupported data URI encoding');
 
-      const fsAny: any = require('expo-file-system');
-      const Paths = fsAny?.Paths;
-      const File = fsAny?.File;
-      const root = (Paths?.cache || Paths?.document) as any;
+      const fsMod: unknown = require('expo-file-system');
+      const fs = (isRecord(fsMod) ? (fsMod as ExpoFileSystemLike) : {}) as ExpoFileSystemLike;
+      const root = fs.Paths?.cache ?? fs.Paths?.document;
       if (!root) throw new Error('No writable cache directory');
+      const File = fs.File;
       if (!File) throw new Error('File API not available');
       const dest = new File(root, `${baseName}.${ext}`);
-      if (typeof dest?.write !== 'function') throw new Error('File write API not available');
+      if (typeof dest.write !== 'function') throw new Error('File write API not available');
       await dest.write(b64, { encoding: 'base64' });
       await MediaLibrary.saveToLibraryAsync(dest.uri);
       onSuccess?.();
@@ -63,11 +92,11 @@ export async function saveMediaUrlToDevice({
     }
 
     // Modern Expo FileSystem API (SDK 54+).
-    const fsAny: any = require('expo-file-system');
-    const Paths = fsAny?.Paths;
-    const File = fsAny?.File;
-    const root = (Paths?.cache || Paths?.document) as any;
+    const fsMod: unknown = require('expo-file-system');
+    const fs = (isRecord(fsMod) ? (fsMod as ExpoFileSystemLike) : {}) as ExpoFileSystemLike;
+    const root = fs.Paths?.cache ?? fs.Paths?.document;
     if (!root) throw new Error('No writable cache directory');
+    const File = fs.File;
     if (!File) throw new Error('File API not available');
     const dest = new File(root, `${baseName}.${ext}`);
 
@@ -82,9 +111,8 @@ export async function saveMediaUrlToDevice({
 
     await MediaLibrary.saveToLibraryAsync(dest.uri);
     onSuccess?.();
-  } catch (e: any) {
-    const msg = String(e?.message || 'Could not save attachment');
-    onError?.(msg);
+  } catch (e: unknown) {
+    onError?.(getErrorMessage(e) || 'Could not save attachment');
   }
 }
 

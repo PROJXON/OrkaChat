@@ -7,8 +7,8 @@ export type AuthModalProps = {
   open: boolean;
   onClose: () => void;
   isDark: boolean;
-  amplifyTheme: any;
-  authComponents: any;
+  amplifyTheme: React.ComponentProps<typeof ThemeProvider>['theme'];
+  authComponents: React.ComponentProps<typeof Authenticator>['components'];
   onAuthed: () => void;
 };
 

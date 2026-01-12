@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { AvatarBubble } from './AvatarBubble';
 import type { MemberRow } from '../types/members';
+import type { ChatScreenStyles } from '../screens/ChatScreen.styles';
 
 export function GroupMembersSectionList({
   members,
@@ -20,7 +21,7 @@ export function GroupMembersSectionList({
   members: MemberRow[];
   mySub: string;
   isDark: boolean;
-  styles: any;
+  styles: ChatScreenStyles;
   meIsAdmin: boolean;
   groupActionBusy: boolean;
   kickCooldownUntilBySub: Record<string, number>;

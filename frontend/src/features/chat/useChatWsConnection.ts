@@ -23,7 +23,7 @@ export function useChatWsConnection(opts: {
   pendingJoinConversationIdRef: React.MutableRefObject<string | null>;
   flushPendingRead: () => void;
   setError: (next: string | null) => void;
-  onMessage: (event: { data: any }) => void;
+  onMessage: (event: { data: unknown }) => void;
 }) {
   const { user, wsUrl, appStateRef, activeConversationIdRef, pendingJoinConversationIdRef, flushPendingRead, setError } = opts;
 
@@ -58,7 +58,7 @@ export function useChatWsConnection(opts: {
     }
     setIsConnecting(false);
     setIsConnected(false);
-  }, []);
+  }, [wsRef]);
 
   const scheduleReconnect = React.useCallback(() => {
     if (wsReconnectTimerRef.current) return;
@@ -145,28 +145,32 @@ export function useChatWsConnection(opts: {
         // Ignore events from stale sockets.
         if (wsRef.current !== ws) return;
         try {
-          onMessageRef.current(event as any);
+          const ev = event as unknown as { data: unknown };
+          onMessageRef.current({ data: ev?.data });
         } catch {
           // ignore
         }
       };
 
-      ws.onerror = (e: any) => {
+      ws.onerror = (e: unknown) => {
         // Ignore events from stale sockets.
         if (wsRef.current !== ws) return;
         // RN WebSocket doesn't expose much, but log what we can
-        // eslint-disable-next-line no-console
-        console.log('WS error:', e?.message ?? 'WebSocket error', 'url:', redactWsUrl(ws.url));
+        const rec = typeof e === 'object' && e != null ? (e as Record<string, unknown>) : {};
+        const msg = typeof rec.message === 'string' ? rec.message : 'WebSocket error';
+        console.log('WS error:', msg, 'url:', redactWsUrl(ws.url));
         setIsConnecting(false);
         setIsConnected(false);
-        setError(e?.message ? `WebSocket error: ${e.message}` : 'WebSocket error');
+        setError(typeof rec.message === 'string' && rec.message ? `WebSocket error: ${rec.message}` : 'WebSocket error');
         scheduleReconnect();
       };
       ws.onclose = (e) => {
         // Ignore events from stale sockets.
         if (wsRef.current !== ws) return;
-        // eslint-disable-next-line no-console
-        console.log('WS close:', (e as any)?.code, (e as any)?.reason, 'url:', redactWsUrl(ws.url));
+        const rec = typeof e === 'object' && e != null ? ((e as unknown) as Record<string, unknown>) : {};
+        const code = typeof rec.code === 'number' ? rec.code : undefined;
+        const reason = typeof rec.reason === 'string' ? rec.reason : undefined;
+        console.log('WS close:', code, reason, 'url:', redactWsUrl(ws.url));
         setIsConnected(false);
         scheduleReconnect();
       };
@@ -174,6 +178,7 @@ export function useChatWsConnection(opts: {
   }, [
     user,
     wsUrl,
+    wsRef,
     setError,
     flushPendingRead,
     pendingJoinConversationIdRef,

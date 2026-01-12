@@ -1,6 +1,14 @@
 import * as React from 'react';
 import { Platform } from 'react-native';
 
+function getDeltaY(e: unknown): number {
+  if (!e || typeof e !== 'object') return 0;
+  const rec = e as Record<string, unknown>;
+  const v = rec.deltaY;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function useWebWheelRefresh(opts: {
   enabled: boolean;
   atBottomRef: React.MutableRefObject<boolean>;
@@ -16,7 +24,7 @@ export function useWebWheelRefresh(opts: {
       if (!enabled || Platform.OS !== 'web') return;
       try {
         if (!atBottomRef.current) return;
-        const dy = Number((e as any)?.deltaY ?? 0);
+        const dy = getDeltaY(e);
         if (!Number.isFinite(dy) || dy <= 0) return;
         if (refreshing) return;
         const now = Date.now();

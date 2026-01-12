@@ -1,11 +1,13 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+
 type Props = {
   visible: boolean;
   isDark: boolean;
   // Uses ChatScreen's style keys for now (pure extraction).
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   onProceed: () => void;
   onCancel: () => void;
 };

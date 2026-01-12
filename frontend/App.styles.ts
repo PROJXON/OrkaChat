@@ -800,3 +800,5 @@ export const styles = StyleSheet.create({
   },
   blockActionBtnDark: { backgroundColor: '#2a2a33', borderWidth: 0, borderColor: 'transparent' },
 });
+
+export type AppStyles = typeof styles;

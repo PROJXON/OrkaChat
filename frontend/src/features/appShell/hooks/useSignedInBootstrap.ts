@@ -45,7 +45,7 @@ export function useSignedInBootstrap({
   user: unknown;
   apiUrl: string;
 
-  fetchAuthSession: () => Promise<any>;
+  fetchAuthSession: () => Promise<{ tokens?: { idToken?: { toString: () => string } } }>;
   fetchUserAttributes: () => Promise<Record<string, unknown>>;
   getUsernameFromAuthenticatorUser: (u: unknown) => string | undefined;
 
@@ -250,6 +250,7 @@ export function useSignedInBootstrap({
       mounted = false;
     };
     // Intentionally depend on the authenticator user object only, to match previous behavior.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 }
 

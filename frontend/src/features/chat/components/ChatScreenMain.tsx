@@ -1,5 +1,6 @@
 import React from 'react';
-import { KeyboardAvoidingView, LayoutAnimation, Platform, Text, View } from 'react-native';
+import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { FlatList, KeyboardAvoidingView, LayoutAnimation, Platform, Text, View } from 'react-native';
 
 import { getNativeEventNumber } from '../../../utils/nativeEvent';
 import { ChannelSettingsPanel } from './ChannelSettingsPanel';
@@ -9,9 +10,23 @@ import { ChatHeaderStatusRow } from './ChatHeaderStatusRow';
 import { ChatHeaderTitleRow } from './ChatHeaderTitleRow';
 import { ChatMessageList } from './ChatMessageList';
 import { DmSettingsPanel } from './DmSettingsPanel';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
+import type { ResolvedChatBg } from './ChatBackgroundLayer';
+import type { PendingMediaItem } from '../attachments';
+import type { MediaItem } from '../../../types/media';
+import type { ChatMessage } from '../types';
+import type { StyleProp, ViewStyle, TextInput } from 'react-native';
+
+type WebPinnedState = {
+  ready: boolean;
+  onLayout?: (e: LayoutChangeEvent) => void;
+  onContentSizeChange?: (w: number, h: number) => void;
+  onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+};
 
 type ChatScreenMainProps = {
-  styles: any;
+  styles: ChatScreenStyles;
   isDark: boolean;
   isWideChatLayout: boolean;
 
@@ -23,7 +38,7 @@ type ChatScreenMainProps = {
 
     displayName: string;
     myUserId: string | null;
-    avatarProfileBySub: Record<string, any>;
+    avatarProfileBySub: Record<string, PublicAvatarProfileLite>;
     avatarUrlByPath: Record<string, string>;
     isConnecting: boolean;
     isConnected: boolean;
@@ -70,52 +85,52 @@ type ChatScreenMainProps = {
     error: string | null;
   };
 
-  body: { resolvedChatBg: any };
+  body: { resolvedChatBg: ResolvedChatBg };
 
   list: {
     API_URL: string;
     isGroup: boolean;
-    groupStatus: any;
+    groupStatus?: string;
     visibleMessagesCount: number;
-    messageListData: any[];
-    webPinned: any;
-    listRef: React.RefObject<any>;
+    messageListData: ChatMessage[];
+    webPinned: WebPinnedState;
+    listRef: React.RefObject<FlatList<ChatMessage> | null>;
     historyHasMore: boolean;
     historyLoading: boolean;
     loadOlderHistory: () => void | Promise<void>;
-    renderItem: (args: { item: any; index: number }) => React.ReactElement | null;
+    renderItem: (args: { item: ChatMessage; index: number }) => React.ReactElement | null;
   };
 
   composer: {
     isDm: boolean;
     isGroup: boolean;
     isEncryptedChat: boolean;
-    groupMeta: any;
+    groupMeta: React.ComponentProps<typeof ChatComposer>['groupMeta'];
     inlineEditTargetId: string | null;
     inlineEditUploading: boolean;
     cancelInlineEdit: () => void;
-    pendingMedia: any[];
-    setPendingMedia: (items: any[]) => void;
+    pendingMedia: PendingMediaItem[];
+    setPendingMedia: (items: PendingMediaItem[]) => void;
     isUploading: boolean;
-    replyTarget: any;
-    setReplyTarget: (v: any) => void;
-    messages: any[];
-    openViewer: (...args: any[]) => void;
+    replyTarget: React.ComponentProps<typeof ChatComposer>['replyTarget'];
+    setReplyTarget: React.ComponentProps<typeof ChatComposer>['setReplyTarget'];
+    messages: ChatMessage[];
+    openViewer: (mediaList: MediaItem[], startIdx: number) => void;
     typingIndicatorText: string;
-    TypingIndicator: any;
+    TypingIndicator: React.ComponentProps<typeof ChatComposer>['TypingIndicator'];
     typingColor: string;
-    mentionSuggestions: any[];
-    insertMention: (v: any) => void;
-    composerSafeAreaStyle: any;
-    composerHorizontalInsetsStyle: any;
-    textInputRef: any;
+    mentionSuggestions: string[];
+    insertMention: (v: string) => void;
+    composerSafeAreaStyle: StyleProp<ViewStyle>;
+    composerHorizontalInsetsStyle: StyleProp<ViewStyle>;
+    textInputRef: React.MutableRefObject<TextInput | null>;
     inputEpoch: number;
     input: string;
     onChangeInput: (v: string) => void;
-    isTypingRef: any;
-    sendTyping: (...args: any[]) => void;
-    sendMessage: (...args: any[]) => void;
-    handlePickMedia: (...args: any[]) => void;
+    isTypingRef: React.MutableRefObject<boolean>;
+    sendTyping: (isTyping: boolean) => void;
+    sendMessage: () => void;
+    handlePickMedia: () => void;
   };
 };
 
@@ -217,7 +232,7 @@ export function ChatScreenMain({ styles, isDark, isWideChatLayout, header, body,
       </View>
 
       <View style={styles.chatBody}>
-        <ChatBackgroundLayer styles={styles} isDark={isDark} resolvedChatBg={body.resolvedChatBg as any} />
+        <ChatBackgroundLayer styles={styles} isDark={isDark} resolvedChatBg={body.resolvedChatBg} />
 
         {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
             Center the *content* via FlatList.contentContainerStyle instead. */}
@@ -230,11 +245,11 @@ export function ChatScreenMain({ styles, isDark, isWideChatLayout, header, body,
             isGroup={list.isGroup}
             groupStatus={list.groupStatus}
             visibleMessagesCount={list.visibleMessagesCount}
-            messageListData={list.messageListData as any}
+            messageListData={list.messageListData}
             webReady={list.webPinned.ready}
             webOnLayout={list.webPinned.onLayout}
             webOnContentSizeChange={list.webPinned.onContentSizeChange}
-            webOnScrollSync={(e: unknown) => {
+            webOnScrollSync={(e) => {
               if (list.webPinned.onScroll) list.webPinned.onScroll(e);
               if (!list.API_URL) return;
               if (!list.historyHasMore) return;

@@ -48,7 +48,6 @@ export function useDeleteAccountFlow({
     }
     try {
       if (myUserSub) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
         await SecureStore.deleteItemAsync(`crypto_keys_${myUserSub}`).catch(() => undefined);
       }

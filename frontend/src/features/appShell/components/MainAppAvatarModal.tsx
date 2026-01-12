@@ -4,15 +4,10 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { uploadData } from 'aws-amplify/storage';
 
+import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AVATAR_DEFAULT_COLORS, AvatarBubble, pickDefaultAvatarColor } from '../../../components/AvatarBubble';
-
-type AvatarState = {
-  bgColor?: string;
-  textColor?: string;
-  imagePath?: string;
-  imageUri?: string;
-};
+import type { AvatarState } from '../hooks/useMyAvatarSettings';
 
 export function MainAppAvatarModal({
   styles,
@@ -41,7 +36,7 @@ export function MainAppAvatarModal({
   // Persist to storage/server
   saveAvatarToStorageAndServer,
 }: {
-  styles: any;
+  styles: AppStyles;
   isDark: boolean;
   myUserSub: string | null | undefined;
   displayName: string;
@@ -182,7 +177,7 @@ export function MainAppAvatarModal({
                   }
                   const result = await ImagePicker.launchImageLibraryAsync({
                     // Avoid deprecated MediaTypeOptions while staying compatible with older typings.
-                    mediaTypes: ['images'] as any,
+                    mediaTypes: ['images'] as unknown as never,
                     allowsEditing: true, // built-in crop UI w/ zoom
                     aspect: [1, 1],
                     quality: 0.9,
@@ -191,8 +186,8 @@ export function MainAppAvatarModal({
                   const uri = result.assets?.[0]?.uri;
                   if (!uri) return;
                   setAvatarDraftImageUri(uri);
-                } catch (e: any) {
-                  setAvatarError(e?.message || 'Could not pick image.');
+                } catch (e: unknown) {
+                  setAvatarError(e instanceof Error ? e.message : 'Could not pick image.');
                 }
               }}
               accessibilityRole="button"
@@ -267,8 +262,8 @@ export function MainAppAvatarModal({
                   setMyAvatar((prev) => ({ ...prev, ...next, imageUri: undefined }));
                   await saveAvatarToStorageAndServer(next);
                   setAvatarOpen(false);
-                } catch (e: any) {
-                  setAvatarError(e?.message || 'Failed to save avatar.');
+                } catch (e: unknown) {
+                  setAvatarError(e instanceof Error ? e.message : 'Failed to save avatar.');
                 } finally {
                   avatarSavingRef.current = false;
                   setAvatarSaving(false);

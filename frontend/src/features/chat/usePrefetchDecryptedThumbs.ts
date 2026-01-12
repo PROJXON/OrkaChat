@@ -28,7 +28,7 @@ export function usePrefetchDmDecryptedThumbs(opts: {
           if (!it.media.thumbPath || !it.media.thumbIv) continue;
           if (dmThumbUriByPath[it.media.thumbPath]) continue;
           try {
-            // eslint-disable-next-line no-await-in-loop
+             
             await decryptDmThumbToDataUri(m, it);
           } catch {
             // ignore
@@ -69,7 +69,7 @@ export function usePrefetchGroupDecryptedThumbs(opts: {
           if (!it.media.thumbPath || !it.media.thumbIv) continue;
           if (dmThumbUriByPath[it.media.thumbPath]) continue;
           try {
-            // eslint-disable-next-line no-await-in-loop
+             
             await decryptGroupThumbToDataUri(m, it);
           } catch {
             // ignore

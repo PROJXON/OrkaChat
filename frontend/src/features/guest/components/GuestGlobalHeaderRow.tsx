@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 
 import { AppBrandIcon } from '../../../components/AppBrandIcon';
+import { useMenuAnchor } from '../../../hooks/useMenuAnchor';
 
 export function GuestGlobalHeaderRow({
   isDark,
@@ -17,9 +18,9 @@ export function GuestGlobalHeaderRow({
   isWideUi: boolean;
   activeChannelTitle: string;
   onOpenChannelPicker: () => void;
-  menu: any;
+  menu: ReturnType<typeof useMenuAnchor<React.ElementRef<typeof Pressable>>>;
   setMenuOpen: (v: boolean) => void;
-  styles: any;
+  styles: typeof import('../../../screens/GuestGlobalScreen.styles').styles;
 }): React.JSX.Element {
   return (
     <View style={[styles.headerRow, isDark && styles.headerRowDark]}>

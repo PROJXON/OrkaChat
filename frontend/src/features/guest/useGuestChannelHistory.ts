@@ -92,7 +92,7 @@ export function useGuestChannelHistory(opts: { activeConversationId: string; pol
   const loadOlderHistory = React.useCallback(() => {
     if (!historyHasMore) return;
     // Fire and forget; guarded by historyLoadingRef.
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+     
     fetchHistoryPage({
       // Use the oldest currently-rendered message as the cursor.
       // This avoids stale `historyCursor` edge-cases (e.g., user taps "Load older" quickly).

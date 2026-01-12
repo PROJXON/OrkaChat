@@ -1,11 +1,13 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { GroupMembersSectionList } from '../../../components/GroupMembersSectionList';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { MemberRow } from '../../../types/members';
 
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   busy: boolean;
 
   meIsAdmin: boolean;
@@ -14,7 +16,7 @@ type Props = {
   onAddMembers: () => void | Promise<void>;
   addMembersInputRef: React.MutableRefObject<TextInput | null>;
 
-  members: any[];
+  members: MemberRow[];
   mySub: string;
   kickCooldownUntilBySub: Record<string, number>;
   avatarUrlByPath: Record<string, string>;
@@ -100,7 +102,7 @@ export function GroupMembersModal({
             keyboardShouldPersistTaps="handled"
           >
             <GroupMembersSectionList
-              members={members as any}
+              members={members}
               mySub={mySub}
               isDark={!!isDark}
               styles={styles}

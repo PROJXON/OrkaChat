@@ -6,17 +6,9 @@ type PromptConfirmOptions = { confirmText?: string; cancelText?: string; destruc
 type PromptConfirm = (title: string, message: string, opts?: PromptConfirmOptions) => Promise<boolean>;
 
 type Choice3Result = 'primary' | 'secondary' | 'tertiary';
-type PromptChoice3Args = {
-  title: string;
-  message: string;
-  primaryText: string;
-  secondaryText: string;
-  tertiaryText: string;
-  tertiaryVariant?: string;
-};
 // `useUiPrompt().choice3` is typed with multiple call signatures; accept a flexible shape
 // and invoke it with the object-based API we use throughout the app.
-type PromptChoice3 = (...args: any[]) => Promise<any>;
+type PromptChoice3 = (...args: unknown[]) => Promise<unknown>;
 
 type PassphrasePromptState = {
   mode: PassphrasePromptMode;

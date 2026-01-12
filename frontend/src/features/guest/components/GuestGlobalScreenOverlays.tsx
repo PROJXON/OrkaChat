@@ -7,7 +7,11 @@ import { RichText } from '../../../components/RichText';
 import { ThemeToggleRow } from '../../../components/ThemeToggleRow';
 import { GlobalAboutContent } from '../../../components/globalAbout/GlobalAboutContent';
 import { GuestChannelPickerModal } from './GuestChannelPickerModal';
-import { ReactionInfoModal } from '../../chat/components/ReactionInfoModal';
+import { ReactionInfoModal, type ReactionInfoModalStyles } from '../../chat/components/ReactionInfoModal';
+import type { MenuAnchorRect } from '../../../hooks/useMenuAnchor';
+import type { MediaViewerState } from '../../../components/MediaViewerModal';
+
+type GuestChannelSearchRow = { channelId: string; name: string; activeMemberCount?: number; hasPassword?: boolean };
 
 export function GuestGlobalScreenOverlays({
   isDark,
@@ -72,7 +76,7 @@ export function GuestGlobalScreenOverlays({
 
   menuOpen: boolean;
   setMenuOpen: (v: boolean) => void;
-  menuAnchor: unknown;
+  menuAnchor: MenuAnchorRect | null;
 
   globalAboutOpen: boolean;
   setGlobalAboutOpen: (v: boolean) => void;
@@ -98,7 +102,7 @@ export function GuestGlobalScreenOverlays({
   channelListLoading: boolean;
   channelListError: string | null | undefined;
   globalUserCount: number | null | undefined;
-  channelResults: Array<any>;
+  channelResults: GuestChannelSearchRow[];
   onPickGlobal: () => void;
   onPickChannel: (channelId: string, name: string) => void;
   showLockedChannelAlert: () => void;
@@ -110,17 +114,17 @@ export function GuestGlobalScreenOverlays({
   reactionInfoSubsSorted: string[];
   reactionNameBySub: Record<string, string>;
   closeReactionInfo: () => void;
-  guestReactionInfoModalStyles: unknown;
+  guestReactionInfoModalStyles: ReactionInfoModalStyles;
 
   viewerOpen: boolean;
-  viewerState: unknown;
-  setViewerState: (v: any) => void;
+  viewerState: MediaViewerState;
+  setViewerState: React.Dispatch<React.SetStateAction<MediaViewerState>>;
   viewerSaving: boolean;
   onSaveViewer: () => void;
   closeViewer: () => void;
 
   confirmLinkModal: React.ReactNode;
-  styles: any;
+  styles: typeof import('../../../screens/GuestGlobalScreen.styles').styles;
 }): React.JSX.Element {
   return (
     <>
@@ -130,7 +134,7 @@ export function GuestGlobalScreenOverlays({
         title={undefined}
         isDark={isDark}
         cardWidth={160}
-        anchor={isWideUi ? (menuAnchor as any) : null}
+        anchor={isWideUi ? menuAnchor : null}
         headerRight={<ThemeToggleRow isDark={isDark} onSetTheme={onSetTheme} styles={styles} />}
         items={[
           {
@@ -202,7 +206,7 @@ export function GuestGlobalScreenOverlays({
       <ReactionInfoModal
         visible={reactionInfoOpen}
         isDark={isDark}
-        styles={guestReactionInfoModalStyles as any}
+        styles={guestReactionInfoModalStyles}
         emoji={reactionInfoEmoji}
         subsSorted={reactionInfoSubsSorted}
         myUserId={null}
@@ -249,8 +253,8 @@ export function GuestGlobalScreenOverlays({
 
       <MediaViewerModal
         open={viewerOpen}
-        viewerState={viewerState as any}
-        setViewerState={setViewerState as any}
+        viewerState={viewerState}
+        setViewerState={setViewerState}
         saving={viewerSaving}
         onSave={onSaveViewer}
         onClose={closeViewer}

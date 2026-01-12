@@ -19,21 +19,36 @@ import {
   parseDmMediaEnvelope,
   parseGroupMediaEnvelope,
 } from '../parsers';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import type { ChatMessage } from '../types';
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
 
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
 
   insets: { top: number; bottom: number };
   anchor: { x: number; y: number } | null;
 
-  anim: any;
+  anim: Animated.Value;
   measuredH: number;
   measuredHRef: React.MutableRefObject<number>;
   onMeasuredH: (h: number) => void;
 
-  target: any | null;
+  target: ChatMessage | null;
   myUserId: string | null | undefined;
   myPublicKey: string | null | undefined;
   displayName: string;
@@ -57,21 +72,21 @@ type Props = {
   showAlert: (title: string, body: string) => void;
 
   close: () => void;
-  sendReaction: (msg: any, emoji: string) => void;
-  openReactionPicker: (msg: any) => void;
+  sendReaction: (msg: ChatMessage, emoji: string) => void;
+  openReactionPicker: (msg: ChatMessage) => void;
 
   setCipherText: (t: string) => void;
   setCipherOpen: (v: boolean) => void;
 
-  beginReply: (msg: any) => void;
-  beginInlineEdit: (msg: any) => void;
+  beginReply: (msg: ChatMessage) => void;
+  beginInlineEdit: (msg: ChatMessage) => void;
   setInlineEditAttachmentMode: (m: 'keep' | 'replace' | 'remove') => void;
   handlePickMedia: () => void;
   clearPendingMedia: () => void;
 
-  deleteForMe: (msg: any) => void | Promise<void>;
+  deleteForMe: (msg: ChatMessage) => void | Promise<void>;
   sendDeleteForEveryone: () => void | Promise<void>;
-  openReportForMessage: (msg: any) => void;
+  openReportForMessage: (msg: ChatMessage) => void;
 };
 
 export function MessageActionMenuModal({
@@ -121,7 +136,11 @@ export function MessageActionMenuModal({
             styles.actionMenuCard,
             isDark ? styles.actionMenuCardDark : null,
             (() => {
-              const vv = Platform.OS === 'web' && typeof window !== 'undefined' ? (window as any).visualViewport : null;
+              type VisualViewportLike = { width?: number; height?: number };
+              const vv =
+                Platform.OS === 'web' && typeof window !== 'undefined' && 'visualViewport' in window
+                  ? ((window as unknown as { visualViewport?: VisualViewportLike }).visualViewport ?? null)
+                  : null;
               // On web, prefer the *visual viewport* (handles mobile browser toolbars/URL bar correctly).
               const w = (vv && typeof vv.width === 'number' ? vv.width : null) ?? Dimensions.get('window').width;
               const h = (vv && typeof vv.height === 'number' ? vv.height : null) ?? Dimensions.get('window').height;
@@ -215,11 +234,17 @@ export function MessageActionMenuModal({
                     hasMedia = true;
                     mediaCount = dmItems.length || gItems.length || 0;
                     caption = String((dmEnv?.caption ?? gEnv?.caption) || '');
-                    const first = (dmItems[0]?.media ?? gItems[0]?.media) as any;
-                    kind = (first.kind as any) || 'file';
+                    const first = dmItems[0]?.media ?? gItems[0]?.media;
+                    const firstRec = typeof first === 'object' && first != null ? (first as Record<string, unknown>) : null;
+                    const k = firstRec && typeof firstRec.kind === 'string' ? firstRec.kind : null;
+                    kind = k === 'image' || k === 'video' ? k : 'file';
                     // Reuse decrypted thumb cache so message options show actual previews.
-                    if (first && first.thumbPath && dmThumbUriByPath[String(first.thumbPath)]) {
-                      thumbUri = dmThumbUriByPath[String(first.thumbPath)];
+                    const thumbKey =
+                      firstRec && (typeof firstRec.thumbPath === 'string' || typeof firstRec.thumbPath === 'number')
+                        ? String(firstRec.thumbPath)
+                        : null;
+                    if (thumbKey && dmThumbUriByPath[thumbKey]) {
+                      thumbUri = dmThumbUriByPath[thumbKey];
                     } else {
                       thumbUri = null;
                     }
@@ -235,7 +260,7 @@ export function MessageActionMenuModal({
                     mediaCount = envList.length || 0;
                     caption = String(env?.text || '');
                     const first = envList[0];
-                    kind = (first.kind as any) || 'file';
+                    kind = first.kind === 'image' || first.kind === 'video' ? first.kind : 'file';
                     const key = String(first.thumbPath || first.path);
                     thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
                   } else {
@@ -461,8 +486,8 @@ export function MessageActionMenuModal({
                       if (!ok) return;
                       await Promise.resolve(onBlockUserSub(sub, label));
                       showAlert('Blocked', 'User blocked. Their messages will be hidden.');
-                    } catch (e: any) {
-                      showAlert('Block failed', e?.message ?? 'Failed to block user');
+                    } catch (e: unknown) {
+                      showAlert('Block failed', getErrorMessage(e) || 'Failed to block user');
                     }
                   }}
                   style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}

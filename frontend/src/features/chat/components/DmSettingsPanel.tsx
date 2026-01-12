@@ -1,6 +1,8 @@
 import React from 'react';
 import { Platform, Pressable, Switch, Text, View } from 'react-native';
 
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+
 function MiniToggle({
   value,
   onValueChange,
@@ -12,7 +14,7 @@ function MiniToggle({
   onValueChange: (v: boolean) => void;
   disabled?: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
 }): React.JSX.Element {
   return (
     <Pressable
@@ -44,7 +46,7 @@ function MiniToggle({
 
 type Props = {
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   compact: boolean;
 
   isDm: boolean;

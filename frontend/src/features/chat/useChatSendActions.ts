@@ -2,7 +2,35 @@ import * as React from 'react';
 import type { RefObject } from 'react';
 
 import type { MediaItem } from '../../types/media';
-import type { ChatEnvelope, ChatMessage } from './types';
+import type { EncryptedChatPayloadV1 } from '../../types/crypto';
+import type { ChatEnvelope, ChatMessage, DmMediaEnvelopeV1, EncryptedGroupPayloadV1, GroupMediaEnvelopeV1 } from './types';
+import type { PendingMediaItem } from './attachments';
+
+export type ReplyTarget = {
+  createdAt: number;
+  id: string;
+  user?: string;
+  userSub?: string;
+  preview: string;
+  mediaKind?: 'image' | 'video' | 'file';
+  mediaCount?: number;
+  mediaThumbUri?: string | null;
+};
+
+type TextInputLike = { clear?: () => void };
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
 
 export function useChatSendActions(opts: {
   // connection + identity
@@ -16,18 +44,18 @@ export function useChatSendActions(opts: {
 
   // ui state refs
   inputRef: React.MutableRefObject<string>;
-  pendingMediaRef: React.MutableRefObject<any[]>;
-  textInputRef: React.MutableRefObject<any>;
+  pendingMediaRef: React.MutableRefObject<PendingMediaItem[]>;
+  textInputRef: React.MutableRefObject<TextInputLike | null>;
 
   // ui state setters
   setError: (s: string) => void;
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   setInput: (s: string) => void;
   setInputEpoch: React.Dispatch<React.SetStateAction<number>>;
-  setPendingMediaItems: (items: any[] | null | undefined) => void;
+  setPendingMediaItems: (items: PendingMediaItem[] | null | undefined) => void;
   clearPendingMedia: () => void;
-  replyTarget: any;
-  setReplyTarget: (v: any) => void;
+  replyTarget: ReplyTarget | null;
+  setReplyTarget: (v: ReplyTarget | null) => void;
   inlineEditTargetId: string | null;
   isUploading: boolean;
   setIsUploading: (v: boolean) => void;
@@ -37,7 +65,7 @@ export function useChatSendActions(opts: {
   isTypingRef: React.MutableRefObject<boolean>;
 
   // group guard
-  groupMeta: any;
+  groupMeta: { meStatus?: string } | null | undefined;
   groupMembers: Array<{ status: string; memberSub: string }>;
   groupPublicKeyBySub: Record<string, string>;
 
@@ -48,26 +76,86 @@ export function useChatSendActions(opts: {
   myPrivateKey: string | null | undefined;
   peerPublicKey: string | null | undefined;
   getRandomBytes: (n: number) => Uint8Array;
-  encryptChatMessageV1: (plaintext: string, myPrivateKey: string, peerPublicKey: string) => any;
-  prepareDmOutgoingEncryptedText: (args: any) => Promise<any>;
-  prepareGroupMediaPlaintext: (args: any) => Promise<any>;
-  encryptGroupOutgoingEncryptedText: (args: any) => string;
-  uploadPendingMedia: (media: any) => Promise<MediaItem>;
-  uploadPendingMediaDmEncrypted: (...args: any[]) => Promise<any>;
-  uploadPendingMediaGroupEncrypted: (...args: any[]) => Promise<any>;
+  encryptChatMessageV1: (plaintext: string, myPrivateKey: string, peerPublicKey: string) => EncryptedChatPayloadV1;
+  prepareDmOutgoingEncryptedText: (args: {
+    conversationId: string;
+    outgoingText: string;
+    pendingMedia: PendingMediaItem[] | null | undefined;
+    caption: string;
+    myPrivateKey: string;
+    peerPublicKey: string;
+    uploadPendingMediaDmEncrypted: (
+      item: PendingMediaItem,
+      conversationId: string,
+      myPrivateKey: string,
+      peerPublicKey: string,
+      caption?: string,
+    ) => Promise<DmMediaEnvelopeV1>;
+  }) => Promise<{ outgoingText: string; mediaPathsToSend?: string[] }>;
+  prepareGroupMediaPlaintext: (args: {
+    conversationId: string;
+    pendingMedia: PendingMediaItem[] | null | undefined;
+    caption: string;
+    messageKeyBytes: Uint8Array;
+    uploadPendingMediaGroupEncrypted: (
+      item: PendingMediaItem,
+      conversationId: string,
+      messageKeyBytes: Uint8Array,
+      caption?: string,
+    ) => Promise<GroupMediaEnvelopeV1>;
+  }) => Promise<{ plaintextToEncrypt: string; mediaPathsToSend: string[] }>;
+  encryptGroupOutgoingEncryptedText: (args: {
+    plaintextToEncrypt: string;
+    messageKeyBytes: Uint8Array;
+    myPrivateKey: string;
+    myUserId: string;
+    activeMemberSubs: string[];
+    groupPublicKeyBySub: Record<string, string>;
+  }) => string;
+  uploadPendingMedia: (media: PendingMediaItem) => Promise<MediaItem>;
+  uploadPendingMediaDmEncrypted: (
+    media: PendingMediaItem,
+    conversationKey: string,
+    senderPrivateKeyHex: string,
+    recipientPublicKeyHex: string,
+    captionOverride?: string,
+  ) => Promise<DmMediaEnvelopeV1>;
+  uploadPendingMediaGroupEncrypted: (
+    media: PendingMediaItem,
+    conversationKey: string,
+    messageKeyBytes: Uint8Array,
+    captionOverride?: string,
+  ) => Promise<GroupMediaEnvelopeV1>;
 
   // ids + optimistic
   timestampId: (t: number, prefix: string) => string;
-  applyOptimisticSendForTextOnly: (args: any) => void;
-  sendTimeoutRef: React.MutableRefObject<Record<string, any>>;
+  applyOptimisticSendForTextOnly: (args: {
+    enabled: boolean;
+    clientMessageId: string;
+    outgoingText: string;
+    originalInput: string;
+    displayName: string;
+    myUserId: string | null | undefined;
+    isDm: boolean;
+    isGroup: boolean;
+    autoDecrypt: boolean;
+    encryptedPlaceholder: string;
+    ttlSeconds: number | undefined;
+    parseEncrypted: (s: string) => EncryptedChatPayloadV1 | null;
+    parseGroupEncrypted: (s: string) => EncryptedGroupPayloadV1 | null;
+    normalizeUser: (v: unknown) => string;
+    setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+    sendTimeoutRef: React.MutableRefObject<Record<string, ReturnType<typeof setTimeout>>>;
+  }) => void;
+  sendTimeoutRef: React.MutableRefObject<Record<string, ReturnType<typeof setTimeout>>>;
 
   // ttl
   autoDecrypt: boolean;
   encryptedPlaceholder: string;
   ttlSeconds: number | undefined;
-  parseEncrypted: (s: string) => any;
-  parseGroupEncrypted: (s: string) => any;
-  normalizeUser: (v: unknown) => any;
+  parseEncrypted: (s: string) => EncryptedChatPayloadV1 | null;
+  parseGroupEncrypted: (s: string) => EncryptedGroupPayloadV1 | null;
+  normalizeUser: (v: unknown) => string;
 
   // errors
   showAlert: (title: string, body: string) => void;
@@ -79,7 +167,7 @@ export function useChatSendActions(opts: {
     myUserId,
     isDm,
     isGroup,
-    isChannel,
+    isChannel: _isChannel,
     inputRef,
     pendingMediaRef,
     textInputRef,
@@ -231,8 +319,8 @@ export function useChatSendActions(opts: {
           });
           outgoingText = prepared.outgoingText;
           dmMediaPathsToSend = prepared.mediaPathsToSend;
-        } catch (e: any) {
-          showAlert('Upload Failed', e?.message ?? 'Failed to upload media');
+        } catch (e: unknown) {
+          showAlert('Upload Failed', getErrorMessage(e) || 'Failed to upload media');
           restoreDraftIfUnchanged();
           return;
         } finally {
@@ -287,8 +375,8 @@ export function useChatSendActions(opts: {
           });
           plaintextToEncrypt = uploaded.plaintextToEncrypt;
           groupMediaPathsToSend = uploaded.mediaPathsToSend;
-        } catch (e: any) {
-          showAlert('Upload Failed', e?.message ?? 'Failed to upload media');
+        } catch (e: unknown) {
+          showAlert('Upload Failed', getErrorMessage(e) || 'Failed to upload media');
           restoreDraftIfUnchanged();
           return;
         } finally {
@@ -311,7 +399,7 @@ export function useChatSendActions(opts: {
         setIsUploading(true);
         const uploadedItems: MediaItem[] = [];
         for (const item of originalPendingMedia) {
-          // eslint-disable-next-line no-await-in-loop
+           
           const uploaded = await uploadPendingMedia(item);
           uploadedItems.push(uploaded);
         }
@@ -321,8 +409,8 @@ export function useChatSendActions(opts: {
           media: uploadedItems.length === 1 ? uploadedItems[0] : uploadedItems,
         };
         outgoingText = JSON.stringify(envelope);
-      } catch (e: any) {
-        showAlert('Upload Failed', e?.message ?? 'Failed to upload media');
+      } catch (e: unknown) {
+        showAlert('Upload Failed', getErrorMessage(e) || 'Failed to upload media');
         restoreDraftIfUnchanged();
         return;
       } finally {

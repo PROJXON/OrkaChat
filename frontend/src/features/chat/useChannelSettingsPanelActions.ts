@@ -1,11 +1,15 @@
 import * as React from 'react';
+import type { ChannelMeta } from './useChannelRoster';
+
+type ToastKind = 'success' | 'error';
+type ChannelUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
 
 export function useChannelSettingsPanelActions(opts: {
-  channelMeta: any;
-  setChannelMeta: React.Dispatch<React.SetStateAction<any>>;
+  channelMeta: ChannelMeta | null;
+  setChannelMeta: React.Dispatch<React.SetStateAction<ChannelMeta | null>>;
   setChannelActionBusy: (v: boolean) => void;
-  channelUpdate: (op: any, args: any) => Promise<any>;
-  showToast: (msg: string, kind?: any) => void;
+  channelUpdate: ChannelUpdateFn;
+  showToast: (msg: string, kind?: ToastKind) => void;
   uiAlert: (title: string, body: string) => Promise<void> | void;
   setChannelPasswordDraft: (v: string) => void;
   setChannelPasswordEditOpen: (v: boolean) => void;
@@ -31,7 +35,7 @@ export function useChannelSettingsPanelActions(opts: {
 
         setChannelActionBusy(true);
         try {
-          setChannelMeta((p: any) => (p ? { ...p, isPublic: next } : p));
+          setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
           await channelUpdate('setPublic', { isPublic: next });
           showToast(next ? 'Channel is now public' : 'Channel is now private', 'success');
           // Theme-appropriate FYI modal (not a gate).
@@ -52,7 +56,7 @@ export function useChannelSettingsPanelActions(opts: {
   const onPressPassword = React.useCallback(() => {
     if (channelMeta?.hasPassword) {
       void channelUpdate('clearPassword', {});
-      setChannelMeta((prev: any) => (prev ? { ...prev, hasPassword: false } : prev));
+      setChannelMeta((prev) => (prev ? { ...prev, hasPassword: false } : prev));
       showToast('Password cleared', 'success');
       return;
     }

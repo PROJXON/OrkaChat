@@ -2,10 +2,12 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { RichText } from '../../../components/RichText';
 
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+
 type Props = {
   visible: boolean;
   isDark: boolean;
-  styles: Record<string, any>;
+  styles: ChatScreenStyles;
   title: string;
 
   edit: boolean;

@@ -1,11 +1,11 @@
 import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-function mergeMin(prev: Record<string, number>, parsed: any): Record<string, number> {
+function mergeMin(prev: Record<string, number>, parsed: unknown): Record<string, number> {
   if (!parsed || typeof parsed !== 'object') return prev;
   let changed = false;
   const next = { ...prev };
-  for (const [k, v] of Object.entries(parsed)) {
+  for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
     const key = String(k || '').trim();
     if (!key) continue;
     const n = Number(v);

@@ -13,11 +13,31 @@ export type InAppCameraCapture = {
   mode: InAppCameraMode;
 };
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+type VideoPlayerLike = { play?: () => void };
+function isVideoPlayerLike(v: unknown): v is VideoPlayerLike {
+  return !!v && typeof v === 'object' && typeof (v as VideoPlayerLike).play === 'function';
+}
+
 function VideoPreview({ uri }: { uri: string }): React.JSX.Element {
-  const player = useVideoPlayer(uri, (p: any) => {
+  const player = useVideoPlayer(uri, (p: unknown) => {
     try {
-      p.play();
-    } catch {}
+      if (isVideoPlayerLike(p)) p.play?.();
+    } catch {
+      // ignore
+    }
   });
   return <VideoView player={player} style={styles.preview} contentFit="cover" nativeControls />;
 }
@@ -37,7 +57,7 @@ export function InAppCameraModal({
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const ui = useUiPromptOptional();
-  const cameraRef = React.useRef<any>(null);
+  const cameraRef = React.useRef<CameraView | null>(null);
   const [facing, setFacing] = React.useState<'back' | 'front'>('back');
   const [captured, setCaptured] = React.useState<InAppCameraCapture | null>(null);
   const [isRecording, setIsRecording] = React.useState(false);
@@ -91,16 +111,15 @@ export function InAppCameraModal({
             return;
           }
         }
-      } catch (e: any) {
-        if (!cancelled) showAlert('Camera failed', e?.message ?? 'Unknown error');
+      } catch (e: unknown) {
+        if (!cancelled) showAlert('Camera failed', getErrorMessage(e));
         onClose();
       }
     })();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, showAlert]);
+  }, [visible, camPerm?.granted, requestCamPerm, showAlert, onClose]);
 
   React.useEffect(() => {
     if (!visible) return;
@@ -116,7 +135,7 @@ export function InAppCameraModal({
         }
       })();
     };
-  }, [visible]);
+  }, [visible, initialMode]);
 
   const closeAndReset = React.useCallback(() => {
     try {
@@ -149,8 +168,8 @@ export function InAppCameraModal({
       const res = await cam.takePictureAsync({ quality: 1 });
       if (!res?.uri) return;
       setCaptured({ uri: String(res.uri), mode: 'photo' });
-    } catch (e: any) {
-      showAlert('Camera failed', e?.message ?? 'Unknown error');
+    } catch (e: unknown) {
+      showAlert('Camera failed', getErrorMessage(e));
     }
   }, [showAlert]);
 
@@ -170,8 +189,8 @@ export function InAppCameraModal({
       setIsRecording(true);
       const res = await cam.recordAsync();
       if (res?.uri) setCaptured({ uri: String(res.uri), mode: 'video' });
-    } catch (e: any) {
-      showAlert('Camera failed', e?.message ?? 'Unknown error');
+    } catch (e: unknown) {
+      showAlert('Camera failed', getErrorMessage(e));
     } finally {
       setIsRecording(false);
     }
@@ -217,7 +236,7 @@ export function InAppCameraModal({
       }
       setMode(next);
     },
-    [ensureMicPerm, isRecording, mode, stopVideo, showAlert],
+    [ensureMicPerm, isRecording, mode, stopVideo],
   );
 
   return (
@@ -241,8 +260,17 @@ export function InAppCameraModal({
               // On some Android setups the camera surface can swallow touches; ensure overlays stay clickable.
               pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
               style={[styles.preview, ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : [])]}
-              onMountError={(e: any) => {
-                const msg = e?.nativeEvent?.message ?? e?.message ?? 'Camera failed to start';
+              onMountError={(e: unknown) => {
+                const rec = typeof e === 'object' && e != null ? (e as Record<string, unknown>) : {};
+                const nativeEvent =
+                  typeof rec.nativeEvent === 'object' && rec.nativeEvent != null
+                    ? (rec.nativeEvent as Record<string, unknown>)
+                    : {};
+                const msg =
+                  nativeEvent.message ??
+                  rec.message ??
+                  (typeof e === 'string' ? e : null) ??
+                  'Camera failed to start';
                 showAlert('Camera failed', String(msg));
               }}
             />

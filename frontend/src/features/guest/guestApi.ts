@@ -4,6 +4,10 @@ import { normalizeGuestMessages } from './parsers';
 
 const GUEST_HISTORY_PAGE_SIZE = 50;
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object';
+}
+
 export async function fetchGuestChannelHistoryPage(opts: {
   conversationId: string;
   before?: number | null;
@@ -40,33 +44,41 @@ export async function fetchGuestChannelHistoryPage(opts: {
         errors.push(`GET ${url} failed (${res.status}) ${text || ''}`.trim());
         continue;
       }
-      const json = await res.json();
-      const rawItems = Array.isArray(json) ? json : Array.isArray((json as any)?.items) ? (json as any).items : [];
+      const json: unknown = await res.json();
+      const rec = isRecord(json) ? json : {};
+      const rawItems: unknown[] = Array.isArray(json) ? (json as unknown[]) : Array.isArray(rec.items) ? rec.items : [];
       const items = normalizeGuestMessages(rawItems);
 
-      const channelMetaRaw = !Array.isArray(json) && json && typeof json === 'object' ? (json as any)?.channel : null;
+      const channelMetaRaw = !Array.isArray(json) && isRecord(json) ? json.channel : null;
       const channelMeta =
-        channelMetaRaw && typeof channelMetaRaw === 'object'
+        channelMetaRaw && typeof channelMetaRaw === 'object' && channelMetaRaw != null
           ? {
-              channelId: typeof channelMetaRaw.channelId === 'string' ? String(channelMetaRaw.channelId) : '',
+              channelId:
+                typeof (channelMetaRaw as Record<string, unknown>).channelId === 'string'
+                  ? String((channelMetaRaw as Record<string, unknown>).channelId)
+                  : '',
               conversationId:
-                typeof channelMetaRaw.conversationId === 'string'
-                  ? String(channelMetaRaw.conversationId)
+                typeof (channelMetaRaw as Record<string, unknown>).conversationId === 'string'
+                  ? String((channelMetaRaw as Record<string, unknown>).conversationId)
                   : conversationId,
-              name: typeof channelMetaRaw.name === 'string' ? String(channelMetaRaw.name) : undefined,
-              aboutText: typeof channelMetaRaw.aboutText === 'string' ? String(channelMetaRaw.aboutText) : undefined,
+              name:
+                typeof (channelMetaRaw as Record<string, unknown>).name === 'string'
+                  ? String((channelMetaRaw as Record<string, unknown>).name)
+                  : undefined,
+              aboutText:
+                typeof (channelMetaRaw as Record<string, unknown>).aboutText === 'string'
+                  ? String((channelMetaRaw as Record<string, unknown>).aboutText)
+                  : undefined,
               aboutVersion:
-                typeof channelMetaRaw.aboutVersion === 'number' && Number.isFinite(channelMetaRaw.aboutVersion)
-                  ? channelMetaRaw.aboutVersion
+                typeof (channelMetaRaw as Record<string, unknown>).aboutVersion === 'number' &&
+                Number.isFinite((channelMetaRaw as Record<string, unknown>).aboutVersion)
+                  ? ((channelMetaRaw as Record<string, unknown>).aboutVersion as number)
                   : undefined,
             }
           : undefined;
 
-      const hasMoreFromServer = typeof (json as any)?.hasMore === 'boolean' ? (json as any).hasMore : null;
-      const nextCursorFromServer =
-        typeof (json as any)?.nextCursor === 'number' && Number.isFinite((json as any).nextCursor)
-          ? (json as any).nextCursor
-          : null;
+      const hasMoreFromServer = typeof rec.hasMore === 'boolean' ? rec.hasMore : null;
+      const nextCursorFromServer = typeof rec.nextCursor === 'number' && Number.isFinite(rec.nextCursor) ? rec.nextCursor : null;
 
       const nextCursor =
         typeof nextCursorFromServer === 'number' && Number.isFinite(nextCursorFromServer)

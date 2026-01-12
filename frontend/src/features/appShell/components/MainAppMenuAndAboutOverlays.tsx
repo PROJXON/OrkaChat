@@ -1,9 +1,11 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { AppStyles } from '../../../../App.styles';
 import { HeaderMenuModal } from '../../../components/HeaderMenuModal';
 import { ThemeToggleRow } from '../../../components/ThemeToggleRow';
 import { GlobalAboutContent } from '../../../components/globalAbout/GlobalAboutContent';
+import type { MenuAnchorRect } from '../../../hooks/useMenuAnchor';
 
 export function MainAppMenuAndAboutOverlays({
   styles,
@@ -63,10 +65,10 @@ export function MainAppMenuAndAboutOverlays({
   globalAboutOpen,
   dismissGlobalAbout,
 }: {
-  styles: any;
+  styles: AppStyles;
   isDark: boolean;
   isWideUi: boolean;
-  menuAnchor: unknown;
+  menuAnchor: MenuAnchorRect | null;
 
   menuOpen: boolean;
   setMenuOpen: (v: boolean) => void;
@@ -78,22 +80,22 @@ export function MainAppMenuAndAboutOverlays({
   setChannelAboutRequestEpoch: React.Dispatch<React.SetStateAction<number>>;
   setChatsOpen: (v: boolean) => void;
 
-  setMyChannelsError: (v: any) => void;
-  setCreateChannelError: (v: any) => void;
+  setMyChannelsError: (v: string | null) => void;
+  setCreateChannelError: (v: string | null) => void;
   setCreateChannelOpen: (v: boolean) => void;
   setCreateChannelName: (v: string) => void;
   setCreateChannelPassword: (v: string) => void;
   setCreateChannelIsPublic: (v: boolean) => void;
   setChannelSearchOpen: (v: boolean) => void;
-  setChannelsError: (v: any) => void;
-  setChannelJoinError: (v: any) => void;
+  setChannelsError: (v: string | null) => void;
+  setChannelJoinError: (v: string | null) => void;
   setChannelsQuery: (v: string) => void;
   setChannelsOpen: (v: boolean) => void;
 
-  setAvatarError: (v: any) => void;
+  setAvatarError: (v: string | null) => void;
   setAvatarOpen: (v: boolean) => void;
 
-  setBackgroundError: (v: any) => void;
+  setBackgroundError: (v: string | null) => void;
   setBackgroundOpen: (v: boolean) => void;
 
   setRecoveryOpen: (v: boolean) => void;
@@ -107,7 +109,7 @@ export function MainAppMenuAndAboutOverlays({
 
   unregisterDmPushNotifications: () => Promise<void>;
   // Amplify's `signOut` typing varies across versions; treat as sync/async.
-  signOut: (data?: any) => any;
+  signOut: () => void | Promise<void>;
   onSignedOut?: () => void;
 
   globalAboutOpen: boolean;
@@ -121,7 +123,7 @@ export function MainAppMenuAndAboutOverlays({
         title={undefined}
         isDark={isDark}
         cardWidth={160}
-        anchor={isWideUi ? (menuAnchor as any) : null}
+        anchor={isWideUi ? menuAnchor : null}
         headerRight={<ThemeToggleRow isDark={isDark} onSetTheme={onSetTheme} styles={styles} />}
         items={[
           {

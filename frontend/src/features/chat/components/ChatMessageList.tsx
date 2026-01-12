@@ -1,10 +1,12 @@
 import React from 'react';
+import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { FlatList, Platform } from 'react-native';
 import { ChatHistoryLoadMore } from './ChatHistoryLoadMore';
 import { ChatReadOnlyBanner } from './ChatReadOnlyBanner';
+import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 
-type Props = {
-  styles: any;
+type Props<T extends { id: string }> = {
+  styles: ChatScreenStyles;
   isDark: boolean;
   isWideChatLayout: boolean;
 
@@ -13,14 +15,14 @@ type Props = {
   groupStatus?: string;
 
   visibleMessagesCount: number;
-  messageListData: Array<{ id: string }>;
+  messageListData: T[];
 
   // Web pinned list wiring
   webReady: boolean;
-  webOnLayout?: (e: unknown) => void;
+  webOnLayout?: (e: LayoutChangeEvent) => void;
   webOnContentSizeChange?: (w: number, h: number) => void;
-  webOnScrollSync?: (e: unknown) => void;
-  listRef: React.RefObject<any>;
+  webOnScrollSync?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  listRef: React.RefObject<FlatList<T> | null>;
 
   // History loading
   historyHasMore: boolean;
@@ -28,10 +30,10 @@ type Props = {
   loadOlderHistory: () => void;
 
   // Render item
-  renderItem: (args: { item: any; index: number }) => React.ReactElement | null;
+  renderItem: (args: { item: T; index: number }) => React.ReactElement | null;
 };
 
-export function ChatMessageList({
+export function ChatMessageList<T extends { id: string }>({
   styles,
   isDark,
   isWideChatLayout,
@@ -49,18 +51,18 @@ export function ChatMessageList({
   historyLoading,
   loadOlderHistory,
   renderItem,
-}: Props) {
+}: Props<T>) {
   const isWeb = Platform.OS === 'web';
   return (
     <FlatList
       style={[styles.messageList, isWeb && !webReady ? { opacity: 0 } : null]}
-      data={messageListData as any}
-      keyExtractor={(m: any) => String(m?.id)}
+      data={messageListData}
+      keyExtractor={(m) => String(m?.id)}
       inverted={!isWeb}
-      ref={listRef as any}
+      ref={listRef}
       // Web-only pinned list wiring (avoid native layout feedback loops)
-      onLayout={isWeb ? (webOnLayout as any) : undefined}
-      onContentSizeChange={isWeb ? (webOnContentSizeChange as any) : undefined}
+      onLayout={isWeb ? webOnLayout : undefined}
+      onContentSizeChange={isWeb ? webOnContentSizeChange : undefined}
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
         // In the *inverted* (native) list, the header renders at the bottom near the composer.
@@ -105,7 +107,7 @@ export function ChatMessageList({
           />
         ) : null
       }
-      onScroll={isWeb ? (webOnScrollSync as any) : undefined}
+      onScroll={isWeb ? webOnScrollSync : undefined}
       scrollEventThrottle={isWeb ? 16 : undefined}
       // Perf tuning (especially on Android):
       removeClippedSubviews={Platform.OS === 'android'}
@@ -113,7 +115,7 @@ export function ChatMessageList({
       maxToRenderPerBatch={12}
       updateCellsBatchingPeriod={50}
       windowSize={7}
-      renderItem={renderItem as any}
+      renderItem={renderItem}
       contentContainerStyle={[styles.listContent, isWideChatLayout ? styles.chatContentColumn : null]}
     />
   );
