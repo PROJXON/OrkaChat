@@ -2,7 +2,6 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { TextStyle, ViewStyle } from 'react-native';
-import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 
 export type ReactionInfoModalStyles = {
   modalOverlay: ViewStyle;

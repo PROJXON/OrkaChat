@@ -7,7 +7,7 @@ import { renderGuestListItem } from '../renderGuestListItem';
 import type { MediaItem } from '../../../types/media';
 import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 import type { GuestMessage } from '../types';
-import { useWebPinnedList, type WebPinnedListState } from '../../../hooks/useWebPinnedList';
+import type { WebPinnedListState } from '../../../hooks/useWebPinnedList';
 import { useWebWheelRefresh } from '../../../hooks/useWebWheelRefresh';
 
 export function GuestGlobalMessageList({

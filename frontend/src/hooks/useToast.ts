@@ -20,7 +20,7 @@ export function useToast(opts?: {
 
   const [toast, setToast] = React.useState<ToastState | null>(null);
   const anim = React.useRef(new Animated.Value(0)).current;
-  const timerRef = React.useRef<any>(null);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hideToast = React.useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
