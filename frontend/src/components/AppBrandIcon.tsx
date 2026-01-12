@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 // NOTE:
 // These images have square backgrounds. We intentionally "zoom + clip" them inside a slot
@@ -72,16 +73,18 @@ export function AppBrandIcon({
         resolvedClip ? styles.slotClip : styles.slotNoClip,
         resolvedRounded ? styles.slotRound : styles.slotSquare,
         { width: slotWidth, height: slotHeight },
+        // RN-web: props.pointerEvents is deprecated; use style.pointerEvents instead.
+        { pointerEvents: 'none' },
         style,
       ]}
-      pointerEvents="none"
       accessible={accessible}
       accessibilityLabel={accessibilityLabel}
     >
       <Image
         source={isDark ? ICON_DARK : ICON_LIGHT}
+        // RN-web: style.resizeMode is deprecated; use the prop.
+        resizeMode={fit === 'contain' ? 'contain' : 'cover'}
         style={[
-          fit === 'contain' ? styles.iconContain : styles.iconCrop,
           { width: slotWidth, height: slotHeight },
           ...(fit === 'crop'
             ? [
@@ -107,7 +110,4 @@ const styles = StyleSheet.create({
   slotNoClip: { overflow: 'visible' },
   slotRound: { borderRadius: 999 },
   slotSquare: { borderRadius: 0 },
-  iconCrop: { resizeMode: 'cover' },
-  iconContain: { resizeMode: 'contain' },
 });
-

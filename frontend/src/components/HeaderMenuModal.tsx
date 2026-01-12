@@ -1,7 +1,18 @@
 import React from 'react';
-import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, ScrollView } from 'react-native';
+import {
+  Animated,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Feather from '@expo/vector-icons/Feather';
+
+import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 import { AppBrandIcon } from './AppBrandIcon';
 
 export type HeaderMenuItem = {
@@ -64,15 +75,15 @@ export function HeaderMenuModal({
   const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] });
 
   // Match ChatScreen/GuestGlobalScreen surface colors.
-  const cardBg = isDark ? '#0b0b0f' : '#fff';
-  const border = isDark ? '#2a2a33' : '#e3e3e3';
-  const divider = isDark ? '#2a2a33' : '#e9e9ee';
-  const text = isDark ? '#fff' : '#111';
-  const pressedBg = isDark ? '#1c1c22' : '#e9e9ee';
+  const cardBg = isDark ? APP_COLORS.dark.bg.app : APP_COLORS.light.bg.app;
+  const border = isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.border.subtle;
+  const divider = isDark ? APP_COLORS.dark.border.subtle : PALETTE.mist;
+  const text = isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary;
+  const pressedBg = isDark ? APP_COLORS.dark.bg.header : PALETTE.mist;
 
   // Match the app's "tool button" look (Summarize / AI Helper).
-  const btnBg = isDark ? '#2a2a33' : '#f2f2f7';
-  const btnBorder = isDark ? '#2a2a33' : '#e3e3e3';
+  const btnBg = isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.bg.surface2;
+  const btnBorder = isDark ? APP_COLORS.dark.border.subtle : APP_COLORS.light.border.subtle;
   const btnBorderWidth = isDark ? 0 : StyleSheet.hairlineWidth;
 
   const hasAnchor = !!anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y);
@@ -85,7 +96,7 @@ export function HeaderMenuModal({
   const anchorTopMin = Math.max(2, insets.top + 2);
   const anchorTop = hasAnchor
     ? Math.max(anchorTopMin, Math.round(anchor!.y - ANCHOR_OVERLAP_PX))
-    : (insets.top + 10);
+    : insets.top + 10;
   const cardLeft = hasAnchor
     ? clamp(anchor!.x + anchor!.width - cardWidth, 10, Math.max(10, windowWidth - cardWidth - 10))
     : 0;
@@ -111,7 +122,12 @@ export function HeaderMenuModal({
               borderColor: border,
               width: cardWidth,
               ...(hasAnchor
-                ? { position: 'absolute' as const, top: anchorTop, left: cardLeft, maxHeight: maxCardH }
+                ? {
+                    position: 'absolute' as const,
+                    top: anchorTop,
+                    left: cardLeft,
+                    maxHeight: maxCardH,
+                  }
                 : null),
             },
           ]}
@@ -132,17 +148,29 @@ export function HeaderMenuModal({
               accessibilityRole="button"
               accessibilityLabel="Close menu"
             >
-              <AppBrandIcon isDark={isDark} fit="contain" slotWidth={32} slotHeight={32} accessible={false} />
+              <AppBrandIcon
+                isDark={isDark}
+                fit="contain"
+                slotWidth={32}
+                slotHeight={32}
+                accessible={false}
+              />
             </Pressable>
           </View>
-          {title ? <Text style={[styles.title, { color: text, borderBottomColor: divider }]}>{title}</Text> : null}
+          {title ? (
+            <Text style={[styles.title, { color: text, borderBottomColor: divider }]}>{title}</Text>
+          ) : null}
           <ScrollView style={styles.listScroll} contentContainerStyle={styles.list} bounces={false}>
-            {items.map((it) => (
+            {items.map((it) =>
               it.staticRow ? (
                 // Static rows are used for embedded controls (like Switch).
                 <View key={it.key} style={styles.row}>
                   {it.label ? (
-                    <Text style={[styles.rowText, { color: text }]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text
+                      style={[styles.rowText, { color: text }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
                       {it.label}
                     </Text>
                   ) : null}
@@ -180,8 +208,8 @@ export function HeaderMenuModal({
                   </Text>
                   {it.right ? <View style={styles.rowRight}>{it.right}</View> : null}
                 </Pressable>
-              )
-            ))}
+              ),
+            )}
           </ScrollView>
         </Animated.View>
       </View>
@@ -192,7 +220,7 @@ export function HeaderMenuModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.25)',
+    backgroundColor: withAlpha(PALETTE.black, 0.25),
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
   },
@@ -205,8 +233,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 8px 16px rgba(0,0,0,0.18)' }
-      : { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }),
+      ? { boxShadow: `0px 8px 16px ${withAlpha(PALETTE.black, 0.18)}` }
+      : {
+          shadowColor: PALETTE.black,
+          shadowOpacity: 0.18,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 8 },
+        }),
     elevation: 10,
   },
   topRightCloseRow: {
@@ -256,5 +289,3 @@ const styles = StyleSheet.create({
   rowTextCenter: { textAlign: 'center' },
   rowRight: { marginLeft: 12, flexShrink: 0 },
 });
-
-

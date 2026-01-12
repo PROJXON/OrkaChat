@@ -1,9 +1,12 @@
-import React from 'react';
-import { Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import React from 'react';
+import { Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useUiPromptOptional } from '../providers/UiPromptProvider';
+import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 export type InAppCameraMode = 'photo' | 'video';
 
@@ -12,11 +15,31 @@ export type InAppCameraCapture = {
   mode: InAppCameraMode;
 };
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+type VideoPlayerLike = { play?: () => void };
+function isVideoPlayerLike(v: unknown): v is VideoPlayerLike {
+  return !!v && typeof v === 'object' && typeof (v as VideoPlayerLike).play === 'function';
+}
+
 function VideoPreview({ uri }: { uri: string }): React.JSX.Element {
-  const player = useVideoPlayer(uri, (p: any) => {
+  const player = useVideoPlayer(uri, (p: unknown) => {
     try {
-      p.play();
-    } catch {}
+      if (isVideoPlayerLike(p)) p.play?.();
+    } catch {
+      // ignore
+    }
   });
   return <VideoView player={player} style={styles.preview} contentFit="cover" nativeControls />;
 }
@@ -35,7 +58,8 @@ export function InAppCameraModal({
   onAlert?: (title: string, message: string) => void | Promise<void>;
 }): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const cameraRef = React.useRef<any>(null);
+  const ui = useUiPromptOptional();
+  const cameraRef = React.useRef<CameraView | null>(null);
   const [facing, setFacing] = React.useState<'back' | 'front'>('back');
   const [captured, setCaptured] = React.useState<InAppCameraCapture | null>(null);
   const [isRecording, setIsRecording] = React.useState(false);
@@ -54,9 +78,17 @@ export function InAppCameraModal({
           // fall through to native alert
         }
       }
+      if (ui) {
+        try {
+          void ui.alert(title, message);
+          return;
+        } catch {
+          // fall through
+        }
+      }
       Alert.alert(title, message);
     },
-    [onAlert]
+    [onAlert, ui],
   );
 
   React.useEffect(() => {
@@ -75,22 +107,21 @@ export function InAppCameraModal({
             // Keep permission prompts as a native system alert (more appropriate than themed modals).
             Alert.alert(
               'Permission needed',
-              'Please allow camera access to capture media.\n\nIf you previously denied this permission, enable it in Settings.'
+              'Please allow camera access to capture media.\n\nIf you previously denied this permission, enable it in Settings.',
             );
             onClose();
             return;
           }
         }
-      } catch (e: any) {
-        if (!cancelled) showAlert('Camera failed', e?.message ?? 'Unknown error');
+      } catch (e: unknown) {
+        if (!cancelled) showAlert('Camera failed', getErrorMessage(e));
         onClose();
       }
     })();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, showAlert]);
+  }, [visible, camPerm?.granted, requestCamPerm, showAlert, onClose]);
 
   React.useEffect(() => {
     if (!visible) return;
@@ -106,7 +137,7 @@ export function InAppCameraModal({
         }
       })();
     };
-  }, [visible]);
+  }, [visible, initialMode]);
 
   const closeAndReset = React.useCallback(() => {
     try {
@@ -139,8 +170,8 @@ export function InAppCameraModal({
       const res = await cam.takePictureAsync({ quality: 1 });
       if (!res?.uri) return;
       setCaptured({ uri: String(res.uri), mode: 'photo' });
-    } catch (e: any) {
-      showAlert('Camera failed', e?.message ?? 'Unknown error');
+    } catch (e: unknown) {
+      showAlert('Camera failed', getErrorMessage(e));
     }
   }, [showAlert]);
 
@@ -151,7 +182,7 @@ export function InAppCameraModal({
         // Keep permission prompts as a native system alert (more appropriate than themed modals).
         Alert.alert(
           'Permission needed',
-          'Please allow microphone access to record video.\n\nIf you previously denied this permission, enable it in Settings.'
+          'Please allow microphone access to record video.\n\nIf you previously denied this permission, enable it in Settings.',
         );
         return;
       }
@@ -160,8 +191,8 @@ export function InAppCameraModal({
       setIsRecording(true);
       const res = await cam.recordAsync();
       if (res?.uri) setCaptured({ uri: String(res.uri), mode: 'video' });
-    } catch (e: any) {
-      showAlert('Camera failed', e?.message ?? 'Unknown error');
+    } catch (e: unknown) {
+      showAlert('Camera failed', getErrorMessage(e));
     } finally {
       setIsRecording(false);
     }
@@ -200,14 +231,14 @@ export function InAppCameraModal({
           // Keep permission prompts as a native system alert (more appropriate than themed modals).
           Alert.alert(
             'Permission needed',
-            'Please allow microphone access to record video.\n\nIf you previously denied this permission, enable it in Settings.'
+            'Please allow microphone access to record video.\n\nIf you previously denied this permission, enable it in Settings.',
           );
           return;
         }
       }
       setMode(next);
     },
-    [ensureMicPerm, isRecording, mode, stopVideo, showAlert]
+    [ensureMicPerm, isRecording, mode, stopVideo],
   );
 
   return (
@@ -234,8 +265,18 @@ export function InAppCameraModal({
                 styles.preview,
                 ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
               ]}
-              onMountError={(e: any) => {
-                const msg = e?.nativeEvent?.message ?? e?.message ?? 'Camera failed to start';
+              onMountError={(e: unknown) => {
+                const rec =
+                  typeof e === 'object' && e != null ? (e as Record<string, unknown>) : {};
+                const nativeEvent =
+                  typeof rec.nativeEvent === 'object' && rec.nativeEvent != null
+                    ? (rec.nativeEvent as Record<string, unknown>)
+                    : {};
+                const msg =
+                  nativeEvent.message ??
+                  rec.message ??
+                  (typeof e === 'string' ? e : null) ??
+                  'Camera failed to start';
                 showAlert('Camera failed', String(msg));
               }}
             />
@@ -244,7 +285,10 @@ export function InAppCameraModal({
 
         {/* Controls overlay */}
         <View
-          style={[styles.overlay, ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : [])]}
+          style={[
+            styles.overlay,
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+          ]}
           pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
         >
           <View
@@ -257,17 +301,26 @@ export function InAppCameraModal({
               },
             ]}
           >
-            <Pressable onPress={closeAndReset} style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}>
+            <Pressable
+              onPress={closeAndReset}
+              style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}
+            >
               <Text style={styles.topBtnText}>Close</Text>
             </Pressable>
             <View
-              style={[styles.centerTitleWrap, ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : [])]}
+              style={[
+                styles.centerTitleWrap,
+                ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+              ]}
               pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
             >
               <Text style={styles.title}>Camera</Text>
             </View>
             {!captured ? (
-              <Pressable onPress={toggleFacing} style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}>
+              <Pressable
+                onPress={toggleFacing}
+                style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}
+              >
                 <Text style={styles.topBtnText}>Flip</Text>
               </Pressable>
             ) : (
@@ -287,7 +340,7 @@ export function InAppCameraModal({
             ]}
             pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
           >
-              <View
+            <View
               style={[
                 styles.bottomContent,
                 // When previewing a video with native controls, the scrubber can overlap the very bottom.
@@ -343,7 +396,12 @@ export function InAppCameraModal({
                         pressed ? { opacity: 0.9 } : null,
                       ]}
                     >
-                      <Text style={[styles.modePillText, mode === 'photo' ? styles.modePillTextActive : null]}>
+                      <Text
+                        style={[
+                          styles.modePillText,
+                          mode === 'photo' ? styles.modePillTextActive : null,
+                        ]}
+                      >
                         Photo
                       </Text>
                     </Pressable>
@@ -355,7 +413,12 @@ export function InAppCameraModal({
                         pressed ? { opacity: 0.9 } : null,
                       ]}
                     >
-                      <Text style={[styles.modePillText, mode === 'video' ? styles.modePillTextActive : null]}>
+                      <Text
+                        style={[
+                          styles.modePillText,
+                          mode === 'video' ? styles.modePillTextActive : null,
+                        ]}
+                      >
                         Video
                       </Text>
                     </Pressable>
@@ -371,7 +434,7 @@ export function InAppCameraModal({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
+  root: { flex: 1, backgroundColor: PALETTE.black },
   overlay: {
     flex: 1,
     justifyContent: 'space-between',
@@ -384,12 +447,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
   },
   centerTitleWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  title: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 14 },
   topBtn: { width: 56, paddingVertical: 6 },
-  topBtnText: { color: '#fff', fontWeight: '800' },
+  topBtnText: { color: APP_COLORS.dark.text.primary, fontWeight: '800' },
   captureColumn: { alignItems: 'center' },
   modeToggleRowBottom: { marginTop: 10, flexDirection: 'row', gap: 8 },
   modePill: {
@@ -397,22 +460,22 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    borderColor: withAlpha(PALETTE.white, 0.35),
+    backgroundColor: withAlpha(PALETTE.black, 0.15),
   },
   modePillActive: {
-    borderColor: 'rgba(255,255,255,0.6)',
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderColor: withAlpha(PALETTE.white, 0.6),
+    backgroundColor: withAlpha(PALETTE.white, 0.22),
   },
-  modePillText: { color: 'rgba(255,255,255,0.85)', fontWeight: '900', fontSize: 12 },
-  modePillTextActive: { color: '#fff' },
-  preview: { width: '100%', height: '100%', backgroundColor: '#000' },
+  modePillText: { color: withAlpha(PALETTE.white, 0.85), fontWeight: '900', fontSize: 12 },
+  modePillTextActive: { color: APP_COLORS.dark.text.primary },
+  preview: { width: '100%', height: '100%', backgroundColor: PALETTE.black },
   bottomBar: {
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: withAlpha(PALETTE.black, 0.35),
   },
   bottomContent: {
     width: '100%',
@@ -428,44 +491,47 @@ const styles = StyleSheet.create({
     height: 66,
     borderRadius: 33,
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: APP_COLORS.dark.text.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#fff' },
+  shutterInner: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: APP_COLORS.dark.text.primary,
+  },
   recordRedDot: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#ff3b30',
+    backgroundColor: PALETTE.dangerRed,
   },
   recordStopSquare: {
     width: 30,
     height: 30,
     borderRadius: 6,
-    backgroundColor: '#ff3b30',
+    backgroundColor: PALETTE.dangerRed,
   },
   actionBtn: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderColor: withAlpha(PALETTE.white, 0.35),
+    backgroundColor: withAlpha(PALETTE.white, 0.14),
     alignItems: 'center',
   },
-  actionBtnText: { color: '#fff', fontWeight: '800' },
+  actionBtnText: { color: APP_COLORS.dark.text.primary, fontWeight: '800' },
   actionBtnPrimary: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
+    borderColor: withAlpha(PALETTE.white, 0.55),
     // "Glass" primary: stays readable but lets content show through.
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: withAlpha(PALETTE.white, 0.22),
     alignItems: 'center',
   },
-  actionBtnPrimaryText: { color: '#fff', fontWeight: '900' },
+  actionBtnPrimaryText: { color: APP_COLORS.dark.text.primary, fontWeight: '900' },
 });
-
-

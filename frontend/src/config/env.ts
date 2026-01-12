@@ -8,7 +8,9 @@ type Extra = {
 };
 
 // Support both new expoConfig.extra and legacy manifest extra
-const extra = (Constants.expoConfig?.extra ?? (Constants as any).manifestExtra ?? {}) as Extra;
+type LegacyConstantsWithManifestExtra = { manifestExtra?: unknown };
+const legacy = Constants as LegacyConstantsWithManifestExtra;
+const extra = (Constants.expoConfig?.extra ?? legacy.manifestExtra ?? {}) as Extra;
 
 export const WS_URL: string = extra.WS_URL || '';
 export const API_URL: string = extra.API_URL || '';
@@ -17,12 +19,10 @@ export const API_URL: string = extra.API_URL || '';
 let outputsCdnUrl = '';
 let outputsSignerApiUrl = '';
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const outputs =
     // Prefer a committed web/prod outputs file so Hosting doesn't accidentally create a new Cognito pool.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+
     (typeof navigator !== 'undefined' ? require('../../amplify_outputs.web.json') : null) ||
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     require('../../amplify_outputs.json');
   outputsCdnUrl =
     typeof outputs?.custom?.cdnUrl === 'string'
@@ -42,5 +42,3 @@ try {
 
 export const CDN_URL: string = extra.CDN_URL || outputsCdnUrl || '';
 export const SIGNER_API_URL: string = extra.SIGNER_API_URL || outputsSignerApiUrl || '';
-
-

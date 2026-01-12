@@ -1,7 +1,21 @@
 import { fetchAuthSession } from '@aws-amplify/auth';
+
 import { API_URL, SIGNER_API_URL } from '../config/env';
 
 type SignedUrlResponse = { url?: string; expires?: number };
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message || 'Unknown error';
+  if (typeof err === 'string') return err || 'Unknown error';
+  if (!err) return 'Unknown error';
+  try {
+    const rec = err as Record<string, unknown>;
+    const msg = rec?.message;
+    return typeof msg === 'string' && msg ? msg : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
 
 function signerBaseUrl(): string {
   // Prefer dedicated signer service, otherwise use the existing API base.
@@ -39,10 +53,11 @@ export async function getDmMediaSignedUrl(path: string, ttlSeconds = 300): Promi
   // DM conversationIds include '#', so the signer MUST encode them as %23 in the pathname.
   try {
     const parsed = new URL(u);
-    if (parsed.hash) throw new Error('Signer returned URL with fragment (#); DM paths must encode # as %23');
-  } catch (e: any) {
+    if (parsed.hash)
+      throw new Error('Signer returned URL with fragment (#); DM paths must encode # as %23');
+  } catch (e: unknown) {
     // If URL parsing fails, fall through to query checks; fetch will likely fail anyway.
-    if (String(e?.message || '').includes('fragment')) throw e;
+    if (getErrorMessage(e).includes('fragment')) throw e;
   }
   // CloudFront DM behavior requires signed URL (or signed cookies). We use signed URLs.
   if (!u.includes('Key-Pair-Id=') || !u.includes('Signature=') || !u.includes('Expires=')) {
@@ -50,4 +65,3 @@ export async function getDmMediaSignedUrl(path: string, ttlSeconds = 300): Promi
   }
   return u;
 }
-

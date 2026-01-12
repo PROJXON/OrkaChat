@@ -1,223 +1,149 @@
-import React from 'react';
-import {
-  Alert,
-  Animated,
-  AppState,
-  AppStateStatus,
-  Easing,
-  findNodeHandle,
-  LayoutAnimation,
-  UIManager,
-  useWindowDimensions,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Linking,
-  Dimensions,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { AnimatedDots } from '../components/AnimatedDots';
-import { AvatarBubble } from '../components/AvatarBubble';
-import { GroupMembersSectionList } from '../components/GroupMembersSectionList';
-import { ChannelMembersSectionList } from '../components/ChannelMembersSectionList';
-import { MediaViewerModal } from '../components/MediaViewerModal';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WS_URL, API_URL, CDN_URL } from '../config/env';
-// const API_URL = "https://828bp5ailc.execute-api.us-east-2.amazonaws.com"
-// const WS_URL = "wss://ws.ifelse.io"
-import { useAuthenticator } from '@aws-amplify/ui-react-native';
-import Constants from 'expo-constants';
 import { fetchAuthSession } from '@aws-amplify/auth';
-import { fetchUserAttributes } from 'aws-amplify/auth';
+import { useAuthenticator } from '@aws-amplify/ui-react-native/dist';
+import { gcm } from '@noble/ciphers/aes.js';
+import { hexToBytes } from '@noble/hashes/utils.js';
+import { fromByteArray } from 'base64-js';
+import { getRandomBytes } from 'expo-crypto';
+import * as ImagePicker from 'expo-image-picker';
+import React from 'react';
+import type { AppStateStatus, TextInput } from 'react-native';
+import { AppState, Platform, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { API_URL, CDN_URL, WS_URL } from '../config/env';
+import { applyOptimisticSendForTextOnly } from '../features/chat/applyOptimisticSend';
+import {
+  pendingMediaFromDocumentPickerAssets,
+  pendingMediaFromImagePickerAssets,
+  pendingMediaFromInAppCameraCapture,
+} from '../features/chat/attachments';
+import { buildChatScreenMainProps } from '../features/chat/buildChatScreenMainProps';
+import { buildChatScreenOverlaysProps } from '../features/chat/buildChatScreenOverlaysProps';
+import type { ResolvedChatBg } from '../features/chat/components/ChatBackgroundLayer';
+import { ChatScreenMain } from '../features/chat/components/ChatScreenMain';
+import { ChatScreenOverlays } from '../features/chat/components/ChatScreenOverlays';
+import { TypingIndicator } from '../features/chat/components/TypingIndicator';
+import { isVisibleMemberRow, toMemberRow } from '../features/chat/memberRows';
+import {
+  normalizeDmMediaItems,
+  normalizeGroupMediaItems,
+  normalizeReactions,
+  parseChatEnvelope,
+  parseDmMediaEnvelope,
+  parseGroupMediaEnvelope,
+} from '../features/chat/parsers';
+// (history fetching extracted to useChatHistory)
+import {
+  encryptGroupOutgoingEncryptedText,
+  prepareDmOutgoingEncryptedText,
+  prepareGroupMediaPlaintext,
+} from '../features/chat/prepareOutgoingEncryptedText';
+import { MORE_REACTIONS, QUICK_REACTIONS } from '../features/chat/reactionEmojis';
+import { sortReactionSubs } from '../features/chat/reactionsUi';
+import { renderChatListItem } from '../features/chat/renderChatListItem';
+import type { ChatMessage } from '../features/chat/types';
+import { MAX_ATTACHMENTS_PER_MESSAGE } from '../features/chat/uploads';
+import { useAiDmConsentGate } from '../features/chat/useAiDmConsent';
+import { useAiHelper } from '../features/chat/useAiHelper';
+import { useAiSummary } from '../features/chat/useAiSummary';
+import { useChannelAboutModalActions } from '../features/chat/useChannelAboutModalActions';
+import { useChannelMembersModalActions } from '../features/chat/useChannelMembersModalActions';
+import { useChannelNameModalActions } from '../features/chat/useChannelNameModalActions';
+import { useChannelPasswordModalActions } from '../features/chat/useChannelPasswordModalActions';
+import { useChannelRoster } from '../features/chat/useChannelRoster';
+import { useChannelSettingsPanelActions } from '../features/chat/useChannelSettingsPanelActions';
+import { useChatAdminOps } from '../features/chat/useChatAdminOps';
+import { useChatAttachmentPickers } from '../features/chat/useChatAttachmentPickers';
+import { useChatAttachments } from '../features/chat/useChatAttachments';
+import { useChatAutoDecrypt } from '../features/chat/useChatAutoDecrypt';
+import { useChatCdnMediaPrefetch } from '../features/chat/useChatCdnMediaPrefetch';
+import { useChatChannelUiState } from '../features/chat/useChatChannelUiState';
+import { useChatCipherState } from '../features/chat/useChatCipherState';
+import { useChatComposerInput } from '../features/chat/useChatComposerInput';
+import { useChatConversationJoin } from '../features/chat/useChatConversationJoin';
+import { useChatCopyToClipboard } from '../features/chat/useChatCopyToClipboard';
+import { useChatDecryptors } from '../features/chat/useChatDecryptors';
+import { useChatEncryptedMediaViewer } from '../features/chat/useChatEncryptedMediaViewer';
+import { useChatGroupUiState } from '../features/chat/useChatGroupUiState';
+import { useChatHistory } from '../features/chat/useChatHistory';
+import { useChatImageAspectPrefetch } from '../features/chat/useChatImageAspectPrefetch';
+import { useChatInfoModal } from '../features/chat/useChatInfoModal';
+import { useChatInlineEditActions } from '../features/chat/useChatInlineEditActions';
+import { useChatKickActions } from '../features/chat/useChatKickActions';
+import { useChatMediaDecryptCache } from '../features/chat/useChatMediaDecryptCache';
+import { useChatMessageListState } from '../features/chat/useChatMessageListState';
+import { useChatMessageOps } from '../features/chat/useChatMessageOps';
+import { useChatMyKeys } from '../features/chat/useChatMyKeys';
+import { useChatPressToDecrypt } from '../features/chat/useChatPressToDecrypt';
+import { useChatReadReceipts } from '../features/chat/useChatReadReceipts';
+import { useChatReplyActions } from '../features/chat/useChatReplyActions';
+import { useChatReport } from '../features/chat/useChatReport';
+import { useChatScreenRefSync } from '../features/chat/useChatScreenRefSync';
+import { useChatSendActions } from '../features/chat/useChatSendActions';
+import { useChatTtlPickerState } from '../features/chat/useChatTtlPickerState';
+import { useChatTyping } from '../features/chat/useChatTyping';
+import { useChatUploadHandlers } from '../features/chat/useChatUploadHandlers';
+import { useChatWsConnection } from '../features/chat/useChatWsConnection';
+import { useChatWsMessageHandler } from '../features/chat/useChatWsMessageHandler';
+import { useDisplayNameBySub } from '../features/chat/useDisplayNameBySub';
+import { useFocusGroupAddMembersInputOnOpen } from '../features/chat/useFocusGroupAddMembersInputOnOpen';
+import { useGroupMembersModalActions } from '../features/chat/useGroupMembersModalActions';
+import { useGroupMembersUi } from '../features/chat/useGroupMembersUi';
+import { useGroupNameModalActions } from '../features/chat/useGroupNameModalActions';
+import {
+  useGroupReadOnlyRefreshTicker,
+  useRefreshGroupRosterOnMembersModalOpen,
+} from '../features/chat/useGroupRefreshTriggers';
+import { useHydrateDmReads } from '../features/chat/useHydrateDmReads';
+import { useHydrateGroupRoster } from '../features/chat/useHydrateGroupRoster';
+import { useLatestOutgoingMessageId } from '../features/chat/useLatestOutgoingMessageId';
+import {
+  useLazyDecryptDmViewerPages,
+  useLazyDecryptGroupViewerPages,
+} from '../features/chat/useLazyDecryptViewerPages';
+import { useMentions } from '../features/chat/useMentions';
+import { useMessageActionMenu } from '../features/chat/useMessageActionMenu';
+import { useHydratePeerPublicKey } from '../features/chat/usePeerPublicKey';
+import {
+  usePrefetchDmDecryptedThumbs,
+  usePrefetchGroupDecryptedThumbs,
+} from '../features/chat/usePrefetchDecryptedThumbs';
+import { usePushGroupTitleToParent } from '../features/chat/usePushGroupTitleToParent';
+import { useRecoverPendingImagePicker } from '../features/chat/useRecoverPendingImagePicker';
+import type { ChatMediaViewerState } from '../features/chat/viewerTypes';
+import { useCdnUrlCache } from '../hooks/useCdnUrlCache';
+import { useChannelHeaderCache } from '../hooks/useChannelHeaderCache';
+import { useConfirmLinkModal } from '../hooks/useConfirmLinkModal';
+import { useHiddenMessageIds } from '../hooks/useHiddenMessageIds';
+import { useMediaViewer } from '../hooks/useMediaViewer';
+import { useOpenGlobalViewer } from '../hooks/useOpenGlobalViewer';
+import { usePersistedBool } from '../hooks/usePersistedBool';
+import { usePersistedNumberMinMap } from '../hooks/usePersistedNumberMinMap';
+import { usePruneExpiredMessages } from '../hooks/usePruneExpiredMessages';
+import { usePublicAvatarProfiles } from '../hooks/usePublicAvatarProfiles';
+import { useReactionInfo } from '../hooks/useReactionInfo';
+import { useStorageSessionReady } from '../hooks/useStorageSessionReady';
+import { useToast } from '../hooks/useToast';
+import { useTtlNowSec } from '../hooks/useTtlNowSec';
+import { useUiPromptHelpers } from '../hooks/useUiPromptHelpers';
+import { useViewportWidth } from '../hooks/useViewportWidth';
+import type { MemberRow } from '../types/members';
+import { markChannelAboutSeen } from '../utils/channelAboutSeen';
+import { getChatHeaderTitle } from '../utils/conversationTitles';
 import {
   aesGcmDecryptBytes,
-  aesGcmEncryptBytes,
   decryptChatMessageV1,
   deriveChatKeyBytesV1,
   encryptChatMessageV1,
-  EncryptedChatPayloadV1,
-  derivePublicKey,
-  loadKeyPair,
-} from '../../utils/crypto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getRandomBytes } from 'expo-crypto';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import { getUrl, uploadData } from 'aws-amplify/storage';
-import { VideoView, useVideoPlayer } from 'expo-video';
-import { InAppCameraModal } from '../components/InAppCameraModal';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as VideoThumbnails from 'expo-video-thumbnails';
-import * as MediaLibrary from 'expo-media-library';
-import Feather from '@expo/vector-icons/Feather';
-import { fromByteArray, toByteArray } from 'base64-js';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
-import { gcm } from '@noble/ciphers/aes.js';
+} from '../utils/crypto';
 import { getDmMediaSignedUrl } from '../utils/dmSignedUrl';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { RichText } from '../components/RichText';
-import { ConfirmLinkModal } from '../components/ConfirmLinkModal';
-
-function toCdnUrl(path: string): string {
-  const base = (CDN_URL || '').trim();
-  const p = String(path || '').replace(/^\/+/, '');
-  if (!base || !p) return '';
-  try {
-    const b = base.endsWith('/') ? base : `${base}/`;
-    return new URL(p, b).toString();
-  } catch {
-    return '';
-  }
-}
-
-function TypingIndicator({
-  text,
-  color,
-}: {
-  text: string;
-  color: string;
-}): React.JSX.Element {
-  const dot1 = React.useRef(new Animated.Value(0)).current;
-  const dot2 = React.useRef(new Animated.Value(0)).current;
-  const dot3 = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    const makeDotAnim = (v: Animated.Value) =>
-      Animated.sequence([
-        Animated.timing(v, {
-          toValue: 1,
-          duration: 260,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-        Animated.timing(v, {
-          toValue: 0,
-          duration: 260,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-      ]);
-
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.stagger(130, [makeDotAnim(dot1), makeDotAnim(dot2), makeDotAnim(dot3)]),
-        Animated.delay(450),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [dot1, dot2, dot3]);
-
-  const dotStyle = (v: Animated.Value) => ({
-    transform: [
-      {
-        translateY: v.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -5],
-        }),
-      },
-    ],
-    opacity: v.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.4, 1],
-    }),
-  });
-
-  return (
-    <View style={styles.typingIndicatorRow}>
-      <Text style={[styles.typingText, { color }]}>{text}</Text>
-      <View style={styles.typingDotsRow} accessibilityLabel={`${text}...`}>
-        <Animated.Text style={[styles.typingDot, { color }, dotStyle(dot1)]}>.</Animated.Text>
-        <Animated.Text style={[styles.typingDot, { color }, dotStyle(dot2)]}>.</Animated.Text>
-        <Animated.Text style={[styles.typingDot, { color }, dotStyle(dot3)]}>.</Animated.Text>
-      </View>
-    </View>
-  );
-}
-
-function InlineVideoThumb({
-  url,
-  onPress,
-}: {
-  url: string;
-  onPress: () => void;
-}): React.JSX.Element {
-  const player = useVideoPlayer(url, (p: any) => {
-    // Ensure we don't auto-play in the message list.
-    try {
-      p.pause();
-    } catch {}
-  });
-
-  React.useEffect(() => {
-    try {
-      player.pause();
-    } catch {}
-  }, [player]);
-
-  return (
-    <Pressable onPress={onPress}>
-      <View style={styles.videoThumbWrap}>
-        <VideoView
-          player={player}
-          style={styles.mediaThumb}
-          contentFit="cover"
-          nativeControls={false}
-        />
-        <View style={styles.videoPlayOverlay}>
-          <Text style={styles.videoPlayText}>▶</Text>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
-function MiniToggle({
-  value,
-  onValueChange,
-  disabled,
-  isDark,
-}: {
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-  disabled?: boolean;
-  isDark: boolean;
-}): React.JSX.Element {
-  return (
-    <Pressable
-      onPress={() => {
-        if (disabled) return;
-        onValueChange(!value);
-      }}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: value, disabled: !!disabled }}
-      style={({ pressed }) => [
-        styles.miniToggleTrack,
-        isDark ? styles.miniToggleTrackDark : null,
-        value ? styles.miniToggleTrackOn : null,
-        value && isDark ? styles.miniToggleTrackOnDark : null,
-        disabled ? styles.miniToggleDisabled : null,
-        pressed && !disabled ? styles.miniTogglePressed : null,
-      ]}
-    >
-      <View
-        style={[
-          styles.miniToggleThumb,
-          isDark ? styles.miniToggleThumbDark : null,
-          value ? styles.miniToggleThumbOn : null,
-        ]}
-      />
-    </Pressable>
-  );
-}
+import { formatRemaining } from '../utils/formatRemaining';
+import { timestampId } from '../utils/ids';
+import { getPreviewKind } from '../utils/mediaKinds';
+import { calcCappedMediaSize } from '../utils/mediaSizing';
+import { normalizeUser } from '../utils/normalizeUser';
+import { getSeenLabelForCreatedAt } from '../utils/seenLabels';
+import { styles } from './ChatScreen.styles';
 
 type ChatScreenProps = {
   conversationId?: string | null;
@@ -231,589 +157,25 @@ type ChatScreenProps = {
   channelAboutRequestEpoch?: number;
   headerTop?: React.ReactNode;
   theme?: 'light' | 'dark';
-  chatBackground?: { mode: 'default' | 'color' | 'image'; color?: string; uri?: string; blur?: number; opacity?: number };
+  chatBackground?: {
+    mode: 'default' | 'color' | 'image';
+    color?: string;
+    uri?: string;
+    blur?: number;
+    opacity?: number;
+  };
   blockedUserSubs?: string[];
   // Bump this when keys are generated/recovered/reset so ChatScreen reloads them from storage.
   keyEpoch?: number;
-  // Optional app-level themed prompt helpers (preferred over native `Alert.alert`).
-  // If not provided, ChatScreen will fall back to `Alert.alert`.
-  promptAlert?: (title: string, message: string) => void | Promise<void>;
-  promptConfirm?: (
-    title: string,
-    message: string,
-    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean }
-  ) => Promise<boolean>;
   onBlockUserSub?: (blockedSub: string, label?: string) => void | Promise<void>;
-};
-
-type ChatMessage = {
-  id: string;
-  user?: string;
-  // Stable identity key for comparisons (lowercased username). Prefer this over `user` for logic.
-  userLower?: string;
-  // Stable identity key for comparisons (Cognito sub). Prefer this over display strings for logic.
-  userSub?: string;
-  // System messages are server-authored "events" (e.g. kicked/banned/left).
-  kind?: 'system';
-  systemKind?: string;
-  actorSub?: string;
-  actorUser?: string;
-  targetSub?: string;
-  targetUser?: string;
-  avatarBgColor?: string;
-  avatarTextColor?: string;
-  avatarImagePath?: string;
-  text: string;
-  rawText?: string;
-  encrypted?: EncryptedChatPayloadV1;
-  groupEncrypted?: EncryptedGroupPayloadV1;
-  decryptedText?: string;
-  // Group-only: derived from wraps[mySub] after decrypt; used to decrypt group media.
-  groupKeyHex?: string;
-  decryptFailed?: boolean;
-  expiresAt?: number; // epoch seconds
-  ttlSeconds?: number; // duration, seconds (TTL-from-read)
-  editedAt?: number; // epoch ms
-  deletedAt?: number; // epoch ms
-  deletedBySub?: string;
-  // Channels (plaintext) metadata
-  mentions?: string[];
-  replyToCreatedAt?: number;
-  replyToMessageId?: string;
-  replyToUserSub?: string;
-  replyToPreview?: string;
-  reactions?: Record<string, { count: number; userSubs: string[] }>;
-  // Backward-compat: historically we supported only a single attachment per message.
-  // New messages can include multiple attachments; use `mediaList` when present.
-  media?: ChatMediaItem;
-  mediaList?: ChatMediaItem[];
-  createdAt: number;
-  // Local-only UI state for optimistic sends.
-  localStatus?: 'sending' | 'sent' | 'failed';
-};
-
-type ChatMediaItem = {
-  path: string;
-  thumbPath?: string;
-  kind: 'image' | 'video' | 'file';
-  contentType?: string;
-  thumbContentType?: string;
-  fileName?: string;
-  size?: number;
-};
-
-type ChatEnvelope = {
-  type: 'chat';
-  text?: string;
-  // Backward-compat: `media` may be a single object (v1) or an array (v2+).
-  media?: ChatMediaItem | ChatMediaItem[];
 };
 
 const ENCRYPTED_PLACEHOLDER = 'Encrypted message (tap to decrypt)';
 
-type EncryptedGroupPayloadV1 = {
-  type: 'gdm_v1';
-  v: 1;
-  alg: 'aes-256-gcm+wraps-v1';
-  iv: string; // hex (12 bytes)
-  ciphertext: string; // hex (ciphertext + authTag)
-  // Wraps map: recipientSub -> EncryptedChatPayloadV1 encrypting messageKeyHex
-  wraps: Record<string, EncryptedChatPayloadV1>;
-};
-
-type DmMediaEnvelopeV1 = {
-  type: 'dm_media_v1';
-  v: 1;
-  caption?: string;
-  media: {
-    kind: 'image' | 'video' | 'file';
-    contentType?: string;
-    fileName?: string;
-    size?: number;
-    path: string; // encrypted blob
-    iv: string; // hex
-    thumbPath?: string; // encrypted thumb blob
-    thumbIv?: string; // hex
-    thumbContentType?: string; // e.g. image/jpeg
-  };
-  wrap: {
-    iv: string; // hex
-    ciphertext: string; // hex (wrapped fileKey)
-  };
-};
-
-type DmMediaEnvelopeV2 = {
-  type: 'dm_media_v2';
-  v: 2;
-  caption?: string;
-  // Each item wraps its own per-attachment file key (Signal-style).
-  items: Array<{
-    media: DmMediaEnvelopeV1['media'];
-    wrap: DmMediaEnvelopeV1['wrap'];
-  }>;
-};
-
-type DmMediaEnvelope = DmMediaEnvelopeV1 | DmMediaEnvelopeV2;
-
-const parseDmMediaEnvelope = (raw: string): DmMediaEnvelope | null => {
-  if (!raw) return null;
-  try {
-    const obj = JSON.parse(raw);
-    if (!obj || typeof obj !== 'object') return null;
-    if (obj.type === 'dm_media_v1' && obj.v === 1) {
-      if (!obj.media || !obj.wrap) return null;
-      if (typeof obj.media.path !== 'string' || typeof obj.media.iv !== 'string') return null;
-      if (typeof obj.wrap.iv !== 'string' || typeof obj.wrap.ciphertext !== 'string') return null;
-      return obj as DmMediaEnvelopeV1;
-    }
-    if (obj.type === 'dm_media_v2' && obj.v === 2) {
-      if (!Array.isArray(obj.items) || obj.items.length === 0) return null;
-      for (const it of obj.items) {
-        if (!it || typeof it !== 'object') return null;
-        const m = (it as any).media;
-        const w = (it as any).wrap;
-        if (!m || !w) return null;
-        if (typeof m.path !== 'string' || typeof m.iv !== 'string') return null;
-        if (typeof w.iv !== 'string' || typeof w.ciphertext !== 'string') return null;
-      }
-      return obj as DmMediaEnvelopeV2;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-};
-
-const normalizeChatMediaList = (raw: ChatEnvelope['media']): ChatMediaItem[] => {
-  if (!raw) return [];
-  const arr = Array.isArray(raw) ? raw : [raw];
-  const out: ChatMediaItem[] = [];
-  for (const m of arr) {
-    if (!m || typeof m !== 'object') continue;
-    if (typeof (m as any).path !== 'string') continue;
-    const kind = (m as any).kind === 'video' ? 'video' : (m as any).kind === 'image' ? 'image' : 'file';
-    out.push({
-      path: String((m as any).path),
-      thumbPath: typeof (m as any).thumbPath === 'string' ? String((m as any).thumbPath) : undefined,
-      kind,
-      contentType: typeof (m as any).contentType === 'string' ? String((m as any).contentType) : undefined,
-      thumbContentType:
-        typeof (m as any).thumbContentType === 'string' ? String((m as any).thumbContentType) : undefined,
-      fileName: typeof (m as any).fileName === 'string' ? String((m as any).fileName) : undefined,
-      size: typeof (m as any).size === 'number' && Number.isFinite((m as any).size) ? (m as any).size : undefined,
-    });
-  }
-  return out;
-};
-
-const normalizeDmMediaItems = (
-  env: DmMediaEnvelope | null
-): Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }> => {
-  if (!env) return [];
-  if (env.type === 'dm_media_v1') return [{ media: env.media, wrap: env.wrap }];
-  return Array.isArray(env.items) ? env.items : [];
-};
-
-// Group DM media envelope:
-// - The outer group message is encrypted with messageKey.
-// - Each attachment fileKey is wrapped with messageKey (AES-GCM), not ECDH.
-type GroupMediaEnvelopeV1 = {
-  type: 'gdm_media_v1';
-  v: 1;
-  caption?: string;
-  media: DmMediaEnvelopeV1['media'];
-  wrap: DmMediaEnvelopeV1['wrap']; // aesGcmEncryptBytes(messageKey, fileKey)
-};
-
-type GroupMediaEnvelopeV2 = {
-  type: 'gdm_media_v2';
-  v: 2;
-  caption?: string;
-  items: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-};
-
-type GroupMediaEnvelope = GroupMediaEnvelopeV1 | GroupMediaEnvelopeV2;
-
-const parseGroupMediaEnvelope = (raw: string): GroupMediaEnvelope | null => {
-  if (!raw) return null;
-  try {
-    const obj = JSON.parse(raw);
-    if (!obj || typeof obj !== 'object') return null;
-    if (obj.type === 'gdm_media_v1' && obj.v === 1) {
-      if (!obj.media || !obj.wrap) return null;
-      if (typeof obj.media.path !== 'string' || typeof obj.media.iv !== 'string') return null;
-      if (typeof obj.wrap.iv !== 'string' || typeof obj.wrap.ciphertext !== 'string') return null;
-      return obj as GroupMediaEnvelopeV1;
-    }
-    if (obj.type === 'gdm_media_v2' && obj.v === 2) {
-      if (!Array.isArray(obj.items) || obj.items.length === 0) return null;
-      for (const it of obj.items) {
-        if (!it || typeof it !== 'object') return null;
-        const m = (it as any).media;
-        const w = (it as any).wrap;
-        if (!m || !w) return null;
-        if (typeof m.path !== 'string' || typeof m.iv !== 'string') return null;
-        if (typeof w.iv !== 'string' || typeof w.ciphertext !== 'string') return null;
-      }
-      return obj as GroupMediaEnvelopeV2;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-};
-
-const normalizeGroupMediaItems = (
-  env: GroupMediaEnvelope | null
-): Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }> => {
-  if (!env) return [];
-  if (env.type === 'gdm_media_v1') return [{ media: env.media, wrap: env.wrap }];
-  return Array.isArray(env.items) ? env.items : [];
-};
-
-function MediaStackCarousel({
-  messageId,
-  mediaList,
-  width,
-  height,
-  isDm,
-  isDark,
-  isOutgoing,
-  mediaUrlByPath,
-  dmThumbUriByPath,
-  onOpen,
-}: {
-  messageId: string;
-  mediaList: ChatMediaItem[];
-  width: number;
-  height: number;
-  isDm: boolean;
-  isDark: boolean;
-  isOutgoing: boolean;
-  mediaUrlByPath: Record<string, string>;
-  dmThumbUriByPath: Record<string, string>;
-  onOpen: (idx: number, media: ChatMediaItem) => void;
-}): React.JSX.Element | null {
-  const n = mediaList.length;
-  const loopEnabled = n > 1;
-  const pages = React.useMemo(() => {
-    if (!loopEnabled) return mediaList;
-    const first = mediaList[0];
-    const last = mediaList[n - 1];
-    return [last, ...mediaList, first];
-  }, [loopEnabled, mediaList, n]);
-
-  const scrollRef = React.useRef<ScrollView | null>(null);
-  const scrollXRef = React.useRef<number>(0);
-  const [pageIdx, setPageIdx] = React.useState<number>(0); // 0..n-1
-  const pageIdxRef = React.useRef<number>(0);
-  React.useEffect(() => {
-    pageIdxRef.current = pageIdx;
-  }, [pageIdx]);
-  const [webHover, setWebHover] = React.useState<boolean>(false);
-
-  // When media changes, reset to the first "real" page.
-  React.useEffect(() => {
-    setPageIdx(0);
-    if (!loopEnabled) return;
-    // Defer to next tick so layout is ready.
-    setTimeout(() => {
-      try {
-        scrollRef.current?.scrollTo({ x: width, y: 0, animated: false });
-      } catch {
-        // ignore
-      }
-    }, 0);
-  }, [messageId, loopEnabled, width]);
-
-  const handleMomentumEnd = React.useCallback(
-    (e: any) => {
-      if (!loopEnabled) return;
-      const x = Number(e?.nativeEvent?.contentOffset?.x ?? 0);
-      const raw = Math.round(x / Math.max(1, width)); // 0..n+1
-      if (raw === 0) {
-        // Jump to last real page
-        try {
-          scrollRef.current?.scrollTo({ x: width * n, y: 0, animated: false });
-        } catch {}
-        setPageIdx(n - 1);
-      } else if (raw === n + 1) {
-        // Jump to first real page
-        try {
-          scrollRef.current?.scrollTo({ x: width, y: 0, animated: false });
-        } catch {}
-        setPageIdx(0);
-      } else {
-        setPageIdx(Math.max(0, Math.min(n - 1, raw - 1)));
-      }
-    },
-    [loopEnabled, n, width]
-  );
-
-  const handleScroll = React.useCallback(
-    (e: any) => {
-      if (!loopEnabled) return;
-      const x = Number(e?.nativeEvent?.contentOffset?.x ?? 0);
-      scrollXRef.current = x;
-      const raw = Math.round(x / Math.max(1, width)); // 0..n+1
-      const nextIdx =
-        raw === 0 ? n - 1 : raw === n + 1 ? 0 : Math.max(0, Math.min(n - 1, raw - 1));
-      if (nextIdx !== pageIdxRef.current) setPageIdx(nextIdx);
-    },
-    [loopEnabled, n, width]
-  );
-
-  const goTo = React.useCallback(
-    (idx: number) => {
-      if (!loopEnabled) return;
-      const safe = Math.max(0, Math.min(n - 1, idx));
-      setPageIdx(safe);
-      try {
-        scrollRef.current?.scrollTo({ x: width * (safe + 1), y: 0, animated: true });
-      } catch {
-        // ignore
-      }
-    },
-    [loopEnabled, n, width]
-  );
-
-  if (!n) return null;
-
-  return (
-    <View
-      style={{ width, position: 'relative' }}
-      {...(Platform.OS === 'web'
-        ? {
-            onMouseEnter: () => setWebHover(true),
-            onMouseLeave: () => setWebHover(false),
-          }
-        : {})}
-    >
-      <ScrollView
-        ref={(r) => {
-          scrollRef.current = r;
-        }}
-        horizontal
-        // Android: allow horizontal paging inside the vertical FlatList reliably.
-        // (Without this, swipes can get captured by the parent scroll view and paging feels "stuck".)
-        nestedScrollEnabled
-        pagingEnabled
-        scrollEnabled={n > 1}
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={width}
-        decelerationRate="fast"
-        directionalLockEnabled
-        style={{ width, height }}
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
-        onMomentumScrollEnd={handleMomentumEnd}
-        {...(Platform.OS === 'web'
-          ? {
-              // Web: map vertical wheel to horizontal paging so trackpad/mouse wheel "swipes" work naturally.
-              onWheel: (e: any) => {
-                const dx = Number(e?.nativeEvent?.deltaX ?? 0);
-                const dy = Number(e?.nativeEvent?.deltaY ?? 0);
-                if (Math.abs(dy) <= Math.abs(dx)) return;
-                try {
-                  scrollRef.current?.scrollTo({ x: Math.max(0, scrollXRef.current + dy), y: 0, animated: false });
-                } catch {
-                  // ignore
-                }
-              },
-            }
-          : {})}
-      >
-        {pages.map((m2, idx2) => {
-          const looksImage = m2.kind === 'image' || (m2.kind === 'file' && (m2.contentType || '').startsWith('image/'));
-          const looksVideo = m2.kind === 'video' || (m2.kind === 'file' && (m2.contentType || '').startsWith('video/'));
-          const thumbKey = String(m2.thumbPath || m2.path || '');
-          const thumbUri = isDm
-            ? (m2.thumbPath ? dmThumbUriByPath[m2.thumbPath] : null)
-            : (thumbKey ? mediaUrlByPath[thumbKey] : null);
-
-          // Map extended pages → real index.
-          const realIndex = !loopEnabled
-            ? idx2
-            : idx2 === 0
-              ? n - 1
-              : idx2 === n + 1
-                ? 0
-                : idx2 - 1;
-
-          const onPress = () => onOpen(realIndex, mediaList[realIndex]);
-
-          return (
-            <Pressable
-              key={`page:${messageId}:${m2.path}:${idx2}`}
-              onPress={onPress}
-              style={{ width, height }}
-              accessibilityRole="button"
-              accessibilityLabel="Open attachment"
-            >
-              {thumbUri && (looksImage || looksVideo) ? (
-                looksImage ? (
-                  <Image source={{ uri: thumbUri }} style={[styles.mediaCappedImage, { width, height }]} resizeMode="contain" />
-                ) : (
-                  <View style={[styles.videoThumbWrap, { width, height }]}>
-                    <Image source={{ uri: thumbUri }} style={styles.mediaFill} resizeMode="cover" />
-                    <View style={styles.videoPlayOverlay}>
-                      <Text style={styles.videoPlayText}>▶</Text>
-                    </View>
-                  </View>
-                )
-              ) : looksImage || looksVideo ? (
-                <View style={[styles.imageThumbWrap, { width, height, justifyContent: 'center', alignItems: 'center' }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text
-                      style={{
-                        color: isOutgoing ? 'rgba(255,255,255,0.9)' : isDark ? '#b7b7c2' : '#555',
-                        fontWeight: '700',
-                        fontSize: 14,
-                      }}
-                    >
-                      Loading
-                    </Text>
-                    <AnimatedDots color={isOutgoing ? 'rgba(255,255,255,0.9)' : isDark ? '#b7b7c2' : '#555'} size={16} />
-                  </View>
-                </View>
-              ) : (
-                <View style={[styles.imageThumbWrap, { width, height, justifyContent: 'center', alignItems: 'center' }]}>
-                  <Text style={styles.attachmentLink}>
-                    {`Attachment: ${m2.kind}${m2.fileName ? ` · ${m2.fileName}` : ''}`}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      {/* Web: explicit left/right controls for multi-attachment messages (show on hover like viewer chrome). */}
-      {Platform.OS === 'web' && n > 1 && webHover ? (
-        <>
-          <Pressable
-            style={[styles.mediaCarouselNavBtn, styles.mediaCarouselNavLeft]}
-            onPress={() => goTo((pageIdxRef.current - 1 + n) % n)}
-            accessibilityRole="button"
-            accessibilityLabel="Previous attachment"
-          >
-            <Text style={styles.mediaCarouselNavText}>‹</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.mediaCarouselNavBtn, styles.mediaCarouselNavRight]}
-            onPress={() => goTo((pageIdxRef.current + 1) % n)}
-            accessibilityRole="button"
-            accessibilityLabel="Next attachment"
-          >
-            <Text style={styles.mediaCarouselNavText}>›</Text>
-          </Pressable>
-        </>
-      ) : null}
-
-      {/* Count badge overlay (always visible for multi) */}
-      {n > 1 ? (
-        <View style={styles.mediaCountBadge}>
-          <Text style={styles.mediaCountBadgeText}>{`${pageIdx + 1}/${n}`}</Text>
-        </View>
-      ) : null}
-
-      {/* Dots overlay (tap-able) */}
-      {n > 1 ? (
-        <View
-          style={[
-            styles.mediaDotsOverlay,
-            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
-          ]}
-          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
-        >
-          <View style={styles.mediaDotsRow}>
-            {mediaList.map((_, i) => {
-              const active = i === pageIdx;
-              return (
-                <Pressable
-                  key={`dot:${messageId}:${i}`}
-                  onPress={() => goTo(i)}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Attachment ${i + 1} of ${n}`}
-                  style={({ pressed }) => [pressed ? { opacity: 0.85 } : null]}
-                >
-                  <View style={[styles.mediaDot, active ? styles.mediaDotActive : null]} />
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-const parseChatEnvelope = (raw: string): ChatEnvelope | null => {
-  if (!raw) return null;
-  try {
-    const obj = JSON.parse(raw);
-    if (!obj || typeof obj !== 'object') return null;
-    if (obj.type !== 'chat') return null;
-    return obj as ChatEnvelope;
-  } catch {
-    return null;
-  }
-};
-
-const normalizeReactions = (
-  raw: any
-): Record<string, { count: number; userSubs: string[] }> | undefined => {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const out: Record<string, { count: number; userSubs: string[] }> = {};
-  for (const [emoji, info] of Object.entries(raw)) {
-    if (!emoji) continue;
-    const count = Number((info as any)?.count);
-    const userSubsRaw = (info as any)?.userSubs;
-    const userSubs = Array.isArray(userSubsRaw)
-      ? userSubsRaw.map((s) => String(s)).filter(Boolean)
-      : [];
-    const safeCount = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : userSubs.length;
-    if (safeCount <= 0 && userSubs.length === 0) continue;
-    out[String(emoji)] = { count: safeCount, userSubs };
-  }
-  return Object.keys(out).length ? out : undefined;
-};
-
-const guessContentTypeFromName = (name?: string): string | undefined => {
-  if (!name) return undefined;
-  const lower = name.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-  if (lower.endsWith('.png')) return 'image/png';
-  if (lower.endsWith('.gif')) return 'image/gif';
-  if (lower.endsWith('.webp')) return 'image/webp';
-  if (lower.endsWith('.mp4')) return 'video/mp4';
-  if (lower.endsWith('.mov')) return 'video/quicktime';
-  if (lower.endsWith('.m4v')) return 'video/x-m4v';
-  return undefined;
-};
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_BYTES = 75 * 1024 * 1024; // 75MB
-const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25MB (GIFs/documents)
-const MAX_ATTACHMENTS_PER_MESSAGE = 5;
-const THUMB_MAX_DIM = 720; // px
-const THUMB_JPEG_QUALITY = 0.85; // preview-only; original stays untouched
+const EMPTY_URI_BY_PATH: Record<string, string> = {};
 const HISTORY_PAGE_SIZE = 50;
-  const CHAT_MEDIA_MAX_HEIGHT = 240; // dp
-  const CHAT_MEDIA_MAX_WIDTH_FRACTION = 0.86; // fraction of screen width (roughly bubble width)
-
-const formatBytes = (bytes: number): string => {
-  if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let v = bytes;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-};
+const CHAT_MEDIA_MAX_HEIGHT = 240; // dp
+const CHAT_MEDIA_MAX_WIDTH_FRACTION = 0.86; // fraction of screen width (roughly bubble width)
 
 export default function ChatScreen({
   conversationId,
@@ -828,98 +190,41 @@ export default function ChatScreen({
   chatBackground,
   blockedUserSubs = [],
   keyEpoch,
-  promptAlert,
-  promptConfirm,
   onBlockUserSub,
 }: ChatScreenProps): React.JSX.Element {
   const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
   const { user } = useAuthenticator();
   const { width: windowWidth } = useWindowDimensions();
-  const CHAT_WIDE_BREAKPOINT_PX = 900;
-  const CHAT_MAX_CONTENT_WIDTH_PX = 1040;
-  const isWideChatLayout = windowWidth >= CHAT_WIDE_BREAKPOINT_PX;
-  const chatViewportWidth = isWideChatLayout ? Math.min(windowWidth, CHAT_MAX_CONTENT_WIDTH_PX) : windowWidth;
-  const composerSafeAreaStyle = React.useMemo(() => ({ paddingBottom: insets.bottom }), [insets.bottom]);
+  const { isWide: isWideChatLayout, viewportWidth: chatViewportWidth } = useViewportWidth(
+    windowWidth,
+    {
+      wideBreakpointPx: 900,
+      maxContentWidthPx: 1040,
+    },
+  );
+  const composerSafeAreaStyle = React.useMemo(
+    () => ({ paddingBottom: insets.bottom }),
+    [insets.bottom],
+  );
   const composerHorizontalInsetsStyle = React.useMemo(
     () => ({ paddingLeft: 12 + insets.left, paddingRight: 12 + insets.right }),
-    [insets.left, insets.right]
+    [insets.left, insets.right],
   );
   const dmSettingsCompact = windowWidth < 420;
   const [dmSettingsOpen, setDmSettingsOpen] = React.useState<boolean>(true);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
-  const [historyCursor, setHistoryCursor] = React.useState<number | null>(null);
-  const [historyHasMore, setHistoryHasMore] = React.useState<boolean>(true);
-  const [historyLoading, setHistoryLoading] = React.useState<boolean>(false);
-  const historyLoadingRef = React.useRef<boolean>(false);
-  const blockedSubsSet = React.useMemo(() => new Set((blockedUserSubs || []).filter(Boolean)), [blockedUserSubs]);
-  const visibleMessages = React.useMemo(
-    () => messages.filter((m) => !(m.userSub && blockedSubsSet.has(String(m.userSub)))),
-    [messages, blockedSubsSet]
+  const blockedSubsSet = React.useMemo(
+    () => new Set((blockedUserSubs || []).filter(Boolean)),
+    [blockedUserSubs],
   );
-  const messageListData = React.useMemo(
-    () => (Platform.OS === 'web' ? [...visibleMessages].reverse() : visibleMessages),
-    [visibleMessages]
-  );
-  // Web-only: since we render a non-inverted list (and reverse data), explicitly start at the bottom.
-  const messageListRef = React.useRef<any>(null);
-  const webDidInitialScrollRef = React.useRef<boolean>(false);
-  const webAtBottomRef = React.useRef<boolean>(true);
-  const [webListReady, setWebListReady] = React.useState<boolean>(Platform.OS !== 'web');
-  const webInitScrollTimerRef = React.useRef<any>(null);
-  const webInitScrollAttemptsRef = React.useRef<number>(0);
-  const webListViewportHRef = React.useRef<number>(0);
-  const webListContentHRef = React.useRef<number>(0);
-  const scrollWebListToBottom = React.useCallback((animated: boolean) => {
-    if (Platform.OS !== 'web') return;
-    const list: any = messageListRef.current;
-    const viewportH = Math.max(0, Math.floor(webListViewportHRef.current || 0));
-    const contentH = Math.max(0, Math.floor(webListContentHRef.current || 0));
-    const endY = viewportH > 0 ? Math.max(0, contentH - viewportH) : null;
-
-    // Prefer explicit offset (more reliable than scrollToEnd on RN-web when content height changes).
-    if (typeof endY === 'number' && Number.isFinite(endY) && list?.scrollToOffset) {
-      list.scrollToOffset({ offset: endY + 9999, animated: !!animated });
-      return;
-    }
-    if (list?.scrollToEnd) list.scrollToEnd({ animated: !!animated });
-  }, []);
-
-  const kickWebInitialScrollToEnd = React.useCallback(() => {
-    if (Platform.OS !== 'web') return;
-    if (webInitScrollTimerRef.current) clearTimeout(webInitScrollTimerRef.current);
-    webInitScrollAttemptsRef.current = 0;
-    const step = () => {
-      scrollWebListToBottom(false);
-      webInitScrollAttemptsRef.current += 1;
-      // Give RN-web a few layout/virtualization ticks to settle before we reveal.
-      if (webInitScrollAttemptsRef.current < 10) {
-        webInitScrollTimerRef.current = setTimeout(step, 50);
-      } else {
-        setWebListReady(true);
-      }
-    };
-    step();
-  }, [scrollWebListToBottom]);
-
-  React.useEffect(() => {
-    return () => {
-      if (webInitScrollTimerRef.current) clearTimeout(webInitScrollTimerRef.current);
-    };
-  }, []);
-
-  // Web: when messages first appear, start at the bottom (newest).
-  React.useLayoutEffect(() => {
-    if (Platform.OS !== 'web') return;
-    if (webDidInitialScrollRef.current) return;
-    if (!visibleMessages.length) return;
-    webDidInitialScrollRef.current = true;
-    kickWebInitialScrollToEnd();
-  }, [visibleMessages.length, kickWebInitialScrollToEnd]);
+  const { visibleMessages, messageListData, webPinned } = useChatMessageListState({
+    messages,
+    blockedSubsSet,
+  });
   const AVATAR_SIZE = 44;
   const AVATAR_GAP = 8;
   const AVATAR_GUTTER = AVATAR_SIZE + AVATAR_GAP;
-  const AVATAR_TOP_OFFSET = 4;
   const [input, setInput] = React.useState<string>('');
   const inputRef = React.useRef<string>('');
   const textInputRef = React.useRef<TextInput | null>(null);
@@ -936,759 +241,433 @@ export default function ChatScreen({
   }>(null);
   const sendTimeoutRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [typingByUserExpiresAt, setTypingByUserExpiresAt] = React.useState<Record<string, number>>(
-    {}
+    {},
   ); // user -> expiresAtMs
-  const [isConnecting, setIsConnecting] = React.useState<boolean>(false);
-  const [isConnected, setIsConnected] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
-  const wsRef = React.useRef<WebSocket | null>(null);
-  const wsReconnectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wsReconnectAttemptRef = React.useRef<number>(0);
   const appStateRef = React.useRef<AppStateStatus>(AppState.currentState);
   const activeConversationIdRef = React.useRef<string>('global');
   const displayNameRef = React.useRef<string>('');
   const myPublicKeyRef = React.useRef<string | null>(null);
   const onNewDmNotificationRef = React.useRef<typeof onNewDmNotification | undefined>(undefined);
-  const onKickedFromConversationRef = React.useRef<typeof onKickedFromConversation | undefined>(undefined);
-  const isTypingRef = React.useRef<boolean>(false);
-  const lastTypingSentAtRef = React.useRef<number>(0);
-  const typingCleanupTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const onKickedFromConversationRef = React.useRef<typeof onKickedFromConversation | undefined>(
+    undefined,
+  );
   const pendingJoinConversationIdRef = React.useRef<string | null>(null);
-  const [myUserId, setMyUserId] = React.useState<string | null>(null);
-  const [myPrivateKey, setMyPrivateKey] = React.useState<string | null>(null);
-  const [myPublicKey, setMyPublicKey] = React.useState<string | null>(null);
+  const { myUserId, myPrivateKey, myPublicKey } = useChatMyKeys({ user, keyEpoch });
   const [peerPublicKey, setPeerPublicKey] = React.useState<string | null>(null);
-  // Group DM state (used for encryption + admin UI)
-  const [groupMeta, setGroupMeta] = React.useState<null | { groupId: string; groupName?: string; meIsAdmin: boolean; meStatus: string }>(
-    null
-  );
-  const [groupMembers, setGroupMembers] = React.useState<
-    Array<{
-      memberSub: string;
-      displayName?: string;
-      status: string;
-      isAdmin: boolean;
-      avatarBgColor?: string;
-      avatarTextColor?: string;
-      avatarImagePath?: string;
-    }>
-  >([]);
-  // For UI counts + roster list. We intentionally hide "left" members.
-  const groupMembersVisible = React.useMemo(
-    () => groupMembers.filter((m) => m && (m.status === 'active' || m.status === 'banned')),
-    [groupMembers]
-  );
-  // For the "Members" button count: show *active* participants only.
-  const groupMembersActiveCount = React.useMemo(
-    () => groupMembers.reduce((acc, m) => (m && m.status === 'active' ? acc + 1 : acc), 0),
-    [groupMembers]
-  );
-  const computeDefaultGroupTitleForMe = React.useCallback((): string => {
-    const mySub = typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : '';
-    const active = groupMembers.filter((m) => m && m.status === 'active');
-    const others = active.filter((m) => !mySub || String(m.memberSub) !== mySub);
-    const labels = others
-      .map((m) => String(m.displayName || m.memberSub || '').trim())
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b));
-    if (!labels.length) return 'Group DM';
-    const head = labels.slice(0, 3);
-    const rest = labels.length - head.length;
-    return rest > 0 ? `${head.join(', ')} +${rest}` : head.join(', ');
-  }, [groupMembers, myUserId]);
-  // UI-only: prevent accidental/spammy repeated kicks (per-user cooldown).
-  const [kickCooldownUntilBySub, setKickCooldownUntilBySub] = React.useState<Record<string, number>>({});
-  const kickCooldownTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [groupPublicKeyBySub, setGroupPublicKeyBySub] = React.useState<Record<string, string>>({});
-  const [groupMembersOpen, setGroupMembersOpen] = React.useState<boolean>(false);
+  const {
+    parseEncrypted,
+    parseGroupEncrypted,
+    decryptGroupForDisplay,
+    decryptForDisplay,
+    buildDmMediaKey,
+  } = useChatDecryptors({
+    myPrivateKey,
+    myPublicKey,
+    peerPublicKey,
+    myUserId,
+    decryptChatMessageV1,
+    aesGcmDecryptBytes,
+    deriveChatKeyBytesV1,
+    hexToBytes,
+  });
+  const groupUi = useChatGroupUiState();
+  const {
+    groupMeta,
+    setGroupMeta,
+    groupMembers,
+    setGroupMembers,
+    groupPublicKeyBySub,
+    setGroupPublicKeyBySub,
+    groupMembersOpen,
+    setGroupMembersOpen,
+    groupRefreshNonce,
+    setGroupRefreshNonce,
+    groupNameEditOpen,
+    setGroupNameEditOpen,
+    groupNameDraft,
+    setGroupNameDraft,
+    groupAddMembersDraft,
+    setGroupAddMembersDraft,
+    groupAddMembersInputRef,
+    groupActionBusy,
+    setGroupActionBusy,
+  } = groupUi;
+  const { groupMembersVisible, groupMembersActiveCount, computeDefaultGroupTitleForMe } =
+    useGroupMembersUi({
+      groupMembers,
+      myUserId,
+    });
   const [autoDecrypt, setAutoDecrypt] = React.useState<boolean>(false);
-  const [cipherOpen, setCipherOpen] = React.useState(false);
-  const [cipherText, setCipherText] = React.useState<string>('');
-  const [reactionInfoOpen, setReactionInfoOpen] = React.useState(false);
-  const [reactionInfoEmoji, setReactionInfoEmoji] = React.useState<string>('');
-  const [reactionInfoSubs, setReactionInfoSubs] = React.useState<string[]>([]);
-  const [reactionInfoTarget, setReactionInfoTarget] = React.useState<ChatMessage | null>(null);
-  const [nameBySub, setNameBySub] = React.useState<Record<string, string>>({});
-  const [reactionPickerOpen, setReactionPickerOpen] = React.useState(false);
+  const { cipherOpen, setCipherOpen, cipherText, setCipherText } = useChatCipherState();
+  const { nameBySub, ensureNames: ensureNameBySub } = useDisplayNameBySub(API_URL);
+  const [reactionPickerOpen, setReactionPickerOpen] = React.useState<boolean>(false);
   const [reactionPickerTarget, setReactionPickerTarget] = React.useState<ChatMessage | null>(null);
-  const [messageActionOpen, setMessageActionOpen] = React.useState(false);
-  const [messageActionTarget, setMessageActionTarget] = React.useState<ChatMessage | null>(null);
-  const [messageActionAnchor, setMessageActionAnchor] = React.useState<{ x: number; y: number } | null>(null);
-  const actionMenuAnim = React.useRef(new Animated.Value(0)).current;
-  const actionMenuMeasuredHRef = React.useRef<number>(0);
-  const [actionMenuMeasuredH, setActionMenuMeasuredH] = React.useState<number>(0);
-  const [reportOpen, setReportOpen] = React.useState(false);
-  const [reportKind, setReportKind] = React.useState<'message' | 'user'>('message');
-  const [reportTargetMessage, setReportTargetMessage] = React.useState<ChatMessage | null>(null);
-  const [reportTargetUserSub, setReportTargetUserSub] = React.useState<string>('');
-  const [reportTargetUserLabel, setReportTargetUserLabel] = React.useState<string>('');
-  const [reportNotice, setReportNotice] = React.useState<null | { type: 'error' | 'success'; message: string }>(
-    null
-  );
-  const [reportCategory, setReportCategory] = React.useState<string>('spam');
-  const [reportDetails, setReportDetails] = React.useState<string>('');
-  const [reportSubmitting, setReportSubmitting] = React.useState<boolean>(false);
+  const messageActionMenu = useMessageActionMenu<ChatMessage>();
+  const messageActionTarget = messageActionMenu.target;
+  const openMessageActions = messageActionMenu.openMenu;
+  const closeMessageActions = messageActionMenu.closeMenu;
   const [inlineEditTargetId, setInlineEditTargetId] = React.useState<string | null>(null);
   const [inlineEditDraft, setInlineEditDraft] = React.useState<string>('');
   const [inlineEditAttachmentMode, setInlineEditAttachmentMode] = React.useState<
     'keep' | 'replace' | 'remove'
   >('keep');
   const [inlineEditUploading, setInlineEditUploading] = React.useState<boolean>(false);
-  const [hiddenMessageIds, setHiddenMessageIds] = React.useState<Record<string, true>>({});
-  const [infoOpen, setInfoOpen] = React.useState(false);
-  const [infoTitle, setInfoTitle] = React.useState<string>('');
-  const [infoBody, setInfoBody] = React.useState<string>('');
-  // Per-message "Seen" state for outgoing messages (keyed by message createdAt ms)
-  const [peerSeenAtByCreatedAt, setPeerSeenAtByCreatedAt] = React.useState<Record<string, number>>(
-    {}
-  ); // createdAt(ms) -> readAt(sec)
-  const [mySeenAtByCreatedAt, setMySeenAtByCreatedAt] = React.useState<Record<string, number>>({});
-  const pendingReadCreatedAtSetRef = React.useRef<Set<number>>(new Set());
-  const sentReadCreatedAtSetRef = React.useRef<Set<number>>(new Set());
-  const [sendReadReceipts, setSendReadReceipts] = React.useState<boolean>(true);
-  // If read receipts are disabled when we read/decrypt messages, record the highest messageCreatedAt
-  // we've read so we don't retroactively send receipts later when the user re-enables them.
-  const [readReceiptSuppressUpTo, setReadReceiptSuppressUpTo] = React.useState<number>(0);
-  const readReceiptSuppressUpToRef = React.useRef<number>(0);
-  const [nowSec, setNowSec] = React.useState<number>(() => Math.floor(Date.now() / 1000));
-  const TTL_OPTIONS = React.useMemo(
-    () => [
-      { label: 'Off', seconds: 0 },
-      { label: '5 min', seconds: 5 * 60 },
-      { label: '30 min', seconds: 30 * 60 },
-      { label: '1 hour', seconds: 60 * 60 },
-      { label: '6 hours', seconds: 6 * 60 * 60 },
-      { label: '1 day', seconds: 24 * 60 * 60 },
-      { label: '1 week', seconds: 7 * 24 * 60 * 60 },
-      { label: '30 days', seconds: 30 * 24 * 60 * 60 },
-    ],
-    []
-  );
-  const [ttlIdx, setTtlIdx] = React.useState<number>(0);
-  const [ttlIdxDraft, setTtlIdxDraft] = React.useState<number>(0);
-  const [ttlPickerOpen, setTtlPickerOpen] = React.useState(false);
-  const [summaryOpen, setSummaryOpen] = React.useState(false);
-  const [summaryText, setSummaryText] = React.useState<string>('');
-  const [summaryLoading, setSummaryLoading] = React.useState(false);
-  const [helperOpen, setHelperOpen] = React.useState(false);
-  const [aiConsentOpen, setAiConsentOpen] = React.useState<boolean>(false);
-  const [aiConsentAction, setAiConsentAction] = React.useState<null | 'summary' | 'helper'>(null);
-  const [dmAiConsentGranted, setDmAiConsentGranted] = React.useState<boolean>(false);
-  const [helperInstruction, setHelperInstruction] = React.useState<string>('');
-  const [helperLoading, setHelperLoading] = React.useState<boolean>(false);
-  const [helperAnswer, setHelperAnswer] = React.useState<string>('');
-  const [helperSuggestions, setHelperSuggestions] = React.useState<string[]>([]);
-  const [helperThread, setHelperThread] = React.useState<
-    Array<{ role: 'user' | 'assistant'; text: string; thinking?: boolean }>
-  >([]);
-  const [helperResetThread, setHelperResetThread] = React.useState<boolean>(false);
+  const hiddenKey = React.useMemo(() => {
+    // Keep key stable per-account (prefer sub) and match existing normalization (trim + lowercase).
+    const who = myUserId
+      ? String(myUserId)
+      : String(displayName || 'anon')
+          .trim()
+          .toLowerCase();
+    const convKey = conversationId && conversationId.length > 0 ? conversationId : 'global';
+    return `chat:hidden:${who}:${convKey}`;
+  }, [myUserId, displayName, conversationId]);
+  const { hiddenMessageIds, hideMessageId } = useHiddenMessageIds(hiddenKey);
+
+  const { historyHasMore, historyLoading, loadOlderHistory } = useChatHistory({
+    apiUrl: API_URL,
+    activeConversationId: conversationId && conversationId.length > 0 ? conversationId : 'global',
+    hiddenMessageIds,
+    setMessages,
+    setError,
+    encryptedPlaceholder: ENCRYPTED_PLACEHOLDER,
+    parseEncrypted,
+    parseGroupEncrypted,
+    normalizeUser,
+    normalizeReactions,
+    pageSize: HISTORY_PAGE_SIZE,
+  });
+  const infoModal = useChatInfoModal();
+  const { infoOpen, setInfoOpen, infoTitle, infoBody, openInfo, setInfoTitle, setInfoBody } =
+    infoModal;
+  const wsRef = React.useRef<WebSocket | null>(null);
+  const {
+    TTL_OPTIONS,
+    ttlIdx,
+    setTtlIdx,
+    ttlIdxDraft,
+    setTtlIdxDraft,
+    ttlPickerOpen,
+    setTtlPickerOpen,
+  } = useChatTtlPickerState();
 
   // NOTE: We intentionally do NOT call `UIManager.setLayoutAnimationEnabledExperimental` here.
   // In React Native New Architecture (Fabric), it's a no-op and spams Metro warnings.
 
   // Persist DM settings visibility per-device, per-account.
-  React.useEffect(() => {
-    (async () => {
-      if (!myUserId) return;
-      try {
-        const key = `chat:dmSettingsOpen:${myUserId}`;
-        const v = await AsyncStorage.getItem(key);
-        if (v === '0') setDmSettingsOpen(false);
-        if (v === '1') setDmSettingsOpen(true);
-      } catch {
-        // ignore
-      }
-    })();
-  }, [myUserId]);
+  usePersistedBool({
+    enabled: !!myUserId,
+    storageKey: `chat:dmSettingsOpen:${String(myUserId || '')}`,
+    value: dmSettingsOpen,
+    setValue: setDmSettingsOpen,
+  });
 
-  React.useEffect(() => {
-    (async () => {
-      if (!myUserId) return;
-      try {
-        const key = `chat:dmSettingsOpen:${myUserId}`;
-        await AsyncStorage.setItem(key, dmSettingsOpen ? '1' : '0');
-      } catch {
-        // ignore
-      }
-    })();
-  }, [myUserId, dmSettingsOpen]);
+  const { uiAlert, uiConfirm, showAlert } = useUiPromptHelpers();
 
-  // Persist "send read receipts" per-device, per-account.
-  React.useEffect(() => {
-    (async () => {
-      if (!myUserId) return;
-      try {
-        const key = `chat:readReceiptsEnabled:${myUserId}`;
-        const v = await AsyncStorage.getItem(key);
-        if (v === '0') setSendReadReceipts(false);
-        if (v === '1') setSendReadReceipts(true);
-      } catch {
-        // ignore
-      }
-    })();
-  }, [myUserId]);
-
-  React.useEffect(() => {
-    (async () => {
-      if (!myUserId) return;
-      try {
-        const key = `chat:readReceiptsEnabled:${myUserId}`;
-        await AsyncStorage.setItem(key, sendReadReceipts ? '1' : '0');
-      } catch {
-        // ignore
-      }
-    })();
-  }, [myUserId, sendReadReceipts]);
-
-  // Persist suppression watermark per-conversation (prevents late receipts after toggling back on).
-  React.useEffect(() => {
-    readReceiptSuppressUpToRef.current = readReceiptSuppressUpTo;
-  }, [readReceiptSuppressUpTo]);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const convKey = conversationId && conversationId.length > 0 ? conversationId : 'global';
-        const key = `chat:readReceiptSuppressUpTo:${convKey}`;
-        const raw = await AsyncStorage.getItem(key);
-        const v = raw ? Number(raw) : 0;
-        setReadReceiptSuppressUpTo(Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
-      } catch {
-        setReadReceiptSuppressUpTo(0);
-      }
-    })();
-  }, [conversationId]);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const convKey = conversationId && conversationId.length > 0 ? conversationId : 'global';
-        const key = `chat:readReceiptSuppressUpTo:${convKey}`;
-        await AsyncStorage.setItem(key, String(Math.max(0, Math.floor(readReceiptSuppressUpTo || 0))));
-      } catch {
-        // ignore
-      }
-    })();
-  }, [conversationId, readReceiptSuppressUpTo]);
-  const [helperMode, setHelperMode] = React.useState<'ask' | 'reply'>('ask');
-  const helperScrollRef = React.useRef<ScrollView | null>(null);
-  const helperScrollViewportHRef = React.useRef<number>(0);
-  const helperScrollContentHRef = React.useRef<number>(0);
-  const helperScrollContentRef = React.useRef<View | null>(null);
-  const helperLastTurnRef = React.useRef<View | null>(null);
-  const helperLastTurnLayoutRef = React.useRef<{ y: number; h: number; ok: boolean }>({ y: 0, h: 0, ok: false });
-  const helperAutoScrollRetryRef = React.useRef<{ timer: any; attempts: number }>({ timer: null, attempts: 0 });
-  // Drives deterministic scroll behavior.
-  // - 'thinking': always pin to bottom
-  // - 'answer': bottom unless answer bubble is taller than viewport (then show top of bubble)
-  const helperAutoScrollIntentRef = React.useRef<null | 'thinking' | 'answer'>(null);
-  // Web: content height can keep changing after we scroll (font/layout ticks). Keep auto-scroll "sticky"
-  // for a short window right after we programmatically scrolled.
-  const helperLastAutoScrollAtRef = React.useRef<number>(0);
-  const helperLastAutoScrollContentHRef = React.useRef<number>(0);
   const [isUploading, setIsUploading] = React.useState(false);
-  type PendingMediaItem = {
-    uri: string;
-    kind: 'image' | 'video' | 'file';
-    contentType?: string;
-    fileName?: string;
-    // Friendly label for UI (e.g. "From camera") without affecting uploads.
-    displayName?: string;
-    source?: 'camera' | 'library' | 'file';
-    size?: number;
-  };
-  const [pendingMedia, setPendingMedia] = React.useState<PendingMediaItem[]>([]);
-  const pendingMediaRef = React.useRef<PendingMediaItem[]>([]);
-  const [mediaUrlByPath, setMediaUrlByPath] = React.useState<Record<string, string>>({});
-  const inFlightMediaUrlRef = React.useRef<Set<string>>(new Set());
-  const [avatarUrlByPath, setAvatarUrlByPath] = React.useState<Record<string, string>>({});
-  const inFlightAvatarUrlRef = React.useRef<Set<string>>(new Set());
-  const [storageSessionReady, setStorageSessionReady] = React.useState<boolean>(false);
-  const [imageAspectByPath, setImageAspectByPath] = React.useState<Record<string, number>>({});
-  const inFlightImageSizeRef = React.useRef<Set<string>>(new Set());
+  const {
+    pendingMedia,
+    pendingMediaRef,
+    setPendingMediaItems,
+    clearPendingMedia,
+    addPickedMediaItems,
+    mergeRecoveredPickerItems,
+  } = useChatAttachments({
+    inlineEditAttachmentMode,
+    maxAttachmentsPerMessage: MAX_ATTACHMENTS_PER_MESSAGE,
+    showAlert,
+  });
+  const cdnMedia = useCdnUrlCache(CDN_URL);
+  const mediaUrlByPath = cdnMedia.urlByPath;
+  const cdnAvatar = useCdnUrlCache(CDN_URL);
+  const avatarUrlByPath = cdnAvatar.urlByPath;
+  useStorageSessionReady({ user, fetchAuthSession });
+  const {
+    imageAspectByPath,
+    setImageAspectByPath,
+    dmThumbUriByPath,
+    dmFileUriByPath,
+    decryptDmThumbToDataUri,
+    decryptDmFileToCacheUri,
+    decryptGroupThumbToDataUri,
+    decryptGroupFileToCacheUri,
+  } = useChatMediaDecryptCache({
+    aesGcmDecryptBytes,
+    hexToBytes,
+    gcm,
+    fromByteArray,
+    getDmMediaSignedUrl,
+    buildDmMediaKey,
+  });
   // When we receive a message from a sender, refresh their avatar profile (throttled),
   // so profile changes propagate quickly without global polling.
   const AVATAR_REFETCH_ON_MESSAGE_COOLDOWN_MS = 15_000;
   const lastAvatarRefetchAtBySubRef = React.useRef<Record<string, number>>({});
-  const [avatarProfileBySub, setAvatarProfileBySub] = React.useState<
-    Record<
-      string,
-      {
-        displayName?: string;
-        avatarBgColor?: string;
-        avatarTextColor?: string;
-        avatarImagePath?: string;
-        fetchedAt?: number;
+  const wantedAvatarSubs = React.useMemo(() => {
+    const subs: string[] = [];
+    if (myUserId) subs.push(String(myUserId));
+    for (const m of messages) {
+      const sub = m?.userSub ? String(m.userSub) : '';
+      if (sub) subs.push(sub);
+    }
+    return subs;
+  }, [messages, myUserId]);
+  const {
+    avatarProfileBySub,
+    invalidate: invalidateAvatarProfile,
+    upsertMany: upsertAvatarProfiles,
+  } = usePublicAvatarProfiles({
+    apiUrl: API_URL,
+    subs: wantedAvatarSubs,
+    // Chat flow refetches by invalidating on new messages; otherwise only fetch missing.
+    ttlMs: Number.POSITIVE_INFINITY,
+    resetKey: conversationId,
+    cdn: cdnAvatar,
+  });
+
+  const { toast, anim: toastAnim, showToast } = useToast();
+
+  function onViewerSavePermissionDenied() {
+    showToast('Allow Photos permission to save.', 'error');
+  }
+  function onViewerSaveSuccess() {
+    showToast('Saved to your device.', 'success');
+  }
+  function onViewerSaveError(msg: string) {
+    const m = String(msg || '');
+    showToast(m.length > 120 ? `${m.slice(0, 120)}…` : m, 'error');
+  }
+
+  const viewer = useMediaViewer<NonNullable<ChatMediaViewerState>>({
+    getSaveItem: (vs) => {
+      if (!vs) return null;
+      if (vs.mode === 'global') return vs.globalItems?.[vs.index] ?? null;
+      if (vs.mode === 'dm') {
+        const it = vs.dmItems?.[vs.index];
+        if (!it?.media?.path) return null;
+        const url = dmFileUriByPath[it.media.path];
+        if (!url) return null;
+        const kind =
+          it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
+        return { url, kind, fileName: it.media.fileName };
       }
-    >
-  >({});
-  const inFlightAvatarProfileRef = React.useRef<Set<string>>(new Set());
-  const [viewerOpen, setViewerOpen] = React.useState(false);
-  const [viewerState, setViewerState] = React.useState<
-    | null
-    | {
-        mode: 'global' | 'dm' | 'gdm';
-        title?: string;
-        index: number;
-        globalItems?: Array<{ url: string; kind: 'image' | 'video' | 'file'; fileName?: string }>;
-        dmMsg?: ChatMessage;
-        dmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-        gdmMsg?: ChatMessage;
-        gdmItems?: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
-      }
-  >(null);
-  const [dmThumbUriByPath, setDmThumbUriByPath] = React.useState<Record<string, string>>({});
-  const [dmFileUriByPath, setDmFileUriByPath] = React.useState<Record<string, string>>({});
+      return null;
+    },
+    onPermissionDenied: onViewerSavePermissionDenied,
+    onSuccess: onViewerSaveSuccess,
+    onError: onViewerSaveError,
+  });
+  // DM media caches + decrypt helpers are managed by useChatMediaDecryptCache().
   const inFlightDmViewerDecryptRef = React.useRef<Set<string>>(new Set());
-  const [viewerSaving, setViewerSaving] = React.useState<boolean>(false);
-  const [toast, setToast] = React.useState<null | { message: string; kind: 'success' | 'error' }>(null);
-  const toastAnim = React.useRef(new Animated.Value(0)).current;
-  const toastTimerRef = React.useRef<any>(null);
   const [attachOpen, setAttachOpen] = React.useState<boolean>(false);
   const [cameraOpen, setCameraOpen] = React.useState<boolean>(false);
   const activeConversationId = React.useMemo(
     () => (conversationId && conversationId.length > 0 ? conversationId : 'global'),
-    [conversationId]
+    [conversationId],
+  );
+  // Per-message "Seen" state for outgoing messages (keyed by message createdAt ms)
+  const { map: peerSeenAtByCreatedAt, setMap: setPeerSeenAtByCreatedAt } = usePersistedNumberMinMap(
+    `chat:peerSeen:${activeConversationId}`,
+  );
+  const { setMap: setMySeenAtByCreatedAt } = usePersistedNumberMinMap(
+    `chat:seen:${activeConversationId}`,
   );
   const isDm = React.useMemo(() => activeConversationId.startsWith('dm#'), [activeConversationId]);
-  const isGroup = React.useMemo(() => activeConversationId.startsWith('gdm#'), [activeConversationId]);
-  const isChannel = React.useMemo(() => activeConversationId.startsWith('ch#'), [activeConversationId]);
+  const isGroup = React.useMemo(
+    () => activeConversationId.startsWith('gdm#'),
+    [activeConversationId],
+  );
+  const isChannel = React.useMemo(
+    () => activeConversationId.startsWith('ch#'),
+    [activeConversationId],
+  );
   const isEncryptedChat = isDm || isGroup;
+
+  const { kickCooldownUntilBySub, groupKick, channelKick } = useChatKickActions({
+    wsRef,
+    activeConversationId,
+    isGroup,
+    isChannel,
+    showAlert,
+  });
+
+  const aiSummary = useAiSummary({
+    apiUrl: API_URL,
+    activeConversationId,
+    peer,
+    messages,
+    fetchAuthSession,
+    showAlert,
+    openInfo,
+  });
+
+  const aiHelper = useAiHelper({
+    apiUrl: API_URL,
+    activeConversationId,
+    peer,
+    messages,
+    isDm,
+    mediaUrlByPath,
+    cdnResolve: (p) => cdnMedia.resolve(p),
+    fetchAuthSession,
+    openInfo,
+  });
+
+  const aiConsentGate = useAiDmConsentGate({ isDm });
+
+  const runAiAction = React.useCallback(
+    (action: 'summary' | 'helper') => {
+      if (action === 'summary') void aiSummary.summarize();
+      else aiHelper.openHelper();
+    },
+    [aiHelper, aiSummary],
+  );
+  const { sendReadReceipts, onToggleReadReceipts, sendReadReceipt, flushPendingRead } =
+    useChatReadReceipts({
+      enabled: isEncryptedChat,
+      myUserId,
+      conversationIdForStorage:
+        conversationId && conversationId.length > 0 ? conversationId : 'global',
+      activeConversationId,
+      displayName,
+      wsRef,
+    });
+  useHydratePeerPublicKey({
+    enabled: isDm,
+    apiUrl: API_URL,
+    activeConversationId,
+    myUserId,
+    peer,
+    setPeerPublicKey,
+  });
   const activeChannelId = React.useMemo(
     () => (isChannel ? String(activeConversationId).slice('ch#'.length).trim() : ''),
-    [isChannel, activeConversationId]
+    [isChannel, activeConversationId],
   );
-  const [channelMeta, setChannelMeta] = React.useState<
-    null | {
-      channelId: string;
-      name: string;
-      isPublic?: boolean;
-      hasPassword?: boolean;
-      aboutText?: string;
-      aboutVersion?: number;
-      meIsAdmin: boolean;
-      meStatus: string;
+  const channelHeaderCache = useChannelHeaderCache({
+    enabled: isChannel,
+    channelId: activeChannelId,
+  });
+  const channelUi = useChatChannelUiState();
+  const {
+    channelMeta,
+    setChannelMeta,
+    channelRosterChannelId,
+    setChannelRosterChannelId,
+    channelMembers,
+    setChannelMembers,
+    channelMembersActiveCountHint,
+    setChannelMembersActiveCountHint,
+    channelMembersOpen,
+    setChannelMembersOpen,
+    channelSettingsOpen,
+    setChannelSettingsOpen,
+    channelActionBusy,
+    setChannelActionBusy,
+    channelNameEditOpen,
+    setChannelNameEditOpen,
+    channelNameDraft,
+    setChannelNameDraft,
+    channelAboutOpen,
+    setChannelAboutOpen,
+    channelAboutEdit,
+    setChannelAboutEdit,
+    channelAboutDraft,
+    setChannelAboutDraft,
+    channelPasswordEditOpen,
+    setChannelPasswordEditOpen,
+    channelPasswordDraft,
+    setChannelPasswordDraft,
+  } = channelUi;
+  const channelRosterMatchesActive =
+    !!activeChannelId && channelRosterChannelId === activeChannelId;
+  const channelMembersForUi = React.useMemo(
+    () => (channelRosterMatchesActive ? channelMembers : []),
+    [channelMembers, channelRosterMatchesActive],
+  );
+  const channelMembersVisible = React.useMemo(() => {
+    const rows: MemberRow[] = [];
+    for (const m of channelMembersForUi) {
+      if (!isVisibleMemberRow(m)) continue;
+      const row = toMemberRow(m);
+      if (!row) continue;
+      if (row.status !== 'active' && row.status !== 'banned') continue;
+      rows.push(row);
     }
-  >(null);
-  // Track which channel the current roster belongs to so UI doesn't briefly show stale counts
-  // during the first render after switching channels (effects run after paint).
-  const [channelRosterChannelId, setChannelRosterChannelId] = React.useState<string>('');
-  const [channelMembers, setChannelMembers] = React.useState<
-    Array<{
-      memberSub: string;
-      displayName?: string;
-      status: string;
-      isAdmin: boolean;
-      avatarBgColor?: string;
-      avatarTextColor?: string;
-      avatarImagePath?: string;
-    }>
-  >([]);
-  const channelRosterMatchesActive = !!activeChannelId && channelRosterChannelId === activeChannelId;
-  const channelMembersForUi = channelRosterMatchesActive ? channelMembers : [];
-  const channelMembersVisible = React.useMemo(
-    () => channelMembersForUi.filter((m) => m && (m.status === 'active' || m.status === 'banned')),
-    [channelMembersForUi]
-  );
+    return rows;
+  }, [channelMembersForUi]);
   const channelMembersActiveCount = React.useMemo(
     () => channelMembersForUi.reduce((acc, m) => (m && m.status === 'active' ? acc + 1 : acc), 0),
-    [channelMembersForUi]
+    [channelMembersForUi],
   );
-  // Best-effort cached count to avoid flashing "0" before roster loads.
-  const [channelMembersActiveCountHint, setChannelMembersActiveCountHint] = React.useState<number | null>(null);
   const channelMembersCountLabel = React.useMemo(() => {
     // When roster is loaded for this channel, show the real active count.
-    if (channelRosterMatchesActive && channelMembersForUi.length) return `${channelMembersActiveCount || 0}`;
+    if (channelRosterMatchesActive && channelMembersForUi.length)
+      return `${channelMembersActiveCount || 0}`;
     // Otherwise, show cached hint if we have one; else a neutral placeholder.
-    if (typeof channelMembersActiveCountHint === 'number' && Number.isFinite(channelMembersActiveCountHint)) {
+    if (
+      typeof channelMembersActiveCountHint === 'number' &&
+      Number.isFinite(channelMembersActiveCountHint)
+    ) {
       return `${Math.max(0, Math.floor(channelMembersActiveCountHint))}`;
     }
     return '—';
-  }, [channelRosterMatchesActive, channelMembersForUi.length, channelMembersActiveCount, channelMembersActiveCountHint]);
-  const [channelMembersOpen, setChannelMembersOpen] = React.useState<boolean>(false);
-  const [channelSettingsOpen, setChannelSettingsOpen] = React.useState<boolean>(true);
-  const [channelActionBusy, setChannelActionBusy] = React.useState<boolean>(false);
-  const [channelNameEditOpen, setChannelNameEditOpen] = React.useState<boolean>(false);
-  const [channelNameDraft, setChannelNameDraft] = React.useState<string>('');
-  const [channelAboutOpen, setChannelAboutOpen] = React.useState<boolean>(false);
-  const [channelAboutEdit, setChannelAboutEdit] = React.useState<boolean>(false);
-  const [channelAboutDraft, setChannelAboutDraft] = React.useState<string>('');
-  const [linkConfirmOpen, setLinkConfirmOpen] = React.useState<boolean>(false);
-  const [linkConfirmUrl, setLinkConfirmUrl] = React.useState<string>('');
-  const [linkConfirmDomain, setLinkConfirmDomain] = React.useState<string>('');
+  }, [
+    channelRosterMatchesActive,
+    channelMembersForUi.length,
+    channelMembersActiveCount,
+    channelMembersActiveCountHint,
+  ]);
+  const { requestOpenLink, confirmLinkModal } = useConfirmLinkModal(isDark);
+  const { refreshChannelRoster } = useChannelRoster({
+    apiUrl: API_URL,
+    enabled: isChannel,
+    activeConversationId,
+    activeChannelId,
+    channelHeaderCache,
+    channelMembersOpen,
+    channelAboutRequestEpoch: channelAboutRequestEpoch ?? 0,
+    uiAlert,
+    onConversationTitleChanged,
+    channelMeta,
+    setChannelMeta,
+    setChannelRosterChannelId,
+    setChannelMembers,
+    setChannelMembersActiveCountHint,
+    setChannelAboutDraft,
+    setChannelAboutEdit,
+    setChannelAboutOpen,
+  });
 
-  const requestOpenLink = React.useCallback((url: string) => {
-    const s = String(url || '').trim();
-    if (!s) return;
-    let domain = '';
-    try {
-      domain = new URL(s).host;
-    } catch {
-      // ignore
-    }
-    setLinkConfirmUrl(s);
-    setLinkConfirmDomain(domain);
-    setLinkConfirmOpen(true);
-  }, []);
-  const [channelPasswordEditOpen, setChannelPasswordEditOpen] = React.useState<boolean>(false);
-  const [channelPasswordDraft, setChannelPasswordDraft] = React.useState<string>('');
-  // Prevent stale header/settings from briefly showing the previous channel when switching between channels.
-  const lastChannelIdRef = React.useRef<string>('');
+  const { mentionSuggestions, insertMention } = useMentions({
+    enabled: !isEncryptedChat,
+    input,
+    setInput,
+    inputRef,
+    textInputRef,
+    messages,
+    myUserId,
+    mentionTextStyle: styles.mentionText,
+  });
 
-  // Basic @mention autocomplete for plaintext chats (global/channels).
-  // Uses recent senders (no extra network calls) and inserts "@usernameLower ".
-  const mentionQuery = React.useMemo(() => {
-    // Only enable mention autocomplete in plaintext chats (not encrypted DMs / group DMs).
-    if (isEncryptedChat) return null;
-    const s = String(input || '');
-    const at = s.lastIndexOf('@');
-    if (at < 0) return null;
-    // Only autocomplete the trailing token.
-    const tail = s.slice(at + 1);
-    if (tail.includes(' ') || tail.includes('\n') || tail.includes('\t')) return null;
-    // Require the '@' to be at start or preceded by whitespace/punctuation.
-    if (at > 0 && /[a-zA-Z0-9_.-]/.test(s[at - 1])) return null;
-    const q = tail.trim().toLowerCase();
-    if (q.length > 32) return null;
-    return { at, q };
-  }, [input, isEncryptedChat]);
+  const chatReport = useChatReport({ apiUrl: API_URL, activeConversationId });
 
-  // Avoid suggesting the current user in mention autocomplete.
-  // We infer usernameLower from recent messages sent by this user (best-effort).
-  const myUsernameLowerForMentions = React.useMemo(() => {
-    const mySub = typeof myUserId === 'string' ? String(myUserId).trim() : '';
-    if (!mySub) return '';
-    for (const m of messages.slice(0, 300)) {
-      if (!m) continue;
-      if (m.userSub && String(m.userSub) === mySub && typeof m.userLower === 'string') {
-        const u = String(m.userLower).trim().toLowerCase();
-        if (u && u !== 'system') return u;
-      }
-    }
-    return '';
-  }, [messages, myUserId]);
-
-  const mentionSuggestions = React.useMemo(() => {
-    if (!mentionQuery) return [];
-    const q = mentionQuery.q;
-    const seen = new Set<string>();
-    const candidates: string[] = [];
-    for (const m of messages.slice(0, 200)) {
-      const u = typeof m.userLower === 'string' ? m.userLower : '';
-      if (!u || u === 'system') continue;
-      if (myUsernameLowerForMentions && u === myUsernameLowerForMentions) continue;
-      if (q && !u.startsWith(q)) continue;
-      if (seen.has(u)) continue;
-      seen.add(u);
-      candidates.push(u);
-      if (candidates.length >= 6) break;
-    }
-    return candidates;
-  }, [mentionQuery, messages, myUsernameLowerForMentions]);
-
-  // Render helper: bold @mentions in chat text (local rendering only).
-  // This does NOT affect backend mention detection or push behavior.
-  const renderTextWithMentions = React.useCallback(
-    (text: string) => {
-      const s = String(text || '');
-      if (isEncryptedChat) return s;
-      if (!s || !s.includes('@')) return s;
-      const re = /(^|[^a-zA-Z0-9_.-])@([a-zA-Z0-9_.-]{2,32})/g;
-      const out: Array<{ key: string; text: string; mention: boolean }> = [];
-      let last = 0;
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(s)) !== null) {
-        const prefix = String(m[1] || '');
-        const uname = String(m[2] || '');
-        const atIdx = m.index + prefix.length; // index of '@'
-        if (atIdx > last) out.push({ key: `t:${last}`, text: s.slice(last, atIdx), mention: false });
-        out.push({ key: `m:${atIdx}`, text: `@${uname}`, mention: true });
-        last = m.index + String(m[0]).length;
-      }
-      if (last < s.length) out.push({ key: `t:${last}`, text: s.slice(last), mention: false });
-      return out.map((p) =>
-        p.mention ? (
-          <Text key={p.key} style={styles.mentionText}>
-            {p.text}
-          </Text>
-        ) : (
-          <Text key={p.key}>{p.text}</Text>
-        )
-      );
+  const reactionInfo = useReactionInfo<ChatMessage>({
+    sortSubs: (subs) => sortReactionSubs({ subs, myUserId, nameBySub }),
+    ensureNamesBySub: async (subs) => {
+      await ensureNameBySub(subs);
     },
-    [isEncryptedChat, styles.mentionText]
-  );
+  });
 
-  const insertMention = React.useCallback(
-    (usernameLower: string) => {
-      const mq = mentionQuery;
-      if (!mq) return;
-      const s = String(inputRef.current || input || '');
-      const before = s.slice(0, mq.at);
-      const next = `${before}@${String(usernameLower).toLowerCase()} `;
-      setInput(next);
-      inputRef.current = next;
-      try {
-        textInputRef.current?.focus?.();
-      } catch {
-        // ignore
-      }
-    },
-    [mentionQuery, input]
-  );
-
-  const refreshChannelRoster = React.useCallback(async () => {
-    if (!API_URL || !isChannel) return;
-    const channelId = String(activeConversationId).slice('ch#'.length).trim();
-    if (!channelId) return;
-    const { tokens } = await fetchAuthSession();
-    const idToken = tokens?.idToken?.toString();
-    if (!idToken) return;
-    const base = API_URL.replace(/\/$/, '');
-    // Ask for banned users too; backend will only include them for admins.
-    const resp = await fetch(`${base}/channels/members?channelId=${encodeURIComponent(channelId)}&includeBanned=1`, {
-      headers: { Authorization: `Bearer ${idToken}` },
-    });
-    if (!resp.ok) return;
-    const data = await resp.json().catch(() => ({}));
-    const ch = data?.channel || {};
-    const name = typeof ch.name === 'string' ? ch.name.trim() : '';
-    const me = data?.me && typeof data.me === 'object' ? data.me : undefined;
-    const meIsAdmin = !!me?.isAdmin;
-    const meStatus = typeof me?.status === 'string' ? String(me.status) : 'active';
-    const isPublic = typeof ch.isPublic === 'boolean' ? ch.isPublic : undefined;
-    const hasPassword = typeof ch.hasPassword === 'boolean' ? ch.hasPassword : undefined;
-    const aboutText = typeof ch.aboutText === 'string' ? String(ch.aboutText) : '';
-    const aboutVersion = typeof ch.aboutVersion === 'number' && Number.isFinite(ch.aboutVersion) ? ch.aboutVersion : 0;
-    const membersRaw = Array.isArray(data?.members) ? data.members : [];
-    const members = membersRaw
-      .map((m: any) => ({
-        memberSub: String(m?.memberSub || '').trim(),
-        displayName: typeof m?.displayName === 'string' ? String(m.displayName) : undefined,
-        status: typeof m?.status === 'string' ? String(m.status) : 'active',
-        isAdmin: !!m?.isAdmin,
-        avatarBgColor: typeof m?.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
-        avatarTextColor: typeof m?.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
-        avatarImagePath: typeof m?.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
-      }))
-      .filter((m: any) => m.memberSub);
-    setChannelRosterChannelId(channelId);
-    setChannelMembers(members);
-    const activeCount = members.reduce((acc: number, m: any) => (m && m.status === 'active' ? acc + 1 : acc), 0);
-    setChannelMembersActiveCountHint(activeCount);
-    if (name) setChannelMeta({ channelId, name, isPublic, hasPassword, aboutText, aboutVersion, meIsAdmin, meStatus });
-
-    // Persist a tiny channel header cache so cold starts don't flash placeholders.
-    // (We avoid caching signed avatar URLs; just stable metadata.)
-    try {
-      const key = `ui:channelCache:${channelId}`;
-      const payload = {
-        v: 1,
-        channelId,
-        name,
-        isPublic: typeof isPublic === 'boolean' ? isPublic : undefined,
-        hasPassword: typeof hasPassword === 'boolean' ? hasPassword : undefined,
-        aboutText,
-        aboutVersion,
-        meIsAdmin: !!meIsAdmin,
-        meStatus: meStatus || 'active',
-        activeCount,
-        savedAt: Date.now(),
-      };
-      // Fire-and-forget.
-      void AsyncStorage.setItem(key, JSON.stringify(payload));
-    } catch {
-      // ignore
-    }
-  }, [API_URL, isChannel, activeConversationId]);
-
-  // Load cached channel header snapshot ASAP on entering a channel (reduces "flash" on cold start).
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!isChannel) {
-        setChannelMembersActiveCountHint(null);
-        return;
-      }
-      const channelId = String(activeConversationId).slice('ch#'.length).trim();
-      if (!channelId) return;
-      try {
-        const raw = await AsyncStorage.getItem(`ui:channelCache:${channelId}`);
-        if (cancelled) return;
-        if (!raw) return;
-        const obj = JSON.parse(raw);
-        if (!obj || typeof obj !== 'object') return;
-        if (String(obj.channelId || '') !== channelId) return;
-
-        const name = typeof obj.name === 'string' ? obj.name.trim() : '';
-        const isPublic = typeof obj.isPublic === 'boolean' ? obj.isPublic : undefined;
-        const hasPassword = typeof obj.hasPassword === 'boolean' ? obj.hasPassword : undefined;
-        const aboutText = typeof obj.aboutText === 'string' ? String(obj.aboutText) : '';
-        const aboutVersion =
-          typeof obj.aboutVersion === 'number' && Number.isFinite(obj.aboutVersion) ? obj.aboutVersion : 0;
-        const meIsAdmin = !!obj.meIsAdmin;
-        const meStatus = typeof obj.meStatus === 'string' ? String(obj.meStatus) : 'active';
-        const activeCount = typeof obj.activeCount === 'number' && Number.isFinite(obj.activeCount) ? Math.max(0, Math.floor(obj.activeCount)) : null;
-
-        if (activeCount != null) setChannelMembersActiveCountHint(activeCount);
-
-        // Only apply cached meta if we don't already have fresh meta for this channel.
-        setChannelMeta((prev) => {
-          if (prev && prev.channelId === channelId && prev.name && String(prev.name).trim()) return prev;
-          if (!name) return prev;
-          return { channelId, name, isPublic, hasPassword, aboutText, aboutVersion, meIsAdmin, meStatus };
-        });
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isChannel, activeConversationId]);
-
-  // Auto-popup Channel About on first join or whenever aboutVersion changes.
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!isChannel) return;
-      const cid = String(activeConversationId).slice('ch#'.length).trim();
-      if (!cid) return;
-      const aboutText = typeof channelMeta?.aboutText === 'string' ? channelMeta.aboutText : '';
-      const aboutVersion = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
-      if (!aboutText.trim()) return;
-      if (!aboutVersion || aboutVersion <= 0) return;
-      try {
-        const key = `ui:channelAboutSeen:${cid}`;
-        const seenRaw = await AsyncStorage.getItem(key);
-        if (cancelled) return;
-        const seen = typeof seenRaw === 'string' && seenRaw.trim() ? Number(seenRaw) : 0;
-        if (!Number.isFinite(seen) || seen < aboutVersion) {
-          setChannelAboutDraft(aboutText);
-          setChannelAboutEdit(false);
-          setChannelAboutOpen(true);
-        }
-      } catch {
-        if (!cancelled) {
-          setChannelAboutDraft(aboutText);
-          setChannelAboutEdit(false);
-          setChannelAboutOpen(true);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isChannel, activeConversationId, channelMeta?.aboutText, channelMeta?.aboutVersion]);
-
-  // App Settings dropdown: open About (view-only) for the current channel.
-  const lastAboutReqRef = React.useRef<number>(0);
-  React.useEffect(() => {
-    const epoch = typeof channelAboutRequestEpoch === 'number' && Number.isFinite(channelAboutRequestEpoch) ? channelAboutRequestEpoch : 0;
-    if (!epoch) return;
-    if (epoch === lastAboutReqRef.current) return;
-    lastAboutReqRef.current = epoch;
-
-    if (!isChannel) {
-      // Best-effort hint (e.g. user is currently in a DM).
-      try {
-        const r = promptAlert?.('About', 'Open a channel to view its About.');
-        if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
-      } catch {
-        // ignore
-      }
-      return;
-    }
-
-    setChannelAboutDraft(String(channelMeta?.aboutText || ''));
-    setChannelAboutEdit(false);
-    setChannelAboutOpen(true);
-  }, [channelAboutRequestEpoch, isChannel, channelMeta?.aboutText, promptAlert]);
-
-  // Fetch channel metadata (title, admin flag) when entering a channel.
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!API_URL || !isChannel) {
-        setChannelMeta(null);
-        setChannelMembers([]);
-        lastChannelIdRef.current = '';
-        setChannelRosterChannelId('');
-        setChannelMembersActiveCountHint(null);
-        return;
-      }
-      const channelId = String(activeConversationId).slice('ch#'.length).trim();
-      if (!channelId) {
-        setChannelMeta(null);
-        setChannelMembers([]);
-        lastChannelIdRef.current = '';
-        setChannelRosterChannelId('');
-        setChannelMembersActiveCountHint(null);
-        return;
-      }
-      // If we switched to a different channel, clear the previous channel's meta immediately
-      // so the title + settings row don't show stale values while the new roster loads.
-      if (lastChannelIdRef.current && lastChannelIdRef.current !== channelId) {
-        setChannelMeta(null);
-        setChannelMembers([]);
-        setChannelMembersActiveCountHint(null);
-      }
-      lastChannelIdRef.current = channelId;
-      try {
-        await refreshChannelRoster();
-        if (cancelled) return;
-      } catch {
-        setChannelMeta(null);
-        setChannelMembers([]);
-        setChannelMembersActiveCountHint(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [API_URL, isChannel, activeConversationId, refreshChannelRoster]);
-
-  // When opening the Members modal, refresh immediately so it reflects latest state.
-  React.useEffect(() => {
-    if (!channelMembersOpen) return;
-    if (!isChannel) return;
-    void refreshChannelRoster();
-  }, [channelMembersOpen, isChannel, refreshChannelRoster]);
-
-  // Keep the parent header/channel pill title in sync once we learn the channel name.
-  const lastPushedChannelTitleRef = React.useRef<string>('');
-  React.useEffect(() => {
-    if (!isChannel) return;
-    const name = channelMeta?.name ? String(channelMeta.name).trim() : '';
-    if (!name) return;
-    if (name === lastPushedChannelTitleRef.current) return;
-    lastPushedChannelTitleRef.current = name;
-    try {
-      onConversationTitleChanged?.(activeConversationId, name);
-    } catch {
-      // ignore
-    }
-  }, [isChannel, channelMeta?.name, activeConversationId, onConversationTitleChanged]);
-
-  // Keep parent Chats list/unreads in sync whenever the effective group title changes
-  // (e.g. another admin renamed the group and we refreshed group meta).
-  const lastPushedTitleRef = React.useRef<string>('');
-  React.useEffect(() => {
-    if (!isGroup) return;
-    const effective =
-      groupMeta?.groupName && String(groupMeta.groupName).trim()
-        ? String(groupMeta.groupName).trim()
-        : computeDefaultGroupTitleForMe();
-    if (!effective) return;
-    if (effective === lastPushedTitleRef.current) return;
-    lastPushedTitleRef.current = effective;
-    try {
-      onConversationTitleChanged?.(activeConversationId, effective);
-    } catch {
-      // ignore
-    }
-  }, [isGroup, activeConversationId, groupMeta?.groupName, computeDefaultGroupTitleForMe, onConversationTitleChanged]);
-  const resolvedChatBg = React.useMemo(() => {
+  usePushGroupTitleToParent({
+    enabled: isGroup,
+    activeConversationId,
+    groupName: groupMeta?.groupName,
+    computeDefaultTitle: computeDefaultGroupTitleForMe,
+    onConversationTitleChanged,
+  });
+  const resolvedChatBg: ResolvedChatBg = React.useMemo(() => {
     const bg = chatBackground;
     if (!bg || bg.mode === 'default') return { mode: 'default' as const };
     if (bg.mode === 'color' && typeof bg.color === 'string' && bg.color.trim()) {
@@ -1704,508 +683,78 @@ export default function ChatScreen({
     return { mode: 'default' as const };
   }, [chatBackground]);
 
-  React.useEffect(() => {
-    activeConversationIdRef.current = activeConversationId;
-  }, [activeConversationId]);
+  const headerTitle = React.useMemo(() => {
+    return getChatHeaderTitle({
+      isChannel,
+      channelName: channelMeta?.name,
+      peer,
+      isGroup,
+      groupName: groupMeta?.groupName,
+    });
+  }, [isChannel, channelMeta?.name, peer, isGroup, groupMeta?.groupName]);
 
-  // When switching conversations, invalidate avatar profile cache so we re-fetch
-  // profile-lite data for the people in the newly visible message list.
-  // Without this, a user who changed their avatar but hasn't sent a new message
-  // could remain "stuck" until they speak again.
-  React.useEffect(() => {
-    setAvatarProfileBySub({});
-    setAvatarUrlByPath({});
-    inFlightAvatarProfileRef.current = new Set();
-    inFlightAvatarUrlRef.current = new Set();
-  }, [activeConversationId]);
-  React.useEffect(() => {
-    displayNameRef.current = displayName;
-  }, [displayName]);
+  useChatScreenRefSync({
+    activeConversationId,
+    activeConversationIdRef,
+    cdnAvatarReset: cdnAvatar.reset,
+    displayName,
+    displayNameRef,
+    input,
+    inputRef,
+    myPublicKey,
+    myPublicKeyRef,
+    onNewDmNotification,
+    onNewDmNotificationRef,
+    onKickedFromConversation,
+    onKickedFromConversationRef,
+  });
 
-  React.useEffect(() => {
-    inputRef.current = input;
-  }, [input]);
+  // Avatar profiles are fetched via shared hook (usePublicAvatarProfiles).
 
-  // Profile-driven avatars (Option A): cache avatar settings by userSub so profile changes update old messages.
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!API_URL) return;
-      const base = API_URL.replace(/\/$/, '');
-      const missing: string[] = [];
-      // Always try to include my own profile so I can see my avatar in the header,
-      // even if there are no messages yet in this conversation.
-      if (myUserId) {
-        const sub = String(myUserId);
-        if (!avatarProfileBySub[sub] && !inFlightAvatarProfileRef.current.has(sub)) {
-          missing.push(sub);
-        }
-      }
-      for (const m of messages) {
-        const sub = m.userSub ? String(m.userSub) : '';
-        if (!sub) continue;
-        if (avatarProfileBySub[sub]) continue;
-        if (inFlightAvatarProfileRef.current.has(sub)) continue;
-        missing.push(sub);
-      }
-      if (!missing.length) return;
-      const unique = Array.from(new Set(missing)).slice(0, 25); // keep bursts small
-      unique.forEach((s) => inFlightAvatarProfileRef.current.add(s));
-
-      try {
-        if (cancelled) return;
-        // Use the public batch endpoint (avatar fields only) to avoid N+1 requests.
-        const resp = await fetch(`${base}/public/users/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subs: unique }),
-        });
-        if (!resp.ok) return;
-        const json = await resp.json();
-        const users = Array.isArray(json?.users) ? json.users : [];
-        if (!users.length) return;
-        const now = Date.now();
-        setAvatarProfileBySub((prev) => {
-          const next = { ...prev };
-          for (const u of users) {
-            const sub = typeof u?.sub === 'string' ? String(u.sub).trim() : '';
-            if (!sub) continue;
-            next[sub] = {
-              displayName: typeof u.displayName === 'string' ? String(u.displayName) : undefined,
-              avatarBgColor: typeof u.avatarBgColor === 'string' ? String(u.avatarBgColor) : undefined,
-              avatarTextColor: typeof u.avatarTextColor === 'string' ? String(u.avatarTextColor) : undefined,
-              avatarImagePath: typeof u.avatarImagePath === 'string' ? String(u.avatarImagePath) : undefined,
-              fetchedAt: now,
-            };
-          }
-          return next;
-        });
-      } finally {
-        unique.forEach((s) => inFlightAvatarProfileRef.current.delete(s));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [API_URL, messages, avatarProfileBySub, myUserId]);
-
-  React.useEffect(() => {
-    pendingMediaRef.current = pendingMedia;
-  }, [pendingMedia]);
-  React.useEffect(() => {
-    myPublicKeyRef.current = myPublicKey;
-  }, [myPublicKey]);
-  React.useEffect(() => {
-    onNewDmNotificationRef.current = onNewDmNotification;
-  }, [onNewDmNotification]);
-  React.useEffect(() => {
-    onKickedFromConversationRef.current = onKickedFromConversation;
-  }, [onKickedFromConversation]);
-
-  const normalizeUser = React.useCallback((v: unknown): string => {
-    return String(v ?? '').trim().toLowerCase();
-  }, []);
-
-  // Signal-style: show a tiny send-status indicator only on the most recent outgoing message.
-  const latestOutgoingMessageId = React.useMemo(() => {
-    const myLower = normalizeUser(displayName);
-    for (const m of messages) {
-      // IMPORTANT:
-      // Use author identity (userSub) to determine outgoing vs incoming whenever possible.
-      // Recovery resets rotate our keypair; old encrypted messages should still be "outgoing"
-      // if they were sent by this account, even if we can no longer decrypt them.
-      const isOutgoingByUserSub =
-        !!myUserId && !!m.userSub && String(m.userSub) === String(myUserId);
-      const isEncryptedOutgoing =
-        !!m.encrypted && !!myPublicKey && m.encrypted.senderPublicKey === myPublicKey;
-      const isPlainOutgoing =
-        !m.encrypted &&
-        (isOutgoingByUserSub ? true : normalizeUser(m.userLower ?? m.user ?? 'anon') === myLower);
-      if (isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing) return m.id;
-    }
-    return null;
-  }, [messages, myPublicKey, myUserId, displayName, normalizeUser]);
-
-  const appendQueryParam = React.useCallback((url: string, key: string, value: string): string => {
-    const hasQuery = url.includes('?');
-    const sep = hasQuery ? '&' : '?';
-    return `${url}${sep}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-  }, []);
-
-  const redactWsUrl = React.useCallback((url: string): string => {
-    // Avoid leaking JWTs into device logs/crash reports.
-    // Replace token=<anything> with token=REDACTED (handles ?token= and &token=).
-    return String(url || '').replace(/([?&]token=)[^&]*/i, '$1REDACTED');
-  }, []);
+  const latestOutgoingMessageId = useLatestOutgoingMessageId({
+    messages,
+    myUserId,
+    myPublicKey,
+    displayName,
+    normalizeUser,
+  });
 
   const getCappedMediaSize = React.useCallback(
-    (aspect: number | undefined, availableWidth?: number) => {
-      const w0 =
-        typeof availableWidth === 'number' && Number.isFinite(availableWidth) && availableWidth > 0
-          ? availableWidth
-          : windowWidth;
-      const maxW = Math.max(220, Math.floor(w0 * CHAT_MEDIA_MAX_WIDTH_FRACTION));
-      const maxH = CHAT_MEDIA_MAX_HEIGHT;
-      const a = typeof aspect === 'number' && Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
-      // start with max width
-      let w = maxW;
-      let h = Math.floor(w / a);
-      if (h > maxH) {
-        h = maxH;
-        w = Math.floor(h * a);
-      }
-      // Avoid 0 height/width
-      w = Math.max(140, w);
-      h = Math.max(120, h);
-      return { w, h };
-    },
-    [windowWidth]
+    (aspect: number | undefined, availableWidth?: number) =>
+      calcCappedMediaSize({
+        aspect,
+        availableWidth:
+          typeof availableWidth === 'number' &&
+          Number.isFinite(availableWidth) &&
+          availableWidth > 0
+            ? availableWidth
+            : windowWidth,
+        maxWidthFraction: CHAT_MEDIA_MAX_WIDTH_FRACTION,
+        maxHeight: CHAT_MEDIA_MAX_HEIGHT,
+        minMaxWidth: 220,
+        minW: 140,
+        minH: 120,
+        rounding: 'floor',
+      }),
+    [windowWidth],
   );
 
-  // If Android kills the activity while the picker is open, we can recover the result.
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const pending = await ImagePicker.getPendingResultAsync();
-        if (cancelled) return;
-        if (!pending || (pending as any).canceled) return;
-        const assets = Array.isArray((pending as any).assets) ? (pending as any).assets : [];
-        if (!assets.length) return;
-        const items: PendingMediaItem[] = assets
-          .map((a: any) => {
-            if (!a?.uri) return null;
-            const kind = a.type === 'video' ? 'video' : a.type === 'image' ? 'image' : 'file';
-            const fileName = a.fileName as string | undefined;
-            const size = a.fileSize as number | undefined;
-            return {
-              uri: String(a.uri),
-              kind,
-              contentType: a.mimeType ?? guessContentTypeFromName(fileName),
-              fileName,
-              displayName: fileName,
-              source: 'library' as const,
-              size,
-            } satisfies PendingMediaItem;
-          })
-          .filter(Boolean) as PendingMediaItem[];
-        if (!items.length) return;
-        setPendingMedia((prev) => {
-          const next = inlineEditAttachmentMode === 'replace' ? items : [...prev, ...items];
-          pendingMediaRef.current = next;
-          return next;
-        });
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [inlineEditAttachmentMode]);
+  useRecoverPendingImagePicker({
+    trigger: inlineEditAttachmentMode,
+    getPendingResultAsync: ImagePicker.getPendingResultAsync,
+    pendingMediaFromImagePickerAssets,
+    mergeRecoveredPickerItems,
+  });
 
-  const showAlert = React.useCallback(
-    (title: string, message: string) => {
-      if (typeof promptAlert === 'function') {
-        try {
-          void Promise.resolve(promptAlert(title, message));
-          return;
-        } catch {
-          // fall through to native alert
-        }
-      }
-      Alert.alert(title, message);
-    },
-    [promptAlert]
-  );
-
-  const openReportModalForMessage = React.useCallback((target: ChatMessage) => {
-    if (!target) return;
-    setReportKind('message');
-    setReportTargetMessage(target);
-    setReportTargetUserSub('');
-    setReportTargetUserLabel('');
-    setReportCategory('spam');
-    setReportDetails('');
-    setReportSubmitting(false);
-    setReportNotice(null);
-    setReportOpen(true);
-  }, []);
-
-  const openReportModalForUser = React.useCallback((userSub: string, label?: string) => {
-    const sub = String(userSub || '').trim();
-    if (!sub) return;
-    setReportKind('user');
-    setReportTargetMessage(null);
-    setReportTargetUserSub(sub);
-    setReportTargetUserLabel(String(label || '').trim());
-    setReportCategory('spam');
-    setReportDetails('');
-    setReportSubmitting(false);
-    setReportNotice(null);
-    setReportOpen(true);
-  }, []);
-
-  const closeReportModal = React.useCallback(() => {
-    if (reportSubmitting) return;
-    setReportOpen(false);
-    setReportTargetMessage(null);
-    setReportTargetUserSub('');
-    setReportTargetUserLabel('');
-    setReportCategory('spam');
-    setReportDetails('');
-    setReportNotice(null);
-  }, [reportSubmitting]);
-
-  const submitReport = React.useCallback(async () => {
-    if (!API_URL) {
-      setReportNotice({ type: 'error', message: 'Report failed: API_URL is not configured.' });
-      return;
-    }
-    if (reportSubmitting) return;
-
-    const { tokens } = await fetchAuthSession().catch(() => ({ tokens: undefined }));
-    const idToken = tokens?.idToken?.toString();
-    if (!idToken) {
-      setReportNotice({ type: 'error', message: 'Please sign in to report content.' });
-      return;
-    }
-
-    const details = reportDetails.trim();
-    const category = String(reportCategory || '').trim() || 'other';
-    const nowTargetMsg = reportTargetMessage;
-    const nowUserSub = reportTargetUserSub;
-
-    const messagePreview = (() => {
-      const t = nowTargetMsg;
-      if (!t) return '';
-      if (t.deletedAt) return '';
-      if (typeof t.decryptedText === 'string' && t.decryptedText.trim()) return t.decryptedText.trim();
-      if (typeof t.text === 'string' && t.text.trim()) return t.text.trim();
-      return '';
-    })();
-
-    const payload =
-      reportKind === 'user'
-        ? {
-            kind: 'user',
-            reportedUserSub: nowUserSub || undefined,
-            reason: `user_report:${category}`,
-            details: details ? details.slice(0, 900) : undefined,
-            conversationId: activeConversationId || undefined,
-          }
-        : {
-            kind: 'message',
-            conversationId: activeConversationId,
-            messageCreatedAt: nowTargetMsg?.createdAt,
-            reportedUserSub: typeof nowTargetMsg?.userSub === 'string' ? nowTargetMsg.userSub : undefined,
-            reason: `user_report:${category}`,
-            details: details ? details.slice(0, 900) : undefined,
-            messagePreview: messagePreview ? messagePreview.slice(0, 400) : undefined,
-          };
-
-    // Validate required fields client-side so we can show a friendly message.
-    if (reportKind === 'message') {
-      if (!payload.conversationId || !payload.messageCreatedAt) {
-        setReportNotice({ type: 'error', message: 'Report failed: missing message reference.' });
-        return;
-      }
-    } else {
-      if (!payload.reportedUserSub && !payload.details) {
-        setReportNotice({ type: 'error', message: 'Report failed: missing user. Try again or add an optional note.' });
-        return;
-      }
-    }
-
-    setReportSubmitting(true);
-    try {
-      const resp = await fetch(`${API_URL.replace(/\/$/, '')}/reports`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        throw new Error(text || `Report failed (${resp.status})`);
-      }
-      setReportNotice({ type: 'success', message: 'Thanks - we’ll review this.' });
-      // Give the user a moment to see the confirmation, then close.
-      setTimeout(() => {
-        setReportOpen(false);
-      }, 650);
-    } catch (e: any) {
-      setReportNotice({ type: 'error', message: e?.message ?? 'Report failed: unknown error.' });
-    } finally {
-      setReportSubmitting(false);
-    }
-  }, [
-    API_URL,
-    activeConversationId,
-    reportCategory,
-    reportDetails,
-    reportKind,
-    reportSubmitting,
-    reportTargetMessage,
-    reportTargetUserSub,
-  ]);
-
-  const addPendingMediaItems = React.useCallback(
-    (items: PendingMediaItem[]) => {
-      const incoming = Array.isArray(items) ? items : [];
-      if (!incoming.length) return;
-      setPendingMedia((prev) => {
-        const base = inlineEditAttachmentMode === 'replace' ? [] : prev;
-        const remaining = Math.max(0, MAX_ATTACHMENTS_PER_MESSAGE - base.length);
-        if (remaining <= 0) {
-          showAlert('Attachment limit', `You can attach up to ${MAX_ATTACHMENTS_PER_MESSAGE} items per message.`);
-          pendingMediaRef.current = base;
-          return base;
-        }
-        const toAdd = incoming.slice(0, remaining);
-        if (incoming.length > remaining) {
-          showAlert(
-            'Attachment limit',
-            `Only the first ${remaining} item${remaining === 1 ? '' : 's'} were added (limit ${MAX_ATTACHMENTS_PER_MESSAGE})`
-          );
-        }
-        const next = [...base, ...toAdd];
-        pendingMediaRef.current = next;
-        return next;
-      });
-    },
-    [inlineEditAttachmentMode, showAlert]
-  );
-
-  const pickFromLibrary = React.useCallback(async () => {
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        // Keep permission prompts as a native system alert (more appropriate than themed modals).
-        Alert.alert(
-          'Permission needed',
-          'Please allow photo library access to pick media.\n\nIf you previously denied this permission, enable it in Settings.'
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        // Use the string union to stay compatible across expo-image-picker typings.
-        mediaTypes: ['images', 'videos'] as any,
-        allowsMultipleSelection: true,
-        quality: 1,
-      });
-
-      if (result.canceled) return;
-      const assets = Array.isArray(result.assets) ? result.assets : [];
-      if (!assets.length) return;
-      const items: PendingMediaItem[] = assets
-        .map((a: any) => {
-          if (!a?.uri) return null;
-          const kind = a.type === 'video' ? 'video' : a.type === 'image' ? 'image' : 'file';
-          const fileName = a.fileName as string | undefined;
-          const size = a.fileSize as number | undefined;
-          return {
-            uri: String(a.uri),
-            kind,
-            contentType: a.mimeType ?? guessContentTypeFromName(fileName),
-            fileName,
-            displayName: fileName,
-            source: 'library' as const,
-            size,
-          } satisfies PendingMediaItem;
-        })
-        .filter(Boolean) as PendingMediaItem[];
-      if (!items.length) return;
-      if (inlineEditAttachmentMode === 'replace') {
-        // Replace mode should still respect the max.
-        const capped = items.slice(0, MAX_ATTACHMENTS_PER_MESSAGE);
-        setPendingMedia(capped);
-        pendingMediaRef.current = capped;
-        if (items.length > capped.length) {
-          showAlert('Attachment limit', `Only ${MAX_ATTACHMENTS_PER_MESSAGE} items allowed per message.`);
-        }
-      } else {
-        addPendingMediaItems(items);
-      }
-    } catch (e: any) {
-      showAlert('Picker failed', e?.message ?? 'Unknown error');
-    }
-  }, [showAlert, inlineEditAttachmentMode, addPendingMediaItems]);
-
-  const openCamera = React.useCallback(() => {
-    setCameraOpen(true);
-  }, []);
-
-  const handleInAppCameraCaptured = React.useCallback(
-    (cap: { uri: string; mode: 'photo' | 'video' }) => {
-      const kind = cap.mode === 'video' ? 'video' : 'image';
-      // Camera URIs can contain extremely long auto-generated filenames.
-      // Use a short, stable filename for uploads, and a friendly UI label.
-      const fileName = cap.mode === 'video' ? `camera-${Date.now()}.mp4` : `camera-${Date.now()}.jpg`;
-      const item: PendingMediaItem = {
-        uri: cap.uri,
-        kind,
-        contentType: guessContentTypeFromName(fileName) ?? (cap.mode === 'video' ? 'video/mp4' : 'image/jpeg'),
-        fileName,
-        displayName: 'From Camera',
-        source: 'camera',
-        size: undefined,
-      };
-      if (inlineEditAttachmentMode === 'replace') {
-        setPendingMedia([item]);
-        pendingMediaRef.current = [item];
-      } else {
-        addPendingMediaItems([item]);
-      }
-    },
-    [inlineEditAttachmentMode, addPendingMediaItems]
-  );
-
-  const pickDocument = React.useCallback(async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-        multiple: true,
-      });
-      if (result.canceled) return;
-      const assets = Array.isArray(result.assets) ? result.assets : [];
-      if (!assets.length) return;
-      const items: PendingMediaItem[] = assets
-        .map((a: any) => {
-          if (!a?.uri) return null;
-          const fileName = a.name as string | undefined;
-          const contentType = a.mimeType ?? guessContentTypeFromName(fileName);
-          return {
-            uri: String(a.uri),
-            kind: contentType?.startsWith('image/')
-              ? 'image'
-              : contentType?.startsWith('video/')
-                ? 'video'
-                : 'file',
-            contentType,
-            fileName,
-            displayName: fileName,
-            source: 'file' as const,
-            size: typeof a.size === 'number' ? a.size : undefined,
-          } satisfies PendingMediaItem;
-        })
-        .filter(Boolean) as PendingMediaItem[];
-      if (!items.length) return;
-      if (inlineEditAttachmentMode === 'replace') {
-        const capped = items.slice(0, MAX_ATTACHMENTS_PER_MESSAGE);
-        setPendingMedia(capped);
-        pendingMediaRef.current = capped;
-        if (items.length > capped.length) {
-          showAlert('Attachment limit', `Only ${MAX_ATTACHMENTS_PER_MESSAGE} items allowed per message.`);
-        }
-      } else {
-        addPendingMediaItems(items);
-      }
-    } catch (e: any) {
-      showAlert('File picker failed', e?.message ?? 'Unknown error');
-    }
-  }, [showAlert, inlineEditAttachmentMode, addPendingMediaItems]);
+  const { pickFromLibrary, pickDocument, openCamera, handleInAppCameraCaptured } =
+    useChatAttachmentPickers({
+      showAlert,
+      addPickedMediaItems,
+      pendingMediaFromImagePickerAssets,
+      pendingMediaFromDocumentPickerAssets,
+      pendingMediaFromInAppCameraCapture,
+      setCameraOpen,
+    });
 
   // Attachments: Global = plaintext S3; DM = E2EE (client-side encryption before upload)
   const handlePickMedia = React.useCallback(() => {
@@ -2222,1726 +771,145 @@ export default function ChatScreen({
     setAttachOpen(true);
   }, [isDm, myPrivateKey, peerPublicKey, showAlert]);
 
-  const uploadPendingMedia = React.useCallback(
-    async (
-      media: PendingMediaItem
-    ): Promise<ChatMediaItem> => {
-      const readUriBytes = async (uri: string): Promise<Uint8Array> => {
-        // Prefer fetch(...).arrayBuffer() (works for http(s) and often for file://),
-        // fallback to FileSystem Base64 read for cases where Blob/arrayBuffer is missing.
-        try {
-          const resp: any = await fetch(uri);
-          if (resp && typeof resp.arrayBuffer === 'function') {
-            return new Uint8Array(await resp.arrayBuffer());
-          }
-          if (resp && typeof resp.blob === 'function') {
-            const b: any = await resp.blob();
-            if (b && typeof b.arrayBuffer === 'function') {
-              return new Uint8Array(await b.arrayBuffer());
-            }
-          }
-        } catch {
-          // fall through
-        }
-        const fsAny: any = require('expo-file-system');
-        const File = fsAny?.File;
-        if (!File) throw new Error('File API not available');
-        const f: any = new File(uri);
-        if (typeof f?.bytes === 'function') {
-          const bytes = await f.bytes();
-          return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-        }
-        if (typeof f?.base64 === 'function') {
-          const b64 = await f.base64();
-          return toByteArray(String(b64 || ''));
-        }
-        throw new Error('File read API not available');
-      };
-
-      const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-      const hardLimit =
-        media.kind === 'image' ? MAX_IMAGE_BYTES : media.kind === 'video' ? MAX_VIDEO_BYTES : MAX_FILE_BYTES;
-      if (declaredSize && declaredSize > hardLimit) {
-        throw new Error(
-          `File too large (${formatBytes(declaredSize)}). Limit for ${media.kind} is ${formatBytes(hardLimit)}.`
-        );
-      }
-
-      const bytes = await readUriBytes(media.uri);
-      if (bytes.byteLength > hardLimit) {
-        throw new Error(
-          `File too large (${formatBytes(bytes.byteLength)}). Limit for ${media.kind} is ${formatBytes(hardLimit)}.`
-        );
-      }
-
-      const safeName =
-        (media.fileName || `${media.kind}-${Date.now()}`)
-          .replace(/[^\w.\-() ]+/g, '_')
-          .slice(0, 120) || `file-${Date.now()}`;
-      // NOTE: current Amplify Storage auth policies (from amplify_outputs.json) allow `uploads/*`.
-      // Keep uploads under that prefix so authenticated users can PUT.
-      const baseKey = `${Date.now()}-${safeName}`;
-      // IMPORTANT:
-      // Never include the conversationId prefix (e.g. "ch#") in S3 keys.
-      // A raw '#' in a path will be treated as a URL fragment and break CDN/media URLs.
-      const conv = String(activeConversationId || 'global').trim() || 'global';
-      const channelId = conv.startsWith('ch#') ? conv.slice('ch#'.length) : conv;
-      const safeChannelId = channelId.replace(/[^\w.\-]+/g, '_') || 'global';
-      const path = `uploads/channels/${safeChannelId}/${baseKey}`;
-      const thumbPath = `uploads/channels/${safeChannelId}/thumbs/${baseKey}.webp`;
-
-      await uploadData({
-        path,
-        data: bytes,
-        options: {
-          contentType: media.contentType,
-        },
-      }).result;
-
-      // Upload a separate thumbnail for fast list rendering (original stays full quality).
-      let uploadedThumbPath: string | undefined;
-      let uploadedThumbContentType: string | undefined;
-      if (media.kind === 'image') {
-        try {
-          const thumb = await ImageManipulator.manipulateAsync(
-            media.uri,
-            [{ resize: { width: THUMB_MAX_DIM } }],
-            { compress: THUMB_JPEG_QUALITY, format: ImageManipulator.SaveFormat.WEBP }
-          );
-          const thumbBytes = await readUriBytes(thumb.uri);
-          await uploadData({
-            path: thumbPath,
-            data: thumbBytes,
-            options: { contentType: 'image/webp' },
-          }).result;
-          uploadedThumbPath = thumbPath;
-          uploadedThumbContentType = 'image/webp';
-        } catch {
-          // ignore thumb failures; fall back to original
-        }
-      } else if (media.kind === 'video') {
-        try {
-          const { uri } = await VideoThumbnails.getThumbnailAsync(media.uri, {
-            time: 500,
-            quality: THUMB_JPEG_QUALITY,
-          });
-          // Convert the generated video thumbnail to webp for smaller/faster previews.
-          const converted = await ImageManipulator.manipulateAsync(
-            uri,
-            [{ resize: { width: THUMB_MAX_DIM } }],
-            { compress: THUMB_JPEG_QUALITY, format: ImageManipulator.SaveFormat.WEBP }
-          );
-          const thumbBytes = await readUriBytes(converted.uri);
-          await uploadData({
-            path: thumbPath,
-            data: thumbBytes,
-            options: { contentType: 'image/webp' },
-          }).result;
-          uploadedThumbPath = thumbPath;
-          uploadedThumbContentType = 'image/webp';
-        } catch {
-          // ignore thumb failures; fall back to video preview
-        }
-      }
-
-      return {
-        path,
-        ...(uploadedThumbPath ? { thumbPath: uploadedThumbPath } : {}),
-        kind: media.kind,
-        contentType: media.contentType,
-        ...(uploadedThumbContentType ? { thumbContentType: uploadedThumbContentType } : {}),
-        fileName: media.fileName,
-        size: media.size,
-      };
-    },
-    [activeConversationId]
-  );
-
-  const uploadPendingMediaDmEncrypted = React.useCallback(
-    async (
-      media: PendingMediaItem,
-      conversationKey: string,
-      senderPrivateKeyHex: string,
-      recipientPublicKeyHex: string,
-      captionOverride?: string
-    ): Promise<DmMediaEnvelopeV1> => {
-      const readUriBytes = async (uri: string): Promise<Uint8Array> => {
-        // Prefer fetch(...).arrayBuffer() (works for http(s) and often for file://),
-        // fallback to FileSystem Base64 read for cases where Blob.arrayBuffer is missing.
-        try {
-          const resp: any = await fetch(uri);
-          if (resp && typeof resp.arrayBuffer === 'function') {
-            return new Uint8Array(await resp.arrayBuffer());
-          }
-          if (resp && typeof resp.blob === 'function') {
-            const b: any = await resp.blob();
-            if (b && typeof b.arrayBuffer === 'function') {
-              return new Uint8Array(await b.arrayBuffer());
-            }
-          }
-        } catch {
-          // fall through
-        }
-        const fsAny: any = require('expo-file-system');
-        const File = fsAny?.File;
-        if (!File) throw new Error('File API not available');
-        const f: any = new File(uri);
-        if (typeof f?.bytes === 'function') {
-          const bytes = await f.bytes();
-          return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-        }
-        if (typeof f?.base64 === 'function') {
-          const b64 = await f.base64();
-          return toByteArray(String(b64 || ''));
-        }
-        throw new Error('File read API not available');
-      };
-
-      const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-      const hardLimit =
-        media.kind === 'image' ? MAX_IMAGE_BYTES : media.kind === 'video' ? MAX_VIDEO_BYTES : MAX_FILE_BYTES;
-      if (declaredSize && declaredSize > hardLimit) {
-        throw new Error(
-          `File too large (${formatBytes(declaredSize)}). Limit for ${media.kind} is ${formatBytes(hardLimit)}.`
-        );
-      }
-
-      // 1) Read original bytes (avoid Blob.arrayBuffer on Android)
-      const plainBytes = await readUriBytes(media.uri);
-      if (plainBytes.byteLength > hardLimit) {
-        throw new Error(
-          `File too large (${formatBytes(plainBytes.byteLength)}). Limit for ${media.kind} is ${formatBytes(
-            hardLimit
-          )}.`
-        );
-      }
-
-      // 2) Generate per-attachment key and encrypt bytes
-      const fileKey = new Uint8Array(getRandomBytes(32));
-      const fileIv = new Uint8Array(getRandomBytes(12));
-      const fileCipher = gcm(fileKey, fileIv).encrypt(plainBytes);
-
-      // 3) Upload encrypted blob
-      const safeName =
-        (media.fileName || `${media.kind}-${Date.now()}`)
-          .replace(/[^\w.\-() ]+/g, '_')
-          .slice(0, 120) || `file-${Date.now()}`;
-      const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      // Keep DM object keys opaque (do not embed filenames).
-      const path = `uploads/dm/${conversationKey}/${uploadId}.enc`;
-      // NOTE: avoid Blob construction on RN (can throw). uploadData supports Uint8Array directly.
-      await uploadData({ path, data: fileCipher, options: { contentType: 'application/octet-stream' } }).result;
-
-      // 4) Create + encrypt thumbnail (also E2EE)
-      let thumbPath: string | undefined;
-      let thumbIvHex: string | undefined;
-      let thumbContentType: string | undefined;
-      try {
-        let thumbUri: string | null = null;
-        if (media.kind === 'image') {
-          const thumb = await ImageManipulator.manipulateAsync(
-            media.uri,
-            [{ resize: { width: THUMB_MAX_DIM } }],
-            { compress: THUMB_JPEG_QUALITY, format: ImageManipulator.SaveFormat.WEBP }
-          );
-          thumbUri = thumb.uri;
-        } else if (media.kind === 'video') {
-          const { uri } = await VideoThumbnails.getThumbnailAsync(media.uri, {
-            time: 500,
-            quality: THUMB_JPEG_QUALITY,
-          });
-          // Convert to webp for smaller encrypted preview blobs.
-          const converted = await ImageManipulator.manipulateAsync(
-            uri,
-            [{ resize: { width: THUMB_MAX_DIM } }],
-            { compress: THUMB_JPEG_QUALITY, format: ImageManipulator.SaveFormat.WEBP }
-          );
-          thumbUri = converted.uri;
-        }
-
-        if (thumbUri) {
-          const tBytes = await readUriBytes(thumbUri);
-          const tIv = new Uint8Array(getRandomBytes(12));
-          const tCipher = gcm(fileKey, tIv).encrypt(tBytes);
-          thumbPath = `uploads/dm/${conversationKey}/thumbs/${uploadId}.webp.enc`;
-          await uploadData({
-            path: thumbPath,
-            data: tCipher,
-            options: { contentType: 'application/octet-stream' },
-          }).result;
-          thumbIvHex = bytesToHex(tIv);
-          thumbContentType = 'image/webp';
-        }
-      } catch {
-        // ignore thumb failures
-      }
-
-      // 5) Wrap fileKey with conversation ECDH key
-      const chatKey = deriveChatKeyBytesV1(senderPrivateKeyHex, recipientPublicKeyHex);
-      const wrap = aesGcmEncryptBytes(chatKey, fileKey);
-
-      return {
-        type: 'dm_media_v1',
-        v: 1,
-        caption: (typeof captionOverride === 'string' ? captionOverride.trim() : input.trim()) || undefined,
-        media: {
-          kind: media.kind,
-          contentType: media.contentType,
-          fileName: media.fileName,
-          size: media.size,
-          path,
-          iv: bytesToHex(fileIv),
-          ...(thumbPath ? { thumbPath } : {}),
-          ...(thumbIvHex ? { thumbIv: thumbIvHex } : {}),
-          ...(thumbContentType ? { thumbContentType } : {}),
-        },
-        wrap: {
-          iv: wrap.ivHex,
-          ciphertext: wrap.ciphertextHex,
-        },
-      };
-    },
-    [input]
-  );
-
-  const uploadPendingMediaGroupEncrypted = React.useCallback(
-    async (
-      media: PendingMediaItem,
-      conversationKey: string,
-      messageKeyBytes: Uint8Array,
-      captionOverride?: string
-    ): Promise<GroupMediaEnvelopeV1> => {
-      const readUriBytes = async (uri: string): Promise<Uint8Array> => {
-        try {
-          const resp: any = await fetch(uri);
-          if (resp && typeof resp.arrayBuffer === 'function') {
-            return new Uint8Array(await resp.arrayBuffer());
-          }
-          if (resp && typeof resp.blob === 'function') {
-            const b: any = await resp.blob();
-            if (b && typeof b.arrayBuffer === 'function') {
-              return new Uint8Array(await b.arrayBuffer());
-            }
-          }
-        } catch {
-          // fall through
-        }
-        const fsAny: any = require('expo-file-system');
-        const File = fsAny?.File;
-        if (!File) throw new Error('File API not available');
-        const f: any = new File(uri);
-        if (typeof f?.bytes === 'function') {
-          const bytes = await f.bytes();
-          return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-        }
-        if (typeof f?.base64 === 'function') {
-          const b64 = await f.base64();
-          return toByteArray(String(b64 || ''));
-        }
-        throw new Error('File read API not available');
-      };
-
-      const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-      const hardLimit =
-        media.kind === 'image' ? MAX_IMAGE_BYTES : media.kind === 'video' ? MAX_VIDEO_BYTES : MAX_FILE_BYTES;
-      if (declaredSize && declaredSize > hardLimit) {
-        throw new Error(
-          `File too large (${formatBytes(declaredSize)}). Limit for ${media.kind} is ${formatBytes(hardLimit)}.`
-        );
-      }
-
-      const plainBytes = await readUriBytes(media.uri);
-      if (plainBytes.byteLength > hardLimit) {
-        throw new Error(
-          `File too large (${formatBytes(plainBytes.byteLength)}). Limit for ${media.kind} is ${formatBytes(hardLimit)}.`
-        );
-      }
-
-      const fileKey = new Uint8Array(getRandomBytes(32));
-      const fileIv = new Uint8Array(getRandomBytes(12));
-      const fileCipher = gcm(fileKey, fileIv).encrypt(plainBytes);
-
-      const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const path = `uploads/dm/${conversationKey}/${uploadId}.enc`;
-      await uploadData({ path, data: fileCipher, options: { contentType: 'application/octet-stream' } }).result;
-
-      // Encrypted thumbnail with same fileKey (Signal-style)
-      let thumbPath: string | undefined;
-      let thumbIvHex: string | undefined;
-      let thumbContentType: string | undefined;
-      try {
-        let thumbUri: string | null = null;
-        if (media.kind === 'image') {
-          const thumb = await ImageManipulator.manipulateAsync(
-            media.uri,
-            [{ resize: { width: THUMB_MAX_DIM } }],
-            { compress: THUMB_JPEG_QUALITY, format: ImageManipulator.SaveFormat.WEBP }
-          );
-          thumbUri = thumb.uri;
-        } else if (media.kind === 'video') {
-          const { uri } = await VideoThumbnails.getThumbnailAsync(media.uri, { time: 500, quality: THUMB_JPEG_QUALITY });
-          const converted = await ImageManipulator.manipulateAsync(
-            uri,
-            [{ resize: { width: THUMB_MAX_DIM } }],
-            { compress: THUMB_JPEG_QUALITY, format: ImageManipulator.SaveFormat.WEBP }
-          );
-          thumbUri = converted.uri;
-        }
-        if (thumbUri) {
-          const tBytes = await readUriBytes(thumbUri);
-          const tIv = new Uint8Array(getRandomBytes(12));
-          const tCipher = gcm(fileKey, tIv).encrypt(tBytes);
-          thumbPath = `uploads/dm/${conversationKey}/thumbs/${uploadId}.webp.enc`;
-          await uploadData({ path: thumbPath, data: tCipher, options: { contentType: 'application/octet-stream' } }).result;
-          thumbIvHex = bytesToHex(tIv);
-          thumbContentType = 'image/webp';
-        }
-      } catch {
-        // ignore thumb failures
-      }
-
-      // Wrap fileKey with messageKey (NOT ECDH)
-      const wrap = aesGcmEncryptBytes(messageKeyBytes, fileKey);
-
-      return {
-        type: 'gdm_media_v1',
-        v: 1,
-        caption: (typeof captionOverride === 'string' ? captionOverride.trim() : input.trim()) || undefined,
-        media: {
-          kind: media.kind,
-          contentType: media.contentType,
-          fileName: media.fileName,
-          size: media.size,
-          path,
-          iv: bytesToHex(fileIv),
-          ...(thumbPath ? { thumbPath } : {}),
-          ...(thumbIvHex ? { thumbIv: thumbIvHex } : {}),
-          ...(thumbContentType ? { thumbContentType } : {}),
-        },
-        wrap: { iv: wrap.ivHex, ciphertext: wrap.ciphertextHex },
-      };
-    },
-    [aesGcmEncryptBytes, input]
-  );
-
-  const openMedia = React.useCallback(async (path: string) => {
-    try {
-      const s = toCdnUrl(path);
-      if (!s) throw new Error('CDN_URL not configured');
-      await Linking.openURL(s);
-    } catch (e: any) {
-      showAlert('Open failed', e?.message ?? 'Could not open attachment');
-    }
-  }, [showAlert]);
-
-  // Ensure we have credentials before trying to resolve signed URLs for media.
-  // Without this, `getUrl()` can fail right after sign-in and thumbnails get stuck without a URL.
-  React.useEffect(() => {
-    let cancelled = false;
-    setStorageSessionReady(false);
-
-    (async () => {
-      // If we don't have a signed-in user, don't block the UI.
-      if (!user) {
-        setStorageSessionReady(true);
-        return;
-      }
-
-      for (let attempt = 0; attempt < 6; attempt++) {
-        try {
-          const sess = await fetchAuthSession({ forceRefresh: attempt === 0 });
-          if (sess?.credentials?.accessKeyId) {
-            if (!cancelled) setStorageSessionReady(true);
-            return;
-          }
-        } catch {
-          // ignore; retry
-        }
-        // Small backoff (keeps the UI snappy but avoids tight loops)
-        await new Promise((r) => setTimeout(r, 250 + attempt * 250));
-      }
-
-      // Don't block forever; we'll still retry getUrl, but the user can at least interact.
-      if (!cancelled) setStorageSessionReady(true);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
-  // Lazily resolve public (unsigned) CDN URLs for any media we see in message list (non-DM only).
-  React.useEffect(() => {
-    if (isDm) return;
-    let cancelled = false;
-    const needed: string[] = [];
-
-    for (const m of messages) {
-      const env = !m.encrypted ? parseChatEnvelope(m.rawText ?? m.text) : null;
-      const list = env
-        ? normalizeChatMediaList(env.media)
-        : m.mediaList
-          ? m.mediaList
-          : m.media
-            ? [m.media]
-            : [];
-      for (const media of list) {
-        const paths: string[] = [];
-        if (media?.path) paths.push(media.path);
-        if (media?.thumbPath) paths.push(media.thumbPath);
-        for (const path of paths) {
-        if (!path) continue;
-        if (mediaUrlByPath[path]) continue;
-        if (inFlightMediaUrlRef.current.has(path)) continue;
-        needed.push(path);
-        }
-      }
-    }
-
-    if (!needed.length) return;
-    const uniqueNeeded = Array.from(new Set(needed));
-    uniqueNeeded.forEach((path) => inFlightMediaUrlRef.current.add(path));
-
-    (async () => {
-      const pairs: Array<[string, string]> = [];
-      try {
-        for (const path of uniqueNeeded) {
-          try {
-            const s = toCdnUrl(path);
-            if (s) pairs.push([path, s]);
-          } catch {
-            // ignore; user can still tap to open, and future renders may re-trigger resolution
-          }
-        }
-        if (!cancelled && pairs.length) {
-          setMediaUrlByPath((prev) => {
-            const next = { ...prev };
-            for (const [p, u] of pairs) next[p] = u;
-            return next;
-          });
-        }
-      } finally {
-        // IMPORTANT: always clear in-flight flags, even if the effect is cancelled
-        // (otherwise thumbnails can get stuck "loading" forever).
-        for (const p of uniqueNeeded) inFlightMediaUrlRef.current.delete(p);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      // Also clear any remaining in-flight flags for this run.
-      for (const p of uniqueNeeded) inFlightMediaUrlRef.current.delete(p);
-    };
-  }, [isDm, messages, mediaUrlByPath]);
-
-  // Lazily resolve avatar image URLs (public paths like uploads/public/avatars/*).
-  React.useEffect(() => {
-    let cancelled = false;
-    const needed: string[] = [];
-
-    for (const prof of Object.values(avatarProfileBySub)) {
-      const path = prof?.avatarImagePath;
-      if (!path) continue;
-      if (avatarUrlByPath[path]) continue;
-      if (inFlightAvatarUrlRef.current.has(path)) continue;
-      needed.push(path);
-    }
-
-    if (!needed.length) return;
-    const uniqueNeeded = Array.from(new Set(needed));
-    uniqueNeeded.forEach((p) => inFlightAvatarUrlRef.current.add(p));
-
-    (async () => {
-      const pairs: Array<[string, string]> = [];
-      try {
-        for (const path of uniqueNeeded) {
-          try {
-            const s = toCdnUrl(path);
-            if (s) pairs.push([path, s]);
-          } catch (e) {
-            // eslint-disable-next-line no-console
-            console.log('avatar getUrl failed', path, (e as any)?.message || String(e));
-          }
-        }
-        if (!cancelled && pairs.length) {
-          setAvatarUrlByPath((prev) => {
-            const next = { ...prev };
-            for (const [p, u] of pairs) next[p] = u;
-            return next;
-          });
-        }
-      } finally {
-        for (const p of uniqueNeeded) inFlightAvatarUrlRef.current.delete(p);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      for (const p of uniqueNeeded) inFlightAvatarUrlRef.current.delete(p);
-    };
-  }, [avatarProfileBySub, avatarUrlByPath]);
-
-  // Lazily fetch image aspect ratios so thumbnails can render without letterboxing (and thus can be truly rounded).
-  React.useEffect(() => {
-    if (isDm) return;
-    const needed: Array<{ path: string; url: string }> = [];
-
-    for (const m of messages) {
-      const env = !m.encrypted ? parseChatEnvelope(m.rawText ?? m.text) : null;
-      const list = env
-        ? normalizeChatMediaList(env.media)
-        : m.mediaList
-          ? m.mediaList
-          : m.media
-            ? [m.media]
-            : [];
-      for (const media of list) {
-        if (!media?.path) continue;
-        const looksImage =
-          media.kind === 'image' || (media.kind === 'file' && (media.contentType || '').startsWith('image/'));
-        if (!looksImage) continue;
-        const keyPath = media.thumbPath || media.path;
-        const url = mediaUrlByPath[keyPath];
-        if (!url) continue;
-        if (imageAspectByPath[keyPath]) continue;
-        if (inFlightImageSizeRef.current.has(keyPath)) continue;
-        needed.push({ path: keyPath, url });
-      }
-    }
-
-    if (!needed.length) return;
-    needed.forEach(({ path }) => inFlightImageSizeRef.current.add(path));
-
-    needed.forEach(({ path, url }) => {
-      Image.getSize(
-        url,
-        (w, h) => {
-          const aspect = w > 0 && h > 0 ? w / h : 1;
-          setImageAspectByPath((prev) => ({ ...prev, [path]: aspect }));
-          inFlightImageSizeRef.current.delete(path);
-        },
-        () => {
-          inFlightImageSizeRef.current.delete(path);
-        }
-      );
+  const { uploadPendingMedia, uploadPendingMediaDmEncrypted, uploadPendingMediaGroupEncrypted } =
+    useChatUploadHandlers({
+      activeConversationId,
+      input,
     });
-  }, [isDm, messages, mediaUrlByPath, imageAspectByPath]);
 
-  const openViewer = React.useCallback(
-    (mediaList: ChatMediaItem[], startIdx: number) => {
-      const list = Array.isArray(mediaList) ? mediaList : [];
-      if (!list.length) return;
-      const items: Array<{ url: string; kind: 'image' | 'video' | 'file'; fileName?: string }> = [];
-      for (const m of list) {
-        const url = m?.path ? mediaUrlByPath[m.path] : '';
-        if (!url) continue;
-        const kind =
-          m.kind === 'file' && (m.contentType || '').startsWith('image/')
-            ? 'image'
-            : m.kind === 'file' && (m.contentType || '').startsWith('video/')
-              ? 'video'
-              : m.kind;
-        items.push({ url, kind, fileName: m.fileName });
-      }
-      if (!items.length) return;
-      const idx = Math.max(0, Math.min(items.length - 1, Math.floor(startIdx || 0)));
-      setViewerState({ mode: 'global', index: idx, globalItems: items });
-      setViewerOpen(true);
-    },
-    [mediaUrlByPath, openMedia]
-  );
+  // storageSessionReady is managed by useStorageSessionReady()
 
-  const showToast = React.useCallback(
-    (message: string, kind: 'success' | 'error' = 'success') => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      setToast({ message, kind });
-      toastAnim.stopAnimation();
-      toastAnim.setValue(0);
-      Animated.timing(toastAnim, { toValue: 1, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start();
-      toastTimerRef.current = setTimeout(() => {
-        Animated.timing(toastAnim, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start(() => {
-          setToast(null);
-        });
-      }, 1800);
-    },
-    [toastAnim]
-  );
+  useChatCdnMediaPrefetch({
+    enabled: !isDm,
+    messages,
+    mediaUrlByPath,
+    ensure: cdnMedia.ensure,
+  });
 
-  React.useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
+  useChatImageAspectPrefetch({
+    enabled: !isDm,
+    messages,
+    mediaUrlByPath,
+    imageAspectByPath,
+    setImageAspectByPath,
+  });
 
-  const saveViewerMediaToDevice = React.useCallback(async () => {
-    const vs = viewerState;
-    if (!vs) return;
-    const vm = (() => {
-      if (vs.mode === 'global') return vs.globalItems?.[vs.index] ?? null;
-      if (vs.mode === 'dm') {
-        const it = vs.dmItems?.[vs.index];
-        if (!it?.media?.path) return null;
-        const url = dmFileUriByPath[it.media.path];
-        if (!url) return null;
-        const kind = it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
-        return { url, kind, fileName: it.media.fileName };
-      }
-      return null;
-    })();
-    if (!vm?.url) return;
-    if (viewerSaving) return;
-    setViewerSaving(true);
-    try {
-      const perm = await MediaLibrary.requestPermissionsAsync();
-      if (!perm.granted) {
-        showToast('Allow Photos permission to save.', 'error');
-        return;
-      }
-
-      // Download to cache first.
-      const safeNameWithExt = (vm.fileName || `attachment-${Date.now()}`)
-        .replace(/[^\w.\-() ]+/g, '_')
-        .slice(0, 120);
-      const extFromName = (() => {
-        const m = safeNameWithExt.match(/\.([a-zA-Z0-9]{1,8})$/);
-        return m ? m[1].toLowerCase() : '';
-      })();
-      const ext =
-        extFromName ||
-        (vm.kind === 'image' ? 'jpg' : vm.kind === 'video' ? 'mp4' : 'bin');
-
-      const baseName = safeNameWithExt.replace(/\.[^.]+$/, '') || `attachment-${Date.now()}`;
-
-      // Handle data URIs (used for decrypted DM previews sometimes).
-      if (vm.url.startsWith('data:')) {
-        const comma = vm.url.indexOf(',');
-        if (comma < 0) throw new Error('Invalid data URI');
-        const header = vm.url.slice(0, comma);
-        const b64 = vm.url.slice(comma + 1);
-        const isBase64 = /;base64/i.test(header);
-        if (!isBase64) throw new Error('Unsupported data URI encoding');
-        const fsAny: any = require('expo-file-system');
-        const Paths = fsAny?.Paths;
-        const File = fsAny?.File;
-        const root = (Paths?.cache || Paths?.document) as any;
-        if (!root) throw new Error('No writable cache directory');
-        if (!File) throw new Error('File API not available');
-        const dest = new File(root, `${baseName}.${ext}`);
-        if (typeof dest?.write !== 'function') throw new Error('File write API not available');
-        await dest.write(b64, { encoding: 'base64' });
-        await MediaLibrary.saveToLibraryAsync(dest.uri);
-        showToast('Saved to your device.', 'success');
-        return;
-      }
-
-      // If it's already a local file, save it directly.
-      if (vm.url.startsWith('file:')) {
-        await MediaLibrary.saveToLibraryAsync(vm.url);
-        showToast('Saved to your device.', 'success');
-        return;
-      }
-
-      // Modern Expo FileSystem API (SDK 54+).
-      const fsAny: any = require('expo-file-system');
-      const Paths = fsAny?.Paths;
-      const File = fsAny?.File;
-      const root = (Paths?.cache || Paths?.document) as any;
-      if (!root) throw new Error('No writable cache directory');
-      if (!File) throw new Error('File API not available');
-      const dest = new File(root, `${baseName}.${ext}`);
-      // The docs support either instance or static download; support both for safety.
-      if (typeof dest?.downloadFileAsync === 'function') {
-        await dest.downloadFileAsync(vm.url);
-      } else if (typeof File?.downloadFileAsync === 'function') {
-        await File.downloadFileAsync(vm.url, dest);
-      } else {
-        throw new Error('File download API not available');
-      }
-
-      await MediaLibrary.saveToLibraryAsync(dest.uri);
-      showToast('Saved to your device.', 'success');
-    } catch (e: any) {
-      const msg = String(e?.message || 'Could not save attachment');
-      showToast(msg.length > 120 ? `${msg.slice(0, 120)}…` : msg, 'error');
-    } finally {
-      setViewerSaving(false);
-    }
-  }, [viewerState, dmFileUriByPath, viewerSaving, showToast]);
-
-  // Reset per-conversation read bookkeeping
-  React.useEffect(() => {
-    pendingReadCreatedAtSetRef.current = new Set();
-    sentReadCreatedAtSetRef.current = new Set();
-  }, [activeConversationId]);
+  const openViewer = useOpenGlobalViewer<NonNullable<typeof viewer.state>>({
+    resolveUrlForPath: (path) =>
+      mediaUrlByPath[String(path)] ? mediaUrlByPath[String(path)] : null,
+    includeFilesInViewer: true,
+    openExternalIfFile: false,
+    viewer,
+    buildGlobalState: ({ index, items }) => ({
+      mode: 'global' as const,
+      index,
+      globalItems: items,
+    }),
+  });
 
   // Fetch persisted read state so "Seen" works even if sender was offline when peer decrypted.
-  React.useEffect(() => {
-    (async () => {
-      if (!API_URL || !isDm) {
-        return;
-      }
-      try {
-        const { tokens } = await fetchAuthSession();
-        const idToken = tokens?.idToken?.toString();
-        if (!idToken) return;
-        const res = await fetch(
-          `${API_URL.replace(/\/$/, '')}/reads?conversationId=${encodeURIComponent(activeConversationId)}`,
-          { headers: { Authorization: `Bearer ${idToken}` } }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        // Expected shape (new): { reads: [{ userSub?: string, user?: string, messageCreatedAt: number, readAt: number }] }
-        // Backward compat: accept { readUpTo } as a messageCreatedAt.
-        const reads = Array.isArray(data.reads) ? data.reads : [];
-        const map: Record<string, number> = {};
-        for (const r of reads) {
-          if (!r || typeof r !== 'object') continue;
-          const readerSub = typeof (r as any).userSub === 'string' ? String((r as any).userSub) : '';
-          const readerName = typeof (r as any).user === 'string' ? String((r as any).user) : '';
-          // Ignore reads from myself
-          if (myUserId && readerSub && readerSub === myUserId) continue;
-          if (!readerSub && readerName && normalizeUser(readerName) === normalizeUser(displayName)) continue;
-          const mc = Number(r.messageCreatedAt ?? r.readUpTo);
-          const ra = Number(r.readAt);
-          if (!Number.isFinite(mc) || !Number.isFinite(ra)) continue;
-          const key = String(mc);
-          map[key] = map[key] ? Math.min(map[key], ra) : ra;
-        }
-        setPeerSeenAtByCreatedAt((prev) => {
-          const next = { ...prev };
-          for (const [k, v] of Object.entries(map)) {
-            const existing = next[k];
-            next[k] = existing ? Math.min(existing, v) : v;
-          }
-          return next;
-        });
-      } catch {
-        // ignore
-      }
-    })();
-  }, [API_URL, isDm, activeConversationId, displayName, myUserId]);
+  useHydrateDmReads({
+    enabled: !!isDm,
+    apiUrl: API_URL,
+    activeConversationId,
+    myUserId,
+    displayName,
+    normalizeUser,
+    setPeerSeenAtByCreatedAt,
+  });
 
-  // Persist peer "Seen" state locally so it survives switching conversations (until backend persistence catches up).
-  React.useEffect(() => {
-    setPeerSeenAtByCreatedAt({});
-  }, [activeConversationId]);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(`chat:peerSeen:${activeConversationId}`);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          // Merge (don't overwrite) so server-hydrated /reads can't get clobbered by a slow local read.
-          setPeerSeenAtByCreatedAt((prev) => {
-            const next = { ...prev };
-            for (const [k, v] of Object.entries(parsed)) {
-              const n = Number(v);
-              if (!Number.isFinite(n) || n <= 0) continue;
-              const existing = next[k];
-              next[k] = existing ? Math.min(existing, n) : n;
-            }
-            return next;
-          });
-        }
-      } catch {
-        // ignore
-      }
-    })();
-  }, [activeConversationId]);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        await AsyncStorage.setItem(
-          `chat:peerSeen:${activeConversationId}`,
-          JSON.stringify(peerSeenAtByCreatedAt)
-        );
-      } catch {
-        // ignore
-      }
-    })();
-  }, [activeConversationId, peerSeenAtByCreatedAt]);
-
-  React.useEffect(() => {
-    setMySeenAtByCreatedAt({});
-  }, [activeConversationId]);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(`chat:seen:${activeConversationId}`);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          setMySeenAtByCreatedAt((prev) => {
-            const next = { ...prev };
-            for (const [k, v] of Object.entries(parsed)) {
-              const n = Number(v);
-              if (!Number.isFinite(n) || n <= 0) continue;
-              const existing = next[k];
-              next[k] = existing ? Math.min(existing, n) : n;
-            }
-            return next;
-          });
-        }
-      } catch {
-        // ignore
-      }
-    })();
-  }, [activeConversationId]);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        await AsyncStorage.setItem(
-          `chat:seen:${activeConversationId}`,
-          JSON.stringify(mySeenAtByCreatedAt)
-        );
-      } catch {
-        // ignore
-      }
-    })();
-  }, [activeConversationId, mySeenAtByCreatedAt]);
+  // Seen maps are persisted via usePersistedNumberMinMap().
 
   // Persist autoDecrypt per-conversation, per-account so it doesn't bleed across users on the same device.
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const key = `chat:autoDecrypt:${String(myUserId || 'anon')}:${activeConversationId}`;
-        const v = await AsyncStorage.getItem(key);
-        if (v === '1') setAutoDecrypt(true);
-        if (v === '0') setAutoDecrypt(false);
-      } catch {
-        // ignore
-      }
-    })();
-  }, [activeConversationId, myUserId]);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const key = `chat:autoDecrypt:${String(myUserId || 'anon')}:${activeConversationId}`;
-        await AsyncStorage.setItem(key, autoDecrypt ? '1' : '0');
-      } catch {
-        // ignore
-      }
-    })();
-  }, [activeConversationId, myUserId, autoDecrypt]);
+  usePersistedBool({
+    storageKey: `chat:autoDecrypt:${String(myUserId || 'anon')}:${activeConversationId}`,
+    value: autoDecrypt,
+    setValue: setAutoDecrypt,
+  });
 
   // ttlIdx is UI state for the disappearing-message setting.
+  const nowSec = useTtlNowSec({ enabled: isDm, messages });
 
-  // ticking clock for TTL countdown labels (DM only):
-  // - update every minute normally
-  // - switch to every second when any message is within the last minute
-  React.useEffect(() => {
-    if (!isDm) return;
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  // DM/group media decrypt helpers + caches come from useChatMediaDecryptCache().
 
-    const tick = () => {
-      if (cancelled) return;
-      const nextNowSec = Math.floor(Date.now() / 1000);
-      setNowSec(nextNowSec);
+  usePrefetchDmDecryptedThumbs({
+    enabled: isDm,
+    messages,
+    dmThumbUriByPath,
+    decryptDmThumbToDataUri,
+  });
+  usePrefetchGroupDecryptedThumbs({
+    enabled: isGroup,
+    messages,
+    dmThumbUriByPath,
+    decryptGroupThumbToDataUri,
+  });
 
-      let minRemaining: number | null = null;
-      for (const m of messages) {
-        if (!m.expiresAt) continue;
-        const remaining = m.expiresAt - nextNowSec;
-        if (remaining <= 0) continue;
-        minRemaining = minRemaining == null ? remaining : Math.min(minRemaining, remaining);
-      }
+  const { openDmMediaViewer, openGroupMediaViewer } = useChatEncryptedMediaViewer({
+    isDm,
+    isGroup,
+    viewer,
+    showAlert,
+    parseDmMediaEnvelope: (raw: unknown) => parseDmMediaEnvelope(String(raw ?? '')),
+    parseGroupMediaEnvelope: (raw: unknown) => parseGroupMediaEnvelope(String(raw ?? '')),
+    normalizeDmMediaItems,
+    normalizeGroupMediaItems,
+    decryptDmFileToCacheUri,
+    decryptGroupFileToCacheUri,
+  });
 
-      const delayMs = minRemaining != null && minRemaining <= 60 ? 1_000 : 60_000;
-      timeoutId = setTimeout(tick, delayMs);
-    };
+  useLazyDecryptDmViewerPages({
+    viewerOpen: viewer.open,
+    viewerState: viewer.state,
+    dmFileUriByPath,
+    inFlightRef: inFlightDmViewerDecryptRef,
+    decryptDmFileToCacheUri,
+  });
 
-    tick();
-    return () => {
-      cancelled = true;
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [isDm, messages]);
+  useLazyDecryptGroupViewerPages({
+    viewerOpen: viewer.open,
+    viewerState: viewer.state,
+    dmFileUriByPath,
+    inFlightRef: inFlightDmViewerDecryptRef,
+    decryptGroupFileToCacheUri,
+  });
 
-  const formatRemaining = React.useCallback((seconds: number): string => {
-    if (seconds <= 0) return '0s';
-    const d = Math.floor(seconds / 86400);
-    const h = Math.floor((seconds % 86400) / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (d > 0) return `${d}d${h > 0 ? ` ${h}h` : ''}`;
-    if (h > 0) return `${h}h${m > 0 ? ` ${m}m` : ''}`;
-    if (m > 0) return `${m}m`;
-    return `${s}s`;
-  }, []);
-
-  const parseEncrypted = React.useCallback((text: string): EncryptedChatPayloadV1 | null => {
-    try {
-      let obj: any = JSON.parse(text);
-      // Some backends/clients may double-encode payload.text as a JSON-string containing JSON.
-      if (typeof obj === 'string') {
-        try {
-          obj = JSON.parse(obj);
-        } catch {
-          // leave as-is
-        }
-      }
-      if (
-        obj &&
-        obj.v === 1 &&
-        obj.alg === 'secp256k1-ecdh+aes-256-gcm' &&
-        typeof obj.iv === 'string' &&
-        typeof obj.ciphertext === 'string' &&
-        typeof obj.senderPublicKey === 'string' &&
-        (typeof obj.recipientPublicKey === 'undefined' || typeof obj.recipientPublicKey === 'string')
-      ) {
-        return obj as EncryptedChatPayloadV1;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const parseGroupEncrypted = React.useCallback((text: string): EncryptedGroupPayloadV1 | null => {
-    try {
-      let obj: any = JSON.parse(text);
-      // Some backends/clients may double-encode payload.text as a JSON-string containing JSON.
-      if (typeof obj === 'string') {
-        try {
-          obj = JSON.parse(obj);
-        } catch {
-          // leave as-is
-        }
-      }
-      if (
-        obj &&
-        obj.type === 'gdm_v1' &&
-        obj.v === 1 &&
-        obj.alg === 'aes-256-gcm+wraps-v1' &&
-        typeof obj.iv === 'string' &&
-        typeof obj.ciphertext === 'string' &&
-        obj.wraps &&
-        typeof obj.wraps === 'object'
-      ) {
-        return obj as EncryptedGroupPayloadV1;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const decryptGroupForDisplay = React.useCallback(
-    (msg: ChatMessage): { plaintext: string; messageKeyHex: string } => {
-      if (!msg.groupEncrypted) throw new Error('Not group-encrypted');
-      if (!myPrivateKey) throw new Error('Missing your private key on this device.');
-      if (!myUserId) throw new Error('Missing your user id.');
-      const wraps = msg.groupEncrypted.wraps || {};
-      const wrap = wraps[myUserId];
-      if (!wrap) throw new Error("Can't decrypt (message not encrypted for you).");
-      const messageKeyHex = decryptChatMessageV1(wrap, myPrivateKey);
-      const keyBytes = hexToBytes(messageKeyHex);
-      const plainBytes = aesGcmDecryptBytes(keyBytes, msg.groupEncrypted.iv, msg.groupEncrypted.ciphertext);
-      return { plaintext: new TextDecoder().decode(plainBytes), messageKeyHex };
+  const markMySeen = React.useCallback(
+    (messageCreatedAt: number, readAt: number) => {
+      setMySeenAtByCreatedAt((prev) => ({
+        ...prev,
+        [String(messageCreatedAt)]: prev[String(messageCreatedAt)]
+          ? Math.min(prev[String(messageCreatedAt)], readAt)
+          : readAt,
+      }));
     },
-    [myPrivateKey, myUserId, aesGcmDecryptBytes]
+    [setMySeenAtByCreatedAt],
   );
 
-  const decryptForDisplay = React.useCallback(
-    (msg: ChatMessage): string => {
-      if (!msg.encrypted) throw new Error('Not encrypted');
-      if (!myPrivateKey) throw new Error('Missing your private key on this device.');
+  // Keypair + myUserId hydration is handled by useChatMyKeys().
 
-      const isFromMe = !!myPublicKey && msg.encrypted.senderPublicKey === myPublicKey;
-      const primaryTheirPub = isFromMe
-        ? (msg.encrypted.recipientPublicKey ?? peerPublicKey)
-        : msg.encrypted.senderPublicKey;
-
-      try {
-        if (!primaryTheirPub) throw new Error("Can't decrypt (missing peer key).");
-        return decryptChatMessageV1(msg.encrypted, myPrivateKey, primaryTheirPub);
-      } catch (e) {
-        if (peerPublicKey && peerPublicKey !== primaryTheirPub) {
-          return decryptChatMessageV1(msg.encrypted, myPrivateKey, peerPublicKey);
-        }
-        throw e;
-      }
-    },
-    [myPrivateKey, myPublicKey, peerPublicKey]
-  );
-
-  const buildDmMediaKey = React.useCallback(
-    (msg: ChatMessage): Uint8Array => {
-      if (!msg.encrypted) throw new Error('Not encrypted');
-      if (!myPrivateKey) throw new Error('Missing your private key on this device.');
-      const isFromMe = !!myPublicKey && msg.encrypted.senderPublicKey === myPublicKey;
-      const theirPub = isFromMe ? (msg.encrypted.recipientPublicKey ?? peerPublicKey) : msg.encrypted.senderPublicKey;
-      if (!theirPub) throw new Error("Can't derive DM media key (missing peer key).");
-      return deriveChatKeyBytesV1(myPrivateKey, theirPub);
-    },
-    [myPrivateKey, myPublicKey, peerPublicKey]
-  );
-
-  const decryptDmThumbToDataUri = React.useCallback(
-    async (
-      msg: ChatMessage,
-      it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }
-    ): Promise<string | null> => {
-      if (!it.media.thumbPath || !it.media.thumbIv) return null;
-      const cacheKey = it.media.thumbPath;
-      if (dmThumbUriByPath[cacheKey]) return dmThumbUriByPath[cacheKey];
-
-      const chatKey = buildDmMediaKey(msg);
-      const fileKey = aesGcmDecryptBytes(chatKey, it.wrap.iv, it.wrap.ciphertext); // 32 bytes
-
-      const signedUrl = await getDmMediaSignedUrl(it.media.thumbPath, 300);
-      const encResp = await fetch(signedUrl);
-      if (!encResp.ok) {
-        const txt = await encResp.text().catch(() => '');
-        throw new Error(`DM download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`);
-      }
-      const respCt = String(encResp.headers.get('content-type') || '');
-      if (respCt.includes('text') || respCt.includes('xml') || respCt.includes('json') || respCt.includes('html')) {
-        const txt = await encResp.text().catch(() => '');
-        throw new Error(`DM download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`);
-      }
-      const encBytes = new Uint8Array(await encResp.arrayBuffer());
-      let plainThumbBytes: Uint8Array;
-      try {
-        plainThumbBytes = gcm(fileKey, new Uint8Array(hexToBytes(it.media.thumbIv))).decrypt(encBytes);
-      } catch {
-        throw new Error('DM decrypt failed (bad key or corrupted download)');
-      }
-
-      const b64 = fromByteArray(plainThumbBytes);
-      const ct =
-        it.media.thumbContentType ||
-        (String(it.media.thumbPath || '').includes('.webp') ? 'image/webp' : 'image/jpeg');
-      const dataUri = `data:${ct};base64,${b64}`;
-      setDmThumbUriByPath((prev) => ({ ...prev, [cacheKey]: dataUri }));
-
-      // Cache aspect ratio for sizing (DM thumbs are decrypted, so Image.getSize must run on the data URI)
-      Image.getSize(
-        dataUri,
-        (w, h) => {
-          const aspect = w > 0 && h > 0 ? w / h : 1;
-          setImageAspectByPath((prev) => ({ ...prev, [cacheKey]: aspect }));
-        },
-        () => {}
-      );
-      return dataUri;
-    },
-    [aesGcmDecryptBytes, buildDmMediaKey, dmThumbUriByPath]
-  );
-
-  const decryptDmFileToCacheUri = React.useCallback(
-    async (
-      msg: ChatMessage,
-      it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }
-    ): Promise<string> => {
-      const cacheKey = it.media.path;
-      if (dmFileUriByPath[cacheKey]) return dmFileUriByPath[cacheKey];
-
-      const chatKey = buildDmMediaKey(msg);
-      const fileKey = aesGcmDecryptBytes(chatKey, it.wrap.iv, it.wrap.ciphertext);
-
-      const signedUrl = await getDmMediaSignedUrl(it.media.path, 300);
-      const encResp = await fetch(signedUrl);
-      if (!encResp.ok) {
-        const txt = await encResp.text().catch(() => '');
-        throw new Error(`DM download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`);
-      }
-      const respCt = String(encResp.headers.get('content-type') || '');
-      if (respCt.includes('text') || respCt.includes('xml') || respCt.includes('json') || respCt.includes('html')) {
-        const txt = await encResp.text().catch(() => '');
-        throw new Error(`DM download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`);
-      }
-      const encBytes = new Uint8Array(await encResp.arrayBuffer());
-      const fileIvBytes = hexToBytes(it.media.iv);
-      let plainBytes: Uint8Array;
-      try {
-        plainBytes = gcm(fileKey, fileIvBytes).decrypt(encBytes);
-      } catch {
-        throw new Error('DM decrypt failed (bad key or corrupted download)');
-      }
-
-      const ct = it.media.contentType || 'application/octet-stream';
-      const ext =
-        ct.startsWith('image/')
-          ? ct.split('/')[1] || 'jpg'
-          : ct.startsWith('video/')
-            ? ct.split('/')[1] || 'mp4'
-            : 'bin';
-      const fileNameSafe = (it.media.fileName || `dm-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_');
-      const fsAny: any = require('expo-file-system');
-      const Paths = fsAny?.Paths;
-      const File = fsAny?.File;
-      const root = (Paths?.cache || Paths?.document) as any;
-      if (!root) throw new Error('No writable cache directory');
-      if (!File) throw new Error('File API not available');
-      const outFile = new File(root, `dm-${fileNameSafe}.${ext}`);
-      if (typeof outFile?.write !== 'function') throw new Error('File write API not available');
-      await outFile.write(plainBytes);
-
-      setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: outFile.uri }));
-      return outFile.uri;
-    },
-    [aesGcmDecryptBytes, buildDmMediaKey, dmFileUriByPath]
-  );
-
-  const buildGroupMediaKey = React.useCallback((msg: ChatMessage): Uint8Array => {
-    if (!msg.groupKeyHex) throw new Error('Missing group message key');
-    return hexToBytes(String(msg.groupKeyHex));
-  }, []);
-
-  const decryptGroupThumbToDataUri = React.useCallback(
-    async (
-      msg: ChatMessage,
-      it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }
-    ): Promise<string | null> => {
-      if (!it.media.thumbPath || !it.media.thumbIv) return null;
-      const cacheKey = it.media.thumbPath;
-      if (dmThumbUriByPath[cacheKey]) return dmThumbUriByPath[cacheKey];
-
-      const messageKey = buildGroupMediaKey(msg);
-      const fileKey = aesGcmDecryptBytes(messageKey, it.wrap.iv, it.wrap.ciphertext); // 32 bytes
-
-      const signedUrl = await getDmMediaSignedUrl(it.media.thumbPath, 300);
-      const encResp = await fetch(signedUrl);
-      if (!encResp.ok) {
-        const txt = await encResp.text().catch(() => '');
-        throw new Error(`Group download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`);
-      }
-      const respCt = String(encResp.headers.get('content-type') || '');
-      if (respCt.includes('text') || respCt.includes('xml') || respCt.includes('json') || respCt.includes('html')) {
-        const txt = await encResp.text().catch(() => '');
-        throw new Error(`Group download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`);
-      }
-      const encBytes = new Uint8Array(await encResp.arrayBuffer());
-      let plainThumbBytes: Uint8Array;
-      try {
-        plainThumbBytes = gcm(fileKey, new Uint8Array(hexToBytes(it.media.thumbIv))).decrypt(encBytes);
-      } catch {
-        throw new Error('Group decrypt failed (bad key or corrupted download)');
-      }
-
-      const b64 = fromByteArray(plainThumbBytes);
-      const ct =
-        it.media.thumbContentType ||
-        (String(it.media.thumbPath || '').includes('.webp') ? 'image/webp' : 'image/jpeg');
-      const dataUri = `data:${ct};base64,${b64}`;
-      setDmThumbUriByPath((prev) => ({ ...prev, [cacheKey]: dataUri }));
-
-      Image.getSize(
-        dataUri,
-        (w, h) => {
-          const aspect = w > 0 && h > 0 ? w / h : 1;
-          setImageAspectByPath((prev) => ({ ...prev, [cacheKey]: aspect }));
-        },
-        () => {}
-      );
-      return dataUri;
-    },
-    [aesGcmDecryptBytes, buildGroupMediaKey, dmThumbUriByPath]
-  );
-
-  const decryptGroupFileToCacheUri = React.useCallback(
-    async (
-      msg: ChatMessage,
-      it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }
-    ): Promise<string> => {
-      const cacheKey = it.media.path;
-      if (dmFileUriByPath[cacheKey]) return dmFileUriByPath[cacheKey];
-
-      const messageKey = buildGroupMediaKey(msg);
-      const fileKey = aesGcmDecryptBytes(messageKey, it.wrap.iv, it.wrap.ciphertext);
-
-      const signedUrl = await getDmMediaSignedUrl(it.media.path, 300);
-      const encResp = await fetch(signedUrl);
-      if (!encResp.ok) {
-        const txt = await encResp.text().catch(() => '');
-        throw new Error(`Group download failed (${encResp.status}): ${txt.slice(0, 160) || 'no body'}`);
-      }
-      const respCt = String(encResp.headers.get('content-type') || '');
-      if (respCt.includes('text') || respCt.includes('xml') || respCt.includes('json') || respCt.includes('html')) {
-        const txt = await encResp.text().catch(() => '');
-        throw new Error(`Group download returned ${respCt || 'text'}: ${txt.slice(0, 160) || 'no body'}`);
-      }
-      const encBytes = new Uint8Array(await encResp.arrayBuffer());
-      const fileIvBytes = hexToBytes(it.media.iv);
-      let plainBytes: Uint8Array;
-      try {
-        plainBytes = gcm(fileKey, fileIvBytes).decrypt(encBytes);
-      } catch {
-        throw new Error('Group decrypt failed (bad key or corrupted download)');
-      }
-
-      const ct = it.media.contentType || 'application/octet-stream';
-      const ext =
-        ct.startsWith('image/')
-          ? ct.split('/')[1] || 'jpg'
-          : ct.startsWith('video/')
-            ? ct.split('/')[1] || 'mp4'
-            : 'bin';
-      const fileNameSafe = (it.media.fileName || `gdm-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_');
-      const fsAny: any = require('expo-file-system');
-      const Paths = fsAny?.Paths;
-      const File = fsAny?.File;
-      const root = (Paths?.cache || Paths?.document) as any;
-      if (!root) throw new Error('No writable cache directory');
-      if (!File) throw new Error('File API not available');
-      const outFile = new File(root, `gdm-${fileNameSafe}.${ext}`);
-      if (typeof outFile?.write !== 'function') throw new Error('File write API not available');
-      await outFile.write(plainBytes);
-
-      setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: outFile.uri }));
-      return outFile.uri;
-    },
-    [aesGcmDecryptBytes, buildGroupMediaKey, dmFileUriByPath]
-  );
-
-  // DM: decrypt thumbnails once messages are decrypted (so we can render inline previews).
-  React.useEffect(() => {
-    if (!isDm) return;
-    let cancelled = false;
-    const run = async () => {
-      for (const m of messages) {
-        if (cancelled) return;
-        if (!m.decryptedText) continue;
-        const env = parseDmMediaEnvelope(m.decryptedText);
-        const items = normalizeDmMediaItems(env);
-        for (const it of items) {
-          if (cancelled) return;
-          if (!it.media.thumbPath || !it.media.thumbIv) continue;
-          if (dmThumbUriByPath[it.media.thumbPath]) continue;
-          try {
-            // eslint-disable-next-line no-await-in-loop
-            await decryptDmThumbToDataUri(m, it);
-          } catch {
-            // ignore
-          }
-        }
-      }
-    };
-    setTimeout(() => void run(), 0);
-    return () => {
-      cancelled = true;
-    };
-  }, [isDm, messages, dmThumbUriByPath, decryptDmThumbToDataUri]);
-
-  // Group DM: decrypt thumbnails once messages are decrypted.
-  React.useEffect(() => {
-    if (!isGroup) return;
-    let cancelled = false;
-    const run = async () => {
-      for (const m of messages) {
-        if (cancelled) return;
-        if (!m.decryptedText || !m.groupKeyHex) continue;
-        const env = parseGroupMediaEnvelope(m.decryptedText);
-        const items = normalizeGroupMediaItems(env);
-        for (const it of items) {
-          if (cancelled) return;
-          if (!it.media.thumbPath || !it.media.thumbIv) continue;
-          if (dmThumbUriByPath[it.media.thumbPath]) continue;
-          try {
-            // eslint-disable-next-line no-await-in-loop
-            await decryptGroupThumbToDataUri(m, it);
-          } catch {
-            // ignore
-          }
-        }
-      }
-    };
-    setTimeout(() => void run(), 0);
-    return () => {
-      cancelled = true;
-    };
-  }, [isGroup, messages, dmThumbUriByPath, decryptGroupThumbToDataUri]);
-
-  const openGroupMediaViewer = React.useCallback(
-    async (msg: ChatMessage, idx: number = 0) => {
-      if (!isGroup) return;
-      if (!msg.decryptedText || !msg.groupKeyHex) return;
-      const env = parseGroupMediaEnvelope(msg.decryptedText);
-      if (!env) return;
-      const items = normalizeGroupMediaItems(env);
-      const it = items[idx];
-      if (!it) return;
-      try {
-        const localUri = await decryptGroupFileToCacheUri(msg, it);
-        setViewerState({
-          mode: 'gdm',
-          index: Math.max(0, Math.min(items.length - 1, idx)),
-          gdmMsg: msg,
-          gdmItems: items,
-          title: it.media.fileName,
-        });
-        setViewerOpen(true);
-      } catch (e: any) {
-        showAlert('Open failed', e?.message ?? 'Could not decrypt attachment');
-      }
-    },
-    [isGroup, decryptGroupFileToCacheUri, showAlert]
-  );
-
-  const openDmMediaViewer = React.useCallback(
-    async (msg: ChatMessage, idx: number = 0) => {
-      if (!isDm) return;
-      if (!msg.decryptedText) return;
-      const env = parseDmMediaEnvelope(msg.decryptedText);
-      if (!env) return;
-      const items = normalizeDmMediaItems(env);
-      const it = items[idx];
-      if (!it) return;
-      try {
-        const localUri = await decryptDmFileToCacheUri(msg, it);
-        // Start viewer in DM mode; additional pages will decrypt lazily.
-        setViewerState({
-          mode: 'dm',
-          index: Math.max(0, Math.min(items.length - 1, idx)),
-          dmMsg: msg,
-          dmItems: items,
-          title: it.media.fileName,
-        });
-        setViewerOpen(true);
-      } catch (e: any) {
-        showAlert('Open failed', e?.message ?? 'Could not decrypt attachment');
-      }
-    },
-    [isDm, decryptDmFileToCacheUri, showAlert]
-  );
-
-  // Fullscreen DM viewer: lazily decrypt the currently visible page (and a neighbor).
-  React.useEffect(() => {
-    if (!viewerOpen) return;
-    const vs = viewerState;
-    if (!vs || vs.mode !== 'dm') return;
-    const msg = vs.dmMsg;
-    const items = vs.dmItems;
-    if (!msg || !items || !items.length) return;
-
-    const want = [vs.index, vs.index + 1, vs.index - 1]
-      .filter((i) => typeof i === 'number' && i >= 0 && i < items.length)
-      .slice(0, 3);
-
-    want.forEach((i) => {
-      const it = items[i];
-      const key = it?.media?.path;
-      if (!key) return;
-      if (dmFileUriByPath[key]) return;
-      if (inFlightDmViewerDecryptRef.current.has(key)) return;
-      inFlightDmViewerDecryptRef.current.add(key);
-      decryptDmFileToCacheUri(msg, it)
-        .catch(() => {})
-        .finally(() => {
-          inFlightDmViewerDecryptRef.current.delete(key);
-        });
-    });
-  }, [viewerOpen, viewerState, dmFileUriByPath, decryptDmFileToCacheUri]);
-
-  // Fullscreen Group viewer: lazily decrypt the currently visible page (and a neighbor).
-  React.useEffect(() => {
-    if (!viewerOpen) return;
-    const vs = viewerState;
-    if (!vs || vs.mode !== 'gdm') return;
-    const msg = vs.gdmMsg;
-    const items = vs.gdmItems;
-    if (!msg || !items || !items.length) return;
-
-    const want = [vs.index, vs.index + 1, vs.index - 1].filter((i) => typeof i === 'number' && i >= 0 && i < items.length).slice(0, 3);
-    want.forEach((i) => {
-      const it = items[i];
-      const key = it?.media?.path;
-      if (!key) return;
-      if (dmFileUriByPath[key]) return;
-      if (inFlightDmViewerDecryptRef.current.has(key)) return;
-      inFlightDmViewerDecryptRef.current.add(key);
-      decryptGroupFileToCacheUri(msg, it)
-        .catch(() => {})
-        .finally(() => {
-          inFlightDmViewerDecryptRef.current.delete(key);
-        });
-    });
-  }, [viewerOpen, viewerState, dmFileUriByPath, decryptGroupFileToCacheUri]);
-
-  const markMySeen = React.useCallback((messageCreatedAt: number, readAt: number) => {
-    setMySeenAtByCreatedAt((prev) => ({
-      ...prev,
-      [String(messageCreatedAt)]: prev[String(messageCreatedAt)]
-        ? Math.min(prev[String(messageCreatedAt)], readAt)
-        : readAt,
-    }));
-  }, []);
-
-  const sendReadReceipt = React.useCallback(
-    (messageCreatedAt: number) => {
-      // Read receipts apply to encrypted chats (DM + Group DM), not channels.
-      if (!isEncryptedChat) return;
-      if (!Number.isFinite(messageCreatedAt) || messageCreatedAt <= 0) return;
-
-      // If user disabled read receipts, remember we've read up to this point so we don't send later.
-      if (!sendReadReceipts) {
-        setReadReceiptSuppressUpTo((prev) => (messageCreatedAt > prev ? messageCreatedAt : prev));
-        return;
-      }
-      // If receipts were disabled when this message was read, never send retroactively.
-      if (messageCreatedAt <= readReceiptSuppressUpToRef.current) return;
-
-      // Avoid duplicate sends/queues per conversation.
-      if (sentReadCreatedAtSetRef.current.has(messageCreatedAt)) return;
-      if (pendingReadCreatedAtSetRef.current.has(messageCreatedAt)) return;
-      // If WS isn't ready yet (common right after login), queue and flush on connect.
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        pendingReadCreatedAtSetRef.current.add(messageCreatedAt);
-        return;
-      }
-      sentReadCreatedAtSetRef.current.add(messageCreatedAt);
-      wsRef.current.send(
-        JSON.stringify({
-          action: 'read',
-          conversationId: activeConversationId,
-          user: displayName,
-          // New: per-message read receipt
-          messageCreatedAt,
-          // Backward compat: older backend treats readUpTo as a single value
-          readUpTo: messageCreatedAt,
-          readAt: Math.floor(Date.now() / 1000),
-          createdAt: Date.now(),
-        })
-      );
-    },
-    [isEncryptedChat, activeConversationId, displayName, sendReadReceipts]
-  );
-
-  const flushPendingRead = React.useCallback(() => {
-    if (!isEncryptedChat) return;
-    if (!sendReadReceipts) return;
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    const pending = Array.from(pendingReadCreatedAtSetRef.current);
-    if (!pending.length) return;
-    pendingReadCreatedAtSetRef.current = new Set();
-    // send oldest-first (nice-to-have)
-    pending.sort((a, b) => a - b);
-    for (const mc of pending) {
-      if (mc <= readReceiptSuppressUpToRef.current) continue;
-      if (sentReadCreatedAtSetRef.current.has(mc)) continue;
-      sentReadCreatedAtSetRef.current.add(mc);
-      try {
-        wsRef.current.send(
-          JSON.stringify({
-            action: 'read',
-            conversationId: activeConversationId,
-            user: displayName,
-            messageCreatedAt: mc,
-            readUpTo: mc,
-            readAt: Math.floor(Date.now() / 1000),
-            createdAt: Date.now(),
-          })
-        );
-      } catch {
-        // If send fails, re-queue and bail; connectWs will retry.
-        pendingReadCreatedAtSetRef.current.add(mc);
-        break;
-      }
-    }
-  }, [isEncryptedChat, sendReadReceipts, sendReadReceipt]);
-
-  const refreshMyKeys = React.useCallback(async (sub: string) => {
-    const kp = await loadKeyPair(sub);
-    setMyPrivateKey(kp?.privateKey ?? null);
-    setMyPublicKey(kp?.privateKey ? derivePublicKey(kp.privateKey) : null);
-  }, []);
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const attrs = await fetchUserAttributes();
-        const sub = attrs.sub as string | undefined;
-        if (sub) {
-          setMyUserId(sub);
-          await refreshMyKeys(sub);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-  }, [user, keyEpoch, refreshMyKeys]);
-
-  // If ChatScreen mounts before App.tsx finishes generating/storing keys, retry a few times.
-  React.useEffect(() => {
-    if (!myUserId || myPrivateKey) return;
-    let cancelled = false;
-    let attempts = 0;
-    const maxAttempts = 20; // ~10s
-    const tick = async () => {
-      if (cancelled) return;
-      attempts += 1;
-      try {
-        const kp = await loadKeyPair(myUserId);
-        if (kp?.privateKey) {
-          setMyPrivateKey(kp.privateKey);
-          setMyPublicKey(derivePublicKey(kp.privateKey));
-          return;
-        }
-      } catch {
-        // ignore
-      }
-      if (!cancelled && !myPrivateKey && attempts < maxAttempts) {
-        setTimeout(tick, 500);
-      }
-    };
-    tick();
-    return () => {
-      cancelled = true;
-    };
-  }, [myUserId, myPrivateKey, keyEpoch]);
-
-  // Auto-decrypt pass: whenever enabled and keys are ready, decrypt any encrypted messages once.
-  React.useEffect(() => {
-    if (!autoDecrypt || !myPrivateKey) return;
-    const needsDecrypt = messages.some((m) => (m.encrypted || m.groupEncrypted) && !m.decryptedText && !m.decryptFailed);
-    if (!needsDecrypt) return;
-
-    const decryptedIncomingCreatedAts: number[] = [];
-    const readAt = Math.floor(Date.now() / 1000);
-    let changed = false;
-
-    const nextMessages = messages.map((m) => {
-      if ((!m.encrypted && !m.groupEncrypted) || m.decryptedText || m.decryptFailed) return m;
-      const isFromMe =
-        !!myUserId && !!m.userSub ? String(m.userSub) === String(myUserId) : false;
-      if (m.encrypted) {
-        const isFromMeByKey = !!myPublicKey && m.encrypted.senderPublicKey === myPublicKey;
-        if (isFromMeByKey && !peerPublicKey) return m; // wait for peer key for sent DMs
-      }
-      try {
-        const groupDec = m.groupEncrypted ? decryptGroupForDisplay(m) : null;
-        const plaintext = groupDec ? groupDec.plaintext : decryptForDisplay(m);
-        changed = true;
-        const dmEnv = isDm ? parseDmMediaEnvelope(plaintext) : null;
-        const gEnv = isGroup ? parseGroupMediaEnvelope(plaintext) : null;
-        const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
-        const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
-        const mediaList: ChatMediaItem[] = (isDm ? dmItems : gItems).map((it) => ({
-          path: it.media.path,
-          thumbPath: it.media.thumbPath,
-          kind: it.media.kind,
-          contentType: it.media.contentType,
-          thumbContentType: it.media.thumbContentType,
-          fileName: it.media.fileName,
-          size: it.media.size,
-        }));
-        if (!isFromMe) {
-          decryptedIncomingCreatedAts.push(m.createdAt);
-          const expiresAt =
-            m.ttlSeconds && m.ttlSeconds > 0 ? readAt + m.ttlSeconds : m.expiresAt;
-          markMySeen(m.createdAt, readAt);
-          return {
-            ...m,
-            decryptedText: plaintext,
-            groupKeyHex: groupDec ? groupDec.messageKeyHex : m.groupKeyHex,
-            text: dmEnv ? (dmEnv.caption ?? '') : gEnv ? (gEnv.caption ?? '') : plaintext,
-            media: mediaList.length ? mediaList[0] : m.media,
-            mediaList: mediaList.length ? mediaList : undefined,
-            expiresAt,
-          };
-        }
-        markMySeen(m.createdAt, readAt);
-        return {
-          ...m,
-          decryptedText: plaintext,
-          groupKeyHex: groupDec ? groupDec.messageKeyHex : m.groupKeyHex,
-          text: dmEnv ? (dmEnv.caption ?? '') : gEnv ? (gEnv.caption ?? '') : plaintext,
-          media: mediaList.length ? mediaList[0] : m.media,
-          mediaList: mediaList.length ? mediaList : undefined,
-        };
-      } catch {
-        changed = true;
-        return { ...m, decryptFailed: true };
-      }
-    });
-
-    if (changed) {
-      setMessages(nextMessages);
-      // Send per-message read receipts for messages we actually decrypted.
-      decryptedIncomingCreatedAts.sort((a, b) => a - b);
-      for (const mc of decryptedIncomingCreatedAts) {
-        sendReadReceipt(mc);
-      }
-    }
-  }, [
+  useChatAutoDecrypt({
     autoDecrypt,
     myPrivateKey,
-    decryptForDisplay,
-    myPublicKey,
-    sendReadReceipt,
-    markMySeen,
-    messages,
-    peerPublicKey,
-    isGroup,
-    decryptGroupForDisplay,
     myUserId,
-  ]);
+    myPublicKey,
+    peerPublicKey,
+    isDm,
+    isGroup,
+    messages,
+    setMessages,
+    decryptForDisplay,
+    decryptGroupForDisplay,
+    parseDmMediaEnvelope,
+    parseGroupMediaEnvelope,
+    normalizeDmMediaItems,
+    normalizeGroupMediaItems,
+    markMySeen,
+    sendReadReceipt,
+  });
 
-  React.useEffect(() => {
-    (async () => {
-      if (!peer || !API_URL || !isDm) {
-        setPeerPublicKey(null);
-        return;
-      }
-      // Clear any previously cached key so we don't encrypt to the wrong recipient if peer changes.
-      setPeerPublicKey(null);
-      try {
-        const { tokens } = await fetchAuthSession();
-        const idToken = tokens?.idToken?.toString();
-        if (!idToken) return;
-        // Prefer fetching by sub from the dm#<minSub>#<maxSub> conversationId.
-        // This avoids relying on case/displayName matching.
-        const parseDmPeerSub = (convId: string, mySub: string | null): string | null => {
-          if (!mySub) return null;
-          if (!convId.startsWith('dm#')) return null;
-          const parts = convId.split('#').map((p) => p.trim()).filter(Boolean);
-          if (parts.length !== 3) return null;
-          const a = parts[1];
-          const b = parts[2];
-          if (a === mySub) return b;
-          if (b === mySub) return a;
-          return null;
-        };
-        const peerSub = parseDmPeerSub(activeConversationId, myUserId);
-        const controller = new AbortController();
-        const currentPeer = peer;
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-        const cleanup = () => clearTimeout(timeoutId);
-        const url = peerSub
-          ? `${API_URL.replace(/\/$/, '')}/users?sub=${encodeURIComponent(peerSub)}`
-          : `${API_URL.replace(/\/$/, '')}/users?username=${encodeURIComponent(peer)}`;
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${idToken}` },
-          signal: controller.signal,
-        });
-        cleanup();
-        if (!res.ok) {
-          setPeerPublicKey(null);
-          return;
-        }
-        const data = await res.json();
-        // Source of truth: DynamoDB Users.currentPublicKey (returned as `public_key`).
-        // (We intentionally do not fall back to Cognito custom attributes here.)
-        const pk = (data.public_key as string | undefined) || (data.publicKey as string | undefined);
-        // Only apply if peer hasn't changed mid-request
-        if (currentPeer === peer) {
-          setPeerPublicKey(typeof pk === 'string' && pk.length > 0 ? pk : null);
-        }
-      } catch {
-        setPeerPublicKey(null);
-      }
-    })();
-  }, [peer, isDm, API_URL, activeConversationId, myUserId]);
+  // Peer public key hydration (DM) is handled by useHydratePeerPublicKey().
 
-  const [groupRefreshNonce, setGroupRefreshNonce] = React.useState<number>(0);
   const lastGroupRosterRefreshAtRef = React.useRef<number>(0);
   const lastChannelRosterRefreshAtRef = React.useRef<number>(0);
 
@@ -3951,2923 +919,659 @@ export default function ChatScreen({
     refreshChannelRosterRef.current = refreshChannelRoster;
   }, [refreshChannelRoster]);
 
-  // Group metadata + member key hydration (for encryption + admin UI).
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!API_URL || !isGroup) {
-        setGroupMeta(null);
-        setGroupMembers([]);
-        setGroupPublicKeyBySub({});
-        return;
-      }
-      try {
-        const { tokens } = await fetchAuthSession();
-        const idToken = tokens?.idToken?.toString();
-        if (!idToken) return;
-        const base = API_URL.replace(/\/$/, '');
-        const url = `${base}/groups/get?conversationId=${encodeURIComponent(activeConversationId)}`;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
-        if (!res.ok) {
-          if (!cancelled) {
-            setGroupMeta(null);
-            setGroupMembers([]);
-            setGroupPublicKeyBySub({});
-          }
-          return;
-        }
-        const data: any = await res.json().catch(() => ({}));
-        const groupId = String(data.groupId || '').trim();
-        const me = data.me && typeof data.me === 'object' ? data.me : {};
-        const meIsAdmin = !!me.isAdmin;
-        const meStatus = typeof me.status === 'string' ? String(me.status) : 'active';
-        const membersRaw = Array.isArray(data.members) ? data.members : [];
-        const members = membersRaw
-          .map((m: any) => ({
-            memberSub: String(m.memberSub || '').trim(),
-            displayName: typeof m.displayName === 'string' ? String(m.displayName) : undefined,
-            status: typeof m.status === 'string' ? String(m.status) : 'active',
-            isAdmin: !!m.isAdmin,
-            avatarBgColor: typeof m.avatarBgColor === 'string' ? String(m.avatarBgColor) : undefined,
-            avatarTextColor: typeof m.avatarTextColor === 'string' ? String(m.avatarTextColor) : undefined,
-            avatarImagePath: typeof m.avatarImagePath === 'string' ? String(m.avatarImagePath) : undefined,
-          }))
-          .filter((m: any) => m.memberSub);
-        if (!cancelled) {
-          setGroupMeta(groupId ? { groupId, groupName: typeof data.groupName === 'string' ? String(data.groupName) : undefined, meIsAdmin, meStatus } : null);
-          // If I'm not an active member, treat the roster as a snapshot (privacy/UX):
-          // keep the last-known roster stable, while still polling `meStatus` so we can wake up if re-added/unbanned.
-          setGroupMembers((prev) => {
-            if (meStatus === 'active') return members;
-            // If we don't have anything yet (e.g. first load), take one snapshot.
-            if (!prev || prev.length === 0) return members;
-            return prev;
-          });
-          // Ensure avatars for roster members get signed URLs via existing avatar pipeline.
-          // (This keeps the Members modal avatars in sync even if nobody has chatted recently.)
-          setAvatarProfileBySub((prev) => {
-            const next = { ...prev };
-            const now = Date.now();
-            for (const m of members) {
-              const sub = String(m.memberSub || '').trim();
-              if (!sub) continue;
-              next[sub] = {
-                ...(prev[sub] || {}),
-                displayName: typeof m.displayName === 'string' ? m.displayName : (prev[sub]?.displayName || undefined),
-                avatarBgColor: typeof m.avatarBgColor === 'string' ? m.avatarBgColor : (prev[sub]?.avatarBgColor || undefined),
-                avatarTextColor: typeof m.avatarTextColor === 'string' ? m.avatarTextColor : (prev[sub]?.avatarTextColor || undefined),
-                avatarImagePath: typeof m.avatarImagePath === 'string' ? m.avatarImagePath : (prev[sub]?.avatarImagePath || undefined),
-                fetchedAt: now,
-              };
-            }
-            return next;
-          });
-        }
+  useHydrateGroupRoster({
+    enabled: isGroup,
+    apiUrl: API_URL,
+    activeConversationId,
+    groupRefreshNonce,
+    setGroupMeta,
+    setGroupMembers,
+    setGroupPublicKeyBySub,
+    upsertAvatarProfiles,
+  });
 
-        // Only fetch other members' public keys if I'm an active member.
-        // (Needed for encrypting outgoing messages; not needed for read-only viewing/decrypting.)
-        if (meStatus !== 'active') {
-          if (!cancelled) setGroupPublicKeyBySub({});
-          return;
-        }
+  useGroupReadOnlyRefreshTicker({
+    enabled: isGroup,
+    meStatus: groupMeta?.meStatus,
+    tickMs: 4000,
+    setGroupRefreshNonce,
+  });
+  // group UI state comes from useChatGroupUiState()
 
-        // Fetch current public keys for active members (required for wrapping message keys).
-        const activeSubs = members.filter((m: { status: string; memberSub: string }) => m.status === 'active').map((m: { memberSub: string }) => m.memberSub);
-        const nextKeyMap: Record<string, string> = {};
-        await Promise.all(
-          activeSubs.map(async (sub: string) => {
-            try {
-              const r = await fetch(`${base}/users?sub=${encodeURIComponent(sub)}`, {
-                headers: { Authorization: `Bearer ${idToken}` },
-              });
-              if (!r.ok) return;
-              const u = await r.json().catch(() => ({}));
-              const pk = (u.public_key as string | undefined) || (u.publicKey as string | undefined);
-              if (typeof pk === 'string' && pk.trim()) nextKeyMap[sub] = pk.trim();
-            } catch {
-              // ignore
-            }
-          })
-        );
-        if (!cancelled) setGroupPublicKeyBySub(nextKeyMap);
-      } catch {
-        if (!cancelled) {
-          setGroupMeta(null);
-          setGroupMembers([]);
-          setGroupPublicKeyBySub({});
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [API_URL, isGroup, activeConversationId, groupRefreshNonce]);
+  useFocusGroupAddMembersInputOnOpen({
+    enabled: isGroup,
+    groupMembersOpen,
+    meIsAdmin: !!groupMeta?.meIsAdmin,
+    inputRef: groupAddMembersInputRef,
+    delayMs: 150,
+  });
 
-  // If I'm currently read-only in a group, periodically refresh group meta so that
-  // getting re-added/unbanned "wakes up" the chat without leaving/re-entering.
-  React.useEffect(() => {
-    if (!isGroup) return;
-    if (!groupMeta || groupMeta.meStatus === 'active') return;
-    const t = setInterval(() => {
-      setGroupRefreshNonce((n) => n + 1);
-    }, 4000);
-    return () => clearInterval(t);
-  }, [isGroup, groupMeta?.meStatus]);
-  const [groupNameEditOpen, setGroupNameEditOpen] = React.useState<boolean>(false);
-  const [groupNameDraft, setGroupNameDraft] = React.useState<string>('');
-  const [groupAddMembersDraft, setGroupAddMembersDraft] = React.useState<string>('');
-  const groupAddMembersInputRef = React.useRef<TextInput | null>(null);
-  const [groupActionBusy, setGroupActionBusy] = React.useState<boolean>(false);
+  useRefreshGroupRosterOnMembersModalOpen({
+    enabled: isGroup,
+    groupMembersOpen,
+    lastGroupRosterRefreshAtRef,
+    setGroupRefreshNonce,
+  });
 
-  // Focus the "Add usernames" input when Members modal opens (admin-only).
-  React.useEffect(() => {
-    if (!groupMembersOpen) return;
-    if (!groupMeta?.meIsAdmin) return;
-    const t = setTimeout(() => {
-      try {
-        groupAddMembersInputRef.current?.focus?.();
-      } catch {
-        // ignore
-      }
-    }, 150);
-    return () => clearTimeout(t);
-  }, [groupMembersOpen, groupMeta?.meIsAdmin]);
+  const { channelUpdate, channelLeave, groupUpdate, groupLeave } = useChatAdminOps({
+    apiUrl: API_URL,
+    activeConversationId,
+    isChannel,
+    isGroup,
+    myUserId,
+    wsRef,
+    showAlert,
+    uiConfirm,
+    showToast,
+    refreshChannelRoster,
+    setChannelActionBusy,
+    setGroupActionBusy,
+    channelMetaMeIsAdmin: !!channelMeta?.meIsAdmin,
+    channelMembers,
+    setChannelMembers,
+    setChannelMeta,
+    setChannelMembersOpen,
+    onKickedFromConversation: onKickedFromConversationRef.current,
+    groupMetaMeIsAdmin: !!groupMeta?.meIsAdmin,
+    groupMembers,
+    setGroupMeta,
+    bumpGroupRefreshNonce: () => setGroupRefreshNonce((v) => v + 1),
+  });
 
-  // When the Members modal opens, refresh roster once (helps keep the count in sync,
-  // especially after "left"/ban/unban events and while read-only).
-  React.useEffect(() => {
-    if (!groupMembersOpen) return;
-    if (!isGroup) return;
-    const now = Date.now();
-    lastGroupRosterRefreshAtRef.current = now;
-    setGroupRefreshNonce((n) => n + 1);
-  }, [groupMembersOpen, isGroup]);
+  const groupMembersModalActions = useGroupMembersModalActions({
+    groupAddMembersDraft,
+    setGroupAddMembersDraft,
+    groupUpdate,
+    uiConfirm,
+    wsRef,
+    activeConversationId,
+    setGroupMembersOpen,
+  });
+  const channelMembersModalActions = useChannelMembersModalActions({
+    uiConfirm,
+    wsRef,
+    activeConversationId,
+    channelUpdate,
+    setChannelMembers,
+    setChannelMembersOpen,
+  });
 
-  const groupPost = React.useCallback(
-    async (path: string, body: any): Promise<{ ok: boolean; status: number; json?: any; text?: string }> => {
-      if (!API_URL) return { ok: false, status: 0, text: 'API not configured' };
-      const { tokens } = await fetchAuthSession();
-      const idToken = tokens?.idToken?.toString();
-      if (!idToken) return { ok: false, status: 401, text: 'Not authenticated' };
-      const base = API_URL.replace(/\/$/, '');
-      const res = await fetch(`${base}${path}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body || {}),
-      });
-      const text = await res.text().catch(() => '');
-      let json: any = undefined;
-      try {
-        json = text ? JSON.parse(text) : undefined;
-      } catch {
-        // ignore
-      }
-      return { ok: res.ok, status: res.status, json, text };
-    },
-    [API_URL]
-  );
+  const channelSettingsPanelActions = useChannelSettingsPanelActions({
+    channelMeta,
+    setChannelMeta,
+    setChannelActionBusy,
+    channelUpdate,
+    showToast,
+    uiAlert,
+    setChannelPasswordDraft,
+    setChannelPasswordEditOpen,
+  });
 
-  const channelPost = React.useCallback(
-    async (path: string, body: any): Promise<{ ok: boolean; status: number; json?: any; text?: string }> => {
-      if (!API_URL) return { ok: false, status: 0, text: 'API not configured' };
-      const { tokens } = await fetchAuthSession();
-      const idToken = tokens?.idToken?.toString();
-      if (!idToken) return { ok: false, status: 401, text: 'Not authenticated' };
-      const base = API_URL.replace(/\/$/, '');
-      const res = await fetch(`${base}${path}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body || {}),
-      });
-      const text = await res.text().catch(() => '');
-      let json: any = undefined;
-      try {
-        json = text ? JSON.parse(text) : undefined;
-      } catch {
-        // ignore
-      }
-      return { ok: res.ok, status: res.status, json, text };
-    },
-    [API_URL]
-  );
+  const groupNameModalActions = useGroupNameModalActions({
+    wsRef,
+    activeConversationId,
+    groupNameDraft,
+    setGroupNameDraft,
+    setGroupNameEditOpen,
+    groupUpdate,
+    setGroupMeta,
+    computeDefaultGroupTitleForMe,
+    onConversationTitleChanged,
+  });
 
-  const channelUpdate = React.useCallback(
-    async (op: string, extra: any) => {
-      if (!isChannel) return;
-      const cid = String(activeConversationId).slice('ch#'.length).trim();
-      if (!cid) return;
-      setChannelActionBusy(true);
-      try {
-        const resp = await channelPost('/channels/update', { channelId: cid, op, ...(extra || {}) });
-        if (!resp.ok) {
-          const msg = (resp.json && typeof resp.json.message === 'string' ? resp.json.message : resp.text) || 'Request failed';
-          showAlert('Channel update failed', `${msg}`.trim());
-          return;
-        }
-        // Broadcast to other connected members so their UI refreshes instantly (counts, meta).
-        // (Server validates admin for update events.)
-        try {
-          const ws = wsRef.current;
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            if (op === 'setPublic') {
-              ws.send(
-                JSON.stringify({
-                  action: 'system',
-                  conversationId: activeConversationId,
-                  systemKind: 'update',
-                  updateField: 'visibility',
-                  isPublic: !!extra?.isPublic,
-                  createdAt: Date.now(),
-                })
-              );
-            } else if (op === 'setPassword' || op === 'clearPassword') {
-              const nextHasPassword = op === 'setPassword';
-              ws.send(
-                JSON.stringify({
-                  action: 'system',
-                  conversationId: activeConversationId,
-                  systemKind: 'update',
-                  updateField: 'password',
-                  hasPassword: nextHasPassword,
-                  createdAt: Date.now(),
-                })
-              );
-            }
-          }
-        } catch {
-          // ignore
-        }
-        // Refresh channel meta/members (best-effort)
-        try {
-          await refreshChannelRoster();
-        } catch {}
-        return resp.json;
-      } finally {
-        setChannelActionBusy(false);
-      }
-    },
-    [isChannel, activeConversationId, channelPost, showAlert, refreshChannelRoster]
-  );
+  const channelAboutModalActions = useChannelAboutModalActions({
+    activeConversationId,
+    channelMeta,
+    channelAboutEdit,
+    channelAboutDraft,
+    setChannelAboutDraft,
+    setChannelAboutEdit,
+    setChannelAboutOpen,
+    channelUpdate,
+    markChannelAboutSeen,
+    wsRef,
+  });
 
-  const channelLeave = React.useCallback(async () => {
-    if (!isChannel) return;
-    // UX guard: prevent orphaning a channel (no active admins).
-    // Mirrors the group DM rule.
-    try {
-      const mySub = typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : '';
-      if (channelMeta?.meIsAdmin && mySub) {
-        const active = channelMembers.filter((m) => m && m.status === 'active');
-        const otherActive = active.filter((m) => String(m.memberSub) !== mySub);
-        const otherActiveAdmins = otherActive.filter((m) => !!m.isAdmin);
-        if (otherActive.length > 0 && otherActiveAdmins.length === 0) {
-          showAlert('Wait!', 'You are the last admin. Promote someone else before leaving.');
-          return;
-        }
-      }
-    } catch {
-      // ignore; fall back to server enforcement
-    }
-    const ok = promptConfirm
-      ? await promptConfirm('Leave channel?', 'You will stop receiving new messages', {
-          confirmText: 'Leave',
-          cancelText: 'Cancel',
-          destructive: true,
-        })
-      : true;
-    if (!ok) return;
-    const cid = String(activeConversationId).slice('ch#'.length).trim();
-    if (!cid) return;
-    setChannelActionBusy(true);
-    try {
-      const resp = await channelPost('/channels/leave', { channelId: cid });
-      if (!resp.ok) {
-        const msg = (resp.json && typeof resp.json.message === 'string' ? resp.json.message : resp.text) || 'Request failed';
-        showAlert('Leave failed', `${msg}`.trim());
-        return;
-      }
-      setToast({ kind: 'success', message: 'Left channel' });
-      // Optimistically update local roster/counts so UI reflects leave immediately.
-      try {
-        const mySub = typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : '';
-        if (mySub) {
-          setChannelMembers((prev) =>
-            (Array.isArray(prev) ? prev : []).map((m) =>
-              m && String(m.memberSub) === mySub ? { ...m, status: 'left', isAdmin: false } : m
-            )
-          );
-          setChannelMeta((prev) => (prev ? { ...prev, meStatus: 'left', meIsAdmin: false } : prev));
-        }
-      } catch {
-        // ignore
-      }
-      // Broadcast a "left" system note (best-effort) so others refresh rosters promptly.
-      try {
-        const ws = wsRef.current;
-        if (ws && ws.readyState === WebSocket.OPEN && myUserId) {
-          ws.send(
-            JSON.stringify({
-              action: 'system',
-              conversationId: activeConversationId,
-              systemKind: 'left',
-              targetSub: myUserId,
-              createdAt: Date.now(),
-            })
-          );
-        }
-      } catch {
-        // ignore
-      }
-      setChannelMembersOpen(false);
-      onKickedFromConversationRef.current?.(activeConversationId);
-    } finally {
-      setChannelActionBusy(false);
-    }
-  }, [isChannel, activeConversationId, channelPost, promptConfirm, showAlert, channelMembers, channelMeta?.meIsAdmin, myUserId]);
+  const channelNameModalActions = useChannelNameModalActions({
+    wsRef,
+    activeConversationId,
+    channelNameDraft,
+    setChannelMeta,
+    setChannelNameEditOpen,
+    channelUpdate,
+  });
 
-  const groupUpdate = React.useCallback(
-    async (op: string, extra: any) => {
-      if (!isGroup) return;
-      setGroupActionBusy(true);
-      try {
-        const resp = await groupPost('/groups/update', { conversationId: activeConversationId, op, ...(extra || {}) });
-        if (!resp.ok) {
-          const msg = (resp.json && typeof resp.json.message === 'string' ? resp.json.message : resp.text) || 'Request failed';
-          showAlert('Group update failed', `${msg}`.trim());
-          return;
-        }
-        // For "addMembers", emit system messages so everyone sees "X was added..." (persisted + broadcast by server).
-        if (op === 'addMembers') {
-          const addedSubs: string[] = Array.isArray(resp.json?.addedSubs) ? resp.json.addedSubs.map(String) : [];
-          if (addedSubs.length) {
-            const ws = wsRef.current;
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              for (const sub of addedSubs) {
-                // eslint-disable-next-line no-continue
-                if (!sub) continue;
-                try {
-                  ws.send(
-                    JSON.stringify({
-                      action: 'system',
-                      conversationId: activeConversationId,
-                      systemKind: 'added',
-                      targetSub: sub,
-                      createdAt: Date.now(),
-                    })
-                  );
-                } catch {
-                  // ignore
-                }
-              }
-            }
-          }
-        }
-        setGroupRefreshNonce((v) => v + 1);
-      } finally {
-        setGroupActionBusy(false);
-      }
-    },
-    [isGroup, groupPost, activeConversationId, showAlert]
-  );
+  const channelPasswordModalActions = useChannelPasswordModalActions({
+    channelPasswordDraft,
+    channelUpdate,
+    setChannelMeta,
+    setChannelPasswordEditOpen,
+    setChannelPasswordDraft,
+    showAlert,
+  });
 
-  const groupLeave = React.useCallback(async () => {
-    if (!isGroup) return;
-    const ok = promptConfirm
-      ? await promptConfirm(
-          'Leave group?',
-          'You will stop receiving new messages. This chat will remain in your Chats list as read-only until you remove it.',
-          { confirmText: 'Leave', cancelText: 'Cancel', destructive: true }
-        )
-      : true;
-    if (!ok) return;
+  const onWsMessage = useChatWsMessageHandler({
+    activeConversationIdRef,
+    displayNameRef,
+    myUserId,
+    myPublicKeyRef,
+    blockedSubsSet,
+    hiddenMessageIds,
+    encryptedPlaceholder: ENCRYPTED_PLACEHOLDER,
+    avatarRefetchCooldownMs: AVATAR_REFETCH_ON_MESSAGE_COOLDOWN_MS,
+    lastAvatarRefetchAtBySubRef,
+    invalidateAvatarProfile,
+    onNewDmNotification: onNewDmNotificationRef.current,
+    onKickedFromConversation: onKickedFromConversationRef.current,
+    openInfo,
+    showAlert,
+    showToast,
+    refreshChannelRoster: refreshChannelRosterRef.current || undefined,
+    lastGroupRosterRefreshAtRef,
+    lastChannelRosterRefreshAtRef,
+    bumpGroupRefreshNonce: () => setGroupRefreshNonce((n) => n + 1),
+    setGroupMeStatus: (meStatus) => setGroupMeta((prev) => (prev ? { ...prev, meStatus } : prev)),
+    setMessages,
+    setPeerSeenAtByCreatedAt,
+    setTypingByUserExpiresAt,
+    sendTimeoutRef,
+    parseEncrypted,
+    parseGroupEncrypted,
+    normalizeUser,
+    normalizeReactions,
+  });
 
-    // UX guard: prevent orphaning a group (no active admins).
-    // This duplicates the server rule so the user gets a clear message even if the backend is stale/misconfigured.
-    try {
-      const mySub = typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : '';
-      if (groupMeta?.meIsAdmin && mySub) {
-        const active = groupMembers.filter((m) => m && m.status === 'active');
-        const otherActive = active.filter((m) => String(m.memberSub) !== mySub);
-        const otherActiveAdmins = otherActive.filter((m) => !!m.isAdmin);
-        // If there are other active members, require at least one admin besides me.
-        if (otherActive.length > 0 && otherActiveAdmins.length === 0) {
-          showAlert('Wait!', 'You are the last admin. Promote someone else before leaving.');
-          return;
-        }
-      }
-    } catch {
-      // ignore (fall back to server enforcement)
-    }
+  const { isConnecting, isConnected } = useChatWsConnection({
+    user,
+    wsUrl: WS_URL,
+    wsRef,
+    appStateRef,
+    activeConversationIdRef,
+    pendingJoinConversationIdRef,
+    flushPendingRead,
+    setError,
+    onMessage: onWsMessage,
+  });
 
-    setGroupActionBusy(true);
-    try {
-      const resp = await groupPost('/groups/leave', { conversationId: activeConversationId });
-      if (!resp.ok) {
-        const msg = (resp.json && typeof resp.json.message === 'string' ? resp.json.message : resp.text) || 'Request failed';
-        // Helpful UX: if the backend isn't updated yet, surface the client-side rule.
-        if (resp.status === 500) {
-          showAlert('Leave failed', 'Server error while leaving the group. If you are an admin, ensure another admin exists, then try again.');
-        } else {
-          showAlert('Leave failed', `${msg}`.trim());
-        }
-        return;
-      }
-
-      // Broadcast a "left" system note AFTER leaving.
-      // (Backend WS authorizer allows self-left even when status is already "left".)
-      try {
-        const ws = wsRef.current;
-        if (ws && ws.readyState === WebSocket.OPEN && myUserId) {
-          ws.send(
-            JSON.stringify({
-              action: 'system',
-              conversationId: activeConversationId,
-              systemKind: 'left',
-              targetSub: myUserId,
-              createdAt: Date.now(),
-            })
-          );
-        }
-      } catch {
-        // ignore
-      }
-      setToast({ kind: 'success', message: 'Left group' });
-      setGroupMeta((prev) => (prev ? { ...prev, meStatus: 'left' } : prev));
-      setGroupRefreshNonce((v) => v + 1);
-    } finally {
-      setGroupActionBusy(false);
-    }
-  }, [isGroup, groupPost, activeConversationId, promptConfirm, showAlert, myUserId]);
-
-  const groupKick = React.useCallback(
-    (targetSub: string) => {
-      if (!isGroup) return;
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        showAlert('Not connected', 'WebSocket is not connected.');
-        return;
-      }
-      // UI-only cooldown (per-user) so admins can't spam kick.
-      const sub = String(targetSub || '').trim();
-      if (!sub) return;
-      const until = Date.now() + 5000;
-      setKickCooldownUntilBySub((prev) => ({ ...prev, [sub]: until }));
-      // Ensure the button re-enables even if the modal stays open.
-      if (kickCooldownTimersRef.current[sub]) {
-        clearTimeout(kickCooldownTimersRef.current[sub]);
-      }
-      kickCooldownTimersRef.current[sub] = setTimeout(() => {
-        setKickCooldownUntilBySub((prev) => {
-          if (!prev[sub]) return prev;
-          const next = { ...prev };
-          delete next[sub];
-          return next;
-        });
-        delete kickCooldownTimersRef.current[sub];
-      }, 5200);
-      ws.send(JSON.stringify({ action: 'kick', conversationId: activeConversationId, targetSub, createdAt: Date.now() }));
-    },
-    [isGroup, activeConversationId, showAlert]
-  );
-
-  const channelKick = React.useCallback(
-    (targetSub: string) => {
-      if (!isChannel) return;
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        showAlert('Not connected', 'WebSocket is not connected.');
-        return;
-      }
-      // UI-only cooldown (per-user) so admins can't spam kick.
-      const sub = String(targetSub || '').trim();
-      if (!sub) return;
-      const until = Date.now() + 5000;
-      setKickCooldownUntilBySub((prev) => ({ ...prev, [sub]: until }));
-      // Ensure the button re-enables even if the modal stays open.
-      if (kickCooldownTimersRef.current[sub]) {
-        clearTimeout(kickCooldownTimersRef.current[sub]);
-      }
-      kickCooldownTimersRef.current[sub] = setTimeout(() => {
-        setKickCooldownUntilBySub((prev) => {
-          if (!prev[sub]) return prev;
-          const next = { ...prev };
-          delete next[sub];
-          return next;
-        });
-        delete kickCooldownTimersRef.current[sub];
-      }, 5200);
-      // Kick is UI eject + system message only (no membership change).
-      ws.send(JSON.stringify({ action: 'kick', conversationId: activeConversationId, targetSub, createdAt: Date.now() }));
-    },
-    [isChannel, activeConversationId, showAlert]
-  );
-
-  const closeWs = React.useCallback(() => {
-    if (wsReconnectTimerRef.current) {
-      clearTimeout(wsReconnectTimerRef.current);
-      wsReconnectTimerRef.current = null;
-    }
-    const ws = wsRef.current;
-    wsRef.current = null;
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      try {
-        ws.close(1000, 'app background');
-      } catch {
-        // ignore
-      }
-    }
-    setIsConnecting(false);
-    setIsConnected(false);
-  }, []);
-
-  // Cleanup kick cooldown timers on unmount
-  React.useEffect(() => {
-    return () => {
-      try {
-        for (const t of Object.values(kickCooldownTimersRef.current || {})) {
-          clearTimeout(t);
-        }
-      } catch {
-        // ignore
-      }
-      kickCooldownTimersRef.current = {};
-    };
-  }, []);
-
-  const scheduleReconnect = React.useCallback(() => {
-    if (wsReconnectTimerRef.current) return;
-    if (!user) return;
-    if (!WS_URL) return;
-    if (appStateRef.current !== 'active') return;
-    const attempt = Math.min(wsReconnectAttemptRef.current + 1, 8);
-    wsReconnectAttemptRef.current = attempt;
-    const delayMs = Math.min(10_000, 500 * Math.pow(1.7, attempt - 1));
-    wsReconnectTimerRef.current = setTimeout(() => {
-      wsReconnectTimerRef.current = null;
-      // connectWs will no-op if already open/connecting
-      connectWs();
-    }, delayMs);
-  }, [user]);
-
-  const connectWs = React.useCallback(() => {
-    if (!user) return;
-    if (!WS_URL) {
-      setError('WebSocket URL not configured. Set expo.extra.WS_URL in app.json');
-      return;
-    }
-    const existing = wsRef.current;
-    if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
-      return;
-    }
-
-    setError(null);
-    setIsConnecting(true);
-
-    (async () => {
-      // If WS auth is enabled, include Cognito token in the WS URL query string.
-      // (React Native WebSocket headers are unreliable cross-platform, query string is the common pattern.)
-      let wsUrlWithAuth = WS_URL;
-      try {
-        const { tokens } = await fetchAuthSession();
-        const idToken = tokens?.idToken?.toString();
-        if (!idToken) {
-          setIsConnecting(false);
-          setIsConnected(false);
-          setError('Not authenticated (missing idToken).');
-          scheduleReconnect();
-          return;
-        }
-        wsUrlWithAuth = appendQueryParam(WS_URL, 'token', idToken);
-      } catch {
-        setIsConnecting(false);
-        setIsConnected(false);
-        setError('Unable to authenticate WebSocket connection.');
-        scheduleReconnect();
-        return;
-      }
-
-      const ws = new WebSocket(wsUrlWithAuth);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-        // Ignore events from stale sockets.
-        if (wsRef.current !== ws) return;
-      wsReconnectAttemptRef.current = 0;
-      setIsConnecting(false);
-      setIsConnected(true);
-        setError(null);
-      flushPendingRead();
-        // Best-effort "join" so backend can route/broadcast efficiently.
-        const pendingJoin = pendingJoinConversationIdRef.current || activeConversationIdRef.current;
-        if (pendingJoin) {
-          try {
-            ws.send(
-              JSON.stringify({
-                action: 'join',
-                conversationId: pendingJoin,
-                createdAt: Date.now(),
-              })
-            );
-            pendingJoinConversationIdRef.current = null;
-          } catch {
-            // ignore
-          }
-        }
-    };
-
-    ws.onmessage = (event) => {
-        // Ignore events from stale sockets.
-        if (wsRef.current !== ws) return;
-      try {
-        const payload = JSON.parse(event.data);
-        const activeConv = activeConversationIdRef.current;
-        const dn = displayNameRef.current;
-          const myUserLower = normalizeUser(dn);
-          const payloadUserLower =
-            typeof payload?.userLower === 'string'
-              ? normalizeUser(payload.userLower)
-              : typeof payload?.user === 'string'
-                ? normalizeUser(payload.user)
-                : '';
-
-        const isPayloadChat =
-          typeof payload?.conversationId === 'string' && payload?.conversationId !== 'global';
-        const isDifferentConversation = payload?.conversationId !== activeConv;
-        const payloadSub = typeof payload?.userSub === 'string' ? payload.userSub : '';
-        const fromOtherUser =
-          (payloadSub && myUserId ? payloadSub !== myUserId : payloadUserLower !== myUserLower);
-        const hasText = typeof payload?.text === 'string';
-        if (
-          isPayloadChat &&
-          isDifferentConversation &&
-          fromOtherUser &&
-          hasText &&
-          typeof payload.conversationId === 'string'
-        ) {
-          // System events shouldn't create "unread message" notifications.
-          if (payload?.type === 'system' || payload?.kind === 'system') {
-            // ignore
-          } else {
-          // For group DMs, prefer server-provided groupTitle.
-          const senderLabel =
-            (typeof payload.groupTitle === 'string' && payload.groupTitle) ||
-            (typeof payload.user === 'string' && payload.user) ||
-            (typeof payload.userLower === 'string' && payload.userLower) ||
-            'someone';
-          const senderSub = typeof payload.userSub === 'string' ? payload.userSub : undefined;
-          onNewDmNotificationRef.current?.(payload.conversationId, senderLabel, senderSub);
-          }
-        }
-
-        // Group admin "kick": eject from active conversation (client-side navigation)
-        if (payload && payload.type === 'kicked' && payload.conversationId === activeConv) {
-          try {
-            setToast({ kind: 'error', message: 'You were kicked from the chat' });
-          } catch {
-            // ignore
-          }
-          try {
-            onKickedFromConversationRef.current?.(String(payload.conversationId));
-          } catch {
-            // ignore
-          }
-        }
-
-        // Server-side quota / error events (theme-appropriate modal).
-        // IMPORTANT: This is preferred over relying on WS Lambda status codes, which don't consistently reach UI.
-        if (payload && payload.type === 'error') {
-          const code = typeof payload.code === 'string' ? String(payload.code) : '';
-          if (code === 'media_quota') {
-            const title = typeof payload.title === 'string' ? String(payload.title) : 'Upload limit reached';
-            const msg =
-              typeof payload.message === 'string'
-                ? String(payload.message)
-                : 'You’ve reached your daily upload limit. Please try again tomorrow.';
-            try {
-              openInfo(title, msg);
-            } catch {
-              // fallback
-              showAlert(title, msg);
-            }
-            return;
-          }
-        }
-
-        // Presence hints (server-authored, not persisted): e.g. someone joined the room.
-        // Use these to refresh rosters/counts promptly without adding extra system messages.
-        if (payload && payload.type === 'presence' && payload.conversationId === activeConv) {
-          try {
-            const kind = typeof payload.kind === 'string' ? payload.kind : '';
-            if (kind === 'join' || kind === 'leave') {
-              const now = Date.now();
-              const conv = String(activeConv || '');
-              if (conv.startsWith('gdm#')) {
-                if (now - (lastGroupRosterRefreshAtRef.current || 0) > 750) {
-                  lastGroupRosterRefreshAtRef.current = now;
-                  setGroupRefreshNonce((n) => n + 1);
-                }
-              } else if (conv.startsWith('ch#')) {
-                if (now - (lastChannelRosterRefreshAtRef.current || 0) > 750) {
-                  lastChannelRosterRefreshAtRef.current = now;
-                  void refreshChannelRosterRef.current?.();
-                }
-              }
-            }
-          } catch {
-            // ignore
-          }
-          return;
-        }
-
-        // System events (server-authored), e.g. "User was kicked"
-        if (
-          payload &&
-          payload.type === 'system' &&
-          payload.conversationId === activeConv &&
-          typeof payload.text === 'string'
-        ) {
-          // Membership-related system events should refresh the roster for everyone currently viewing this chat
-          // (updates Members modal + any member counts).
-          try {
-            const kind = typeof payload.systemKind === 'string' ? payload.systemKind : '';
-            const membershipKinds = new Set(['added', 'ban', 'unban', 'unbanned', 'left', 'removed', 'kick', 'kicked', 'banned', 'update']);
-            if (kind && membershipKinds.has(kind)) {
-              const now = Date.now();
-              const conv = String(activeConv || '');
-              if (conv.startsWith('gdm#')) {
-                if (now - (lastGroupRosterRefreshAtRef.current || 0) > 750) {
-                  lastGroupRosterRefreshAtRef.current = now;
-                  setGroupRefreshNonce((n) => n + 1);
-                }
-              } else if (conv.startsWith('ch#')) {
-                if (now - (lastChannelRosterRefreshAtRef.current || 0) > 750) {
-                  lastChannelRosterRefreshAtRef.current = now;
-                  void refreshChannelRosterRef.current?.();
-                }
-              }
-            }
-          } catch {
-            // ignore
-          }
-
-          // If a membership-related system event targets me, immediately refresh/flip the chat out of read-only.
-          // (We also have a periodic refresh fallback, but this makes it instant when the event arrives.)
-          try {
-            const mySub = myUserId;
-            const targetSub = typeof payload.targetSub === 'string' ? payload.targetSub : '';
-            const systemKind = typeof payload.systemKind === 'string' ? payload.systemKind : '';
-            if (mySub && targetSub && mySub === targetSub) {
-              if (systemKind === 'added' || systemKind === 'unban' || systemKind === 'unbanned') {
-                setGroupMeta((prev) => (prev ? { ...prev, meStatus: 'active' } : prev));
-                setGroupRefreshNonce((n) => n + 1);
-              } else if (systemKind === 'ban' || systemKind === 'banned') {
-                setGroupMeta((prev) => (prev ? { ...prev, meStatus: 'banned' } : prev));
-              } else if (systemKind === 'left') {
-                setGroupMeta((prev) => (prev ? { ...prev, meStatus: 'left' } : prev));
-              } else if (systemKind === 'removed' || systemKind === 'kick' || systemKind === 'kicked') {
-                // "kicked" usually comes as payload.type === 'kicked' (handled above),
-                // but handle any system variants defensively.
-                setGroupMeta((prev) => (prev ? { ...prev, meStatus: 'left' } : prev));
-              }
-            }
-          } catch {
-            // ignore
-          }
-
-          const createdAt = Number(payload.createdAt || Date.now());
-          const stableId =
-            (payload.messageId && String(payload.messageId)) ||
-            (payload.id && String(payload.id)) ||
-            `sys-${createdAt}-${Math.random().toString(36).slice(2)}`;
-          const msg: ChatMessage = {
-            id: stableId,
-            kind: 'system',
-            systemKind: typeof payload.systemKind === 'string' ? payload.systemKind : undefined,
-            actorSub: typeof payload.actorSub === 'string' ? payload.actorSub : undefined,
-            actorUser: typeof payload.actorUser === 'string' ? payload.actorUser : undefined,
-            targetSub: typeof payload.targetSub === 'string' ? payload.targetSub : undefined,
-            targetUser: typeof payload.targetUser === 'string' ? payload.targetUser : undefined,
-            user: 'System',
-            userLower: 'system',
-            text: String(payload.text || ''),
-            rawText: String(payload.text || ''),
-            createdAt,
-            localStatus: 'sent',
-          };
-          setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [msg, ...prev]));
-          return;
-        }
-
-        // Read receipt events (broadcast by backend)
-        if (payload && payload.type === 'read' && payload.conversationId === activeConv) {
-          const readerSub = typeof payload.userSub === 'string' ? payload.userSub : '';
-          const fromMe = myUserId && readerSub ? readerSub === myUserId : payloadUserLower === myUserLower;
-          if (payload.user && !fromMe) {
-            const readAt =
-              typeof payload.readAt === 'number' ? payload.readAt : Math.floor(Date.now() / 1000);
-            // New: per-message receipt (messageCreatedAt). Backward compat: treat readUpTo as a messageCreatedAt.
-            const messageCreatedAt =
-              typeof payload.messageCreatedAt === 'number'
-                ? payload.messageCreatedAt
-                : typeof payload.readUpTo === 'number'
-                  ? payload.readUpTo
-                  : undefined;
-
-            if (typeof messageCreatedAt === 'number') {
-              setPeerSeenAtByCreatedAt((prev) => ({
-                ...prev,
-                [String(messageCreatedAt)]: prev[String(messageCreatedAt)]
-                  ? Math.min(prev[String(messageCreatedAt)], readAt)
-                  : readAt,
-              }));
-
-              // TTL-from-read for outgoing messages: start countdown for that specific message (if it has ttlSeconds).
-              setMessages((prev) =>
-                prev.map((m) => {
-                  const isOutgoingByUserSub =
-                    !!myUserId && !!m.userSub && String(m.userSub) === String(myUserId);
-                  const isEncryptedOutgoing =
-                    !!m.encrypted &&
-                    !!myPublicKeyRef.current &&
-                    m.encrypted.senderPublicKey === myPublicKeyRef.current;
-                  const isPlainOutgoing =
-                    !m.encrypted &&
-                    (isOutgoingByUserSub ? true : normalizeUser(m.userLower ?? m.user ?? 'anon') === myUserLower);
-                  const isOutgoing = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
-                  if (!isOutgoing) return m;
-                  if (m.createdAt !== messageCreatedAt) return m;
-                  if (m.expiresAt) return m;
-                  if (!m.ttlSeconds || m.ttlSeconds <= 0) return m;
-                  return { ...m, expiresAt: readAt + m.ttlSeconds };
-                })
-              );
-            }
-          }
-          return;
-        }
-
-        // Typing indicator events (broadcast by backend)
-        // Expected shape:
-        // { type: 'typing', conversationId, user, isTyping: boolean, createdAt?: number }
-        if (payload && payload.type === 'typing') {
-          const incomingConv =
-            typeof payload.conversationId === 'string' && payload.conversationId.length > 0
-              ? payload.conversationId
-              : 'global';
-          if (incomingConv !== activeConv) return;
-          const u = typeof payload.user === 'string' ? payload.user : 'someone';
-          const payloadUserSub = typeof payload.userSub === 'string' ? payload.userSub : '';
-          if (payloadUserSub && blockedSubsSet.has(payloadUserSub)) return;
-          if (myUserId && payloadUserSub && payloadUserSub === myUserId) return;
-          if (!payloadUserSub && payloadUserLower && payloadUserLower === myUserLower) return;
-          const isTyping = payload.isTyping === true;
-          if (!isTyping) {
-            setTypingByUserExpiresAt((prev) => {
-              if (!prev[u]) return prev;
-              const next = { ...prev };
-              delete next[u];
-              return next;
-            });
-          } else {
-            const expiresAtMs = Date.now() + 4000; // client-side TTL for "typing..." line
-            setTypingByUserExpiresAt((prev) => ({ ...prev, [u]: expiresAtMs }));
-          }
-          return;
-        }
-
-        // Edit/delete events (broadcast by backend)
-        if (payload && payload.type === 'edit') {
-          const messageCreatedAt = Number(payload.createdAt);
-          const editedAt = typeof payload.editedAt === 'number' ? payload.editedAt : Date.now();
-          const newRaw =
-            typeof payload.text === 'string'
-              ? payload.text
-              : payload.text && typeof payload.text === 'object'
-                ? JSON.stringify(payload.text)
-                : '';
-          if (Number.isFinite(messageCreatedAt) && newRaw) {
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.createdAt !== messageCreatedAt) return m;
-                if (m.deletedAt) return m;
-                const encrypted = parseEncrypted(newRaw);
-                const groupEncrypted = parseGroupEncrypted(newRaw);
-                const isEncrypted = !!encrypted || !!groupEncrypted;
-                return {
-                  ...m,
-                  rawText: newRaw,
-                  encrypted: encrypted ?? undefined,
-                  groupEncrypted: groupEncrypted ?? undefined,
-                  groupKeyHex: undefined,
-                  text: isEncrypted ? ENCRYPTED_PLACEHOLDER : newRaw,
-                  decryptedText: undefined,
-                  decryptFailed: false,
-                  editedAt,
-                };
-              })
-            );
-          }
-          return;
-        }
-
-        if (payload && payload.type === 'delete') {
-          const messageCreatedAt = Number(payload.createdAt);
-          const deletedAt = typeof payload.deletedAt === 'number' ? payload.deletedAt : Date.now();
-          const deletedBySub = typeof payload.deletedBySub === 'string' ? payload.deletedBySub : undefined;
-          if (Number.isFinite(messageCreatedAt)) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.createdAt === messageCreatedAt
-                  ? {
-                      ...m,
-                      deletedAt,
-                      deletedBySub,
-                      rawText: '',
-                      text: '',
-                      encrypted: undefined,
-                      decryptedText: undefined,
-                      decryptFailed: false,
-                    }
-                  : m
-              )
-            );
-          }
-          return;
-        }
-
-        // Reaction events (broadcast by backend)
-        if (payload && payload.type === 'reaction') {
-          const messageCreatedAt = Number(payload.createdAt);
-          if (!Number.isFinite(messageCreatedAt)) return;
-
-          // New shape: payload.reactions is the full map { emoji: {count, userSubs} }
-          if (payload.reactions) {
-            const normalized = normalizeReactions(payload.reactions);
-            setMessages((prev) =>
-              prev.map((m) => (m.createdAt === messageCreatedAt ? { ...m, reactions: normalized } : m))
-            );
-            return;
-          }
-
-          // Backward compat: payload has { emoji, users }
-          const emoji = typeof payload.emoji === 'string' ? payload.emoji : '';
-          const users = Array.isArray(payload.users) ? payload.users.map(String).filter(Boolean) : [];
-          if (emoji) {
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.createdAt !== messageCreatedAt) return m;
-                const nextReactions = { ...(m.reactions || {}) };
-                if (users.length === 0) delete nextReactions[emoji];
-                else nextReactions[emoji] = { count: users.length, userSubs: users };
-                return { ...m, reactions: Object.keys(nextReactions).length ? nextReactions : undefined };
-              })
-            );
-          }
-          return;
-        }
-
-        if (payload && payload.text) {
-          // Only render messages for the currently open conversation.
-          // (We still emit DM notifications above for other conversations.)
-          const incomingConv =
-            typeof payload.conversationId === 'string' && payload.conversationId.length > 0
-              ? payload.conversationId
-              : 'global';
-          if (incomingConv !== activeConv) return;
-
-          // If this sender has changed their avatar recently, invalidate our cached profile
-          // so we refetch promptly and old messages update without waiting for TTL.
-          const senderSubForAvatar = typeof payload.userSub === 'string' ? String(payload.userSub).trim() : '';
-          if (senderSubForAvatar) {
-            const now = Date.now();
-            const last = lastAvatarRefetchAtBySubRef.current[senderSubForAvatar] || 0;
-            if (now - last >= AVATAR_REFETCH_ON_MESSAGE_COOLDOWN_MS) {
-              lastAvatarRefetchAtBySubRef.current[senderSubForAvatar] = now;
-              setAvatarProfileBySub((prev) => {
-                if (!prev[senderSubForAvatar]) return prev;
-                const next = { ...prev };
-                delete next[senderSubForAvatar];
-                return next;
-              });
-            }
-          }
-
-          const rawText =
-            typeof payload.text === 'string'
-              ? payload.text
-              : payload.text && typeof payload.text === 'object'
-                ? JSON.stringify(payload.text)
-                : String(payload.text ?? '');
-          const encrypted = parseEncrypted(rawText);
-          const groupEncrypted = parseGroupEncrypted(rawText);
-          const createdAt = Number(payload.createdAt || Date.now());
-          const stableId =
-            (payload.messageId && String(payload.messageId)) ||
-            (payload.id && String(payload.id)) ||
-            `${createdAt}-${Math.random().toString(36).slice(2)}`;
-          const msg: ChatMessage = {
-            id: stableId,
-            user: payload.user,
-            userSub: typeof payload.userSub === 'string' ? payload.userSub : undefined,
-            userLower:
-              typeof payload.userLower === 'string'
-                ? normalizeUser(payload.userLower)
-                : typeof payload.user === 'string'
-                  ? normalizeUser(payload.user)
-                  : undefined,
-            avatarBgColor: typeof (payload as any).avatarBgColor === 'string' ? String((payload as any).avatarBgColor) : undefined,
-            avatarTextColor:
-              typeof (payload as any).avatarTextColor === 'string' ? String((payload as any).avatarTextColor) : undefined,
-            avatarImagePath:
-              typeof (payload as any).avatarImagePath === 'string' ? String((payload as any).avatarImagePath) : undefined,
-            reactions: normalizeReactions((payload as any)?.reactions),
-            rawText,
-            encrypted: encrypted ?? undefined,
-            groupEncrypted: groupEncrypted ?? undefined,
-            text: encrypted || groupEncrypted ? ENCRYPTED_PLACEHOLDER : rawText,
-            createdAt,
-            expiresAt: typeof payload.expiresAt === 'number' ? payload.expiresAt : undefined,
-            ttlSeconds: typeof payload.ttlSeconds === 'number' ? payload.ttlSeconds : undefined,
-            localStatus: 'sent',
-            editedAt: typeof payload.editedAt === 'number' ? payload.editedAt : undefined,
-            deletedAt: typeof payload.deletedAt === 'number' ? payload.deletedAt : undefined,
-            deletedBySub: typeof payload.deletedBySub === 'string' ? payload.deletedBySub : undefined,
-            mentions: Array.isArray((payload as any).mentions) ? (payload as any).mentions.map(String).filter(Boolean) : undefined,
-            replyToCreatedAt: typeof (payload as any).replyToCreatedAt === 'number' ? (payload as any).replyToCreatedAt : undefined,
-            replyToMessageId: typeof (payload as any).replyToMessageId === 'string' ? (payload as any).replyToMessageId : undefined,
-            replyToUserSub: typeof (payload as any).replyToUserSub === 'string' ? (payload as any).replyToUserSub : undefined,
-            replyToPreview: typeof (payload as any).replyToPreview === 'string' ? (payload as any).replyToPreview : undefined,
-          };
-          if (msg.userSub && blockedSubsSet.has(String(msg.userSub))) return;
-          if (hiddenMessageIds[msg.id]) return;
-          setMessages((prev) => {
-            const idx = prev.findIndex((m) => m.id === msg.id);
-            if (idx === -1) return [msg, ...prev];
-            const existing = prev[idx];
-            const shouldPreservePlaintext =
-              !!existing.decryptedText || (!!existing.text && existing.text !== ENCRYPTED_PLACEHOLDER);
-            const merged: ChatMessage = {
-              ...msg,
-              decryptedText: existing.decryptedText ?? msg.decryptedText,
-              groupKeyHex: existing.groupKeyHex ?? msg.groupKeyHex,
-              text: shouldPreservePlaintext ? existing.text : msg.text,
-              localStatus: 'sent',
-            };
-            if (sendTimeoutRef.current[msg.id]) {
-              clearTimeout(sendTimeoutRef.current[msg.id]);
-              delete sendTimeoutRef.current[msg.id];
-            }
-            const next = prev.slice();
-            next[idx] = merged;
-            return next;
-          });
-        }
-      } catch {
-        const msg: ChatMessage = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          text: String(event.data),
-          createdAt: Date.now(),
-        };
-        if (msg.userSub && blockedSubsSet.has(String(msg.userSub))) return;
-        setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [msg, ...prev]));
-      }
-    };
-
-    ws.onerror = (e: any) => {
-        // Ignore events from stale sockets.
-        if (wsRef.current !== ws) return;
-      // RN WebSocket doesn't expose much, but log what we can
-      // eslint-disable-next-line no-console
-        console.log('WS error:', e?.message ?? 'WebSocket error', 'url:', redactWsUrl(ws.url));
-      setIsConnecting(false);
-      setIsConnected(false);
-      setError(e?.message ? `WebSocket error: ${e.message}` : 'WebSocket error');
-      scheduleReconnect();
-    };
-    ws.onclose = (e) => {
-        // Ignore events from stale sockets.
-        if (wsRef.current !== ws) return;
-      // eslint-disable-next-line no-console
-        console.log('WS close:', (e as any)?.code, (e as any)?.reason, 'url:', redactWsUrl(ws.url));
-      setIsConnected(false);
-      scheduleReconnect();
-    };
-    })();
-  }, [user, normalizeUser, flushPendingRead, scheduleReconnect]);
-
-  // Keep WS alive across "open picker -> app background -> return" transitions.
-  React.useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState) => {
-      appStateRef.current = nextState;
-      if (nextState === 'active') {
-        connectWs();
-      } else {
-        // Free resources while backgrounded; we'll reconnect on resume.
-        closeWs();
-      }
-    });
-    return () => sub.remove();
-  }, [connectWs, closeWs]);
-
-  // Initial connect on mount / when user changes
-  React.useEffect(() => {
-    connectWs();
-    return () => closeWs();
-  }, [connectWs, closeWs]);
-
-  // Periodically sweep expired typing indicators.
-  React.useEffect(() => {
-    if (typingCleanupTimerRef.current) return;
-    typingCleanupTimerRef.current = setInterval(() => {
-      const now = Date.now();
-      setTypingByUserExpiresAt((prev) => {
-        const entries = Object.entries(prev);
-        if (entries.length === 0) return prev;
-        let changed = false;
-        const next: Record<string, number> = {};
-        for (const [u, exp] of entries) {
-          if (typeof exp === 'number' && exp > now) next[u] = exp;
-          else changed = true;
-        }
-        return changed ? next : prev;
-      });
-    }, 1000);
-    return () => {
-      if (typingCleanupTimerRef.current) clearInterval(typingCleanupTimerRef.current);
-      typingCleanupTimerRef.current = null;
-    };
-  }, []);
-
-  const fetchHistoryPage = React.useCallback(
-    async ({ before, reset }: { before?: number | null; reset?: boolean }) => {
-      if (!API_URL) return;
-      if (historyLoadingRef.current) return;
-      historyLoadingRef.current = true;
-      setHistoryLoading(true);
-      try {
-        // Some deployments protect GET /messages behind a Cognito authorizer.
-        // Include the idToken when available; harmless if the route is public.
-        const { tokens } = await fetchAuthSession().catch(() => ({ tokens: undefined }));
-        const idToken = tokens?.idToken?.toString();
-        const base = API_URL.replace(/\/$/, '');
-        const qs =
-          `conversationId=${encodeURIComponent(activeConversationId)}` +
-          `&limit=${HISTORY_PAGE_SIZE}` +
-          `&cursor=1` +
-          (typeof before === 'number' && Number.isFinite(before) && before > 0
-            ? `&before=${encodeURIComponent(String(before))}`
-            : '');
-        const url = `${base}/messages?${qs}`;
-
-        const res = await fetch(url, idToken ? { headers: { Authorization: `Bearer ${idToken}` } } : undefined);
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          console.warn('fetchHistory failed', res.status, text);
-          setError(`History fetch failed (${res.status})`);
-          return;
-        }
-
-        const json = await res.json();
-        const rawItems = Array.isArray(json) ? json : Array.isArray(json?.items) ? json.items : [];
-        const hasMoreFromServer = typeof json?.hasMore === 'boolean' ? json.hasMore : null;
-        const nextCursorFromServer =
-          typeof json?.nextCursor === 'number' && Number.isFinite(json.nextCursor) ? json.nextCursor : null;
-
-        const normalized: ChatMessage[] = rawItems
-          .map((it: any) => {
-            const rawText = typeof it.text === 'string' ? String(it.text) : '';
-            const kind = typeof it.kind === 'string' && it.kind === 'system' ? 'system' : undefined;
-            const encrypted = kind ? null : parseEncrypted(rawText);
-            const groupEncrypted = kind ? null : parseGroupEncrypted(rawText);
-            const deletedAt = typeof it.deletedAt === 'number' ? it.deletedAt : undefined;
-            return {
-              id: String(it.messageId ?? `${it.createdAt ?? Date.now()}-${Math.random().toString(36).slice(2)}`),
-              kind,
-              systemKind: typeof it.systemKind === 'string' ? it.systemKind : undefined,
-              actorSub: typeof it.actorSub === 'string' ? it.actorSub : undefined,
-              actorUser: typeof it.actorUser === 'string' ? it.actorUser : undefined,
-              targetSub: typeof it.targetSub === 'string' ? it.targetSub : undefined,
-              targetUser: typeof it.targetUser === 'string' ? it.targetUser : undefined,
-              user: kind ? 'System' : (it.user ?? 'anon'),
-              userSub: kind ? undefined : (typeof it.userSub === 'string' ? it.userSub : undefined),
-              userLower: kind
-                ? 'system'
-                : typeof it.userLower === 'string'
-                  ? normalizeUser(it.userLower)
-                  : normalizeUser(String(it.user ?? 'anon')),
-              avatarBgColor: typeof it.avatarBgColor === 'string' ? String(it.avatarBgColor) : undefined,
-              avatarTextColor: typeof it.avatarTextColor === 'string' ? String(it.avatarTextColor) : undefined,
-              avatarImagePath: typeof it.avatarImagePath === 'string' ? String(it.avatarImagePath) : undefined,
-              editedAt: typeof it.editedAt === 'number' ? it.editedAt : undefined,
-              deletedAt,
-              deletedBySub: typeof it.deletedBySub === 'string' ? it.deletedBySub : undefined,
-              reactions: normalizeReactions((it as any)?.reactions),
-              mentions: Array.isArray((it as any)?.mentions) ? (it as any).mentions.map(String).filter(Boolean) : undefined,
-              replyToCreatedAt: typeof (it as any)?.replyToCreatedAt === 'number' ? (it as any).replyToCreatedAt : undefined,
-              replyToMessageId: typeof (it as any)?.replyToMessageId === 'string' ? (it as any).replyToMessageId : undefined,
-              replyToUserSub: typeof (it as any)?.replyToUserSub === 'string' ? (it as any).replyToUserSub : undefined,
-              replyToPreview: typeof (it as any)?.replyToPreview === 'string' ? (it as any).replyToPreview : undefined,
-              rawText,
-              encrypted: encrypted ?? undefined,
-              groupEncrypted: groupEncrypted ?? undefined,
-              text: deletedAt
-                ? ''
-                : (encrypted || groupEncrypted)
-                  ? ENCRYPTED_PLACEHOLDER
-                  : rawText,
-              createdAt: Number(it.createdAt ?? Date.now()),
-              expiresAt: typeof it.expiresAt === 'number' ? it.expiresAt : undefined,
-              ttlSeconds: typeof it.ttlSeconds === 'number' ? it.ttlSeconds : undefined,
-            } as ChatMessage;
-          })
-          .filter((m: ChatMessage) => m.text.length > 0)
-          .sort((a: ChatMessage, b: ChatMessage) => b.createdAt - a.createdAt);
-
-        // Deduplicate by id (history may overlap with WS delivery)
-        const seen = new Set<string>();
-        const deduped = normalized
-          .filter((m: ChatMessage) => (seen.has(m.id) ? false : (seen.add(m.id), true)))
-          .filter((m: ChatMessage) => !hiddenMessageIds[m.id]);
-
-        if (reset) {
-          setMessages(deduped);
-        } else {
-          setMessages((prev) => {
-            const prevSeen = new Set(prev.map((m: ChatMessage) => m.id));
-            const filtered = deduped.filter((m: ChatMessage) => !prevSeen.has(m.id));
-            return filtered.length ? [...prev, ...filtered] : prev;
-          });
-        }
-
-        const nextCursor =
-          typeof nextCursorFromServer === 'number' && Number.isFinite(nextCursorFromServer)
-            ? nextCursorFromServer
-            : normalized.length
-              ? normalized[normalized.length - 1].createdAt
-              : null;
-
-        const hasMore =
-          typeof hasMoreFromServer === 'boolean'
-            ? hasMoreFromServer
-            : Array.isArray(rawItems)
-              ? rawItems.length >= HISTORY_PAGE_SIZE && typeof nextCursor === 'number' && Number.isFinite(nextCursor)
-              : false;
-
-        setHistoryHasMore(!!hasMore);
-        setHistoryCursor(typeof nextCursor === 'number' && Number.isFinite(nextCursor) ? nextCursor : null);
-      } catch {
-        // ignore fetch errors; WS will still populate
-      } finally {
-        historyLoadingRef.current = false;
-        setHistoryLoading(false);
-      }
-    },
-    [API_URL, activeConversationId, hiddenMessageIds, normalizeUser]
-  );
-
-  // Fetch recent history from HTTP API (if configured)
-  React.useEffect(() => {
-    if (!API_URL) return;
-    // Reset + fetch first page for the active conversation.
-    setMessages([]);
-    setHistoryCursor(null);
-    setHistoryHasMore(true);
-    fetchHistoryPage({ reset: true });
-  }, [API_URL, activeConversationId, hiddenMessageIds, fetchHistoryPage]);
-
-  const loadOlderHistory = React.useCallback(() => {
-    if (!API_URL) return;
-    if (!historyHasMore) return;
-    fetchHistoryPage({ before: historyCursor, reset: false });
-  }, [API_URL, fetchHistoryPage, historyCursor, historyHasMore]);
+  const { isTypingRef, sendTyping, typingIndicatorText } = useChatTyping({
+    wsRef,
+    activeConversationId,
+    displayName,
+    typingByUserExpiresAt,
+    setTypingByUserExpiresAt,
+  });
 
   // Client-side hiding of expired DM messages (server-side TTL still required for real deletion).
-  React.useEffect(() => {
-    if (!isDm) return;
-    const interval = setInterval(() => {
-      const nowSec = Math.floor(Date.now() / 1000);
-      setMessages((prev) => prev.filter((m) => !(m.expiresAt && m.expiresAt <= nowSec)));
-    }, 10_000);
-    return () => clearInterval(interval);
-  }, [isDm]);
+  usePruneExpiredMessages({ enabled: isDm, setMessages, intervalMs: 10_000 });
 
-  const sendMessage = React.useCallback(async () => {
-    if (inlineEditTargetId) {
+  const { sendMessage, retryFailedMessage } = useChatSendActions({
+    wsRef,
+    activeConversationId,
+    displayName,
+    myUserId,
+    isDm,
+    isGroup,
+    isChannel,
+    inputRef,
+    pendingMediaRef,
+    textInputRef,
+    setError,
+    setMessages,
+    setInput,
+    setInputEpoch,
+    setPendingMediaItems,
+    clearPendingMedia,
+    replyTarget,
+    setReplyTarget,
+    inlineEditTargetId,
+    isUploading,
+    setIsUploading,
+    onBlockedByInlineEdit: () => {
       // NOTE: openInfo is declared later in this file, so avoid referencing it here.
       setInfoTitle('Finish editing');
       setInfoBody('Save or cancel the edit before sending a new message.');
       setInfoOpen(true);
-      return;
-    }
-    if (isUploading) return;
-    const currentInput = inputRef.current;
-    const currentPendingMedia = pendingMediaRef.current;
-    if (!currentInput.trim() && (!currentPendingMedia || currentPendingMedia.length === 0)) return;
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      setError('Not connected');
-      return;
-    }
-    if (isGroup && groupMeta && groupMeta.meStatus !== 'active') {
-      showAlert('Read-only', 'You have left this group and can no longer send messages.');
-      return;
-    }
-
-    // Stop typing indicator on send (best-effort)
-    if (isTypingRef.current) {
-      try {
-        wsRef.current.send(
-          JSON.stringify({
-            action: 'typing',
-            conversationId: activeConversationId,
-            user: displayName,
-            isTyping: false,
-            createdAt: Date.now(),
-          })
-        );
-      } catch {
-        // ignore
-      }
-      isTypingRef.current = false;
-    }
-
-    // Snapshot current input/media.
-    const originalInput = currentInput;
-    const originalReplyTarget = replyTarget;
-    const originalPendingMedia =
-      currentPendingMedia && currentPendingMedia.length > MAX_ATTACHMENTS_PER_MESSAGE
-        ? currentPendingMedia.slice(0, MAX_ATTACHMENTS_PER_MESSAGE)
-        : currentPendingMedia;
-    if (currentPendingMedia && currentPendingMedia.length > MAX_ATTACHMENTS_PER_MESSAGE) {
-      showAlert('Attachment limit', `Only ${MAX_ATTACHMENTS_PER_MESSAGE} items allowed per message.`);
-    }
-
-    let outgoingText = originalInput.trim();
-    let dmMediaPathsToSend: string[] | undefined = undefined;
-
-    const clearDraftImmediately = () => {
-      // Force-remount the TextInput to fully reset native state.
-      // This is the most reliable way to guarantee "instant clear" on Android
-      // even if the user keeps typing and spams Send.
-      setInputEpoch((v) => v + 1);
-      try {
-        textInputRef.current?.clear?.();
-      } catch {
-        // ignore
-      }
-      setInput('');
-      inputRef.current = '';
-      setPendingMedia([]);
-      pendingMediaRef.current = [];
-      setReplyTarget(null);
-    };
-
-    const restoreDraftIfUnchanged = () => {
-      // Only restore if the user hasn't started typing a new message / attaching new media.
-      if ((inputRef.current || '').length === 0 && (!pendingMediaRef.current || pendingMediaRef.current.length === 0)) {
-        setInput(originalInput);
-        inputRef.current = originalInput;
-        setPendingMedia(originalPendingMedia);
-        pendingMediaRef.current = originalPendingMedia;
-      }
-    };
-
-    // Clear immediately (and yield a tick) so the input visually resets before CPU-heavy work (encryption/upload).
-    // (We also clear even when editing, like Signal does.)
-    clearDraftImmediately();
-    await new Promise((r) => setTimeout(r, 0));
-    if (isDm) {
-      if (!myPrivateKey) {
-        showAlert('Encryption not ready', 'Missing your private key on this device.');
-        restoreDraftIfUnchanged();
-        return;
-      }
-      if (!peerPublicKey) {
-        showAlert('Encryption not ready', "Can't find the recipient's public key.");
-        restoreDraftIfUnchanged();
-        return;
-      }
-
-      // DM media: encrypt + upload ciphertext, then encrypt the envelope as a normal DM message.
-      // We also include opaque S3 keys as `mediaPaths` so the backend can delete attachments later
-      // without decrypting message text.
-      if (originalPendingMedia && originalPendingMedia.length) {
-        try {
-          setIsUploading(true);
-          const caption = originalInput.trim();
-          const envs: DmMediaEnvelopeV1[] = [];
-          for (const item of originalPendingMedia) {
-            // eslint-disable-next-line no-await-in-loop
-            const dmEnv = await uploadPendingMediaDmEncrypted(
-              item,
-              activeConversationId,
-              myPrivateKey,
-              peerPublicKey,
-              caption
-            );
-            envs.push(dmEnv);
-          }
-          const dmAny: DmMediaEnvelope =
-            envs.length === 1
-              ? envs[0]
-              : {
-                  type: 'dm_media_v2',
-                  v: 2,
-                  caption: caption || undefined,
-                  items: envs.map((e) => ({ media: e.media, wrap: e.wrap })),
-                };
-          const plaintextEnvelope = JSON.stringify(dmAny);
-          const enc = encryptChatMessageV1(plaintextEnvelope, myPrivateKey, peerPublicKey);
-          outgoingText = JSON.stringify(enc);
-          dmMediaPathsToSend = envs
-            .flatMap((e) => [e.media.path, e.media.thumbPath].filter(Boolean))
-            .map(String);
-        } catch (e: any) {
-          showAlert('Upload Failed', e?.message ?? 'Failed to upload media');
-          restoreDraftIfUnchanged();
-          return;
-        } finally {
-          setIsUploading(false);
-        }
-      } else {
-        const enc = encryptChatMessageV1(outgoingText, myPrivateKey, peerPublicKey);
-        outgoingText = JSON.stringify(enc);
-      }
-    } else if (isGroup) {
-      if (!myPrivateKey) {
-        showAlert('Encryption not ready', 'Missing your private key on this device.');
-        restoreDraftIfUnchanged();
-        return;
-      }
-      if (!myUserId) {
-        showAlert('Encryption not ready', 'Missing your user identity.');
-        restoreDraftIfUnchanged();
-        return;
-      }
-      const activeMembers = groupMembers.filter((m) => m.status === 'active').map((m) => m.memberSub);
-      if (activeMembers.length < 2) {
-        showAlert('Group not ready', 'No active members found.');
-        restoreDraftIfUnchanged();
-        return;
-      }
-      // Require keys for all active members (product rule).
-      for (const sub of activeMembers) {
-        if (sub === myUserId) continue;
-        if (!groupPublicKeyBySub[sub]) {
-          showAlert('Encryption not ready', "Can't find a group member's public key.");
-          restoreDraftIfUnchanged();
-          return;
-        }
-      }
-
-      // Generate per-message key first (used for message + attachment wraps).
-      const messageKeyBytes = new Uint8Array(getRandomBytes(32));
-
-      // Build plaintext to encrypt.
-      let plaintextToEncrypt = outgoingText;
-      let groupMediaPathsToSend: string[] | undefined = undefined;
-      if (originalPendingMedia && originalPendingMedia.length) {
-        try {
-          setIsUploading(true);
-          const caption = originalInput.trim();
-          const envs: GroupMediaEnvelopeV1[] = [];
-          for (const item of originalPendingMedia) {
-            // eslint-disable-next-line no-await-in-loop
-            const gEnv = await uploadPendingMediaGroupEncrypted(item, activeConversationId, messageKeyBytes, caption);
-            envs.push(gEnv);
-          }
-          const gAny: GroupMediaEnvelope =
-            envs.length === 1
-              ? envs[0]
-              : { type: 'gdm_media_v2', v: 2, caption: caption || undefined, items: envs.map((e) => ({ media: e.media, wrap: e.wrap })) };
-          plaintextToEncrypt = JSON.stringify(gAny);
-          groupMediaPathsToSend = envs.flatMap((e) => [e.media.path, e.media.thumbPath].filter(Boolean)).map(String);
-        } catch (e: any) {
-          showAlert('Upload Failed', e?.message ?? 'Failed to upload media');
-          restoreDraftIfUnchanged();
-          return;
-        } finally {
-          setIsUploading(false);
-        }
-      }
-
-      const plainBytes = new TextEncoder().encode(plaintextToEncrypt);
-      const msgCipher = aesGcmEncryptBytes(messageKeyBytes, plainBytes);
-
-      // Wrap messageKey for each active member (including me).
-      const messageKeyHex = bytesToHex(messageKeyBytes);
-      const wraps: Record<string, EncryptedChatPayloadV1> = {};
-      for (const sub of activeMembers) {
-        const pk = sub === myUserId ? derivePublicKey(myPrivateKey) : groupPublicKeyBySub[sub];
-        wraps[sub] = encryptChatMessageV1(messageKeyHex, myPrivateKey, pk);
-      }
-
-      const payload: EncryptedGroupPayloadV1 = {
-        type: 'gdm_v1',
-        v: 1,
-        alg: 'aes-256-gcm+wraps-v1',
-        iv: msgCipher.ivHex,
-        ciphertext: msgCipher.ciphertextHex,
-        wraps,
-      };
-      outgoingText = JSON.stringify(payload);
-      // For backend deletion support (like DM), send opaque keys.
-      if (typeof groupMediaPathsToSend !== 'undefined') dmMediaPathsToSend = groupMediaPathsToSend;
-    } else if (originalPendingMedia && originalPendingMedia.length) {
-      try {
-        setIsUploading(true);
-        const uploadedItems: ChatMediaItem[] = [];
-        for (const item of originalPendingMedia) {
-          // eslint-disable-next-line no-await-in-loop
-          const uploaded = await uploadPendingMedia(item);
-          uploadedItems.push(uploaded);
-        }
-        const envelope: ChatEnvelope = {
-          type: 'chat',
-          text: outgoingText,
-          media: uploadedItems.length === 1 ? uploadedItems[0] : uploadedItems,
-        };
-        outgoingText = JSON.stringify(envelope);
-      } catch (e: any) {
-        showAlert('Upload Failed', e?.message ?? 'Failed to upload media');
-        restoreDraftIfUnchanged();
-        return;
-      } finally {
-        setIsUploading(false);
-      }
-    } else {
-      // Plain text global message already cleared above.
-    }
-
-    const clientMessageId = `c-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-    // Optimistic UI: show the outgoing message immediately, then let the WS echo dedupe by id.
-    // (Backend uses clientMessageId as messageId when provided.)
-    if (!originalPendingMedia || originalPendingMedia.length === 0) {
-      const optimisticRaw = outgoingText;
-      const optimisticEncrypted = parseEncrypted(optimisticRaw);
-      const optimisticGroupEncrypted = parseGroupEncrypted(optimisticRaw);
-      const optimisticPlaintext = originalInput.trim();
-      const optimisticMsg: ChatMessage = {
-        id: clientMessageId,
-        user: displayName,
-        userLower: normalizeUser(displayName),
-        userSub: myUserId ?? undefined,
-        rawText: optimisticRaw,
-        encrypted: optimisticEncrypted ?? undefined,
-        groupEncrypted: optimisticGroupEncrypted ?? undefined,
-        // If it's an encrypted DM, only show plaintext optimistically when autoDecrypt is enabled.
-        decryptedText:
-          isDm && optimisticEncrypted && autoDecrypt
-            ? optimisticPlaintext
-            : isGroup && optimisticGroupEncrypted && autoDecrypt
-              ? optimisticPlaintext
-              : undefined,
-        text:
-          (isDm && optimisticEncrypted) || (isGroup && optimisticGroupEncrypted)
-            ? (autoDecrypt ? optimisticPlaintext : ENCRYPTED_PLACEHOLDER)
-            : optimisticEncrypted
-              ? ENCRYPTED_PLACEHOLDER
-              : optimisticRaw,
-        createdAt: Date.now(),
-        ttlSeconds: isDm && TTL_OPTIONS[ttlIdx]?.seconds ? TTL_OPTIONS[ttlIdx].seconds : undefined,
-        localStatus: 'sending',
-      };
-      setMessages((prev) => (prev.some((m) => m.id === optimisticMsg.id) ? prev : [optimisticMsg, ...prev]));
-
-      // If we don't see our own echo within a short window, mark as failed.
-      // (We don't show "sending…" for text; we only show a failure state.)
-      if (sendTimeoutRef.current[clientMessageId]) {
-        clearTimeout(sendTimeoutRef.current[clientMessageId]);
-      }
-      sendTimeoutRef.current[clientMessageId] = setTimeout(() => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === clientMessageId && m.localStatus === 'sending' ? { ...m, localStatus: 'failed' } : m))
-        );
-        delete sendTimeoutRef.current[clientMessageId];
-      }, 5000);
-    }
-
-    const outgoing = {
-      action: 'message',
-      text: outgoingText,
-      conversationId: activeConversationId,
-      user: displayName,
-      clientMessageId,
-      createdAt: Date.now(),
-      // TTL-from-read: we send a duration, and the countdown starts when the recipient decrypts.
-      ttlSeconds: isDm && TTL_OPTIONS[ttlIdx]?.seconds ? TTL_OPTIONS[ttlIdx].seconds : undefined,
-      ...(isDm && typeof dmMediaPathsToSend !== 'undefined' ? { mediaPaths: dmMediaPathsToSend } : {}),
-      ...(!isDm && !isGroup && originalReplyTarget
-        ? {
-            replyToCreatedAt: originalReplyTarget.createdAt,
-            replyToMessageId: originalReplyTarget.id,
-            replyToUserSub: originalReplyTarget.userSub,
-            replyToPreview: originalReplyTarget.preview,
-          }
-        : {}),
-    };
-    try {
-    wsRef.current.send(JSON.stringify(outgoing));
-    } catch (e) {
-      // Mark optimistic message as failed if send throws (rare, but possible during reconnect).
-      setMessages((prev) =>
-        prev.map((m) => (m.id === clientMessageId ? { ...m, localStatus: 'failed' } : m))
-      );
-      setError('Not connected');
-      return;
-    }
-  }, [
-    isUploading,
-    inlineEditTargetId,
-    uploadPendingMedia,
-    uploadPendingMediaDmEncrypted,
-    displayName,
-    activeConversationId,
-    isDm,
-    isChannel,
-    replyTarget,
+    },
+    isTypingRef,
+    groupMeta,
+    groupMembers,
+    groupPublicKeyBySub,
+    maxAttachmentsPerMessage: MAX_ATTACHMENTS_PER_MESSAGE,
     myPrivateKey,
     peerPublicKey,
-    ttlIdx,
-    TTL_OPTIONS,
-    myUserId,
+    getRandomBytes,
+    encryptChatMessageV1,
+    prepareDmOutgoingEncryptedText,
+    prepareGroupMediaPlaintext,
+    encryptGroupOutgoingEncryptedText,
+    uploadPendingMedia,
+    uploadPendingMediaDmEncrypted,
+    uploadPendingMediaGroupEncrypted,
+    timestampId,
+    applyOptimisticSendForTextOnly,
+    sendTimeoutRef,
+    autoDecrypt,
+    encryptedPlaceholder: ENCRYPTED_PLACEHOLDER,
+    ttlSeconds: isDm && TTL_OPTIONS[ttlIdx]?.seconds ? TTL_OPTIONS[ttlIdx].seconds : undefined,
+    parseEncrypted,
+    parseGroupEncrypted,
     normalizeUser,
-  ]);
+    showAlert,
+  });
 
-  const retryFailedMessage = React.useCallback(
-    (msg: ChatMessage) => {
-      if (!msg || msg.localStatus !== 'failed') return;
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        setError('Not connected');
-        return;
-      }
-      if (!msg.rawText || !msg.rawText.trim()) return;
+  useChatConversationJoin({ activeConversationId, wsRef, pendingJoinConversationIdRef });
 
-      // Flip back to sending immediately.
-      setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, localStatus: 'sending' } : m)));
+  const { onChangeInput } = useChatComposerInput({ setInput, inputRef, isTypingRef, sendTyping });
+  const { copyToClipboard } = useChatCopyToClipboard({ openInfo });
 
-      // Re-arm timeout.
-      if (sendTimeoutRef.current[msg.id]) clearTimeout(sendTimeoutRef.current[msg.id]);
-      sendTimeoutRef.current[msg.id] = setTimeout(() => {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === msg.id && m.localStatus === 'sending' ? { ...m, localStatus: 'failed' } : m))
-        );
-        delete sendTimeoutRef.current[msg.id];
-      }, 5000);
+  const onPressMessage = useChatPressToDecrypt({
+    isDm,
+    isGroup,
+    encryptedPlaceholder: ENCRYPTED_PLACEHOLDER,
+    myUserId,
+    myPublicKey,
+    decryptForDisplay,
+    decryptGroupForDisplay,
+    parseDmMediaEnvelope,
+    parseGroupMediaEnvelope,
+    normalizeDmMediaItems,
+    normalizeGroupMediaItems,
+    setMessages,
+    sendReadReceipt,
+    markMySeen,
+    openInfo,
+  });
 
-      try {
-        wsRef.current.send(
-          JSON.stringify({
-            action: 'message',
-            text: msg.rawText,
-            conversationId: activeConversationId,
-            user: displayName,
-            clientMessageId: msg.id, // keep same bubble id
-            createdAt: Date.now(),
-            ttlSeconds: isDm && msg.ttlSeconds ? msg.ttlSeconds : undefined,
-          })
-        );
-      } catch {
-        setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, localStatus: 'failed' } : m)));
-      }
+  // reaction emoji lists live in features/chat/reactionEmojis
+
+  const { beginReply } = useChatReplyActions({
+    isDm,
+    encryptedPlaceholder: ENCRYPTED_PLACEHOLDER,
+    dmThumbUriByPath,
+    mediaUrlByPath,
+    closeMessageActions,
+    focusComposer: () => {
+      textInputRef.current?.focus?.();
     },
-    [activeConversationId, displayName, isDm]
-  );
+    setReplyTarget,
+    getPreviewKind,
+  });
 
-  const sendTyping = React.useCallback(
-    (nextIsTyping: boolean) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-      const now = Date.now();
-      // Throttle "typing true" events; always allow "typing false" immediately.
-      if (nextIsTyping) {
-        const last = lastTypingSentAtRef.current;
-        if (now - last < 2000 && isTypingRef.current) return;
-        lastTypingSentAtRef.current = now;
-      }
-      try {
-        wsRef.current.send(
-          JSON.stringify({
-            action: 'typing',
-            conversationId: activeConversationId,
-            user: displayName,
-            isTyping: nextIsTyping,
-            createdAt: now,
-          })
-        );
-        isTypingRef.current = nextIsTyping;
-      } catch {
-        // ignore
-      }
-    },
-    [activeConversationId, displayName]
-  );
-
-  const sendJoin = React.useCallback((conversationIdToJoin: string) => {
-    if (!conversationIdToJoin) return;
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      pendingJoinConversationIdRef.current = conversationIdToJoin;
-      return;
-    }
-    try {
-      wsRef.current.send(
-        JSON.stringify({
-          action: 'join',
-          conversationId: conversationIdToJoin,
-          createdAt: Date.now(),
-        })
-      );
-      pendingJoinConversationIdRef.current = null;
-    } catch {
-      pendingJoinConversationIdRef.current = conversationIdToJoin;
-    }
-  }, []);
-
-  // Notify backend whenever user switches conversations (enables Query-by-conversation routing).
-  React.useEffect(() => {
-    sendJoin(activeConversationId);
-  }, [activeConversationId, sendJoin]);
-
-  const onChangeInput = React.useCallback(
-    (next: string) => {
-      setInput(next);
-      inputRef.current = next;
-      const nextHasText = next.trim().length > 0;
-      if (nextHasText) sendTyping(true);
-      else if (isTypingRef.current) sendTyping(false);
-    },
-    [sendTyping]
-  );
-
-  const typingIndicatorText = React.useMemo(() => {
-    const now = Date.now();
-    const users = Object.entries(typingByUserExpiresAt)
-      .filter(([, exp]) => typeof exp === 'number' && exp > now)
-      .map(([u]) => u);
-    if (users.length === 0) return '';
-    if (users.length >= 5) return 'Someone is typing';
-    if (users.length === 1) return `${users[0]} is typing`;
-    if (users.length === 2) return `${users[0]} and ${users[1]} are typing`;
-    return `${users.slice(0, -1).join(', ')}, and ${users[users.length - 1]} are typing`;
-  }, [typingByUserExpiresAt]);
-
-  const openInfo = React.useCallback((title: string, body: string) => {
-    setInfoTitle(title);
-    setInfoBody(body);
-    setInfoOpen(true);
-  }, []);
-
-  // Some dev builds may not have expo-clipboard compiled in yet.
-  // Lazy-load so the app doesn't crash; show a friendly modal instead.
-  const copyToClipboard = React.useCallback(
-    async (text: string) => {
-      try {
-        const Clipboard = await import('expo-clipboard');
-        await Clipboard.setStringAsync(text);
-      } catch {
-        openInfo(
-          'Copy unavailable',
-          'Your current build does not include clipboard support yet. Rebuild the dev client to enable Copy.'
-        );
-      }
-    },
-    [openInfo]
-  );
-
-  const onPressMessage = React.useCallback(
-    (msg: ChatMessage) => {
-      if (msg.deletedAt) return;
-      if (!msg.encrypted && !msg.groupEncrypted) return;
-      try {
-        const readAt = Math.floor(Date.now() / 1000);
-        const groupDec = msg.groupEncrypted ? decryptGroupForDisplay(msg) : null;
-        const plaintext = groupDec ? groupDec.plaintext : decryptForDisplay(msg);
-
-        const dmEnv = isDm && !groupDec ? parseDmMediaEnvelope(plaintext) : null;
-        const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
-        const gEnv = isGroup && groupDec ? parseGroupMediaEnvelope(plaintext) : null;
-        const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
-
-        const mediaList: ChatMediaItem[] = (dmEnv ? dmItems : gEnv ? gItems : []).map((it) => ({
-          path: it.media.path,
-          thumbPath: it.media.thumbPath,
-          kind: it.media.kind,
-          contentType: it.media.contentType,
-          thumbContentType: it.media.thumbContentType,
-          fileName: it.media.fileName,
-          size: it.media.size,
-        }));
-
-        const isFromMe = groupDec
-          ? (!!myUserId && !!msg.userSub && String(msg.userSub) === String(myUserId))
-          : (!!myPublicKey && msg.encrypted?.senderPublicKey === myPublicKey);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === msg.id
-              ? {
-                  ...m,
-                  decryptedText: plaintext,
-                  groupKeyHex: groupDec ? groupDec.messageKeyHex : m.groupKeyHex,
-                  text: dmEnv ? (dmEnv.caption ?? '') : gEnv ? (gEnv.caption ?? '') : plaintext,
-                  media: mediaList.length ? mediaList[0] : m.media,
-                  mediaList: mediaList.length ? mediaList : undefined,
-                  expiresAt:
-                    // TTL-from-read:
-                    // - Incoming messages: start countdown at decrypt time.
-                    // - Outgoing messages: do NOT start countdown when you decrypt your own message;
-                    //   only start when the peer decrypts (via read receipt).
-                    !isFromMe && isDm && m.ttlSeconds && m.ttlSeconds > 0
-                      ? (m.expiresAt ?? readAt + m.ttlSeconds)
-                      : m.expiresAt,
-                }
-              : m
-          )
-        );
-        if (!isFromMe && isDm) sendReadReceipt(msg.createdAt);
-        if (!isFromMe) markMySeen(msg.createdAt, readAt);
-      } catch (e: any) {
-        const rawMsg = typeof e?.message === 'string' ? e.message : '';
-        const lower = rawMsg.toLowerCase();
-        const hint =
-          lower.includes('ghash') || lower.includes('tag') || lower.includes('aes')
-            ? "This message can't be decrypted on this device. It may have been encrypted with a different key, or the message is corrupted."
-            : "This message can't be decrypted right now. Please try again later.";
-        openInfo("Couldn't decrypt message", hint);
-      }
-    },
-    [
-      decryptForDisplay,
-      decryptGroupForDisplay,
-      myPublicKey,
-      myUserId,
-      sendReadReceipt,
-      isDm,
-      isGroup,
-      markMySeen,
-      openInfo,
-    ]
-  );
-
-  const openMessageActions = React.useCallback(
-    (msg: ChatMessage, anchor?: { x: number; y: number }) => {
-      if (!msg) return;
-      setMessageActionTarget(msg);
-      if (anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y)) setMessageActionAnchor(anchor);
-      else setMessageActionAnchor(null);
-      setMessageActionOpen(true);
-      actionMenuAnim.setValue(0);
-      Animated.spring(actionMenuAnim, {
-        toValue: 1,
-        useNativeDriver: Platform.OS !== 'web',
-        friction: 9,
-        tension: 90,
-      }).start();
-    },
-    [myPublicKey, myUserId, displayName, normalizeUser, actionMenuAnim]
-  );
-
-  const closeMessageActions = React.useCallback(() => {
-    setMessageActionOpen(false);
-    setMessageActionTarget(null);
-    setMessageActionAnchor(null);
-  }, []);
-
-  const QUICK_REACTIONS = React.useMemo(() => ['❤️', '😂', '👍', '😮', '😢', '😡'], []);
-  const MORE_REACTIONS = React.useMemo(
-    () => [
-      ...QUICK_REACTIONS,
-      '🔥','🎉','🙏','👏','✅','❌','🤔','👀','😎','💯','🥹','💀','🤣','😍','😊','😭','😅','😬','🙃','😴','🤯',
-      '🤝','💪','🫶','🙌','😤','😈','😇','🤷','🤷‍♂️','🤷‍♀️','🤦','🤦‍♂️','🤦‍♀️','🤍','💙','💚','💛','💜',
-    ],
-    [QUICK_REACTIONS]
-  );
-
-  const beginInlineEdit = React.useCallback(
-    (target: ChatMessage) => {
-      if (!target) return;
-      if (target.deletedAt) return;
-      if ((target.encrypted || target.groupEncrypted) && !target.decryptedText) {
-        openInfo('Decrypt first', 'Decrypt this message before editing it');
-        return;
-      }
-      let seed = '';
-      if (target.encrypted || target.groupEncrypted) {
-        const plain = String(target.decryptedText || '');
-        const dmEnv = parseDmMediaEnvelope(plain);
-        const gEnv = parseGroupMediaEnvelope(plain);
-        // If this is an encrypted media message, edit the caption (not the raw JSON envelope).
-        seed = dmEnv ? String(dmEnv.caption || '') : gEnv ? String(gEnv.caption || '') : plain;
-      } else {
-        const raw = String(target.rawText ?? target.text ?? '');
-        // Global media messages store a ChatEnvelope JSON; edit the caption (env.text).
-        const env = !isDm ? parseChatEnvelope(raw) : null;
-        seed = env ? String(env.text || '') : raw;
-      }
-      setInlineEditTargetId(target.id);
-      setInlineEditDraft(seed);
-      closeMessageActions();
-    },
-    [closeMessageActions, openInfo, isDm]
-  );
-
-  const beginReply = React.useCallback(
-    (target: ChatMessage) => {
-      if (!target) return;
-      if (target.deletedAt) return;
-
-      let preview = '';
-      let mediaKind: 'image' | 'video' | 'file' | undefined;
-      let mediaCount: number | undefined;
-      let mediaThumbUri: string | null | undefined;
-
-      // Best-effort: attach a tiny thumbnail/count for media replies.
-      try {
-        if (target.encrypted || target.groupEncrypted) {
-          const plain = String(target.decryptedText || '');
-          const dmEnv = target.encrypted ? parseDmMediaEnvelope(plain) : null;
-          const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
-          const gEnv = target.groupEncrypted ? parseGroupMediaEnvelope(plain) : null;
-          const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
-          const items = (dmItems.length ? dmItems : gItems) as any[];
-          if (items.length) {
-            mediaCount = items.length;
-            const first = (items[0]?.media ?? items[0]) as any;
-            const k = (first?.kind as any) || 'file';
-            mediaKind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
-            const thumbPath = first?.thumbPath ? String(first.thumbPath) : '';
-            mediaThumbUri = thumbPath && dmThumbUriByPath[thumbPath] ? dmThumbUriByPath[thumbPath] : null;
-          }
-        } else {
-          const raw = String(target.rawText ?? target.text ?? '');
-          const env = !isDm ? parseChatEnvelope(raw) : null;
-          const envList = env ? normalizeChatMediaList(env.media) : [];
-          if (envList.length) {
-            mediaCount = envList.length;
-            const first = envList[0];
-            const k =
-              first.kind === 'file' && (first.contentType || '').startsWith('image/')
-                ? 'image'
-                : first.kind === 'file' && (first.contentType || '').startsWith('video/')
-                  ? 'video'
-                  : first.kind;
-            mediaKind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
-            const key = String(first.thumbPath || first.path);
-            mediaThumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
-          }
-        }
-      } catch {
-        // ignore
-      }
-
-      if (target.encrypted || target.groupEncrypted) {
-        // For encrypted messages, only allow reply preview if we already decrypted.
-        preview = String(target.decryptedText || ENCRYPTED_PLACEHOLDER);
-      } else {
-        const raw = String(target.rawText ?? target.text ?? '');
-        const env = !isDm ? parseChatEnvelope(raw) : null;
-        preview = env ? String(env.text || '') : raw;
-      }
-      preview = preview.replace(/\s+/g, ' ').trim();
-      if (preview.length > 160) preview = `${preview.slice(0, 160)}…`;
-      if (!preview && mediaCount && mediaCount > 0) {
-        const base = mediaKind === 'image' ? 'Photo' : mediaKind === 'video' ? 'Video' : 'Attachment';
-        preview = mediaCount > 1 ? `${base} · ${mediaCount} attachments` : base;
-      }
-
-      setReplyTarget({
-        id: target.id,
-        createdAt: Number(target.createdAt || Date.now()),
-        user: target.user,
-        userSub: target.userSub,
-        preview,
-        mediaKind,
-        mediaCount,
-        mediaThumbUri: typeof mediaThumbUri === 'string' ? mediaThumbUri : null,
-      });
-      closeMessageActions();
-      try {
-        textInputRef.current?.focus?.();
-      } catch {
-        // ignore
-      }
-    },
-    [
-      closeMessageActions,
-      isDm,
-      dmThumbUriByPath,
-      mediaUrlByPath,
-    ]
-  );
-
-  const cancelInlineEdit = React.useCallback(() => {
-    if (inlineEditUploading) return;
-    setInlineEditTargetId(null);
-    setInlineEditDraft('');
-    // If we were in "replace attachment" mode, discard the picked media so it doesn't leak into new sends.
-    if (inlineEditAttachmentMode === 'replace') {
-      setPendingMedia([]);
-      pendingMediaRef.current = [];
-    }
-    setInlineEditAttachmentMode('keep');
-  }, [inlineEditAttachmentMode, inlineEditUploading]);
-
-  const hiddenKey = React.useMemo(() => {
-    const who = myUserId || normalizeUser(displayName || 'anon');
-    return `chat:hidden:${who}:${activeConversationId || 'global'}`;
-  }, [myUserId, displayName, activeConversationId, normalizeUser]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(hiddenKey);
-        if (cancelled) return;
-        if (!raw) {
-          setHiddenMessageIds({});
-          return;
-        }
-        const arr = JSON.parse(raw);
-        const map: Record<string, true> = {};
-        if (Array.isArray(arr)) {
-          for (const id of arr) {
-            if (typeof id === 'string') map[id] = true;
-          }
-        }
-        setHiddenMessageIds(map);
-      } catch {
-        if (!cancelled) setHiddenMessageIds({});
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [hiddenKey]);
-
-  const deleteForMe = React.useCallback(
-    async (msg: ChatMessage) => {
-      if (!msg?.id) return;
-      setHiddenMessageIds((prev) => ({ ...prev, [msg.id]: true }));
-      try {
-        const nextIds = Object.keys({ ...hiddenMessageIds, [msg.id]: true }).slice(0, 500);
-        await AsyncStorage.setItem(hiddenKey, JSON.stringify(nextIds));
-      } catch {
-        // ignore
-      }
-    },
-    [hiddenKey, hiddenMessageIds]
-  );
-
-
-  const commitInlineEdit = React.useCallback(async () => {
-    if (inlineEditUploading) return;
-    const targetId = inlineEditTargetId;
-    if (!targetId) return;
-    const target = messages.find((m) => m.id === targetId);
-    if (!target) {
-      cancelInlineEdit();
-      return;
-    }
-    if (target.deletedAt) {
-      cancelInlineEdit();
-      return;
-    }
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      setError('Not connected');
-      return;
-    }
-    const nextCaption = inlineEditDraft.trim();
-
-    // Decide whether we can submit an "empty caption" edit.
-    // - If the edit results in a media envelope, it's fine (the JSON string is non-empty).
-    // - If the edit results in plain text (e.g. removing an attachment), we require non-empty text.
-    if (inlineEditAttachmentMode === 'remove' && !nextCaption) {
-      openInfo('Add text', 'Add some text before removing the attachment (or choose Delete).');
-      return;
-    }
-
-    let outgoingText = nextCaption;
-    let dmPlaintextSent: string | null = null;
-    let dmMediaSent: ChatMessage['media'] | undefined = undefined;
-    let dmMediaListSent: ChatMediaItem[] | undefined = undefined;
-    let dmMediaPathsSent: string[] | undefined = undefined;
-    const needsEncryption = isDm && !!target.encrypted;
-    if (needsEncryption) {
-      if (!myPrivateKey || !peerPublicKey) {
-        showAlert('Encryption not ready', 'Missing keys for editing.');
-        return;
-      }
-      // If this is a DM media message:
-      // - keep: update caption only
-      // - replace: upload new media + create new dm_media_v1 envelope
-      // - remove: send plain text (caption only) DM message
-      let plaintextToEncrypt = nextCaption;
-      const existingPlain = String(target.decryptedText || '');
-      const existingDmEnv = parseDmMediaEnvelope(existingPlain);
-
-      if (inlineEditAttachmentMode === 'replace' && pendingMediaRef.current && pendingMediaRef.current.length) {
-        // Replace attachment by uploading new encrypted media and updating caption.
-        setInlineEditUploading(true);
-        try {
-          const envs: DmMediaEnvelopeV1[] = [];
-          for (const item of pendingMediaRef.current) {
-            // eslint-disable-next-line no-await-in-loop
-            const dmEnv = await uploadPendingMediaDmEncrypted(
-              item,
-              activeConversationId,
-              myPrivateKey,
-              peerPublicKey,
-              nextCaption
-            );
-            envs.push(dmEnv);
-          }
-          const dmAny: DmMediaEnvelope =
-            envs.length === 1
-              ? envs[0]
-              : {
-                  type: 'dm_media_v2',
-                  v: 2,
-                  caption: nextCaption || undefined,
-                  items: envs.map((e) => ({ media: e.media, wrap: e.wrap })),
-                };
-          plaintextToEncrypt = JSON.stringify(dmAny);
-        } finally {
-          setInlineEditUploading(false);
-        }
-      } else if (inlineEditAttachmentMode === 'keep' && existingDmEnv) {
-        plaintextToEncrypt = JSON.stringify({ ...existingDmEnv, caption: nextCaption || undefined });
-      }
-
-      dmPlaintextSent = plaintextToEncrypt;
-      const parsed = parseDmMediaEnvelope(dmPlaintextSent);
-      const dmItems = normalizeDmMediaItems(parsed);
-      if (dmItems.length) {
-        dmMediaListSent = dmItems.map((it) => ({
-          path: it.media.path,
-          thumbPath: it.media.thumbPath,
-          kind: it.media.kind,
-          contentType: it.media.contentType,
-          thumbContentType: it.media.thumbContentType,
-          fileName: it.media.fileName,
-          size: it.media.size,
-        }));
-        dmMediaSent = dmMediaListSent[0];
-        dmMediaPathsSent = dmItems
-          .flatMap((it) => [it.media.path, it.media.thumbPath].filter(Boolean))
-          .map(String);
-      }
-
-      const enc = encryptChatMessageV1(plaintextToEncrypt, myPrivateKey, peerPublicKey);
-      outgoingText = JSON.stringify(enc);
-    } else if (!isDm) {
-      // Global messages:
-      // - keep: if it's a media envelope, preserve media and update caption
-      // - replace: upload new media and create a new envelope
-      // - remove: send plain text (caption only)
-      const raw = String(target.rawText ?? target.text ?? '');
-      const env = parseChatEnvelope(raw);
-
-      if (inlineEditAttachmentMode === 'replace' && pendingMediaRef.current && pendingMediaRef.current.length) {
-        setInlineEditUploading(true);
-        try {
-          const uploadedItems: ChatMediaItem[] = [];
-          for (const item of pendingMediaRef.current) {
-            // eslint-disable-next-line no-await-in-loop
-            const uploaded = await uploadPendingMedia(item);
-            uploadedItems.push(uploaded);
-          }
-          outgoingText = JSON.stringify({
-            type: 'chat',
-            text: nextCaption || undefined,
-            media: uploadedItems.length === 1 ? uploadedItems[0] : uploadedItems,
-          });
-        } finally {
-          setInlineEditUploading(false);
-        }
-      } else if (inlineEditAttachmentMode === 'keep' && env?.media) {
-        outgoingText = JSON.stringify({ type: 'chat', text: nextCaption || undefined, media: env.media });
-      }
-    }
-
-    try {
-      wsRef.current.send(
-        JSON.stringify({
-          action: 'edit',
-          conversationId: activeConversationId,
-          messageCreatedAt: target.createdAt,
-          text: outgoingText,
-          ...(needsEncryption && inlineEditAttachmentMode === 'remove'
-            ? { mediaPaths: [] }
-            : needsEncryption && inlineEditAttachmentMode === 'replace'
-              ? { mediaPaths: dmMediaPathsSent || [] }
-              : {}),
-          createdAt: Date.now(),
-        })
-      );
-      const now = Date.now();
-      // Build optimistic local state:
-      // - For global media edits, media is derived from the envelope string, so rawText is enough.
-      // - For DM media edits, update decryptedText + media so UI renders immediately.
-      let optimisticDecryptedText: string | undefined = undefined;
-      let optimisticMedia: ChatMessage['media'] | undefined = undefined;
-      let optimisticMediaList: ChatMessage['mediaList'] | undefined = undefined;
-      if (needsEncryption) {
-        if (inlineEditAttachmentMode === 'remove') {
-          optimisticDecryptedText = nextCaption;
-          optimisticMedia = undefined;
-          optimisticMediaList = undefined;
-        } else if (dmPlaintextSent) {
-          optimisticDecryptedText = dmPlaintextSent;
-          optimisticMedia = dmMediaSent;
-          optimisticMediaList = dmMediaListSent;
-        } else {
-          optimisticDecryptedText = nextCaption;
-        }
-      }
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === targetId
-            ? {
-                ...m,
-                rawText: outgoingText,
-                encrypted: parseEncrypted(outgoingText) ?? undefined,
-                decryptedText: needsEncryption ? optimisticDecryptedText : m.decryptedText,
-                media: needsEncryption ? optimisticMedia : m.media,
-                mediaList: needsEncryption ? optimisticMediaList : m.mediaList,
-                // Always show the edited caption in the UI (even for envelopes).
-                text: nextCaption,
-                editedAt: now,
-              }
-            : m
-        )
-      );
-      cancelInlineEdit();
-    } catch (e: any) {
-      showAlert('Edit failed', e?.message ?? 'Failed to edit message');
-    }
-  }, [
-    inlineEditTargetId,
-    inlineEditDraft,
-    inlineEditAttachmentMode,
-    inlineEditUploading,
-    messages,
-    cancelInlineEdit,
+  const { beginInlineEdit, cancelInlineEdit, commitInlineEdit } = useChatInlineEditActions({
+    wsRef,
     activeConversationId,
     isDm,
+    messages,
+    setMessages,
+    setError,
+    inlineEditTargetId,
+    setInlineEditTargetId,
+    inlineEditDraft,
+    setInlineEditDraft,
+    inlineEditAttachmentMode,
+    setInlineEditAttachmentMode,
+    inlineEditUploading,
+    setInlineEditUploading,
+    pendingMediaRef,
+    clearPendingMedia,
     myPrivateKey,
     peerPublicKey,
-    uploadPendingMediaDmEncrypted,
+    encryptChatMessageV1,
+    parseEncrypted,
+    parseChatEnvelope,
+    parseDmMediaEnvelope,
+    parseGroupMediaEnvelope,
+    normalizeDmMediaItems,
+    normalizeGroupMediaItems,
     uploadPendingMedia,
+    uploadPendingMediaDmEncrypted,
     openInfo,
     showAlert,
-  ]);
+    closeMessageActions,
+  });
 
-  const sendDelete = React.useCallback(async () => {
-    const target = messageActionTarget;
-    if (!target) return;
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      setError('Not connected');
-      return;
-    }
-    try {
-      wsRef.current.send(
-        JSON.stringify({
-          action: 'delete',
-          conversationId: activeConversationId,
-          messageCreatedAt: target.createdAt,
-          createdAt: Date.now(),
-        })
-      );
-      // Optimistic local update
-      const now = Date.now();
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === target.id
-            ? {
-                ...m,
-                deletedAt: now,
-                rawText: '',
-                text: '',
-                encrypted: undefined,
-                decryptedText: undefined,
-              }
-            : m
-        )
-      );
-      closeMessageActions();
-    } catch (e: any) {
-      showAlert('Delete failed', e?.message ?? 'Failed to delete message');
-    }
-  }, [messageActionTarget, activeConversationId, closeMessageActions, showAlert]);
+  const messageOps = useChatMessageOps({
+    wsRef,
+    activeConversationId,
+    myUserId,
+    messageActionTarget,
+    closeMessageActions,
+    setError,
+    setMessages,
+    hideMessageId,
+    setReactionPickerOpen,
+    setReactionPickerTarget,
+    openReactionInfo: reactionInfo.openReactionInfo,
+    showAlert,
+  });
+  const deleteForMe = messageOps.deleteForMe;
+  const sendDelete = messageOps.sendDeleteForEveryone;
+  const sendReaction = messageOps.sendReaction;
+  const openReactionPicker = messageOps.openReactionPicker;
+  const closeReactionPicker = messageOps.closeReactionPicker;
+  const openReactionInfo = messageOps.openReactionInfoFor;
 
-  const sendReaction = React.useCallback(
-    (target: ChatMessage, emoji: string) => {
-      if (!target) return;
-      if (!emoji) return;
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-      const all = target.reactions || {};
-      let currentEmoji: string | null = null;
-      if (myUserId) {
-        for (const [e, info] of Object.entries(all)) {
-          if (info?.userSubs?.includes(myUserId)) {
-            currentEmoji = e;
-            break;
-          }
-        }
-      }
-      const alreadySame = !!currentEmoji && currentEmoji === emoji;
-      const op: 'add' | 'remove' = alreadySame ? 'remove' : 'add';
+  const getSeenLabelFor = React.useCallback(getSeenLabelForCreatedAt, []);
 
-      // Optimistic UI: toggle locally immediately (best-effort).
-      if (myUserId) {
-        setMessages((prev) =>
-          prev.map((m) => {
-            if (m.createdAt !== target.createdAt) return m;
-            const next = { ...(m.reactions || {}) };
+  const onPressSummarize = React.useCallback(
+    () => aiConsentGate.request('summary', runAiAction),
+    [aiConsentGate, runAiAction],
+  );
+  const onPressAiHelper = React.useCallback(
+    () => aiConsentGate.request('helper', runAiAction),
+    [aiConsentGate, runAiAction],
+  );
+  const onOpenTtlPicker = React.useCallback(() => {
+    setTtlIdxDraft(ttlIdx);
+    setTtlPickerOpen(true);
+  }, [setTtlIdxDraft, setTtlPickerOpen, ttlIdx]);
 
-            // Remove my reaction from all emojis first (single-reaction model)
-            for (const [e, info] of Object.entries(next)) {
-              const subs = Array.isArray(info?.userSubs) ? info.userSubs : [];
-              const filtered = subs.filter((s) => s !== myUserId);
-              if (filtered.length === 0) delete next[e];
-              else next[e] = { count: filtered.length, userSubs: filtered };
-            }
-
-            if (op === 'add') {
-              const subs = next[emoji]?.userSubs ? [...next[emoji].userSubs] : [];
-              if (!subs.includes(myUserId)) subs.push(myUserId);
-              next[emoji] = { count: subs.length, userSubs: subs };
-            }
-
-            return { ...m, reactions: Object.keys(next).length ? next : undefined };
-          })
-        );
-      }
-      try {
-        wsRef.current.send(
-          JSON.stringify({
-            action: 'react',
-            conversationId: activeConversationId,
-            messageCreatedAt: target.createdAt,
-            emoji,
-            op,
-            createdAt: Date.now(),
-          })
-        );
-      } catch {
-        // ignore
-      }
-    },
-    [activeConversationId, myUserId]
+  const listRenderItem = React.useCallback(
+    ({ item, index }: { item: ChatMessage; index: number }) =>
+      renderChatListItem({
+        styles,
+        item,
+        index,
+        messageListData,
+        visibleMessages,
+        isDark,
+        isDm,
+        isGroup,
+        isEncryptedChat,
+        myUserId,
+        myPublicKey,
+        displayName,
+        nameBySub,
+        avatarProfileBySub,
+        avatarUrlByPath,
+        peerSeenAtByCreatedAt,
+        getSeenLabelFor,
+        normalizeUser,
+        nowSec,
+        formatRemaining,
+        mediaUrlByPath,
+        dmThumbUriByPath,
+        imageAspectByPath,
+        EMPTY_URI_BY_PATH,
+        AVATAR_GUTTER,
+        chatViewportWidth,
+        getCappedMediaSize,
+        inlineEditTargetId,
+        inlineEditDraft,
+        setInlineEditDraft,
+        inlineEditUploading,
+        inlineEditAttachmentMode,
+        pendingMedia,
+        commitInlineEdit,
+        cancelInlineEdit,
+        openReactionInfo,
+        sendReaction,
+        openViewer,
+        openDmMediaViewer,
+        openGroupMediaViewer,
+        requestOpenLink,
+        onPressMessage,
+        openMessageActions,
+        latestOutgoingMessageId,
+        retryFailedMessage,
+      }),
+    [
+      AVATAR_GUTTER,
+      cancelInlineEdit,
+      chatViewportWidth,
+      commitInlineEdit,
+      displayName,
+      dmThumbUriByPath,
+      getCappedMediaSize,
+      getSeenLabelFor,
+      imageAspectByPath,
+      inlineEditAttachmentMode,
+      inlineEditDraft,
+      inlineEditTargetId,
+      inlineEditUploading,
+      isDark,
+      isDm,
+      isEncryptedChat,
+      isGroup,
+      latestOutgoingMessageId,
+      mediaUrlByPath,
+      messageListData,
+      myPublicKey,
+      myUserId,
+      nameBySub,
+      nowSec,
+      onPressMessage,
+      openDmMediaViewer,
+      openGroupMediaViewer,
+      openMessageActions,
+      openReactionInfo,
+      openViewer,
+      peerSeenAtByCreatedAt,
+      pendingMedia,
+      requestOpenLink,
+      retryFailedMessage,
+      sendReaction,
+      setInlineEditDraft,
+      avatarProfileBySub,
+      avatarUrlByPath,
+      visibleMessages,
+    ],
   );
 
-  const openReactionPicker = React.useCallback((target: ChatMessage) => {
-    setReactionPickerTarget(target);
-    setReactionPickerOpen(true);
-  }, []);
-
-  const reactionInfoSubsSorted = React.useMemo(() => {
-    const subs = Array.isArray(reactionInfoSubs) ? reactionInfoSubs.slice() : [];
-    const me = myUserId || '';
-    const labelFor = (sub: string) =>
-      sub === me ? 'You' : nameBySub[sub] || `${String(sub).slice(0, 6)}…${String(sub).slice(-4)}`;
-
-    subs.sort((a, b) => {
-      const aIsMe = !!me && a === me;
-      const bIsMe = !!me && b === me;
-      if (aIsMe && !bIsMe) return -1;
-      if (!aIsMe && bIsMe) return 1;
-      return labelFor(a).toLowerCase().localeCompare(labelFor(b).toLowerCase());
-    });
-    return subs;
-  }, [reactionInfoSubs, myUserId, nameBySub]);
-
-  const closeReactionPicker = React.useCallback(() => {
-    setReactionPickerOpen(false);
-    setReactionPickerTarget(null);
-  }, []);
-
-  const openReactionInfo = React.useCallback(
-    async (target: ChatMessage, emoji: string, subs: string[]) => {
-      setReactionInfoEmoji(emoji);
-      setReactionInfoSubs(subs);
-      setReactionInfoTarget(target);
-      setReactionInfoOpen(true);
-
-      // Best-effort: resolve names by sub when signed in.
-      if (!API_URL) return;
-      try {
-        const { tokens } = await fetchAuthSession().catch(() => ({ tokens: undefined }));
-        const idToken = tokens?.idToken?.toString();
-        if (!idToken) return;
-        const missing = subs.filter((s) => s && !nameBySub[s]);
-        if (!missing.length) return;
-        await Promise.all(
-          missing.slice(0, 25).map(async (sub) => {
-            try {
-              const res = await fetch(
-                `${API_URL.replace(/\/$/, '')}/users?sub=${encodeURIComponent(sub)}`,
-                { headers: { Authorization: `Bearer ${idToken}` } }
-              );
-              if (!res.ok) return;
-              const data = await res.json().catch(() => null);
-              const display =
-                (data && (data.displayName || data.preferred_username || data.username)) ? String(data.displayName || data.preferred_username || data.username) : '';
-              if (display) {
-                setNameBySub((prev) => ({ ...prev, [sub]: display }));
-              }
-            } catch {
-              // ignore
-            }
-          })
-        );
-      } catch {
-        // ignore
-      }
+  const mainProps = buildChatScreenMainProps({
+    styles,
+    isDark,
+    isWideChatLayout,
+    headerTop,
+    headerTitle,
+    onPressSummarize,
+    onPressAiHelper,
+    displayName,
+    myUserId,
+    avatarProfileBySub,
+    avatarUrlByPath,
+    isConnecting,
+    isConnected,
+    isEncryptedChat,
+    isChannel,
+    dmSettingsOpen,
+    setDmSettingsOpen,
+    channelSettingsOpen,
+    setChannelSettingsOpen,
+    dmSettingsCompact: !!dmSettingsCompact,
+    isDm,
+    isGroup,
+    myPrivateKeyReady: !!myPrivateKey,
+    autoDecrypt,
+    setAutoDecrypt,
+    ttlLabel: TTL_OPTIONS[ttlIdx]?.label ?? 'Off',
+    onOpenTtlPicker,
+    sendReadReceipts,
+    onToggleReadReceipts: (v) => onToggleReadReceipts(!!v),
+    groupMembersCountLabel: `${groupMembersActiveCount || 0}`,
+    groupActionBusy: !!groupActionBusy,
+    groupMeIsAdmin: !!groupMeta?.meIsAdmin,
+    onOpenGroupMembers: () => setGroupMembersOpen(true),
+    onOpenGroupName: () => {
+      setGroupNameDraft(groupMeta?.groupName || '');
+      setGroupNameEditOpen(true);
     },
-    [API_URL, nameBySub]
-  );
-
-  const formatSeenLabel = React.useCallback((readAtSec: number): string => {
-    const dt = new Date(readAtSec * 1000);
-    const now = new Date();
-    const isToday =
-      dt.getFullYear() === now.getFullYear() &&
-      dt.getMonth() === now.getMonth() &&
-      dt.getDate() === now.getDate();
-    const time = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return isToday ? `Seen · ${time}` : `Seen · ${dt.toLocaleDateString()} · ${time}`;
-  }, []);
-
-  const getSeenLabelFor = React.useCallback(
-    (map: Record<string, number>, messageCreatedAtMs: number): string | null => {
-      const direct = map[String(messageCreatedAtMs)];
-      if (direct) return formatSeenLabel(direct);
-      return null;
+    onLeaveGroup: () => void groupLeave(),
+    channelBusy: !!channelActionBusy,
+    channelMeIsAdmin: !!channelMeta?.meIsAdmin,
+    channelIsPublic: !!channelMeta?.isPublic,
+    channelHasPassword: !!channelMeta?.hasPassword,
+    channelMembersCountLabel,
+    onOpenChannelMembers: () => setChannelMembersOpen(true),
+    onOpenChannelAbout: () => {
+      setChannelAboutDraft(String(channelMeta?.aboutText || ''));
+      setChannelAboutEdit(true);
+      setChannelAboutOpen(true);
     },
-    [formatSeenLabel]
-  );
-
-  const summarize = React.useCallback(async () => {
-    if (!API_URL) {
-      showAlert('AI not configured', 'API_URL is not configured.');
-      return;
-    }
-    try {
-      setSummaryLoading(true);
-      setSummaryOpen(true);
-      setSummaryText('');
-
-      const { tokens } = await fetchAuthSession();
-      const idToken = tokens?.idToken?.toString();
-      if (!idToken) throw new Error('Not authenticated');
-
-      // messages[] is newest-first (FlatList inverted), so take the most recent 50 and send oldest-first.
-      const recent = messages.slice(0, 50).slice().reverse();
-      const transcript = recent
-        .map((m) => {
-          // Only send plaintext. If message is still encrypted, skip it.
-          const raw = m.decryptedText ?? (m.encrypted ? '' : (m.rawText ?? m.text));
-          const text = raw.length > 500 ? `${raw.slice(0, 500)}…` : raw;
-          return text
-            ? {
-                user: m.user ?? 'anon',
-                text,
-                createdAt: m.createdAt,
-              }
-            : null;
-        })
-        .filter(Boolean);
-
-      const resp = await fetch(`${API_URL.replace(/\/$/, '')}/ai/summary`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          conversationId: activeConversationId,
-          peer: peer ?? null,
-          messages: transcript,
-        }),
-      });
-
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        // Friendly quota messaging (theme-appropriate modal via openInfo).
-        if (resp.status === 429) {
-          let msg = 'AI limit reached. Please try again later.';
-          try {
-            const j = JSON.parse(text || '{}');
-            if (j && typeof j.message === 'string' && j.message.trim()) msg = j.message.trim();
-          } catch {
-            // ignore
-          }
-          setSummaryOpen(false);
-          openInfo('AI limit reached', msg);
-          return;
-        }
-        throw new Error(`AI summary failed (${resp.status}): ${text || 'no body'}`);
-      }
-      const data = await resp.json();
-      setSummaryText(String(data.summary ?? ''));
-    } catch (e: any) {
-      showAlert('Summary failed', e?.message ?? 'Unknown error');
-      setSummaryOpen(false);
-    } finally {
-      setSummaryLoading(false);
-    }
-  }, [API_URL, messages, activeConversationId, peer, showAlert]);
-
-  const openAiHelper = React.useCallback(() => {
-    setHelperOpen(true);
-    setHelperLoading(false);
-    setHelperInstruction('');
-    // Keep helperThread so follow-up questions work across open/close.
-  }, []);
-
-  const requestAiAction = React.useCallback(
-    (action: 'summary' | 'helper') => {
-      const needsConsent = isDm && !dmAiConsentGranted;
-      if (needsConsent) {
-        setAiConsentAction(action);
-        setAiConsentOpen(true);
-        return;
-      }
-      if (action === 'summary') void summarize();
-      else openAiHelper();
+    onOpenChannelName: () => {
+      setChannelNameDraft(channelMeta?.name || '');
+      setChannelNameEditOpen(true);
     },
-    [dmAiConsentGranted, isDm, openAiHelper, summarize]
-  );
+    onLeaveChannel: () => void channelLeave(),
+    channelOnTogglePublic: channelSettingsPanelActions.onTogglePublic,
+    channelOnPressPassword: channelSettingsPanelActions.onPressPassword,
+    error,
+    resolvedChatBg,
+    apiUrl: API_URL,
+    listIsGroup: isGroup,
+    groupStatus: groupMeta?.meStatus,
+    visibleMessagesCount: visibleMessages.length,
+    messageListData,
+    webPinned,
+    listRef: webPinned.listRef,
+    historyHasMore,
+    historyLoading,
+    loadOlderHistory,
+    renderItem: listRenderItem,
+    composerIsDm: isDm,
+    composerIsGroup: isGroup,
+    composerIsEncryptedChat: isEncryptedChat,
+    composerGroupMeta: groupMeta,
+    inlineEditTargetId,
+    inlineEditUploading,
+    cancelInlineEdit,
+    pendingMedia,
+    setPendingMedia: setPendingMediaItems,
+    isUploading,
+    replyTarget,
+    setReplyTarget,
+    messages,
+    openViewer,
+    typingIndicatorText,
+    TypingIndicator,
+    typingColor: isDark ? styles.typingTextDark.color : styles.typingText.color,
+    mentionSuggestions,
+    insertMention,
+    composerSafeAreaStyle,
+    composerHorizontalInsetsStyle,
+    textInputRef,
+    inputEpoch,
+    input,
+    onChangeInput,
+    isTypingRef,
+    sendTyping,
+    sendMessage,
+    handlePickMedia,
+  });
 
-  const submitAiHelper = React.useCallback(async () => {
-    if (!API_URL) {
-      openInfo('AI not configured', 'API_URL is not configured.');
-      return;
-    }
-    if (helperLoading) return;
-    const instruction = helperInstruction.trim();
-    if (!instruction) {
-      openInfo('Ask a question', 'Type what you want help with first');
-      return;
-    }
-
-    try {
-      // Clear the input immediately after submit (we still use `instruction` captured above).
-      setHelperInstruction('');
-      setHelperLoading(true);
-      setHelperAnswer('');
-      setHelperSuggestions([]);
-
-      const { tokens } = await fetchAuthSession();
-      const idToken = tokens?.idToken?.toString();
-      if (!idToken) throw new Error('Not authenticated');
-
-      // Capture the thread BEFORE we optimistically add the user's turn.
-      const threadBefore = helperThread;
-      const shouldResetThread = helperResetThread;
-      setHelperResetThread(false);
-      if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
-      helperAutoScrollRetryRef.current.timer = null;
-      helperAutoScrollRetryRef.current.attempts = 0;
-      helperAutoScrollIntentRef.current = 'thinking';
-      setHelperThread((prev) => [...prev, { role: 'user', text: instruction }, { role: 'assistant', text: '', thinking: true }]);
-
-      // messages[] is newest-first (FlatList inverted), so take the most recent 50 and send oldest-first.
-      const recentNewestFirst = messages.slice(0, 50);
-      const recent = recentNewestFirst.slice().reverse();
-      const maxThumbs = 3;
-      const resolvedThumbUrlByKey: Record<string, string> = {};
-      const attachmentsForAi: Array<{
-        kind: 'image' | 'video';
-        thumbKey: string;
-        thumbUrl: string;
-        fileName?: string;
-        size?: number;
-        user?: string;
-        createdAt?: number;
-      }> = [];
-
-      // Collect up to N *most recent* attachment thumbnails (Global only).
-      // If the thumb URL isn't already in `mediaUrlByPath`, resolve it on-demand.
-      if (!isDm) {
-        for (const m of recentNewestFirst) {
-          if (attachmentsForAi.length >= maxThumbs) break;
-          if (m.encrypted) continue; // never send encrypted payloads to AI
-          const raw = m.decryptedText ?? (m.rawText ?? m.text);
-          const env = parseChatEnvelope(String(raw || ''));
-          const list = env
-            ? normalizeChatMediaList(env.media)
-            : m.mediaList
-              ? m.mediaList
-              : m.media
-                ? [m.media]
-                : [];
-          for (const media of list) {
-            if (attachmentsForAi.length >= maxThumbs) break;
-            if (!(media.kind === 'image' || media.kind === 'video')) continue;
-
-            const thumbKey = String(media.thumbPath || media.path || '');
-            if (!thumbKey) continue;
-
-            let thumbUrl = resolvedThumbUrlByKey[thumbKey] || mediaUrlByPath[thumbKey] || '';
-            if (!thumbUrl) {
-              try {
-                const s = toCdnUrl(thumbKey);
-                thumbUrl = String(s || '');
-                if (thumbUrl) {
-                  resolvedThumbUrlByKey[thumbKey] = thumbUrl;
-                  // Keep the global cache warm for future UI and AI calls.
-                  setMediaUrlByPath((prev) => ({ ...prev, [thumbKey]: thumbUrl }));
-                }
-              } catch {
-                // ignore URL resolution failures; AI will fall back to text-only description
-              }
-            }
-            if (!thumbUrl) continue;
-
-            attachmentsForAi.push({
-              kind: media.kind,
-              thumbKey,
-              thumbUrl,
-              fileName: media.fileName,
-              size: media.size,
-              user: m.user,
-              createdAt: m.createdAt,
-            });
-          }
-        }
-      }
-
-      const transcript = recent
-        .map((m) => {
-          // Only send plaintext. If message is still encrypted, skip it.
-          const raw = m.decryptedText ?? (m.encrypted ? '' : (m.rawText ?? m.text));
-          const env = !m.encrypted && !isDm ? parseChatEnvelope(raw) : null;
-          const list = env
-            ? normalizeChatMediaList(env.media)
-            : m.mediaList
-              ? m.mediaList
-              : m.media
-                ? [m.media]
-                : [];
-
-          // If the message includes media, add a better text description.
-          const mediaDesc = (() => {
-            if (!list.length) return '';
-            if (list.length === 1) {
-              const media = list[0];
-              const kindLabel = media.kind === 'image' ? 'Image' : media.kind === 'video' ? 'Video' : 'File';
-              const name = media.fileName ? ` "${media.fileName}"` : '';
-              const size = typeof media.size === 'number' ? ` (${formatBytes(media.size)})` : '';
-              return `${kindLabel} attachment${name}${size}`;
-            }
-            return `${list.length} attachments`;
-          })();
-
-          const rawText = String(raw || '');
-          const baseText = rawText.length ? rawText : mediaDesc;
-          const text = baseText.length > 500 ? `${baseText.slice(0, 500)}…` : baseText;
-
-          return text
-            ? {
-                user: m.user ?? 'anon',
-                text,
-                createdAt: m.createdAt,
-              }
-            : null;
-        })
-        .filter(Boolean);
-
-      const resp = await fetch(`${API_URL.replace(/\/$/, '')}/ai/helper`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          conversationId: activeConversationId,
-          peer: peer ?? null,
-          instruction,
-          wantReplies: helperMode === 'reply',
-          messages: transcript,
-          thread: threadBefore,
-          resetThread: shouldResetThread,
-          attachments: attachmentsForAi.slice(0, maxThumbs),
-        }),
-      });
-
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        // Friendly quota messaging (theme-appropriate modal via openInfo).
-        if (resp.status === 429) {
-          let msg = 'AI limit reached. Please try again later.';
-          try {
-            const j = JSON.parse(text || '{}');
-            if (j && typeof j.message === 'string' && j.message.trim()) msg = j.message.trim();
-          } catch {
-            // ignore
-          }
-          // Revert the optimistic "thinking..." placeholder so the helper UI doesn't get stuck.
-          setHelperThread(threadBefore);
-          openInfo('AI limit reached', msg);
-          return;
-        }
-        throw new Error(`AI helper failed (${resp.status}): ${text || 'no body'}`);
-      }
-      const data = await resp.json().catch(() => ({}));
-      const answer = String((data as any).answer ?? '').trim();
-      const suggestions = Array.isArray((data as any).suggestions)
-        ? (data as any).suggestions.map((s: any) => String(s ?? '').trim()).filter(Boolean).slice(0, 3)
-        : [];
-
-      setHelperAnswer(answer);
-      setHelperSuggestions(suggestions);
-      if (Array.isArray((data as any).thread)) {
-        helperLastTurnRef.current = null;
-        if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
-        helperAutoScrollRetryRef.current.timer = null;
-        helperAutoScrollRetryRef.current.attempts = 0;
-        helperAutoScrollIntentRef.current = 'answer';
-        setHelperThread((data as any).thread);
-      } else if (answer) {
-        helperLastTurnRef.current = null;
-        if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
-        helperAutoScrollRetryRef.current.timer = null;
-        helperAutoScrollRetryRef.current.attempts = 0;
-        helperAutoScrollIntentRef.current = 'answer';
-        setHelperThread((prev) => {
-          const next = prev.slice();
-          // Drop the trailing "thinking" placeholder if present.
-          if (next.length && next[next.length - 1]?.role === 'assistant' && (next[next.length - 1] as any)?.thinking) {
-            next.pop();
-          }
-          next.push({ role: 'assistant', text: answer });
-          return next;
-        });
-      }
-    } catch (e: any) {
-      openInfo('AI helper failed', e?.message ?? 'Unknown error');
-    } finally {
-      setHelperLoading(false);
-    }
-  }, [API_URL, helperInstruction, helperThread, helperResetThread, messages, activeConversationId, peer, openInfo]);
-
-  const resetAiHelperThread = React.useCallback(() => {
-    setHelperThread([]);
-    setHelperResetThread(true);
-    setHelperAnswer('');
-    setHelperSuggestions([]);
-    setHelperInstruction('');
-  }, []);
-
-  const autoScrollAiHelper = React.useCallback(() => {
-    if (!helperOpen) return;
-    if (!helperThread.length) return;
-    const viewportH = Math.max(0, Math.floor(helperScrollViewportHRef.current || 0));
-    const contentH = Math.max(0, Math.floor(helperScrollContentHRef.current || 0));
-
-    const intent = helperAutoScrollIntentRef.current;
-
-    // IMPORTANT:
-    // Only auto-scroll when we have an explicit intent ('thinking' or 'answer').
-    // The previous fallback behavior ("keep us near the end") was fighting the long-answer case:
-    // we'd scroll to the top of the newest AI bubble, then a later layout tick would scroll back to end.
-    if (!intent) return;
-
-    // Helper: retry shortly (layout/content size can lag on Android).
-    const scheduleRetry = () => {
-      if (helperAutoScrollRetryRef.current.attempts < 20) {
-        helperAutoScrollRetryRef.current.attempts += 1;
-        if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
-        helperAutoScrollRetryRef.current.timer = setTimeout(() => autoScrollAiHelper(), 50);
-      }
-    };
-
-    // Desired behavior:
-    // - While Thinking…: always scroll to end.
-    // - When answer arrives: scroll to end unless the newest answer bubble is taller than the viewport,
-    //   in which case scroll to the top of that bubble.
-    // "All the way down" = bottom of scroll content.
-    const endY = viewportH > 0 ? Math.max(0, contentH - viewportH) : 0;
-
-    // THINKING: always pin to bottom.
-    // Use ScrollView.scrollToEnd when available (most reliable across platforms).
-    if (intent === 'thinking') {
-      const sv: any = helperScrollRef.current as any;
-      if (sv?.scrollToEnd) {
-        sv.scrollToEnd({ animated: true });
-        helperLastAutoScrollAtRef.current = Date.now();
-        helperLastAutoScrollContentHRef.current = Math.max(0, Math.floor(helperScrollContentHRef.current || 0));
-        helperAutoScrollIntentRef.current = null;
-        if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
-        helperAutoScrollRetryRef.current.timer = null;
-        helperAutoScrollRetryRef.current.attempts = 0;
-        return;
-      }
-      // Fallback: if we can't compute endY yet, retry.
-      if (viewportH <= 0 || contentH <= 0) {
-        scheduleRetry();
-        return;
-      }
-      helperScrollRef.current?.scrollTo({ y: endY, animated: true });
-      helperLastAutoScrollAtRef.current = Date.now();
-      helperLastAutoScrollContentHRef.current = Math.max(0, Math.floor(helperScrollContentHRef.current || 0));
-      helperAutoScrollIntentRef.current = null;
-      if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
-      helperAutoScrollRetryRef.current.timer = null;
-      helperAutoScrollRetryRef.current.attempts = 0;
-      return;
-    }
-
-    // Guard: if we don't yet have measurements, wait for the next layout/content-size callback.
-    if (viewportH <= 0 || contentH <= 0) {
-      scheduleRetry();
-      return;
-    }
-
-    // Preferred: use last bubble onLayout measurements (works well on web).
-    // Decide:
-    // - If it fits: scroll to end
-    // - If it doesn't: scroll so the bubble's top is at the top of the viewport
-    const lastLayout = helperLastTurnLayoutRef.current;
-    if (intent === 'answer' && lastLayout?.ok) {
-      const bubbleTopY = Math.max(0, Math.floor(lastLayout.y));
-      const latestViewportH = Math.max(0, Math.floor(helperScrollViewportHRef.current || 0));
-      const latestContentH = Math.max(0, Math.floor(helperScrollContentHRef.current || 0));
-      const latestEndY = latestViewportH > 0 ? Math.max(0, latestContentH - latestViewportH) : 0;
-      const responseH = Math.max(0, Math.floor(latestContentH - bubbleTopY));
-      const targetY = responseH > latestViewportH ? bubbleTopY : latestEndY;
-      helperScrollRef.current?.scrollTo({ y: targetY, animated: true });
-      helperLastAutoScrollAtRef.current = Date.now();
-      helperLastAutoScrollContentHRef.current = latestContentH;
-      helperAutoScrollIntentRef.current = null;
-      if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
-      helperAutoScrollRetryRef.current.timer = null;
-      helperAutoScrollRetryRef.current.attempts = 0;
-      return;
-    }
-
-    // Fallback: measure with UIManager (more reliable on native than RN-web).
-    const measureLastTurnAndScroll = () => {
-      const contentNode: any = helperScrollContentRef.current as any;
-      const lastNode: any = helperLastTurnRef.current as any;
-      if (!contentNode || !lastNode) return false;
-      try {
-        // On Android/Fabric, calling `ref.measureLayout(...)` is flaky depending on the ref instance type.
-        // Using UIManager.measureLayout with native node handles is much more reliable.
-        const contentHandle = findNodeHandle(contentNode);
-        const lastHandle = findNodeHandle(lastNode);
-        if (!contentHandle || !lastHandle) return false;
-        UIManager.measureLayout(
-          lastHandle,
-          contentHandle,
-          () => {
-            // measure failed; keep intent so we retry on next layout tick
-          },
-          (x: number, y: number, w: number, h: number) => {
-            const bubbleTopY = Math.max(0, Math.floor(y));
-            // "AI response" can include reply options below the assistant bubble.
-            // We want:
-            // - If the response area (from this bubble's top to the bottom of the ScrollView content)
-            //   does NOT fit in the viewport, start at the top of the bubble.
-            // - Otherwise, scroll to end so the whole response is visible at once.
-            const latestViewportH = Math.max(0, Math.floor(helperScrollViewportHRef.current || 0));
-            const latestContentH = Math.max(0, Math.floor(helperScrollContentHRef.current || 0));
-            const latestEndY = latestViewportH > 0 ? Math.max(0, latestContentH - latestViewportH) : 0;
-            const responseH = Math.max(0, Math.floor(latestContentH - bubbleTopY));
-            const targetY = responseH > latestViewportH ? bubbleTopY : latestEndY;
-            helperScrollRef.current?.scrollTo({ y: targetY, animated: true });
-            helperLastAutoScrollAtRef.current = Date.now();
-            helperLastAutoScrollContentHRef.current = latestContentH;
-            helperAutoScrollIntentRef.current = null;
-            if (helperAutoScrollRetryRef.current.timer) clearTimeout(helperAutoScrollRetryRef.current.timer);
-            helperAutoScrollRetryRef.current.timer = null;
-            helperAutoScrollRetryRef.current.attempts = 0;
-          }
-        );
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
-    if (intent === 'answer') {
-      const ok = measureLastTurnAndScroll();
-      if (!ok) {
-        scheduleRetry();
-      }
-      return;
-    }
-  }, [helperOpen, helperThread.length, helperLoading]);
-
-  React.useEffect(() => {
-    // When helper thread changes (thinking bubble added, answer arrives), attempt an auto-scroll.
-    // We also call this from layout/content-size callbacks for better accuracy.
-    const id = setTimeout(
-      () => autoScrollAiHelper(),
-      // Give layout a brief moment to catch up after the "thinking" placeholder is replaced by a long answer.
-      helperLoading ? 0 : 60
-    );
-    return () => clearTimeout(id);
-  }, [autoScrollAiHelper, helperThread.length, helperLoading]);
+  const overlaysProps = buildChatScreenOverlaysProps({
+    isDark,
+    styles,
+    insets: { top: insets.top, bottom: insets.bottom },
+    aiSummary,
+    aiConsentGate,
+    runAiAction,
+    attach: {
+      open: attachOpen,
+      setOpen: setAttachOpen,
+      pickFromLibrary,
+      openCamera,
+      pickDocument,
+    },
+    camera: {
+      open: cameraOpen,
+      setOpen: setCameraOpen,
+      showAlert,
+      onCaptured: handleInAppCameraCaptured,
+    },
+    aiHelper,
+    copyToClipboard,
+    setInput,
+    report: chatReport,
+    cdnMedia,
+    messageActionMenu,
+    myUserId,
+    myPublicKey,
+    displayName,
+    isDm,
+    encryptedPlaceholder: ENCRYPTED_PLACEHOLDER,
+    normalizeUser,
+    mediaUrlByPath,
+    dmThumbUriByPath,
+    quickReactions: [...QUICK_REACTIONS],
+    blockedSubsSet,
+    onBlockUserSub,
+    uiConfirm,
+    messageOps: {
+      deleteForMe,
+      sendDeleteForEveryone: sendDelete,
+      sendReaction,
+      openReactionPicker,
+      setCipherText,
+      setCipherOpen,
+      beginReply,
+      beginInlineEdit,
+      setInlineEditAttachmentMode,
+      handlePickMedia,
+      clearPendingMedia,
+      openReportModalForMessage: chatReport.openReportModalForMessage,
+    },
+    reactionPickerOpen,
+    reactionPickerTarget,
+    emojis: [...MORE_REACTIONS],
+    closeReactionPicker,
+    cipher: { open: cipherOpen, text: cipherText, setOpen: setCipherOpen, setText: setCipherText },
+    reactionInfo,
+    nameBySub,
+    info: { infoOpen, infoTitle, infoBody, setInfoOpen },
+    ttl: {
+      ttlPickerOpen,
+      TTL_OPTIONS,
+      ttlIdx,
+      ttlIdxDraft,
+      setTtlIdxDraft,
+      setTtlPickerOpen,
+      setTtlIdx,
+    },
+    groupNameEditOpen,
+    groupActionBusy,
+    groupNameDraft,
+    setGroupNameDraft,
+    groupNameModalActions,
+    groupMembersOpen,
+    groupMeta,
+    groupAddMembersDraft,
+    setGroupAddMembersDraft,
+    groupMembersModalActions,
+    groupAddMembersInputRef,
+    groupMembersVisible,
+    kickCooldownUntilBySub,
+    avatarUrlByPath,
+    groupKick,
+    groupUpdate,
+    channelMembersOpen,
+    channelMembersVisible,
+    channelMeta,
+    channelActionBusy,
+    channelMembersModalActions,
+    channelUpdate,
+    channelKick,
+    channelAboutOpen,
+    channelAboutEdit,
+    channelAboutDraft,
+    setChannelAboutDraft,
+    setChannelAboutEdit,
+    channelAboutModalActions,
+    requestOpenLink,
+    channelNameEditOpen,
+    channelNameDraft,
+    setChannelNameDraft,
+    channelNameModalActions,
+    channelPasswordEditOpen,
+    channelPasswordDraft,
+    setChannelPasswordDraft,
+    channelPasswordModalActions,
+    viewer,
+    dmFileUriByPath,
+    confirmLinkModal,
+    toast,
+    toastAnim,
+  });
 
   return (
     <SafeAreaView
@@ -6875,5426 +1579,8 @@ export default function ChatScreen({
       // Web: ignore safe-area left/right insets (they can be misreported as ~42px and flip with rotation).
       edges={Platform.OS === 'web' ? [] : ['left', 'right']}
     >
-      <KeyboardAvoidingView
-        style={styles.container}
-        // iOS: use padding to lift input above keyboard.
-        // Android: rely on `softwareKeyboardLayoutMode: "resize"` (app.json) so the window resizes like Signal.
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-      >
-        <View style={[styles.header, isDark ? styles.headerDark : null]}>
-          <View style={isWideChatLayout ? styles.chatContentColumn : null}>
-          {headerTop ? <View style={styles.headerTopSlot}>{headerTop}</View> : null}
-          <View style={styles.titleRow}>
-            <Text style={[styles.title, isDark ? styles.titleDark : null]} numberOfLines={1} ellipsizeMode="tail">
-              {isChannel
-                ? (channelMeta?.name || '…')
-                : peer
-                  ? (isGroup ? (groupMeta?.groupName?.trim() ? groupMeta.groupName.trim() : peer) : `DM with ${peer}`)
-                  : 'Global Chat'}
-            </Text>
-            <View style={styles.headerTools}>
-              <Pressable
-                style={[styles.summarizeBtn, isDark ? styles.summarizeBtnDark : null]}
-                onPress={() => requestAiAction('summary')}
-              >
-                <Text style={[styles.summarizeBtnText, isDark ? styles.summarizeBtnTextDark : null]}>
-                  Summarize
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.summarizeBtn, isDark ? styles.summarizeBtnDark : null]}
-                onPress={() => requestAiAction('helper')}
-              >
-                <Text style={[styles.summarizeBtnText, isDark ? styles.summarizeBtnTextDark : null]}>
-                  AI Helper
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-          <View style={styles.headerSubRow}>
-            {(() => {
-              const myProf = myUserId ? avatarProfileBySub[String(myUserId)] : undefined;
-              const myAvatarImageUri =
-                myProf?.avatarImagePath ? avatarUrlByPath[String(myProf.avatarImagePath)] : undefined;
-              return (
-                <View style={styles.welcomeRow}>
-                  <AvatarBubble
-                    size={34}
-                    seed={String(myUserId || displayName || 'me')}
-                    label={displayName || 'me'}
-                    backgroundColor={myProf?.avatarBgColor}
-                    textColor={myProf?.avatarTextColor}
-                    imageUri={myAvatarImageUri}
-                    imageBgColor={isDark ? '#1c1c22' : '#f2f2f7'}
-                    style={styles.welcomeAvatar}
-                  />
-                  <Text
-                    style={[styles.welcomeText, isDark ? styles.welcomeTextDark : null, styles.welcomeTextFlex]}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {`Welcome ${displayName}!`}
-                  </Text>
-                  <View style={styles.welcomeStatusRow}>
-                    <Text
-                      style={[
-                        styles.welcomeStatusText,
-                        isDark ? styles.statusTextDark : null,
-                        !isConnecting ? (isConnected ? styles.ok : styles.err) : null,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {isConnecting ? 'Connecting' : isConnected ? 'Connected' : 'Disconnected'}
-                    </Text>
-                    {isConnecting ? (
-                      <AnimatedDots
-                        // Don't read colors off StyleSheet objects (can be numeric in prod).
-                        color={isDark ? '#a7a7b4' : '#666'}
-                        size={16}
-                      />
-                    ) : null}
-                    {(isEncryptedChat || isChannel) ? (
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.dmSettingsCaretBtn,
-                          pressed ? { opacity: 0.65 } : null,
-                        ]}
-                        onPress={() => {
-                          try {
-                            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                          } catch {
-                            // ignore
-                          }
-                          if (isEncryptedChat) setDmSettingsOpen((v) => !v);
-                          else setChannelSettingsOpen((v) => !v);
-                        }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          isEncryptedChat
-                            ? (dmSettingsOpen ? 'Hide message options' : 'Show message options')
-                            : (channelSettingsOpen ? 'Hide channel options' : 'Show channel options')
-                        }
-                      >
-                        <MaterialIcons
-                          name={(isEncryptedChat ? dmSettingsOpen : channelSettingsOpen) ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
-                          size={18}
-                          color={isDark ? '#b7b7c2' : '#555'}
-                        />
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              );
-            })()}
-          </View>
-
-          {isEncryptedChat ? (
-            <>
-              {dmSettingsOpen ? (
-                <>
-                  {isDm ? (
-                  <View style={styles.dmSettingsRow}>
-                <View style={styles.dmSettingSlotLeft}>
-                  <View style={styles.dmSettingGroup}>
-                    <Text
-                      style={[
-                        styles.decryptLabel,
-                        isDark ? styles.decryptLabelDark : null,
-                        styles.dmSettingLabel,
-                        dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      Auto‑Decrypt
-                    </Text>
-                    {dmSettingsCompact ? (
-                      <MiniToggle
-                        value={autoDecrypt}
-                        onValueChange={setAutoDecrypt}
-                        disabled={!myPrivateKey}
-                        isDark={isDark}
-                      />
-                    ) : Platform.OS === 'web' ? (
-                      <MiniToggle value={autoDecrypt} onValueChange={setAutoDecrypt} disabled={!myPrivateKey} isDark={isDark} />
-                    ) : (
-                      <Switch
-                        value={autoDecrypt}
-                        onValueChange={setAutoDecrypt}
-                        disabled={!myPrivateKey}
-                        trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                        thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                        ios_backgroundColor="#d1d1d6"
-                      />
-                    )}
-                  </View>
-                </View>
-
-                <View style={styles.dmSettingSlotCenter}>
-                  <View style={styles.dmSettingGroup}>
-                      <Text
-                        style={[
-                          styles.decryptLabel,
-                          isDark ? styles.decryptLabelDark : null,
-                          styles.dmSettingLabel,
-                          dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        Self‑Destruct
-                      </Text>
-                      <Pressable
-                        style={[
-                          styles.ttlChip,
-                          isDark ? styles.ttlChipDark : null,
-                          dmSettingsCompact ? styles.ttlChipCompact : null,
-                        ]}
-                        onPress={() => {
-                          setTtlIdxDraft(ttlIdx);
-                          setTtlPickerOpen(true);
-                        }}
-                      >
-                        <Text style={[styles.ttlChipText, isDark ? styles.ttlChipTextDark : null]}>
-                          {TTL_OPTIONS[ttlIdx]?.label ?? 'Off'}
-                        </Text>
-                      </Pressable>
-                  </View>
-                </View>
-
-                <View style={styles.dmSettingSlotRight}>
-                  <View style={styles.dmSettingGroup}>
-                      <Text
-                        style={[
-                          styles.decryptLabel,
-                          isDark ? styles.decryptLabelDark : null,
-                          styles.dmSettingLabel,
-                          dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        Read Receipts
-                      </Text>
-                      {dmSettingsCompact ? (
-                        <MiniToggle
-                          value={sendReadReceipts}
-                          isDark={isDark}
-                          onValueChange={(v) => {
-                            // If turning OFF, also suppress any queued receipts so they won't send later.
-                            if (!v) {
-                              const pending = Array.from(pendingReadCreatedAtSetRef.current || []);
-                              const maxPending = pending.length ? Math.max(...pending) : 0;
-                              if (Number.isFinite(maxPending) && maxPending > 0) {
-                                setReadReceiptSuppressUpTo((prev) => (maxPending > prev ? maxPending : prev));
-                              }
-                              pendingReadCreatedAtSetRef.current = new Set();
-                            }
-                            setSendReadReceipts(v);
-                          }}
-                        />
-                      ) : Platform.OS === 'web' ? (
-                        <MiniToggle
-                          value={sendReadReceipts}
-                          isDark={isDark}
-                          onValueChange={(v) => {
-                            if (!v) {
-                              const pending = Array.from(pendingReadCreatedAtSetRef.current || []);
-                              const maxPending = pending.length ? Math.max(...pending) : 0;
-                              if (Number.isFinite(maxPending) && maxPending > 0) {
-                                setReadReceiptSuppressUpTo((prev) => (maxPending > prev ? maxPending : prev));
-                              }
-                              pendingReadCreatedAtSetRef.current = new Set();
-                            }
-                            setSendReadReceipts(v);
-                          }}
-                        />
-                      ) : (
-                        <Switch
-                          value={sendReadReceipts}
-                          onValueChange={(v) => {
-                            if (!v) {
-                              const pending = Array.from(pendingReadCreatedAtSetRef.current || []);
-                              const maxPending = pending.length ? Math.max(...pending) : 0;
-                              if (Number.isFinite(maxPending) && maxPending > 0) {
-                                setReadReceiptSuppressUpTo((prev) => (maxPending > prev ? maxPending : prev));
-                              }
-                              pendingReadCreatedAtSetRef.current = new Set();
-                            }
-                            setSendReadReceipts(v);
-                          }}
-                          trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                          thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                          ios_backgroundColor="#d1d1d6"
-                        />
-                      )}
-                  </View>
-                </View>
-                  </View>
-                  ) : null}
-                  {isGroup ? (
-                    <View style={[styles.dmSettingsRow, styles.groupSettingsRow]}>
-                      <View style={styles.dmSettingSlotLeft}>
-                        <View style={styles.dmSettingGroup}>
-                          <Text
-                            style={[
-                              styles.decryptLabel,
-                              isDark ? styles.decryptLabelDark : null,
-                              styles.dmSettingLabel,
-                              dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            Members
-                          </Text>
-                          <Pressable
-                            style={[
-                              styles.toolBtn,
-                              isDark ? styles.toolBtnDark : null,
-                              groupActionBusy ? { opacity: 0.6 } : null,
-                            ]}
-                            disabled={groupActionBusy}
-                            onPress={() => setGroupMembersOpen(true)}
-                          >
-                            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                              {`${groupMembersActiveCount || 0}`}
-                            </Text>
-                          </Pressable>
-                        </View>
-                      </View>
-
-                      <View style={styles.dmSettingSlotCenter}>
-                        <View style={styles.dmSettingGroup}>
-                          <Text
-                            style={[
-                              styles.decryptLabel,
-                              isDark ? styles.decryptLabelDark : null,
-                              styles.dmSettingLabel,
-                              dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            Auto‑Decrypt
-                          </Text>
-                          {dmSettingsCompact ? (
-                            <MiniToggle
-                              value={autoDecrypt}
-                              onValueChange={setAutoDecrypt}
-                              disabled={!myPrivateKey}
-                              isDark={isDark}
-                            />
-                          ) : Platform.OS === 'web' ? (
-                            <MiniToggle value={autoDecrypt} onValueChange={setAutoDecrypt} disabled={!myPrivateKey} isDark={isDark} />
-                          ) : (
-                            <Switch
-                              value={autoDecrypt}
-                              onValueChange={setAutoDecrypt}
-                              disabled={!myPrivateKey}
-                              trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                              thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                              ios_backgroundColor="#d1d1d6"
-                            />
-                          )}
-                        </View>
-                      </View>
-
-                      <View style={styles.dmSettingSlotRight}>
-                        <View style={[styles.dmSettingGroup, { justifyContent: 'flex-end', gap: 10 }]}>
-                          {groupMeta?.meIsAdmin ? (
-                            <Pressable
-                              style={[
-                                styles.toolBtn,
-                                isDark ? styles.toolBtnDark : null,
-                                groupActionBusy ? { opacity: 0.6 } : null,
-                              ]}
-                              disabled={groupActionBusy}
-                              onPress={() => {
-                                setGroupNameDraft(groupMeta?.groupName || '');
-                                setGroupNameEditOpen(true);
-                              }}
-                            >
-                              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Name</Text>
-                            </Pressable>
-                          ) : null}
-                          <Pressable
-                            style={[
-                              styles.toolBtn,
-                              isDark ? styles.toolBtnDark : null,
-                              groupActionBusy ? { opacity: 0.6 } : null,
-                            ]}
-                            disabled={groupActionBusy}
-                            onPress={() => void groupLeave()}
-                          >
-                            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Leave</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  ) : null}
-                </>
-              ) : null}
-            </>
-          ) : isChannel ? (
-            <>
-              {channelSettingsOpen ? (
-                <View style={[styles.channelAdminPanel, dmSettingsCompact ? { rowGap: 8 } : null]}>
-                  {/* Row 1: Members + (About/Name/Leave) */}
-                  <View style={[styles.channelAdminRow, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
-                    <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
-                      <Text
-                        style={[
-                          styles.decryptLabel,
-                          isDark ? styles.decryptLabelDark : null,
-                          styles.dmSettingLabel,
-                          dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        Members
-                      </Text>
-                      <Pressable
-                        style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                        disabled={channelActionBusy}
-                        onPress={() => setChannelMembersOpen(true)}
-                      >
-                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                          {channelMembersCountLabel}
-                        </Text>
-                      </Pressable>
-                    </View>
-
-                    <View style={[styles.channelAdminActions, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
-                      {channelMeta?.meIsAdmin ? (
-                        <Pressable
-                          style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                          disabled={channelActionBusy}
-                          onPress={() => {
-                            setChannelAboutDraft(String(channelMeta?.aboutText || ''));
-                            setChannelAboutEdit(true);
-                            setChannelAboutOpen(true);
-                          }}
-                        >
-                          <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>About</Text>
-                        </Pressable>
-                      ) : null}
-
-                      {channelMeta?.meIsAdmin ? (
-                        <Pressable
-                          style={[
-                            styles.toolBtn,
-                            isDark ? styles.toolBtnDark : null,
-                            channelActionBusy ? { opacity: 0.6 } : null,
-                            // Some RN versions don't support `gap` reliably; enforce spacing explicitly.
-                            { marginLeft: 10 },
-                          ]}
-                          disabled={channelActionBusy}
-                          onPress={() => {
-                            setChannelNameDraft(channelMeta?.name || '');
-                            setChannelNameEditOpen(true);
-                          }}
-                        >
-                          <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Name</Text>
-                        </Pressable>
-                      ) : null}
-
-                      <Pressable
-                        style={[
-                          styles.toolBtn,
-                          isDark ? styles.toolBtnDark : null,
-                          channelActionBusy ? { opacity: 0.6 } : null,
-                          // Some RN versions don't support `gap` reliably; enforce spacing explicitly.
-                          { marginLeft: 10 },
-                        ]}
-                        disabled={channelActionBusy}
-                        onPress={() => void channelLeave()}
-                      >
-                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Leave</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  {/* Row 2: Visibility + Password */}
-                  <View style={[styles.channelAdminRow, { marginTop: 8 }, dmSettingsCompact ? { flexWrap: 'wrap' } : null]}>
-                    <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
-                      {channelMeta?.meIsAdmin ? (
-                        <>
-                          <Text
-                            style={[
-                              styles.decryptLabel,
-                              isDark ? styles.decryptLabelDark : null,
-                              styles.dmSettingLabel,
-                              dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            Visibility
-                          </Text>
-                          {Platform.OS === 'web' ? (
-                            <MiniToggle
-                              value={!!channelMeta?.isPublic}
-                              disabled={channelActionBusy}
-                              isDark={isDark}
-                              onValueChange={(v) => {
-                                (async () => {
-                                  if (!channelMeta) return;
-                                  const next = !!v;
-                                  const prev = !!channelMeta.isPublic;
-                                  if (next === prev) return;
-
-                                  setChannelActionBusy(true);
-                                  try {
-                                    setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
-                                    await channelUpdate('setPublic', { isPublic: next });
-                                    setToast({
-                                      kind: 'success',
-                                      message: next ? 'Channel is now public' : 'Channel is now private',
-                                    });
-                                    // Theme-appropriate FYI modal (not a gate).
-                                    try {
-                                      const r = promptAlert?.(
-                                        next ? 'Channel is public' : 'Channel is Private',
-                                        next
-                                          ? 'This channel is now discoverable in search, and people can join publicly'
-                                          : 'This channel is no longer discoverable in search, and people cannot join it'
-                                      );
-                                      if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
-                                    } catch {
-                                      // ignore
-                                    }
-                                  } finally {
-                                    setChannelActionBusy(false);
-                                  }
-                                })().catch(() => {});
-                              }}
-                            />
-                          ) : (
-                            <Switch
-                              value={!!channelMeta?.isPublic}
-                              disabled={channelActionBusy}
-                              onValueChange={(v) => {
-                                (async () => {
-                                  if (!channelMeta) return;
-                                  const next = !!v;
-                                  const prev = !!channelMeta.isPublic;
-                                  if (next === prev) return;
-
-                                  setChannelActionBusy(true);
-                                  try {
-                                    setChannelMeta((p) => (p ? { ...p, isPublic: next } : p));
-                                    await channelUpdate('setPublic', { isPublic: next });
-                                    setToast({
-                                      kind: 'success',
-                                      message: next ? 'Channel is now public' : 'Channel is now private',
-                                    });
-                                    // Theme-appropriate FYI modal (not a gate).
-                                    try {
-                                      const r = promptAlert?.(
-                                        next ? 'Channel is public' : 'Channel is Private',
-                                        next
-                                          ? 'This channel is now discoverable in search, and people can join publicly'
-                                          : 'This channel is no longer discoverable in search, and people cannot join it'
-                                      );
-                                      if (r && typeof (r as any).catch === 'function') (r as any).catch(() => {});
-                                    } catch {
-                                      // ignore
-                                    }
-                                  } finally {
-                                    setChannelActionBusy(false);
-                                  }
-                                })().catch(() => {});
-                              }}
-                              trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                              thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                              ios_backgroundColor="#d1d1d6"
-                            />
-                          )}
-                          <Text
-                            style={[
-                              styles.decryptLabel,
-                              isDark ? styles.decryptLabelDark : null,
-                              styles.dmSettingLabel,
-                              dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                              { fontWeight: '900' },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {channelMeta?.isPublic ? 'Public' : 'Private'}
-                          </Text>
-                        </>
-                      ) : (
-                        <Text
-                          style={[
-                            styles.decryptLabel,
-                            isDark ? styles.decryptLabelDark : null,
-                            styles.dmSettingLabel,
-                            dmSettingsCompact ? styles.dmSettingLabelCompact : null,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {`Visibility: ${channelMeta?.isPublic ? 'Public' : 'Private'}`}
-                        </Text>
-                      )}
-                    </View>
-
-                    {channelMeta?.meIsAdmin && channelMeta?.isPublic ? (
-                      <View style={styles.channelAdminActions}>
-                        <Pressable
-                          style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                          disabled={channelActionBusy}
-                          onPress={() => {
-                            if (channelMeta?.hasPassword) {
-                              void channelUpdate('clearPassword', {});
-                              setChannelMeta((prev) => (prev ? { ...prev, hasPassword: false } : prev));
-                              setToast({ kind: 'success', message: 'Password cleared' });
-                              return;
-                            }
-                            setChannelPasswordDraft('');
-                            setChannelPasswordEditOpen(true);
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Feather
-                              name={channelMeta?.hasPassword ? 'lock' : 'unlock'}
-                              size={14}
-                              color={isDark ? '#ffffff' : '#111'}
-                            />
-                            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                              {dmSettingsCompact ? 'Password' : channelMeta?.hasPassword ? 'Password: On' : 'Password: Off'}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      </View>
-                    ) : null}
-                  </View>
-
-                </View>
-              ) : null}
-            </>
-          ) : null}
-          {error ? (
-            <Text style={[styles.error, isDark ? styles.errorDark : null]}>{error}</Text>
-          ) : null}
-          </View>
-        </View>
-        <View style={styles.chatBody}>
-          <View
-            style={[
-              styles.chatBgBase,
-              ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
-              resolvedChatBg.mode === 'default'
-                ? { backgroundColor: isDark ? '#0b0b0f' : '#fff' }
-                : resolvedChatBg.mode === 'color'
-                  ? { backgroundColor: resolvedChatBg.color }
-                  : null,
-            ]}
-            pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
-          />
-          {resolvedChatBg.mode === 'image' ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
-              ]}
-              pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
-            >
-              <Image
-                source={{ uri: resolvedChatBg.uri }}
-                style={[StyleSheet.absoluteFill, { opacity: resolvedChatBg.opacity ?? 1 }]}
-                resizeMode="cover"
-                blurRadius={resolvedChatBg.blur ?? 0}
-              />
-            </View>
-          ) : null}
-
-          {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
-              Center the *content* via FlatList.contentContainerStyle instead. */}
-          <View style={styles.chatBodyInner}>
-          {/*
-            Web note:
-            React Native's FlatList `inverted` behavior is implemented differently on web and can render
-            list content upside-down in some environments. We render a non-inverted list on web and
-            reverse the data, while keeping the same UX semantics (bottom = newest, top = older).
-          */}
-          <FlatList
-            style={[styles.messageList, Platform.OS === 'web' && !webListReady ? { opacity: 0 } : null]}
-            data={messageListData}
-            keyExtractor={(m) => m.id}
-            inverted={Platform.OS !== 'web'}
-            ref={(r) => {
-              messageListRef.current = r;
-            }}
-            onLayout={
-              Platform.OS === 'web'
-                ? (e: any) => {
-                    const h = Number(e?.nativeEvent?.layout?.height ?? 0);
-                    if (Number.isFinite(h) && h > 0) webListViewportHRef.current = h;
-                    if (!webListReady) kickWebInitialScrollToEnd();
-                  }
-                : undefined
-            }
-            onContentSizeChange={
-              Platform.OS === 'web'
-                ? (_w: number, h: number) => {
-                    const hh = Number(h ?? 0);
-                    if (Number.isFinite(hh) && hh > 0) webListContentHRef.current = hh;
-                    // If the user is already at bottom (or this is the first render), keep pinned to the bottom.
-                    if (!webDidInitialScrollRef.current || webAtBottomRef.current) {
-                      scrollWebListToBottom(false);
-                      webDidInitialScrollRef.current = true;
-                    }
-                    // While we haven't revealed yet, keep trying to pin to the bottom.
-                    if (!webListReady) {
-                      kickWebInitialScrollToEnd();
-                    }
-                  }
-                : undefined
-            }
-            keyboardShouldPersistTaps="handled"
-            ListHeaderComponent={
-              // In the *inverted* (native) list, the header renders at the bottom near the composer.
-              // In the non-inverted (web) list, the footer renders at the bottom.
-              Platform.OS === 'web'
-                ? API_URL ? (
-                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                      {historyHasMore ? (
-                        <Pressable
-                          onPress={loadOlderHistory}
-                          disabled={historyLoading}
-                          style={{
-                            paddingHorizontal: 14,
-                            paddingVertical: 9,
-                            borderRadius: 999,
-                            backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
-                            opacity: historyLoading ? 0.6 : 1,
-                          }}
-                        >
-                          <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
-                            {historyLoading ? 'Loading older…' : 'Load older messages'}
-                          </Text>
-                        </Pressable>
-                      ) : (
-                        <Text style={{ color: isDark ? '#aaa' : '#666' }}>
-                          {visibleMessages.length === 0 ? 'Start the Conversation!' : 'No Older Messages'}
-                        </Text>
-                      )}
-                    </View>
-                  ) : null
-                : isGroup && groupMeta?.meStatus && groupMeta.meStatus !== 'active' ? (
-                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                      <Text style={{ color: isDark ? '#a7a7b4' : '#666', fontStyle: 'italic', fontWeight: '700' }}>
-                        {groupMeta.meStatus === 'banned'
-                          ? 'You are banned from this chat'
-                          : groupMeta.meStatus === 'left'
-                            ? 'You left this chat'
-                            : 'This chat is read‑only'}
-                      </Text>
-                    </View>
-                  ) : null
-            }
-            onEndReached={
-              Platform.OS === 'web'
-                ? undefined
-                : () => {
-                    if (!API_URL) return;
-                    if (!historyHasMore) return;
-                    loadOlderHistory();
-                  }
-            }
-            onEndReachedThreshold={0.2}
-            ListFooterComponent={
-              Platform.OS === 'web'
-                ? (isGroup && groupMeta?.meStatus && groupMeta.meStatus !== 'active' ? (
-                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                      <Text style={{ color: isDark ? '#a7a7b4' : '#666', fontStyle: 'italic', fontWeight: '700' }}>
-                        {groupMeta.meStatus === 'banned'
-                          ? 'You are banned from this chat'
-                          : groupMeta.meStatus === 'left'
-                            ? 'You left this chat'
-                            : 'This chat is read‑only'}
-                      </Text>
-                    </View>
-                  ) : null)
-                : (API_URL ? (
-                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                      {historyHasMore ? (
-                        <Pressable
-                          onPress={loadOlderHistory}
-                          disabled={historyLoading}
-                          style={{
-                            paddingHorizontal: 14,
-                            paddingVertical: 9,
-                            borderRadius: 999,
-                            backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
-                            opacity: historyLoading ? 0.6 : 1,
-                          }}
-                        >
-                          <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '700' }}>
-                            {historyLoading ? 'Loading older…' : 'Load older messages'}
-                          </Text>
-                        </Pressable>
-                      ) : (
-                        <Text style={{ color: isDark ? '#aaa' : '#666' }}>
-                          {visibleMessages.length === 0 ? 'Start the Conversation!' : 'No Older Messages'}
-                        </Text>
-                      )}
-                    </View>
-                  ) : null)
-            }
-            // For web (non-inverted), load older history when the user scrolls to the top.
-            onScroll={
-              Platform.OS === 'web'
-                ? (e: any) => {
-                    // Track whether the user is near the bottom so we don't hijack scroll while reading older messages.
-                    try {
-                      const ne = e?.nativeEvent;
-                      const y = Number(ne?.contentOffset?.y ?? 0);
-                      const viewportH = Number(ne?.layoutMeasurement?.height ?? 0);
-                      const contentH = Number(ne?.contentSize?.height ?? 0);
-                      const distFromBottom = contentH - (y + viewportH);
-                      webAtBottomRef.current = Number.isFinite(distFromBottom) ? distFromBottom <= 80 : true;
-                    } catch {
-                      // ignore
-                    }
-                    if (!API_URL) return;
-                    if (!historyHasMore) return;
-                    if (historyLoading) return;
-                    const y = Number(e?.nativeEvent?.contentOffset?.y ?? 0);
-                    if (y <= 40) loadOlderHistory();
-                  }
-                : undefined
-            }
-            scrollEventThrottle={Platform.OS === 'web' ? 16 : undefined}
-            // Perf tuning (especially on Android):
-            removeClippedSubviews={Platform.OS === 'android'}
-            initialNumToRender={18}
-            maxToRenderPerBatch={12}
-            updateCellsBatchingPeriod={50}
-            windowSize={7}
-            renderItem={({ item, index }) => {
-            if (item.kind === 'system') {
-              return (
-                <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                  <Text
-                    style={{
-                      color: isDark ? '#a7a7b4' : '#666',
-                      fontStyle: 'italic',
-                      fontWeight: '500',
-                      textAlign: 'center',
-                      paddingHorizontal: 18,
-                    }}
-                  >
-                    {String(item.text || '').trim() || '-'}
-                  </Text>
-                </View>
-              );
-            }
-            const timestamp = new Date(item.createdAt);
-            const now = new Date();
-            const isToday =
-              timestamp.getFullYear() === now.getFullYear() &&
-              timestamp.getMonth() === now.getMonth() &&
-              timestamp.getDate() === now.getDate();
-            const time = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const formatted = isToday ? time : `${timestamp.toLocaleDateString()} · ${time}`;
-            const expiresIn =
-              isDm && typeof item.expiresAt === 'number' ? item.expiresAt - nowSec : null;
-
-          const isOutgoingByUserSub =
-            !!myUserId && !!item.userSub && String(item.userSub) === String(myUserId);
-          const isEncryptedOutgoing =
-            !!item.encrypted && !!myPublicKey && item.encrypted.senderPublicKey === myPublicKey;
-          const isPlainOutgoing =
-            !item.encrypted &&
-            (isOutgoingByUserSub ? true : normalizeUser(item.userLower ?? item.user ?? 'anon') === normalizeUser(displayName));
-          const isOutgoing = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
-          const outgoingSeenLabel = isDm
-            ? getSeenLabelFor(peerSeenAtByCreatedAt, item.createdAt)
-            : null;
-          // Keep receipts lightweight: show "seen" only on outgoing messages.
-          // Incoming "you saw this" is redundant and adds clutter.
-          const seenLabel = isOutgoing ? outgoingSeenLabel : null;
-
-          const envelope =
-            !item.encrypted && !item.groupEncrypted && !isDm ? parseChatEnvelope(item.rawText ?? item.text) : null;
-          const envMediaList = envelope ? normalizeChatMediaList(envelope.media) : [];
-          // Only treat it as a "media envelope" if it actually has media.
-          // (Otherwise a random JSON message could parse as an envelope and we'd hide the text.)
-          const mediaEnvelope = envelope && envMediaList.length ? envelope : null;
-          // If it's a media envelope, the caption is ONLY env.text (optional).
-          // Do NOT fall back to item.text, because for envelopes item.text often contains the full JSON.
-          const captionText = mediaEnvelope ? String(mediaEnvelope.text ?? '') : item.text;
-          const captionHasText = !!captionText && String(captionText).trim().length > 0;
-          const isDeleted = typeof item.deletedAt === 'number' && Number.isFinite(item.deletedAt);
-          const displayText = isDeleted ? 'This message has been deleted' : captionText;
-          const isEdited = !isDeleted && typeof item.editedAt === 'number' && Number.isFinite(item.editedAt);
-          const reactionEntries = item.reactions
-            ? Object.entries(item.reactions)
-                .map(([emoji, info]) => ({ emoji, count: info?.count ?? 0, userSubs: info?.userSubs ?? [] }))
-                .filter((r) => r.emoji && r.count > 0)
-                .sort((a, b) => b.count - a.count)
-            : [];
-          const mediaList = mediaEnvelope
-            ? envMediaList
-            : item.mediaList
-              ? item.mediaList
-              : item.media
-                ? [item.media]
-                : [];
-          const media = mediaList.length ? mediaList[0] : null;
-          const extraMedia = mediaList.length > 1 ? mediaList.slice(1) : [];
-          const mediaUrl = media?.path ? mediaUrlByPath[media.path] : null;
-          const mediaThumbUrl = media?.thumbPath ? mediaUrlByPath[media.thumbPath] : null;
-          const dmThumbUri =
-            isDm && media?.thumbPath ? dmThumbUriByPath[media.thumbPath] : null;
-          const displayThumbUri = isDm ? dmThumbUri : (mediaThumbUrl || mediaUrl);
-          const mediaLooksImage =
-            !!media &&
-            (media.kind === 'image' ||
-              (media.kind === 'file' && (media.contentType || '').startsWith('image/')));
-          const mediaLooksVideo =
-            !!media &&
-            (media.kind === 'video' ||
-              (media.kind === 'file' && (media.contentType || '').startsWith('video/')));
-          // IMPORTANT: if the message is still encrypted (not decrypted yet),
-          // always render it as a normal encrypted-text bubble so media placeholders
-          // don't appear larger than encrypted text placeholders.
-          const isStillEncrypted =
-            (!!item.encrypted || !!item.groupEncrypted) && !item.decryptedText;
-          const hasMedia = !!mediaList.length && !isStillEncrypted;
-          const imageKeyPath = mediaLooksImage ? (media?.thumbPath || media?.path) : undefined;
-          const imageAspect =
-            imageKeyPath && imageAspectByPath[imageKeyPath] ? imageAspectByPath[imageKeyPath] : undefined;
-          const thumbKeyPath =
-            mediaLooksImage || mediaLooksVideo ? (media?.thumbPath || media?.path) : undefined;
-          const thumbAspect =
-            thumbKeyPath && imageAspectByPath[thumbKeyPath] ? imageAspectByPath[thumbKeyPath] : undefined;
-          const senderKey =
-            (item.userSub && String(item.userSub)) ||
-            (item.userLower && String(item.userLower)) ||
-            normalizeUser(item.user ?? 'anon');
-          // IMPORTANT: `index` is relative to the FlatList `data` prop.
-          // On web we reverse the data (oldest-first), so the "older neighbor" is `index - 1`.
-          // On native we keep newest-first (inverted list), so the "older neighbor" is `index + 1`.
-          const olderNeighbor = Platform.OS === 'web' ? messageListData[index - 1] : messageListData[index + 1];
-          const olderSenderKey = olderNeighbor
-            ? (olderNeighbor.userSub && String(olderNeighbor.userSub)) ||
-              (olderNeighbor.userLower && String(olderNeighbor.userLower)) ||
-              normalizeUser(olderNeighbor.user ?? 'anon')
-            : '';
-          const showAvatarForIncoming = !isOutgoing && (!olderNeighbor || olderSenderKey !== senderKey);
-          const prof = item.userSub ? avatarProfileBySub[String(item.userSub)] : undefined;
-          const avatarImageUri =
-            prof?.avatarImagePath ? avatarUrlByPath[String(prof.avatarImagePath)] : undefined;
-
-          const rowGutter = !isOutgoing && showAvatarForIncoming ? AVATAR_GUTTER : 0;
-          const capped = getCappedMediaSize(
-            thumbAspect,
-            isOutgoing ? chatViewportWidth : chatViewportWidth - rowGutter
-          );
-          const hideMetaUntilDecrypted = isStillEncrypted;
-          const canReact = !isDeleted && !isStillEncrypted;
-          const reactionEntriesVisible = canReact ? reactionEntries : [];
-          const metaPrefix =
-            hideMetaUntilDecrypted || isOutgoing ? '' : `${item.user ?? 'anon'} · `;
-          const metaLine = hideMetaUntilDecrypted
-            ? ''
-            : `${metaPrefix}${formatted}${
-            expiresIn != null ? ` · disappears in ${formatRemaining(expiresIn)}` : ''
-          }`;
-          const showSendStatusInline =
-            isOutgoing &&
-            !seenLabel &&
-            item.localStatus !== 'failed' &&
-            item.id === latestOutgoingMessageId;
-          // If there is a caption, we want indicators on the bottom-right of the header bar
-          // (on the caption row), similar to normal text bubbles.
-          const showEditedInlineForCaption = isEdited && captionHasText;
-          const showEditedInlineNoCaption = isEdited && !captionHasText;
-
-            return (           
-              <Pressable
-                onPress={() => {
-                  if (inlineEditTargetId && item.id === inlineEditTargetId) return;
-                  onPressMessage(item);
-                }}
-                onLongPress={(e) => {
-                  if (isDeleted) return;
-                  const ne: any = (e as any)?.nativeEvent ?? {};
-                  // On web, `clientX/Y` tracks the visible viewport better than `pageX/Y`.
-                  // (Mobile browser toolbars + visual viewport can otherwise cause the menu to render flush/cut off.)
-                  const x =
-                    Platform.OS === 'web' ? (ne?.clientX ?? ne?.pageX ?? 0) : (ne?.pageX ?? 0);
-                  const y =
-                    Platform.OS === 'web' ? (ne?.clientY ?? ne?.pageY ?? 0) : (ne?.pageY ?? 0);
-                  openMessageActions(item, { x, y });
-                }}
-              >
-                <View
-                  style={[
-                    styles.messageRow,
-                    isOutgoing ? styles.messageRowOutgoing : styles.messageRowIncoming,
-                  ]}
-                >
-                  {!isOutgoing && showAvatarForIncoming ? (
-                    <View style={[styles.avatarGutter, { width: AVATAR_SIZE, marginTop: AVATAR_TOP_OFFSET }]}>
-                      <AvatarBubble
-                        size={AVATAR_SIZE}
-                        seed={senderKey}
-                        label={item.user ?? 'anon'}
-                        backgroundColor={prof?.avatarBgColor ?? item.avatarBgColor}
-                        textColor={prof?.avatarTextColor ?? item.avatarTextColor}
-                        imageUri={avatarImageUri}
-                        imageBgColor={isDark ? '#1c1c22' : '#f2f2f7'}
-                      />
-                    </View>
-                  ) : null}
-                  {hasMedia && !isDeleted ? (
-                    <View
-                      style={[
-                        styles.mediaMsg,
-                        isOutgoing ? styles.mediaMsgOutgoing : styles.mediaMsgIncoming,
-                      ]}
-                    >
-                      <View style={[styles.mediaCardOuter, { width: capped.w }]}>
-                        <View
-                          style={[
-                            styles.mediaCard,
-                            isOutgoing
-                              ? styles.mediaCardOutgoing
-                              : isDark
-                                ? styles.mediaCardIncomingDark
-                                : styles.mediaCardIncoming,
-                          ]}
-                        >
-                        <View
-                          style={[
-                            styles.mediaHeader,
-                            isOutgoing
-                              ? styles.mediaHeaderOutgoing
-                              : isDark
-                                ? styles.mediaHeaderIncomingDark
-                                : styles.mediaHeaderIncoming,
-                          ]}
-                        >
-                          <View style={styles.mediaHeaderTopRow}>
-                            <View style={styles.mediaHeaderTopLeft}>
-                              {metaLine ? (
-                                <Text
-                                  style={[
-                                    styles.mediaHeaderMeta,
-                                    isOutgoing
-                                      ? styles.mediaHeaderMetaOutgoing
-                                      : isDark
-                                        ? styles.mediaHeaderMetaIncomingDark
-                                        : styles.mediaHeaderMetaIncoming,
-                                  ]}
-                                >
-                                  {metaLine}
-                                </Text>
-                              ) : null}
-                            </View>
-
-                            {/* If there is no caption row, show send status on the meta row (right-aligned). */}
-                            {!captionHasText && (showEditedInlineNoCaption || showSendStatusInline) ? (
-                              <View style={styles.mediaHeaderTopRight}>
-                                {showEditedInlineNoCaption ? (
-                                  <Text
-                                    style={[
-                                      styles.editedLabel,
-                                      isOutgoing
-                                        ? (isDark ? styles.editedLabelOutgoingDark : styles.editedLabelOutgoing)
-                                        : (isDark ? styles.editedLabelIncomingDark : styles.editedLabelIncoming),
-                                    ]}
-                                  >
-                                    Edited
-                                  </Text>
-                                ) : null}
-                                {showSendStatusInline ? (
-                                  <Text
-                                    style={[
-                                      styles.sendStatusInline,
-                                      isOutgoing
-                                        ? (isDark ? styles.sendStatusInlineOutgoingDark : styles.sendStatusInlineOutgoing)
-                                        : (isDark ? styles.sendStatusInlineIncomingDark : styles.sendStatusInlineIncoming),
-                                    ]}
-                                  >
-                                    {item.localStatus === 'sending' ? '…' : '✓'}
-                                  </Text>
-                                ) : null}
-                              </View>
-                            ) : null}
-                          </View>
-                      {!isDeleted && item.replyToMessageId && item.replyToPreview ? (
-                        (() => {
-                          // Best-effort: if we still have the replied-to message locally, show a tiny media thumb/count.
-                          const origin = visibleMessages.find((m) => m && m.id === item.replyToMessageId);
-                          let thumbUri: string | null = null;
-                          let count = 0;
-                          let kind: 'image' | 'video' | 'file' = 'file';
-                          try {
-                            if (origin && !origin.deletedAt) {
-                              const env = !origin.encrypted && !origin.groupEncrypted && !isDm ? parseChatEnvelope(origin.rawText ?? origin.text) : null;
-                              const list = env ? normalizeChatMediaList(env.media) : [];
-                              if (list.length) {
-                                count = list.length;
-                                const first = list[0];
-                                const k =
-                                  first.kind === 'file' && (first.contentType || '').startsWith('image/')
-                                    ? 'image'
-                                    : first.kind === 'file' && (first.contentType || '').startsWith('video/')
-                                      ? 'video'
-                                      : first.kind;
-                                kind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
-                                const key = String(first.thumbPath || first.path);
-                                thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
-                              }
-                            }
-                          } catch {
-                            // ignore
-                          }
-                          const openOriginMedia = () => {
-                            if (!origin) return;
-                            const env = !origin.encrypted && !origin.groupEncrypted && !isDm ? parseChatEnvelope(origin.rawText ?? origin.text) : null;
-                            const list = env ? normalizeChatMediaList(env.media) : [];
-                            if (!list.length) return;
-                            openViewer(list, 0);
-                          };
-                          return (
-                            <View
-                              style={[
-                                styles.replySnippet,
-                                isOutgoing
-                                  ? styles.replySnippetOutgoing
-                                  : isDark
-                                    ? styles.replySnippetIncomingDark
-                                    : styles.replySnippetIncoming,
-                              ]}
-                            >
-                              {count ? (
-                                <Pressable
-                                  onPress={openOriginMedia}
-                                  style={({ pressed }) => [
-                                    styles.replyThumbWrap,
-                                    pressed ? { opacity: 0.9 } : null,
-                                  ]}
-                                  accessibilityRole="button"
-                                  accessibilityLabel="Open replied media"
-                                >
-                                  {thumbUri ? (
-                                    <Image source={{ uri: thumbUri }} style={styles.replyThumb} />
-                                  ) : (
-                                    <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
-                                      <Text style={styles.replyThumbPlaceholderText}>
-                                        {kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'File'}
-                                      </Text>
-                                    </View>
-                                  )}
-                                  {count > 1 ? (
-                                    <View style={styles.replyThumbCountBadge}>
-                                      <Text style={styles.replyThumbCountText}>{`+${count - 1}`}</Text>
-                                    </View>
-                                  ) : null}
-                                </Pressable>
-                              ) : null}
-                              <Text
-                                style={[
-                                  styles.replySnippetLabel,
-                                  isOutgoing
-                                    ? styles.replySnippetLabelOutgoing
-                                    : isDark
-                                      ? styles.replySnippetLabelIncomingDark
-                                      : styles.replySnippetLabelIncoming,
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {`Replying to ${
-                                  item.replyToUserSub
-                                    ? (String(item.replyToUserSub) === String(myUserId)
-                                        ? 'You'
-                                        : (avatarProfileBySub[String(item.replyToUserSub)]?.displayName ||
-                                          nameBySub[String(item.replyToUserSub)] ||
-                                          'user'))
-                                    : 'user'
-                                }`}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.replySnippetText,
-                                  isOutgoing
-                                    ? styles.replySnippetTextOutgoing
-                                    : isDark
-                                      ? styles.replySnippetTextIncomingDark
-                                      : styles.replySnippetTextIncoming,
-                                ]}
-                                numberOfLines={2}
-                              >
-                                {String(item.replyToPreview || '').trim()}
-                              </Text>
-                            </View>
-                          );
-                        })()
-                      ) : null}
-                          {inlineEditTargetId && item.id === inlineEditTargetId && !isDeleted ? (
-                            <View style={styles.inlineEditWrap}>
-                              <TextInput
-                                style={[
-                                  styles.inlineEditInput,
-                                  isOutgoing ? styles.inlineEditInputOutgoing : styles.inlineEditInputIncoming,
-                                ]}
-                                value={inlineEditDraft}
-                                onChangeText={setInlineEditDraft}
-                                multiline
-                                autoFocus
-                                placeholder="Add a caption…"
-                                placeholderTextColor={isOutgoing ? 'rgba(255,255,255,0.75)' : isDark ? '#b7b7c2' : '#777'}
-                                editable={!inlineEditUploading}
-                                selectionColor={isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#ffffff' : '#111'}
-                                cursorColor={isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#ffffff' : '#111'}
-                              />
-                              {inlineEditAttachmentMode === 'remove' ? (
-                                <Text
-                                  style={[
-                                    styles.mediaEditHint,
-                                    isOutgoing ? styles.mediaEditHintOutgoing : isDark ? styles.mediaEditHintIncomingDark : styles.mediaEditHintIncoming,
-                                  ]}
-                                >
-                                  Attachment will be removed
-                                </Text>
-                              ) : inlineEditAttachmentMode === 'replace' && pendingMedia.length ? (
-                                <Text
-                                  style={[
-                                    styles.mediaEditHint,
-                                    isOutgoing ? styles.mediaEditHintOutgoing : isDark ? styles.mediaEditHintIncomingDark : styles.mediaEditHintIncoming,
-                                  ]}
-                                >
-                                  New attachment selected
-                                </Text>
-                              ) : null}
-                              <View style={styles.inlineEditActions}>
-                                <Pressable
-                                  onPress={() => void commitInlineEdit()}
-                                  disabled={inlineEditUploading}
-                                  style={({ pressed }) => [
-                                    styles.inlineEditBtn,
-                                    inlineEditUploading
-                                      ? (isOutgoing ? styles.inlineEditBtnUploadingOutgoing : (isDark ? styles.btnDisabledDark : styles.btnDisabled))
-                                      : null,
-                                    pressed ? styles.inlineEditBtnPressed : null,
-                                  ]}
-                                >
-                                  {inlineEditUploading ? (
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                      <Text
-                                        style={[
-                                          styles.inlineEditBtnText,
-                                          isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
-                                        ]}
-                                      >
-                                        Uploading
-                                      </Text>
-                                      <AnimatedDots
-                                        color={isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#111' : '#111'}
-                                        size={16}
-                                      />
-                                    </View>
-                                  ) : (
-                                    <Text
-                                      style={[
-                                        styles.inlineEditBtnText,
-                                        isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
-                                      ]}
-                                    >
-                                      Save
-                                    </Text>
-                                  )}
-                                </Pressable>
-                                <Pressable
-                                  onPress={cancelInlineEdit}
-                                  disabled={inlineEditUploading}
-                                  style={({ pressed }) => [
-                                    styles.inlineEditBtn,
-                                    inlineEditUploading
-                                      ? (isOutgoing ? styles.inlineEditBtnUploadingOutgoing : (isDark ? styles.btnDisabledDark : styles.btnDisabled))
-                                      : null,
-                                    pressed ? styles.inlineEditBtnPressed : null,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.inlineEditBtnText,
-                                      isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
-                                    ]}
-                                  >
-                                    Cancel
-                                  </Text>
-                                </Pressable>
-                              </View>
-                            </View>
-                          ) : captionText?.length ? (
-                            <View style={styles.mediaHeaderCaptionRow}>
-                              <RichText
-                                text={String(captionText || '')}
-                                isDark={isDark}
-                                enableMentions={!isEncryptedChat}
-                                variant={isOutgoing ? 'outgoing' : 'incoming'}
-                                style={[
-                                  styles.mediaHeaderCaption,
-                                  isOutgoing
-                                    ? styles.mediaHeaderCaptionOutgoing
-                                    : isDark
-                                      ? styles.mediaHeaderCaptionIncomingDark
-                                      : styles.mediaHeaderCaptionIncoming,
-                                  styles.mediaHeaderCaptionFlex,
-                                ]}
-                                mentionStyle={styles.mentionText}
-                                onOpenUrl={requestOpenLink}
-                              />
-                              {showEditedInlineForCaption || showSendStatusInline ? (
-                                <View style={styles.mediaHeaderCaptionIndicators}>
-                                  {showEditedInlineForCaption ? (
-                                    <Text
-                                      style={[
-                                        styles.editedLabel,
-                                        isOutgoing
-                                          ? (isDark ? styles.editedLabelOutgoingDark : styles.editedLabelOutgoing)
-                                          : (isDark ? styles.editedLabelIncomingDark : styles.editedLabelIncoming),
-                                      ]}
-                                    >
-                                      Edited
-                                    </Text>
-                                  ) : null}
-                                  {showSendStatusInline ? (
-                                    <Text
-                                      style={[
-                                        styles.sendStatusInline,
-                                        isOutgoing
-                                          ? (isDark ? styles.sendStatusInlineOutgoingDark : styles.sendStatusInlineOutgoing)
-                                          : (isDark ? styles.sendStatusInlineIncomingDark : styles.sendStatusInlineIncoming),
-                                      ]}
-                                    >
-                                      {item.localStatus === 'sending' ? '…' : '✓'}
-                                    </Text>
-                                  ) : null}
-                                </View>
-                              ) : null}
-                            </View>
-                          ) : null}
-                        </View>
-                        {mediaList.length ? (
-                          <MediaStackCarousel
-                            messageId={item.id}
-                            mediaList={mediaList}
-                            width={capped.w}
-                            height={capped.h}
-                            isDm={isEncryptedChat}
-                            isDark={isDark}
-                            isOutgoing={isOutgoing}
-                            mediaUrlByPath={mediaUrlByPath}
-                            dmThumbUriByPath={dmThumbUriByPath}
-                            onOpen={(idx, media) => {
-                              if (isDm) void openDmMediaViewer(item, idx);
-                              else if (isGroup) void openGroupMediaViewer(item, idx);
-                              else openViewer(mediaList, idx);
-                            }}
-                          />
-                        ) : null}
-
-                      </View>
-
-                      {/* Reactions should float outside the rounded media card (don't get clipped). */}
-                      {reactionEntriesVisible.length ? (
-                        <View
-                          style={[
-                            styles.reactionOverlay,
-                            isOutgoing ? styles.reactionOverlayOutgoing : styles.reactionOverlayIncoming,
-                            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
-                          ]}
-                          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
-                        >
-                          {reactionEntriesVisible.slice(0, 3).map((r, idx) => {
-                            const mine = myUserId ? r.userSubs.includes(myUserId) : false;
-                            return (
-                              <Pressable
-                                key={`ov:${item.id}:${r.emoji}`}
-                                onPress={() => void openReactionInfo(item, r.emoji, r.userSubs)}
-                                onLongPress={() => sendReaction(item, r.emoji)}
-                                disabled={!canReact}
-                                style={({ pressed }) => [
-                                  styles.reactionMiniChip,
-                                  isDark ? styles.reactionMiniChipDark : null,
-                                  mine ? (isDark ? styles.reactionMiniChipMineDark : styles.reactionMiniChipMine) : null,
-                                  idx ? styles.reactionMiniChipStacked : null,
-                                  pressed ? { opacity: 0.85 } : null,
-                                ]}
-                              >
-                                <Text style={[styles.reactionMiniText, isDark ? styles.reactionMiniTextDark : null]}>
-                                  {r.emoji}
-                                  {r.count > 1 ? ` ${r.count}` : ''}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      ) : null}
-                    </View>
-
-                      {seenLabel ? (
-                        <Text
-                          style={[
-                            styles.seenText,
-                            isOutgoing
-                              ? (isDark ? styles.seenTextOutgoing : styles.seenTextOutgoingOnLightSurface)
-                              : styles.seenTextIncoming,
-                            isOutgoing ? styles.seenTextAlignOutgoing : styles.seenTextAlignIncoming,
-                          ]}
-                        >
-                          {seenLabel}
-                        </Text>
-                      ) : null}
-                    </View>
-                  ) : (
-                    <View
-                      style={[
-                        styles.messageBubble,
-                        isOutgoing
-                          ? styles.messageBubbleOutgoing
-                          : isDark
-                            ? styles.messageBubbleIncomingDark
-                            : styles.messageBubbleIncoming,
-                        inlineEditTargetId && item.id === inlineEditTargetId ? styles.messageBubbleEditing : null,
-                      ]}
-                    >
-                      {metaLine ? (
-                      <Text
-                        style={[
-                          styles.messageMeta,
-                          isOutgoing
-                            ? styles.messageMetaOutgoing
-                            : isDark
-                              ? styles.messageMetaIncomingDark
-                              : styles.messageMetaIncoming,
-                        ]}
-                      >
-                        {metaLine}
-                      </Text>
-                      ) : null}
-                      {!isDeleted && item.replyToMessageId && item.replyToPreview ? (
-                        (() => {
-                          const origin = visibleMessages.find((m) => m && m.id === item.replyToMessageId);
-                          let thumbUri: string | null = null;
-                          let count = 0;
-                          let kind: 'image' | 'video' | 'file' = 'file';
-                          try {
-                            if (origin && !origin.deletedAt) {
-                              const env = !origin.encrypted && !origin.groupEncrypted && !isDm ? parseChatEnvelope(origin.rawText ?? origin.text) : null;
-                              const list = env ? normalizeChatMediaList(env.media) : [];
-                              if (list.length) {
-                                count = list.length;
-                                const first = list[0];
-                                const k =
-                                  first.kind === 'file' && (first.contentType || '').startsWith('image/')
-                                    ? 'image'
-                                    : first.kind === 'file' && (first.contentType || '').startsWith('video/')
-                                      ? 'video'
-                                      : first.kind;
-                                kind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
-                                const key = String(first.thumbPath || first.path);
-                                thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
-                              }
-                            }
-                          } catch {
-                            // ignore
-                          }
-                          const openOriginMedia = () => {
-                            if (!origin) return;
-                            const env = !origin.encrypted && !origin.groupEncrypted && !isDm ? parseChatEnvelope(origin.rawText ?? origin.text) : null;
-                            const list = env ? normalizeChatMediaList(env.media) : [];
-                            if (!list.length) return;
-                            openViewer(list, 0);
-                          };
-                          return (
-                        <View
-                          style={[
-                            styles.replySnippet,
-                            isOutgoing
-                              ? styles.replySnippetOutgoing
-                              : isDark
-                                ? styles.replySnippetIncomingDark
-                                : styles.replySnippetIncoming,
-                          ]}
-                        >
-                          {count ? (
-                            <Pressable
-                              onPress={openOriginMedia}
-                              style={({ pressed }) => [
-                                styles.replyThumbWrap,
-                                pressed ? { opacity: 0.9 } : null,
-                              ]}
-                              accessibilityRole="button"
-                              accessibilityLabel="Open replied media"
-                            >
-                              {thumbUri ? (
-                                <Image source={{ uri: thumbUri }} style={styles.replyThumb} />
-                              ) : (
-                                <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
-                                  <Text style={styles.replyThumbPlaceholderText}>
-                                    {kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'File'}
-                                  </Text>
-                                </View>
-                              )}
-                              {count > 1 ? (
-                                <View style={styles.replyThumbCountBadge}>
-                                  <Text style={styles.replyThumbCountText}>{`+${count - 1}`}</Text>
-                                </View>
-                              ) : null}
-                            </Pressable>
-                          ) : null}
-                          <Text
-                            style={[
-                              styles.replySnippetLabel,
-                              isOutgoing
-                                ? styles.replySnippetLabelOutgoing
-                                : isDark
-                                  ? styles.replySnippetLabelIncomingDark
-                                  : styles.replySnippetLabelIncoming,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {`Replying to ${
-                              item.replyToUserSub
-                                ? (String(item.replyToUserSub) === String(myUserId)
-                                    ? 'You'
-                                    : (avatarProfileBySub[String(item.replyToUserSub)]?.displayName ||
-                                      nameBySub[String(item.replyToUserSub)] ||
-                                      'user'))
-                                : 'user'
-                            }`}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.replySnippetText,
-                              isOutgoing
-                                ? styles.replySnippetTextOutgoing
-                                : isDark
-                                  ? styles.replySnippetTextIncomingDark
-                                  : styles.replySnippetTextIncoming,
-                            ]}
-                            numberOfLines={2}
-                          >
-                            {String(item.replyToPreview || '').trim()}
-                          </Text>
-                        </View>
-                          );
-                        })()
-                      ) : null}
-                      {displayText?.length ? (
-                        <View
-                          style={[
-                            styles.messageTextRow,
-                            isOutgoing ? styles.messageTextRowOutgoing : null,
-                          ]}
-                        >
-                          {inlineEditTargetId && item.id === inlineEditTargetId && !isDeleted ? (
-                            <View style={styles.inlineEditWrap}>
-                              <TextInput
-                                style={[
-                                  styles.inlineEditInput,
-                                  isOutgoing ? styles.inlineEditInputOutgoing : styles.inlineEditInputIncoming,
-                                ]}
-                                value={inlineEditDraft}
-                                onChangeText={setInlineEditDraft}
-                                multiline
-                                autoFocus
-                                editable={!inlineEditUploading}
-                                selectionColor={
-                                  isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#ffffff' : '#111'
-                                }
-                                cursorColor={
-                                  isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#ffffff' : '#111'
-                                }
-                              />
-                              {inlineEditAttachmentMode === 'replace' && pendingMedia.length ? (
-                                <Text
-                                  style={[
-                                    styles.mediaEditHint,
-                                    isOutgoing
-                                      ? styles.mediaEditHintOutgoing
-                                      : isDark
-                                        ? styles.mediaEditHintIncomingDark
-                                        : styles.mediaEditHintIncoming,
-                                  ]}
-                                >
-                                  Attachment will be added
-                                </Text>
-                              ) : null}
-                              <View style={styles.inlineEditActions}>
-                                <Pressable
-                                  onPress={() => void commitInlineEdit()}
-                                  disabled={inlineEditUploading}
-                                  style={({ pressed }) => [
-                                    styles.inlineEditBtn,
-                                    inlineEditUploading
-                                      ? (isOutgoing ? styles.inlineEditBtnUploadingOutgoing : (isDark ? styles.btnDisabledDark : styles.btnDisabled))
-                                      : null,
-                                    pressed ? styles.inlineEditBtnPressed : null,
-                                  ]}
-                                >
-                                  {inlineEditUploading ? (
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                      <Text
-                                        style={[
-                                          styles.inlineEditBtnText,
-                                          isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
-                                        ]}
-                                      >
-                                        Uploading
-                                      </Text>
-                                      <AnimatedDots
-                                        color={isOutgoing ? 'rgba(255,255,255,0.95)' : isDark ? '#111' : '#111'}
-                                        size={16}
-                                      />
-                                    </View>
-                                  ) : (
-                                    <Text
-                                      style={[
-                                        styles.inlineEditBtnText,
-                                        isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
-                                      ]}
-                                    >
-                                      Save
-                                    </Text>
-                                  )}
-                                </Pressable>
-                                <Pressable
-                                  onPress={cancelInlineEdit}
-                                  disabled={inlineEditUploading}
-                                  style={({ pressed }) => [
-                                    styles.inlineEditBtn,
-                                    inlineEditUploading
-                                      ? (isOutgoing ? styles.inlineEditBtnUploadingOutgoing : (isDark ? styles.btnDisabledDark : styles.btnDisabled))
-                                      : null,
-                                    pressed ? styles.inlineEditBtnPressed : null,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.inlineEditBtnText,
-                                      isOutgoing ? styles.inlineEditBtnTextOutgoing : styles.inlineEditBtnTextIncoming,
-                                    ]}
-                                  >
-                                    Cancel
-                                  </Text>
-                                </Pressable>
-                              </View>
-                            </View>
-                          ) : (
-                        <RichText
-                          text={String(displayText || '')}
-                          isDark={isDark}
-                          enableMentions={!isEncryptedChat}
-                          variant={isOutgoing ? 'outgoing' : 'incoming'}
-                          style={[
-                            styles.messageText,
-                            isOutgoing
-                              ? styles.messageTextOutgoing
-                              : isDark
-                                ? styles.messageTextIncomingDark
-                                : styles.messageTextIncoming,
-                            styles.messageTextFlex,
-                            ...(isDeleted ? [styles.deletedText] : []),
-                          ]}
-                          mentionStyle={styles.mentionText}
-                          onOpenUrl={requestOpenLink}
-                        />
-                          )}
-                          {isEdited ? (
-                            <Text
-                              style={[
-                                styles.editedLabel,
-                                isOutgoing
-                                  ? (isDark ? styles.editedLabelOutgoingDark : styles.editedLabelOutgoing)
-                                  : (isDark ? styles.editedLabelIncomingDark : styles.editedLabelIncoming),
-                              ]}
-                            >
-                              {' '}
-                              Edited
-                        </Text>
-                          ) : null}
-                          {isOutgoing &&
-                          !seenLabel &&
-                          item.localStatus !== 'failed' &&
-                          item.id === latestOutgoingMessageId ? (
-                            <Text
-                              style={[
-                                styles.sendStatusInline,
-                                isOutgoing
-                                  ? (isDark ? styles.sendStatusInlineOutgoingDark : styles.sendStatusInlineOutgoing)
-                                  : (isDark ? styles.sendStatusInlineIncomingDark : styles.sendStatusInlineIncoming),
-                              ]}
-                            >
-                              {item.localStatus === 'sending' ? '…' : '✓'}
-                            </Text>
-                          ) : null}
-                        </View>
-                      ) : null}
-                      {isOutgoing && item.localStatus === 'failed' ? (
-                        <Pressable
-                          onPress={() => retryFailedMessage(item)}
-                          accessibilityRole="button"
-                          accessibilityLabel="Retry sending message"
-                        >
-                          <Text
-                            style={[
-                              styles.sendFailedText,
-                              isDark ? styles.sendFailedTextDark : null,
-                              isOutgoing ? styles.sendFailedTextAlignOutgoing : null,
-                            ]}
-                          >
-                            Failed · tap to retry
-                          </Text>
-                        </Pressable>
-                      ) : null}
-                      {seenLabel ? (
-                        <Text
-                          style={[
-                            styles.seenText,
-                            isOutgoing ? styles.seenTextOutgoing : styles.seenTextIncoming,
-                            isOutgoing ? styles.seenTextAlignOutgoing : styles.seenTextAlignIncoming,
-                          ]}
-                        >
-                          {seenLabel}
-                        </Text>
-                      ) : null}
-
-                      {reactionEntriesVisible.length ? (
-                        <View
-                          style={[
-                            styles.reactionOverlay,
-                            isOutgoing ? styles.reactionOverlayOutgoing : styles.reactionOverlayIncoming,
-                            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
-                          ]}
-                          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
-                        >
-                          {reactionEntriesVisible.slice(0, 3).map((r, idx) => {
-                            const mine = myUserId ? r.userSubs.includes(myUserId) : false;
-                            return (
-                              <Pressable
-                                key={`ov:${item.id}:${r.emoji}`}
-                                onPress={() => void openReactionInfo(item, r.emoji, r.userSubs)}
-                                onLongPress={() => sendReaction(item, r.emoji)}
-                                disabled={!canReact}
-                                style={({ pressed }) => [
-                                  styles.reactionMiniChip,
-                                  isDark ? styles.reactionMiniChipDark : null,
-                                  mine ? (isDark ? styles.reactionMiniChipMineDark : styles.reactionMiniChipMine) : null,
-                                  idx ? styles.reactionMiniChipStacked : null,
-                                  pressed ? { opacity: 0.85 } : null,
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.reactionMiniText,
-                                    isDark ? styles.reactionMiniTextDark : null,
-                                  ]}
-                                >
-                                  {r.emoji}
-                                  {r.count > 1 ? ` ${r.count}` : ''}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      ) : null}
-                    </View>
-                  )}
-                </View>
-              </Pressable>
-            );
-            }}
-            contentContainerStyle={[styles.listContent, isWideChatLayout ? styles.chatContentColumn : null]}
-          />
-          {inlineEditTargetId ? (
-            <View style={[styles.editingBar, isDark ? styles.editingBarDark : null]}>
-              <Text style={[styles.editingBarText, isDark ? styles.editingBarTextDark : null]}>Editing message</Text>
-              <Pressable
-                onPress={cancelInlineEdit}
-                disabled={inlineEditUploading}
-                style={({ pressed }) => [
-                  styles.editingBarCancelBtn,
-                  isDark ? styles.editingBarCancelBtnDark : null,
-                  inlineEditUploading ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
-                  pressed ? { opacity: 0.85 } : null,
-                ]}
-              >
-                <Text style={[styles.editingBarCancelText, isDark ? styles.editingBarCancelTextDark : null]}>
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
-          ) : pendingMedia.length ? (
-            <Pressable
-              style={[styles.attachmentPill, isDark ? styles.attachmentPillDark : null]}
-              onPress={() => setPendingMedia([])}
-              disabled={isUploading}
-            >
-              <Text style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}>
-                {pendingMedia.length === 1
-                  ? `Attached: ${
-                      pendingMedia[0].displayName || pendingMedia[0].fileName || pendingMedia[0].kind
-                    } (tap to remove)`
-                  : `Attached: ${pendingMedia.length} items (tap to remove)`}
-              </Text>
-            </Pressable>
-          ) : null}
-          {replyTarget ? (
-            <View style={[styles.attachmentPill, isDark ? styles.attachmentPillDark : null, { flexDirection: 'row', alignItems: 'center' }]}>
-              {replyTarget.mediaCount ? (
-                <Pressable
-                  onPress={() => {
-                    // Best-effort: open the original target if it's in memory.
-                    const t = messages.find((m) => m && m.id === replyTarget.id);
-                    if (!t) return;
-                    const raw = String(t.rawText ?? t.text ?? '');
-                    const env = !t.encrypted && !t.groupEncrypted && !isDm ? parseChatEnvelope(raw) : null;
-                    const envList = env ? normalizeChatMediaList(env.media) : [];
-                    if (!envList.length) return;
-                    openViewer(envList, 0);
-                  }}
-                  style={({ pressed }) => [
-                    styles.replyThumbWrap,
-                    { marginRight: 10 },
-                    pressed ? { opacity: 0.9 } : null,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open replied media"
-                >
-                  {replyTarget.mediaThumbUri ? (
-                    <Image source={{ uri: replyTarget.mediaThumbUri }} style={styles.replyThumb} />
-                  ) : (
-                    <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
-                      <Text style={styles.replyThumbPlaceholderText}>
-                        {replyTarget.mediaKind === 'image' ? 'Photo' : replyTarget.mediaKind === 'video' ? 'Video' : 'File'}
-                      </Text>
-                    </View>
-                  )}
-                  {(replyTarget.mediaCount || 0) > 1 ? (
-                    <View style={styles.replyThumbCountBadge}>
-                      <Text style={styles.replyThumbCountText}>{`+${(replyTarget.mediaCount || 0) - 1}`}</Text>
-                    </View>
-                  ) : null}
-                </Pressable>
-              ) : null}
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
-                  numberOfLines={2}
-                >
-                  {`Replying to ${replyTarget.user || 'user'}: ${replyTarget.preview || ''}`}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => setReplyTarget(null)}
-                style={({ pressed }) => [{ marginLeft: 10, paddingHorizontal: 10, paddingVertical: 6, opacity: pressed ? 0.85 : 1 }]}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel reply"
-              >
-                <Text style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}>Cancel</Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {typingIndicatorText ? (
-            <View style={styles.typingRow}>
-              <TypingIndicator
-                text={typingIndicatorText}
-                color={isDark ? styles.typingTextDark.color : styles.typingText.color}
-              />
-            </View>
-          ) : null}
-          {mentionSuggestions.length && !isEncryptedChat && !inlineEditTargetId ? (
-            <View
-              style={{
-                marginTop: 8,
-                marginBottom: 2,
-                paddingHorizontal: 12,
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap: 8,
-              }}
-            >
-              {mentionSuggestions.map((u) => (
-                <Pressable
-                  key={`mention-suggest:${u}`}
-                  onPress={() => insertMention(u)}
-                  style={({ pressed }) => ({
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    backgroundColor: isDark ? '#2a2a33' : '#e9e9ee',
-                    opacity: pressed ? 0.85 : 1,
-                  })}
-                >
-                  <Text style={{ color: isDark ? '#fff' : '#111', fontWeight: '800' }}>
-                    @{u}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-          {/* Inline edit happens inside the bubble (Signal-style). */}
-          </View>
-          <View
-            style={[
-              styles.inputRow,
-              isDark ? styles.inputRowDark : null,
-              // Fill the safe area with the bar background, but keep the inner content vertically centered.
-              composerSafeAreaStyle,
-            ]}
-          >
-            <View
-              style={[
-                styles.inputRowInner,
-                isWideChatLayout ? styles.chatContentColumn : null,
-                // Ensure the content never hugs the screen edges (safe area + consistent gutter).
-                composerHorizontalInsetsStyle,
-              ]}
-            >
-              <Pressable
-                style={[
-                  styles.pickBtn,
-                  isDark ? styles.pickBtnDark : null,
-                  isUploading || inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
-                    ? (isDark ? styles.btnDisabledDark : styles.btnDisabled)
-                    : null,
-                ]}
-                onPress={handlePickMedia}
-                disabled={isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')}
-              >
-                <Text style={[styles.pickTxt, isDark ? styles.pickTxtDark : null]}>＋</Text>
-              </Pressable>
-              <TextInput
-                ref={(r) => {
-                  textInputRef.current = r;
-                }}
-                key={`chat-input-${inputEpoch}`}
-                style={[styles.input, isDark ? styles.inputDark : null]}
-                // Keep the composer baseline stable across devices (prevents occasional clipping).
-                allowFontScaling={false}
-                underlineColorAndroid="transparent"
-                placeholder={
-                  inlineEditTargetId
-                    ? 'Finish editing above…'
-                    : isGroup && groupMeta?.meStatus !== 'active'
-                      ? 'Read‑only (left group)'
-                    : pendingMedia.length
-                      ? 'Add a caption (optional)…'
-                      : 'Type a message'
-                }
-                placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                selectionColor={isDark ? '#ffffff' : '#111'}
-                cursorColor={isDark ? '#ffffff' : '#111'}
-                value={input}
-                onChangeText={onChangeInput}
-                editable={!inlineEditTargetId && !isUploading && !(isGroup && groupMeta?.meStatus !== 'active')}
-                onBlur={() => {
-                  if (isTypingRef.current) sendTyping(false);
-                }}
-                onSubmitEditing={sendMessage}
-                returnKeyType="send"
-              />
-              <Pressable
-                style={[
-                  styles.sendBtn,
-                  isDark ? styles.sendBtnDark : null,
-                  isUploading
-                    ? (isDark ? styles.sendBtnUploadingDark : styles.sendBtnUploading)
-                    : inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
-                      ? (isDark ? styles.btnDisabledDark : styles.btnDisabled)
-                      : null,
-                ]}
-                onPress={sendMessage}
-                disabled={isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')}
-              >
-                {isUploading ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                    <Text style={{ color: '#fff', fontWeight: '800' }}>Uploading</Text>
-                    <AnimatedDots color="#fff" size={18} />
-                  </View>
-                ) : (
-                  <Text style={[styles.sendTxt, isDark ? styles.sendTxtDark : null]}>Send</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-      <Modal visible={summaryOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Summary</Text>
-            {summaryLoading ? (
-              <View style={styles.summaryLoadingRow}>
-                <Text style={[styles.summaryLoadingText, isDark ? styles.summaryTextDark : null]}>
-                  Summarizing
-                </Text>
-                <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={18} />
-              </View>
-            ) : (
-              <ScrollView style={styles.summaryScroll}>
-                <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-                  {summaryText.length ? summaryText : 'No summary returned.'}
-                </Text>
-              </ScrollView>
-            )}
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => {
-                  setSummaryOpen(false);
-                  setSummaryText('');
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={aiConsentOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setAiConsentOpen(false);
-          setAiConsentAction(null);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              Privacy Notice
-            </Text>
-            <ScrollView style={styles.summaryScroll}>
-              <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-                This is an encrypted DM. Using AI Helper / Summarize will send message content (decrypted on-device) to a third-party AI provider to generate a response.
-              </Text>
-            </ScrollView>
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => {
-                  const action = aiConsentAction;
-                  setAiConsentOpen(false);
-                  setAiConsentAction(null);
-                  setDmAiConsentGranted(true);
-                  if (!action) return;
-                  if (action === 'summary') void summarize();
-                  else openAiHelper();
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Proceed
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => {
-                  setAiConsentOpen(false);
-                  setAiConsentAction(null);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={attachOpen} transparent animationType="fade" onRequestClose={() => setAttachOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAttachOpen(false)} />
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Attach</Text>
-            <Text style={[styles.summaryLoadingText, isDark ? styles.summaryTextDark : null]}>
-              Choose a source
-            </Text>
-
-            <View style={{ gap: 10, marginTop: 12 }}>
-              <Pressable
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, styles.attachOptionBtn]}
-                onPress={() => {
-                  setAttachOpen(false);
-                  setTimeout(() => void pickFromLibrary(), 0);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null, styles.attachOptionText]}>
-                  Photos / Videos
-                </Text>
-              </Pressable>
-
-              <Pressable
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, styles.attachOptionBtn]}
-                onPress={() => {
-                  setAttachOpen(false);
-                  setTimeout(() => void openCamera(), 0);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null, styles.attachOptionText]}>
-                  Camera
-                </Text>
-              </Pressable>
-
-              <Pressable
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, styles.attachOptionBtn]}
-                onPress={() => {
-                  setAttachOpen(false);
-                  setTimeout(() => void pickDocument(), 0);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null, styles.attachOptionText]}>
-                  File (GIF, etc.)
-                </Text>
-              </Pressable>
-            </View>
-
-            <View style={[styles.summaryButtons, { marginTop: 12 }]}>
-              <Pressable
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, styles.attachOptionBtn]}
-                onPress={() => setAttachOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null, styles.attachOptionText]}>
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <InAppCameraModal
-        visible={cameraOpen}
-        onClose={() => setCameraOpen(false)}
-        onAlert={showAlert}
-        onCaptured={(cap) => {
-          setCameraOpen(false);
-          handleInAppCameraCaptured(cap);
-        }}
-      />
-
-      <Modal visible={helperOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>AI Helper</Text>
-
-            {(helperThread.length || helperAnswer.length || helperSuggestions.length) ? (
-              <ScrollView
-                ref={helperScrollRef}
-                style={styles.summaryScroll}
-                onLayout={(e) => {
-                  helperScrollViewportHRef.current = e.nativeEvent.layout.height;
-                  setTimeout(() => autoScrollAiHelper(), 0);
-                }}
-                onContentSizeChange={(_w, h) => {
-                  helperScrollContentHRef.current = h;
-                  // RN-web can adjust content height after a programmatic scroll due to font/layout ticks.
-                  // If we just auto-scrolled, keep the intent alive briefly so we "follow" the newest AI output.
-                  const lastAt = helperLastAutoScrollAtRef.current || 0;
-                  const lastH = helperLastAutoScrollContentHRef.current || 0;
-                  if (!helperAutoScrollIntentRef.current && helperThread.length) {
-                    const ageMs = Date.now() - lastAt;
-                    if (ageMs >= 0 && ageMs < 700 && Math.abs(h - lastH) > 2) {
-                      helperAutoScrollRetryRef.current.attempts = 0;
-                      helperAutoScrollIntentRef.current = 'answer';
-                    }
-                  }
-                  setTimeout(() => autoScrollAiHelper(), 0);
-                }}
-              >
-                <View ref={helperScrollContentRef} collapsable={false}>
-                  {helperThread.length ? (
-                    <View style={styles.helperBlock}>
-                      <Text style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}>Conversation</Text>
-                      <View style={{ gap: 8 }}>
-                      {(() => {
-                        // IMPORTANT: we want to measure/scroll to the latest *assistant* bubble,
-                        // not necessarily the last thread element (which can be a user turn).
-                        let lastAssistantIdx = -1;
-                        for (let i = helperThread.length - 1; i >= 0; i--) {
-                          if (helperThread[i]?.role === 'assistant') {
-                            lastAssistantIdx = i;
-                            break;
-                          }
-                        }
-                        return helperThread.map((t, idx) => (
-                        <View
-                          key={`turn:${idx}`}
-                          collapsable={false}
-                          ref={(r) => {
-                            if (idx === lastAssistantIdx) helperLastTurnRef.current = r;
-                          }}
-                          onLayout={(e) => {
-                            if (idx !== lastAssistantIdx) return;
-                            helperLastTurnLayoutRef.current = {
-                              y: Number(e?.nativeEvent?.layout?.y ?? 0),
-                              h: Number(e?.nativeEvent?.layout?.height ?? 0),
-                              ok: true,
-                            };
-                            // Ensure we re-run scroll logic after the newest assistant bubble lays out.
-                            setTimeout(() => autoScrollAiHelper(), 0);
-                          }}
-                        >
-                          <View
-                            style={[
-                              styles.helperTurnBubble,
-                              t.role === 'user' ? styles.helperTurnBubbleUser : styles.helperTurnBubbleAssistant,
-                              isDark ? styles.helperTurnBubbleDark : null,
-                              isDark && t.role === 'user' ? styles.helperTurnBubbleUserDark : null,
-                              isDark && t.role === 'assistant' ? styles.helperTurnBubbleAssistantDark : null,
-                            ]}
-                          >
-                          <Text style={[styles.helperTurnLabel, isDark ? styles.summaryTextDark : null]}>
-                            {t.role === 'user' ? 'You' : 'AI'}
-                          </Text>
-                          {t.thinking ? (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>Thinking</Text>
-                              <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={18} />
-                            </View>
-                          ) : (
-                            <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>{t.text}</Text>
-                          )}
-                          </View>
-                        </View>
-                      ));
-                      })()}
-                      </View>
-                    </View>
-                  ) : null}
-
-                {/*
-                  If we're showing the full helper conversation, the latest assistant message is already included there.
-                  Avoid duplicating it as a separate "Answer" section.
-                */}
-                  {!helperThread.length && helperAnswer.length ? (
-                    <View style={styles.helperBlock}>
-                      <Text style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}>Answer</Text>
-                      <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>{helperAnswer}</Text>
-                    </View>
-                  ) : null}
-
-                  {helperSuggestions.length ? (
-                    <View style={styles.helperBlock}>
-                      <Text style={[styles.helperSectionTitle, isDark ? styles.summaryTitleDark : null]}>Reply options</Text>
-                      <View style={{ gap: 10 }}>
-                      {helperSuggestions.map((s, idx) => (
-                        <View
-                          key={`sugg:${idx}`}
-                          style={[styles.helperSuggestionBubble, isDark ? styles.helperSuggestionBubbleDark : null]}
-                        >
-                          <Text style={[styles.helperSuggestionText, isDark ? styles.summaryTextDark : null]}>
-                            {s}
-                          </Text>
-                          <View style={styles.helperSuggestionActions}>
-                            <Pressable
-                              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                              onPress={() => void copyToClipboard(s)}
-                            >
-                              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Copy</Text>
-                            </Pressable>
-                            <Pressable
-                              style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                              onPress={() => {
-                                setInput(s);
-                                setHelperOpen(false);
-                              }}
-                            >
-                              <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Use</Text>
-                            </Pressable>
-                          </View>
-                        </View>
-                      ))}
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
-              </ScrollView>
-            ) : null}
-
-            <TextInput
-              value={helperInstruction}
-              onChangeText={setHelperInstruction}
-              placeholder={
-                helperThread.length || helperAnswer.length || helperSuggestions.length
-                  ? 'Ask a follow-up…'
-                  : 'How do you want to respond to this message?'
-              }
-              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-              style={[
-                styles.helperInput,
-                isDark ? styles.helperInputDark : null,
-                helperThread.length || helperAnswer.length || helperSuggestions.length ? styles.helperInputFollowUp : null,
-              ]}
-              editable={!helperLoading}
-              multiline
-            />
-            <View style={styles.helperModeRow}>
-              <View style={[styles.helperModeSegment, isDark ? styles.helperModeSegmentDark : null]}>
-                <Pressable
-                  style={[
-                    styles.helperModeBtn,
-                    helperMode === 'ask' ? styles.helperModeBtnActive : null,
-                    helperMode === 'ask' && isDark ? styles.helperModeBtnActiveDark : null,
-                  ]}
-                  onPress={() => setHelperMode('ask')}
-                  disabled={helperLoading}
-                >
-                  <Text
-                    style={[
-                      styles.helperModeBtnText,
-                      isDark ? styles.helperModeBtnTextDark : null,
-                      helperMode === 'ask' ? styles.helperModeBtnTextActive : null,
-                      helperMode === 'ask' && isDark ? styles.helperModeBtnTextActiveDark : null,
-                    ]}
-                  >
-                    Ask
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.helperModeBtn,
-                    helperMode === 'reply' ? styles.helperModeBtnActive : null,
-                    helperMode === 'reply' && isDark ? styles.helperModeBtnActiveDark : null,
-                  ]}
-                  onPress={() => setHelperMode('reply')}
-                  disabled={helperLoading}
-                >
-                  <Text
-                    style={[
-                      styles.helperModeBtnText,
-                      isDark ? styles.helperModeBtnTextDark : null,
-                      helperMode === 'reply' ? styles.helperModeBtnTextActive : null,
-                      helperMode === 'reply' && isDark ? styles.helperModeBtnTextActiveDark : null,
-                    ]}
-                  >
-                    Draft replies
-                  </Text>
-                </Pressable>
-              </View>
-              <Text style={[styles.helperHint, isDark ? styles.helperHintDark : null]}>
-                {helperMode === 'reply'
-                  ? 'Draft short, sendable replies based on the chat'
-                  : 'Ask a question about the chat, or anything!'}
-              </Text>
-            </View>
-
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[
-                  styles.toolBtn,
-                  isDark ? styles.toolBtnDark : null,
-                  helperLoading ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
-                ]}
-                disabled={helperLoading}
-                onPress={submitAiHelper}
-              >
-                {helperLoading ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Thinking</Text>
-                    <AnimatedDots color={isDark ? '#d7d7e0' : '#555'} size={18} />
-                  </View>
-                ) : (
-                  <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                    {helperMode === 'reply' ? 'Draft replies' : 'Ask'}
-                  </Text>
-                )}
-              </Pressable>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                disabled={helperLoading}
-                onPress={resetAiHelperThread}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  New thread
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => {
-                  setHelperOpen(false);
-                  setHelperInstruction('');
-                  setHelperAnswer('');
-                  setHelperSuggestions([]);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={closeReportModal}>
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeReportModal} disabled={reportSubmitting} />
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              Report
-            </Text>
-            <View style={{ flexGrow: 1, flexShrink: 1, minHeight: 0 }}>
-              <ScrollView style={styles.summaryScroll} contentContainerStyle={{ paddingBottom: 8 }}>
-                <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-                  Reports are sent to the developer for review. Add an optional note to help us understand the issue.
-                </Text>
-
-                {reportNotice ? (
-                  <View
-                    style={[
-                      styles.reportNoticeBox,
-                      reportNotice.type === 'success' ? styles.reportNoticeBoxSuccess : styles.reportNoticeBoxError,
-                      isDark ? styles.reportNoticeBoxDark : null,
-                      reportNotice.type === 'success'
-                        ? isDark
-                          ? styles.reportNoticeBoxSuccessDark
-                          : null
-                        : isDark
-                          ? styles.reportNoticeBoxErrorDark
-                          : null,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.reportNoticeText,
-                        reportNotice.type === 'success' ? styles.reportNoticeTextSuccess : styles.reportNoticeTextError,
-                        isDark ? styles.reportNoticeTextDark : null,
-                        reportNotice.type === 'success'
-                          ? isDark
-                            ? styles.reportNoticeTextSuccessDark
-                            : null
-                          : isDark
-                            ? styles.reportNoticeTextErrorDark
-                            : null,
-                      ]}
-                    >
-                      {reportNotice.message}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <View style={styles.reportTargetSwitchWrap}>
-                  <Text style={[styles.reportTargetToggleLabel, isDark ? styles.reportTargetToggleLabelDark : null]}>
-                    Message
-                  </Text>
-                  {Platform.OS === 'web' ? (
-                    <MiniToggle
-                      value={reportKind === 'user'}
-                      disabled={reportSubmitting}
-                      isDark={isDark}
-                      onValueChange={(next) => {
-                        if (next) {
-                          // Switch to reporting the user (hydrate from the message if needed)
-                          if (reportTargetUserSub) {
-                            setReportKind('user');
-                            return;
-                          }
-                          const sub = reportTargetMessage?.userSub ? String(reportTargetMessage.userSub) : '';
-                          if (sub) {
-                            setReportTargetUserSub(sub);
-                            setReportTargetUserLabel(String(reportTargetMessage?.user || '').trim());
-                            setReportKind('user');
-                            return;
-                          }
-                          setReportNotice({ type: 'error', message: 'Cannot report user: no user was found for this report.' });
-                          setReportKind('message');
-                          return;
-                        }
-
-                        // Switch back to reporting the message (if we have one)
-                        if (reportTargetMessage) setReportKind('message');
-                      }}
-                    />
-                  ) : (
-                    <Switch
-                      value={reportKind === 'user'}
-                      disabled={reportSubmitting}
-                      onValueChange={(next) => {
-                      if (next) {
-                        // Switch to reporting the user (hydrate from the message if needed)
-                        if (reportTargetUserSub) {
-                          setReportKind('user');
-                          return;
-                        }
-                        const sub = reportTargetMessage?.userSub ? String(reportTargetMessage.userSub) : '';
-                        if (sub) {
-                          setReportTargetUserSub(sub);
-                          setReportTargetUserLabel(String(reportTargetMessage?.user || '').trim());
-                          setReportKind('user');
-                          return;
-                        }
-                        setReportNotice({ type: 'error', message: 'Cannot report user: no user was found for this report.' });
-                        setReportKind('message');
-                        return;
-                      }
-
-                      // Switch back to reporting the message (if we have one)
-                      if (reportTargetMessage) setReportKind('message');
-                      }}
-                      trackColor={{ false: '#d1d1d6', true: '#d1d1d6' }}
-                      thumbColor={isDark ? '#2a2a33' : '#ffffff'}
-                    />
-                  )}
-                  <Text style={[styles.reportTargetToggleLabel, isDark ? styles.reportTargetToggleLabelDark : null]}>
-                    User
-                  </Text>
-                </View>
-
-                <View style={styles.reportCategoryWrap}>
-                  {[
-                    { key: 'spam', label: 'Spam' },
-                    { key: 'harassment', label: 'Harassment' },
-                    { key: 'hate', label: 'Hate' },
-                    { key: 'impersonation', label: 'Impersonation' },
-                    { key: 'illegal', label: 'Illegal' },
-                    { key: 'other', label: 'Other' },
-                  ].map((c) => {
-                    const active = reportCategory === c.key;
-                    return (
-                      <Pressable
-                        key={c.key}
-                        disabled={reportSubmitting}
-                        onPress={() => setReportCategory(c.key)}
-                        style={({ pressed }) => [
-                          styles.reportChip,
-                          isDark ? styles.reportChipDark : null,
-                          active ? styles.reportChipActive : null,
-                          active && isDark ? styles.reportChipActiveDark : null,
-                          pressed ? { opacity: 0.9 } : null,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.reportChipText,
-                            isDark ? styles.reportChipTextDark : null,
-                            active ? (isDark ? styles.reportChipTextActiveDark : styles.reportChipTextActive) : null,
-                          ]}
-                        >
-                          {c.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {reportKind === 'message' ? (
-                  <View style={[styles.reportPreviewBox, isDark ? styles.reportPreviewBoxDark : null]}>
-                    <Text style={[styles.reportPreviewLabel, isDark ? styles.reportPreviewLabelDark : null]}>
-                      Message Preview
-                    </Text>
-                    {(() => {
-                      const t = reportTargetMessage;
-                      if (!t) {
-                        return <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>(no message selected)</Text>;
-                      }
-                      if (t.deletedAt) {
-                        return <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>(deleted)</Text>;
-                      }
-
-                      const rawText =
-                        (typeof t.decryptedText === 'string' && t.decryptedText.trim())
-                          ? t.decryptedText.trim()
-                          : (typeof t.text === 'string' && t.text.trim())
-                            ? t.text.trim()
-                            : '';
-
-                      // Global/channel media messages often store a JSON chat envelope in `text`.
-                      // If we render that raw string, the report preview becomes unreadable.
-                      const env = !t.encrypted && !t.groupEncrypted ? parseChatEnvelope(rawText) : null;
-                      const envMediaList = env ? normalizeChatMediaList(env.media) : [];
-                      const fallbackList = Array.isArray(t.mediaList) && t.mediaList.length ? t.mediaList : t.media ? [t.media] : [];
-                      const previewMediaList = (envMediaList.length ? envMediaList : fallbackList) as any[];
-                      const media = (previewMediaList.length ? previewMediaList[0] : null) as any;
-                      const mediaCount = previewMediaList.length;
-                      const mediaFileNames = (() => {
-                        const names = previewMediaList
-                          .map((m) => (m && typeof (m as any).fileName === 'string' ? String((m as any).fileName).trim() : ''))
-                          .filter(Boolean);
-                        // Keep order, de-dupe.
-                        const seen = new Set<string>();
-                        const uniq: string[] = [];
-                        for (const n of names) {
-                          if (seen.has(n)) continue;
-                          seen.add(n);
-                          uniq.push(n);
-                        }
-                        return uniq;
-                      })();
-                      const mediaFileNamesLines = (() => {
-                        if (!mediaFileNames.length) return '';
-                        const max = 4;
-                        const shown = mediaFileNames.slice(0, max);
-                        const extra = mediaFileNames.length - shown.length;
-                        return shown.join('\n') + (extra > 0 ? `\n+${extra} more` : '');
-                      })();
-
-                      const mediaLabel = (() => {
-                        const k = String(media?.kind || '').toLowerCase();
-                        if (k === 'image') return 'Photo';
-                        if (k === 'video') return 'Video';
-                        const ct = String(media?.contentType || '');
-                        if (ct.startsWith('image/')) return 'Photo';
-                        if (ct.startsWith('video/')) return 'Video';
-                        return 'Attachment';
-                      })();
-                      const mediaMetaLabel = mediaCount > 1 ? `${mediaLabel} · ${mediaCount} attachments` : mediaCount === 1 ? mediaLabel : '';
-
-                      const text = (() => {
-                        const msgText = env?.text && typeof env.text === 'string' ? env.text.trim() : '';
-                        if (msgText) return msgText;
-                        // Fall back to the raw text ONLY if it doesn't look like a chat envelope.
-                        if (rawText.startsWith('{') && rawText.includes('"type"') && rawText.includes('"chat"')) return '';
-                        return rawText;
-                      })();
-
-                      const thumbPath = media?.thumbPath || media?.path || '';
-                      const isEnc = typeof thumbPath === 'string' && thumbPath.includes('.enc');
-                      const thumbUrl = !isEnc && thumbPath ? toCdnUrl(thumbPath) : '';
-
-                      if (thumbUrl) {
-                        return (
-                          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                            <Image
-                              source={{ uri: thumbUrl }}
-                              style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: isDark ? '#1c1c22' : '#e9e9ee' }}
-                              resizeMode="cover"
-                            />
-                            <View style={{ flex: 1, minWidth: 0 }}>
-                              {mediaMetaLabel ? (
-                                <Text
-                                  style={[
-                                    styles.reportPreviewText,
-                                    isDark ? styles.reportPreviewTextDark : null,
-                                    { opacity: 0.75, marginBottom: 2 },
-                                  ]}
-                                  numberOfLines={1}
-                                >
-                                  {mediaMetaLabel}
-                                </Text>
-                              ) : null}
-                              {text ? (
-                                <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]} numberOfLines={3}>
-                                  {text.slice(0, 200)}
-                                </Text>
-                              ) : null}
-                              {mediaFileNames.length ? (
-                                <Text
-                                  style={[
-                                    styles.reportPreviewText,
-                                    isDark ? styles.reportPreviewTextDark : null,
-                                    { opacity: 0.75, marginTop: 4 },
-                                  ]}
-                                  numberOfLines={4}
-                                >
-                                  {mediaFileNamesLines}
-                                </Text>
-                              ) : null}
-                            </View>
-                          </View>
-                        );
-                      }
-
-                      if (media?.path) {
-                        const line1 = `${mediaMetaLabel || ''}${text ? `${mediaMetaLabel ? ': ' : ''}${text.slice(0, 200)}` : ''}${isEnc ? ' (encrypted attachment)' : ''}`.trim();
-                        return (
-                          <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
-                            {line1 || (isEnc ? '(encrypted attachment)' : '')}
-                            {mediaFileNamesLines ? `\n${mediaFileNamesLines}` : ''}
-                          </Text>
-                        );
-                      }
-
-                      return (
-                        <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
-                          {text ? text.slice(0, 200) : '(no text)'}
-                        </Text>
-                      );
-                    })()}
-                  </View>
-                ) : (
-                  <View style={[styles.reportPreviewBox, isDark ? styles.reportPreviewBoxDark : null]}>
-                    <Text style={[styles.reportPreviewLabel, isDark ? styles.reportPreviewLabelDark : null]}>
-                      Reporting User
-                    </Text>
-                    <Text style={[styles.reportPreviewText, isDark ? styles.reportPreviewTextDark : null]}>
-                      {(() => {
-                        const label = String(reportTargetUserLabel || '').trim();
-                        if (label) return label.slice(0, 120);
-                        const sub = String(reportTargetUserSub || '').trim();
-                        return sub ? `User ID: ${sub}` : '(unknown user)';
-                      })()}
-                    </Text>
-                  </View>
-                )}
-
-                <TextInput
-                  value={reportDetails}
-                  onChangeText={(t) => setReportDetails(t)}
-                  placeholder="Optional note (e.g. harassment, spam, impersonation)…"
-                  placeholderTextColor={isDark ? '#8f8fa3' : '#8a8a96'}
-                  multiline
-                  style={[styles.reportInput, isDark ? styles.reportInputDark : null]}
-                  editable={!reportSubmitting}
-                  maxLength={900}
-                />
-              </ScrollView>
-            </View>
-
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[
-                  styles.reportBtnDanger,
-                  isDark ? styles.reportBtnDangerDark : null,
-                  reportSubmitting ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
-                ]}
-                disabled={reportSubmitting}
-                onPress={submitReport}
-              >
-                <Text style={[styles.reportBtnDangerText]}>
-                  {reportSubmitting ? 'Reporting…' : 'Report'}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                disabled={reportSubmitting}
-                onPress={closeReportModal}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={messageActionOpen} transparent animationType="fade">
-        <View style={styles.actionMenuOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeMessageActions} />
-          <Animated.View
-            style={[
-              styles.actionMenuCard,
-              isDark ? styles.actionMenuCardDark : null,
-              (() => {
-                const vv =
-                  Platform.OS === 'web' && typeof window !== 'undefined'
-                    ? (window as any).visualViewport
-                    : null;
-                // On web, prefer the *visual viewport* (handles mobile browser toolbars/URL bar correctly).
-                const w = (vv && typeof vv.width === 'number' ? vv.width : null) ?? Dimensions.get('window').width;
-                const h = (vv && typeof vv.height === 'number' ? vv.height : null) ?? Dimensions.get('window').height;
-                const cardW = Math.min(w - 36, 360);
-                const left = Math.max(18, (w - cardW) / 2);
-                const anchorY = messageActionAnchor?.y ?? h / 2;
-                const safeTop = Math.max(12, 12 + (insets.top || 0));
-                // Web often reports 0 bottom insets; keep a comfortable bottom margin anyway.
-                const safeBottom = Math.max(12, 12 + (insets.bottom || 0) + (Platform.OS === 'web' ? 16 : 0));
-                // Reposition-only (no scrolling): clamp the card so it stays fully visible.
-                // Use a best-effort measured height when available, otherwise fall back to a conservative estimate.
-                const cardH = Math.max(220, Math.floor(actionMenuMeasuredH || actionMenuMeasuredHRef.current || 360));
-                const desiredTop = anchorY - 160;
-                const minTop = safeTop;
-                const maxTop = Math.max(minTop, Math.floor(h - safeBottom - cardH));
-                const top = Math.max(minTop, Math.min(maxTop, desiredTop));
-                const maxH = Math.max(220, Math.floor(h - safeTop - safeBottom));
-                return { position: 'absolute', width: cardW, left, top, maxHeight: maxH };
-              })(),
-              {
-                opacity: actionMenuAnim,
-                transform: [
-                  {
-                    scale: actionMenuAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.98, 1],
-                    }),
-                  },
-                  {
-                    translateY: actionMenuAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [
-                        (messageActionAnchor?.y ?? 0) > Dimensions.get('window').height / 2 ? 10 : -10,
-                        0,
-                      ],
-                    }),
-                  },
-                ],
-              },
-            ]}
-            onLayout={(e) => {
-              try {
-                const h = Number(e?.nativeEvent?.layout?.height ?? 0);
-                if (Number.isFinite(h) && h > 0) {
-                  actionMenuMeasuredHRef.current = h;
-                  setActionMenuMeasuredH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
-                }
-              } catch {
-                // ignore
-              }
-            }}
-          >
-            {/* Message preview (Signal-style) */}
-            {messageActionTarget ? (
-              <View style={[styles.actionMenuPreviewRow, isDark ? styles.actionMenuPreviewRowDark : null]}>
-                {(() => {
-                  const t = messageActionTarget;
-                  if (!t) return null;
-                  const isOutgoingByUserSub =
-                    !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
-                  const isEncryptedOutgoing =
-                    !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
-                  const isPlainOutgoing =
-                    !t.encrypted &&
-                    (isOutgoingByUserSub ? true : normalizeUser(t.userLower ?? t.user ?? 'anon') === normalizeUser(displayName));
-                  const isOutgoing = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
-                  const bubbleStyle = isOutgoing ? styles.messageBubbleOutgoing : styles.messageBubbleIncoming;
-                  const textStyle = isOutgoing ? styles.messageTextOutgoing : styles.messageTextIncoming;
-                  if (t.deletedAt) {
-                    return (
-                      <View style={[styles.messageBubble, bubbleStyle]}>
-                        <Text style={[styles.messageText, textStyle]}>This message has been deleted</Text>
-                      </View>
-                    );
-                  }
-
-                  let caption = '';
-                  let thumbUri: string | null = null;
-                  let kind: 'image' | 'video' | 'file' | null = null;
-                  let hasMedia = false;
-                  let mediaCount = 0;
-
-                  if (t.encrypted || t.groupEncrypted) {
-                    if (!t.decryptedText) {
-                      return (
-                        <View style={[styles.messageBubble, bubbleStyle]}>
-                          <Text style={[styles.messageText, textStyle]}>{ENCRYPTED_PLACEHOLDER}</Text>
-                        </View>
-                      );
-                    }
-                    const plain = String(t.decryptedText || '');
-                    const dmEnv = parseDmMediaEnvelope(plain);
-                    const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
-                    const gEnv = parseGroupMediaEnvelope(plain);
-                    const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
-                    if (dmItems.length || gItems.length) {
-                      hasMedia = true;
-                      mediaCount = dmItems.length || gItems.length || 0;
-                      caption = String((dmEnv?.caption ?? gEnv?.caption) || '');
-                      const first = (dmItems[0]?.media ?? gItems[0]?.media) as any;
-                      kind = (first.kind as any) || 'file';
-                      // Reuse decrypted thumb cache so message options show actual previews.
-                      // (Best-effort: if thumb isn't decrypted yet, we fall back to the placeholder label.)
-                      if (first && first.thumbPath && dmThumbUriByPath[String(first.thumbPath)]) {
-                        thumbUri = dmThumbUriByPath[String(first.thumbPath)];
-                      } else {
-                        thumbUri = null;
-                      }
-                    } else {
-                      caption = plain;
-                    }
-                  } else {
-                    const raw = String(t.rawText ?? t.text ?? '');
-                    const env = !isDm ? parseChatEnvelope(raw) : null;
-                    const envList = env ? normalizeChatMediaList(env.media) : [];
-                    if (envList.length) {
-                      hasMedia = true;
-                      mediaCount = envList.length || 0;
-                      caption = String(env?.text || '');
-                      const first = envList[0];
-                      kind = (first.kind as any) || 'file';
-                      const key = String(first.thumbPath || first.path);
-                      thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
-                    } else {
-                      caption = raw;
-                    }
-                  }
-
-                  if (!hasMedia) {
-                    return (
-                      <View style={[styles.messageBubble, bubbleStyle]}>
-                        <Text style={[styles.messageText, textStyle]}>{caption}</Text>
-                      </View>
-                    );
-                  }
-
-                  const label = kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'Attachment';
-                  const multiLabel =
-                    mediaCount > 1 ? `${label} · ${mediaCount} attachments` : label;
-                  return (
-                    <View style={styles.actionMenuMediaPreview}>
-                      <View style={styles.actionMenuMediaThumbWrap}>
-                        {thumbUri ? (
-                          <Image source={{ uri: thumbUri }} style={styles.actionMenuMediaThumb} resizeMode="cover" />
-                        ) : (
-                          <View style={styles.actionMenuMediaThumbPlaceholder}>
-                            <Text style={styles.actionMenuMediaThumbPlaceholderText}>{label}</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={[styles.actionMenuMediaMeta, isDark ? styles.actionMenuMediaMetaDark : null]}>
-                        {multiLabel}
-                      </Text>
-                      {caption.trim().length ? (
-                        <Text style={[styles.actionMenuMediaCaption, isDark ? styles.actionMenuMediaCaptionDark : null]}>
-                          {caption.trim()}
-                        </Text>
-                      ) : null}
-                    </View>
-                  );
-                })()}
-              </View>
-            ) : null}
-
-            <ScrollView
-              style={styles.actionMenuOptionsScroll}
-              contentContainerStyle={styles.actionMenuOptionsContent}
-              showsVerticalScrollIndicator
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Reactions */}
-              {messageActionTarget &&
-              !messageActionTarget.deletedAt &&
-              (!messageActionTarget.encrypted || !!messageActionTarget.decryptedText) ? (
-                <View style={styles.reactionQuickRow}>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.reactionQuickScrollContent}
-                  >
-                    {QUICK_REACTIONS.map((emoji) => {
-                      const mine = myUserId
-                        ? (messageActionTarget.reactions?.[emoji]?.userSubs || []).includes(myUserId)
-                        : false;
-                      return (
-                        <Pressable
-                          key={`quick:${emoji}`}
-                          onPress={() => {
-                            sendReaction(messageActionTarget, emoji);
-                            closeMessageActions();
-                          }}
-                          style={({ pressed }) => [
-                            styles.reactionQuickBtn,
-                            isDark ? styles.reactionQuickBtnDark : null,
-                            mine ? (isDark ? styles.reactionQuickBtnMineDark : styles.reactionQuickBtnMine) : null,
-                            pressed ? { opacity: 0.85 } : null,
-                          ]}
-                          accessibilityRole="button"
-                          accessibilityLabel={`React ${emoji}`}
-                        >
-                          <Text style={styles.reactionQuickEmoji}>{emoji}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-
-                  <Pressable
-                    onPress={() => {
-                      openReactionPicker(messageActionTarget);
-                      closeMessageActions();
-                    }}
-                    style={({ pressed }) => [
-                      styles.reactionQuickMore,
-                      isDark ? styles.reactionQuickMoreDark : null,
-                      pressed ? { opacity: 0.85 } : null,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="More reactions"
-                  >
-                    <Text style={[styles.reactionQuickMoreText, isDark ? styles.reactionQuickMoreTextDark : null]}>
-                      …
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : null}
-
-              {messageActionTarget?.encrypted || messageActionTarget?.groupEncrypted ? (
-                <Pressable
-                  onPress={() => {
-                    setCipherText(String(messageActionTarget?.rawText ?? messageActionTarget?.text ?? ''));
-                    setCipherOpen(true);
-                    closeMessageActions();
-                  }}
-                  style={({ pressed }) => [
-                    styles.actionMenuRow,
-                    pressed ? styles.actionMenuRowPressed : null,
-                  ]}
-                >
-                  <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
-                    View Ciphertext
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              {messageActionTarget && !messageActionTarget.deletedAt ? (
-                <Pressable
-                  onPress={() => beginReply(messageActionTarget)}
-                  style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-                >
-                  <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Reply</Text>
-                </Pressable>
-              ) : null}
-
-              {(() => {
-                const t = messageActionTarget;
-                if (!t) return null;
-                const isOutgoingByUserSub =
-                  !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
-                const isEncryptedOutgoing =
-                  !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
-                const isPlainOutgoing =
-                  !t.encrypted &&
-                  (isOutgoingByUserSub ? true : normalizeUser(t.userLower ?? t.user ?? 'anon') === normalizeUser(displayName));
-                const canEdit = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
-                if (!canEdit) return null;
-                const hasMedia = (() => {
-                  if (t.deletedAt) return false;
-                  if (t.encrypted) {
-                    if (!t.decryptedText) return false;
-                    const dmEnv = parseDmMediaEnvelope(String(t.decryptedText));
-                    return !!(dmEnv && normalizeDmMediaItems(dmEnv).length);
-                  }
-                  if (isDm) return false;
-                  const env = parseChatEnvelope(String(t.rawText ?? t.text ?? ''));
-                  return !!(env && normalizeChatMediaList(env.media).length);
-                })();
-                return (
-                  <>
-                    {!hasMedia ? (
-                      <Pressable
-                        onPress={() => {
-                          setInlineEditAttachmentMode('replace');
-                          beginInlineEdit(t);
-                          handlePickMedia();
-                        }}
-                        style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-                      >
-                        <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
-                          Add attachment
-                        </Text>
-                      </Pressable>
-                    ) : null}
-
-                    {hasMedia ? (
-                      <Pressable
-                        onPress={() => {
-                          setInlineEditAttachmentMode('replace');
-                          beginInlineEdit(t);
-                          handlePickMedia();
-                        }}
-                        style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-                      >
-                        <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
-                          Replace attachment
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                    {hasMedia ? (
-                      <Pressable
-                        onPress={() => {
-                          setInlineEditAttachmentMode('remove');
-                          setPendingMedia([]);
-                          pendingMediaRef.current = [];
-                          beginInlineEdit(t);
-                        }}
-                        style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-                      >
-                        <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
-                          Remove attachment
-                        </Text>
-                      </Pressable>
-                    ) : null}
-
-                    <Pressable
-                      onPress={() => {
-                        setInlineEditAttachmentMode('keep');
-                        beginInlineEdit(t);
-                      }}
-                      style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-                    >
-                      <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Edit</Text>
-                    </Pressable>
-                  </>
-                );
-              })()}
-
-              {(() => {
-                const t = messageActionTarget;
-                const sub = t?.userSub ? String(t.userSub) : '';
-                const label = t?.user ? String(t.user) : '';
-                const isMe = !!myUserId && !!sub && String(sub) === String(myUserId);
-                const alreadyBlocked = !!sub && blockedSubsSet.has(sub);
-                if (!t || !sub || isMe || alreadyBlocked || typeof onBlockUserSub !== 'function') return null;
-                return (
-                  <Pressable
-                    onPress={async () => {
-                      closeMessageActions();
-                      try {
-                        const ok =
-                          typeof promptConfirm === 'function'
-                            ? await promptConfirm(
-                                'Block user?',
-                                `Block ${label ? `"${label}"` : 'this user'}?\n\nYou won’t see their messages, and they won’t be able to DM you.\n\nYou can unblock them later from your Blocklist.`,
-                                { confirmText: 'Block', cancelText: 'Cancel', destructive: true }
-                              )
-                            : await new Promise<boolean>((resolve) => {
-                                Alert.alert(
-                                  'Block user?',
-                                  `Block ${label ? `"${label}"` : 'this user'}?\n\nYou can unblock them later from your Blocklist.`,
-                                  [
-                                    { text: 'Block', style: 'destructive', onPress: () => resolve(true) },
-                                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                                  ],
-                                  { cancelable: true }
-                                );
-                              });
-                        if (!ok) return;
-                        await Promise.resolve(onBlockUserSub(sub, label));
-                        showAlert('Blocked', 'User blocked. Their messages will be hidden.');
-                      } catch (e: any) {
-                        showAlert('Block failed', e?.message ?? 'Failed to block user');
-                      }
-                    }}
-                    style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-                  >
-                    <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Block user</Text>
-                  </Pressable>
-                );
-              })()}
-
-              <Pressable
-                onPress={() => {
-                  if (!messageActionTarget) return;
-                  void deleteForMe(messageActionTarget);
-                  closeMessageActions();
-                }}
-                style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-              >
-                <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
-                  Delete for me
-                </Text>
-              </Pressable>
-
-              {(() => {
-                const t = messageActionTarget;
-                if (!t) return null;
-                const isOutgoingByUserSub =
-                  !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
-                const isEncryptedOutgoing =
-                  !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
-                const isPlainOutgoing =
-                  !t.encrypted &&
-                  (isOutgoingByUserSub ? true : normalizeUser(t.userLower ?? t.user ?? 'anon') === normalizeUser(displayName));
-                const canDeleteForEveryone = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
-                if (!canDeleteForEveryone) return null;
-                return (
-                  <Pressable
-                    onPress={() => {
-                      void sendDelete();
-                      closeMessageActions();
-                    }}
-                    style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-                  >
-                    <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
-                      Delete for everyone
-                    </Text>
-                  </Pressable>
-                );
-              })()}
-
-              <Pressable
-                onPress={() => {
-                  if (!messageActionTarget) return;
-                  openReportModalForMessage(messageActionTarget);
-                  closeMessageActions();
-                }}
-                style={({ pressed }) => [styles.actionMenuRow, pressed ? styles.actionMenuRowPressed : null]}
-              >
-                <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>Report…</Text>
-              </Pressable>
-            </ScrollView>
-          </Animated.View>
-        </View>
-      </Modal>
-
-      <Modal visible={reactionPickerOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={closeReactionPicker} />
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              React
-            </Text>
-            <ScrollView style={styles.summaryScroll} contentContainerStyle={styles.reactionPickerGrid}>
-              {MORE_REACTIONS.map((emoji) => {
-                const target = reactionPickerTarget;
-                const mine = target && myUserId
-                  ? (target.reactions?.[emoji]?.userSubs || []).includes(myUserId)
-                  : false;
-                return (
-                  <Pressable
-                    key={`more:${emoji}`}
-                    onPress={() => {
-                      if (reactionPickerTarget) sendReaction(reactionPickerTarget, emoji);
-                      closeReactionPicker();
-                    }}
-                    style={({ pressed }) => [
-                      styles.reactionPickerBtn,
-                      isDark ? styles.reactionPickerBtnDark : null,
-                      mine ? (isDark ? styles.reactionPickerBtnMineDark : styles.reactionPickerBtnMine) : null,
-                      pressed ? { opacity: 0.85 } : null,
-                    ]}
-                  >
-                    <Text style={styles.reactionPickerEmoji}>{emoji}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={closeReactionPicker}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={cipherOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              Encrypted payload
-            </Text>
-            <ScrollView style={styles.summaryScroll}>
-              <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-                {cipherText || '(empty)'}
-              </Text>
-            </ScrollView>
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => setCipherOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={reactionInfoOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              Reactions {reactionInfoEmoji ? `· ${reactionInfoEmoji}` : ''}
-            </Text>
-            <ScrollView style={styles.summaryScroll}>
-              {reactionInfoSubsSorted.length ? (
-                reactionInfoSubsSorted.map((sub) => {
-                  const isMe = !!myUserId && sub === myUserId;
-                  const label = isMe
-                    ? 'You'
-                    : nameBySub[sub] || `${String(sub).slice(0, 6)}…${String(sub).slice(-4)}`;
-                  return (
-                    <Pressable
-                      key={sub}
-                      onPress={() => {
-                        // Signal-like: allow removing your reaction from the reaction list view.
-                        if (!isMe) return;
-                        if (!reactionInfoTarget || !reactionInfoEmoji) return;
-                        sendReaction(reactionInfoTarget, reactionInfoEmoji);
-                        setReactionInfoOpen(false);
-                        setReactionInfoTarget(null);
-                      }}
-                      disabled={!isMe}
-                      style={({ pressed }) => [pressed && isMe ? { opacity: 0.7 } : null]}
-                      accessibilityRole={isMe ? 'button' : undefined}
-                      accessibilityLabel={isMe ? 'Remove reaction' : undefined}
-                    >
-                      <View style={styles.reactionInfoRow}>
-                        <Text
-                          style={[
-                            styles.summaryText,
-                            isDark ? styles.summaryTextDark : null,
-                            isMe ? { fontWeight: '800' } : null,
-                          ]}
-                        >
-                          {label}
-                        </Text>
-                        {isMe ? (
-                          <Text
-                            style={[
-                              styles.summaryText,
-                              isDark ? styles.summaryTextDark : null,
-                              styles.reactionInfoRemoveHint,
-                            ]}
-                          >
-                            Tap to remove
-                          </Text>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  );
-                })
-              ) : (
-                <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-                  No reactions.
-                </Text>
-              )}
-            </ScrollView>
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => {
-                  setReactionInfoOpen(false);
-                  setReactionInfoTarget(null);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Close
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={infoOpen} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>{infoTitle}</Text>
-            <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>{infoBody}</Text>
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => setInfoOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>OK</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-
-      <Modal
-        visible={ttlPickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          // Discard changes unless explicitly confirmed.
-          setTtlIdxDraft(ttlIdx);
-          setTtlPickerOpen(false);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => {
-              // Discard changes unless explicitly confirmed.
-              setTtlIdxDraft(ttlIdx);
-              setTtlPickerOpen(false);
-            }}
-          />
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              Self-Destructing Messages
-            </Text>
-            <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-              Messages will disappear after the selected time from when they are sent
-            </Text>
-            <View style={{ height: 12 }} />
-            <View style={{ flexGrow: 1, flexShrink: 1, minHeight: 0 }}>
-              <ScrollView
-                style={{ flexGrow: 1 }}
-                contentContainerStyle={{ paddingBottom: 4 }}
-                showsVerticalScrollIndicator
-              >
-                {TTL_OPTIONS.map((opt, idx) => {
-                  const selected = idx === ttlIdxDraft;
-                  return (
-                    <Pressable
-                      key={opt.label}
-                      style={[
-                        styles.ttlOptionRow,
-                        isDark ? styles.ttlOptionRowDark : null,
-                        selected
-                          ? (isDark ? styles.ttlOptionRowSelectedDark : styles.ttlOptionRowSelected)
-                          : null,
-                      ]}
-                      onPress={() => {
-                        setTtlIdxDraft(idx);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.ttlOptionLabel,
-                          isDark ? styles.ttlOptionLabelDark : null,
-                          selected && !isDark ? styles.ttlOptionLabelSelected : null,
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.ttlOptionRadio,
-                          isDark ? styles.ttlOptionLabelDark : null,
-                          selected && !isDark ? styles.ttlOptionRadioSelected : null,
-                        ]}
-                      >
-                        {selected ? '◉' : '○'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => {
-                  // Commit selection only on explicit confirmation.
-                  setTtlIdx(ttlIdxDraft);
-                  setTtlPickerOpen(false);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Done
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={groupNameEditOpen} transparent animationType="fade" onRequestClose={() => setGroupNameEditOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Group Name</Text>
-            <TextInput
-              value={groupNameDraft}
-              onChangeText={setGroupNameDraft}
-              placeholder="Group Name"
-              maxLength={20}
-              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-              selectionColor={isDark ? '#ffffff' : '#111'}
-              cursorColor={isDark ? '#ffffff' : '#111'}
-              // Use a fully explicit style here (avoid theme/style collisions in Android modals).
-              style={{
-                width: '100%',
-                height: 48,
-                paddingHorizontal: 12,
-                borderWidth: 1,
-                borderRadius: 10,
-                marginTop: 10,
-                backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
-                borderColor: isDark ? '#3a3a46' : '#e3e3e3',
-                color: isDark ? '#ffffff' : '#111',
-                fontSize: 16,
-              }}
-              // Keep focusable even while requests are running; only the Save button is disabled.
-              editable
-              autoFocus
-            />
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[
-                  styles.toolBtn,
-                  isDark ? styles.toolBtnDark : null,
-                  groupActionBusy ? { opacity: 0.6 } : null,
-                  // Push Save/Cancel to the right.
-                  { marginRight: 'auto' },
-                ]}
-                disabled={groupActionBusy}
-                onPress={async () => {
-                  setGroupNameDraft('');
-                  await groupUpdate('setName', { name: '' });
-                  // Update local header + Chats list immediately (without waiting for a refetch).
-                  setGroupMeta((prev) => (prev ? { ...prev, groupName: undefined } : prev));
-                  try {
-                    if (activeConversationId && onConversationTitleChanged) {
-                      onConversationTitleChanged(activeConversationId, computeDefaultGroupTitleForMe());
-                    }
-                  } catch {
-                    // ignore
-                  }
-                  // Broadcast a generic "group updated" system event so other members refresh titles promptly.
-                  try {
-                    const ws = wsRef.current;
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                      ws.send(
-                        JSON.stringify({
-                          action: 'system',
-                          conversationId: activeConversationId,
-                          systemKind: 'update',
-                          updateField: 'groupName',
-                          groupName: '',
-                          createdAt: Date.now(),
-                        })
-                      );
-                    }
-                  } catch {
-                    // ignore
-                  }
-                  setGroupNameEditOpen(false);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Default
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, groupActionBusy ? { opacity: 0.6 } : null]}
-                disabled={groupActionBusy}
-                onPress={async () => {
-                  const name = groupNameDraft.trim();
-                  await groupUpdate('setName', { name });
-                  // Update local header + Chats list immediately (without waiting for a refetch).
-                  setGroupMeta((prev) => (prev ? { ...prev, groupName: name ? name : undefined } : prev));
-                  try {
-                    if (activeConversationId && onConversationTitleChanged) {
-                      onConversationTitleChanged(activeConversationId, name ? name : computeDefaultGroupTitleForMe());
-                    }
-                  } catch {
-                    // ignore
-                  }
-                  // Broadcast a generic "group updated" system event so other members refresh titles promptly.
-                  try {
-                    const ws = wsRef.current;
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                      ws.send(
-                        JSON.stringify({
-                          action: 'system',
-                          conversationId: activeConversationId,
-                          systemKind: 'update',
-                          updateField: 'groupName',
-                          groupName: name,
-                          createdAt: Date.now(),
-                        })
-                      );
-                    }
-                  } catch {
-                    // ignore
-                  }
-                  setGroupNameEditOpen(false);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Save
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => setGroupNameEditOpen(false)}
-                disabled={groupActionBusy}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                  Cancel
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={groupMembersOpen} transparent animationType="fade" onRequestClose={() => setGroupMembersOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Members</Text>
-
-            {groupMeta?.meIsAdmin ? (
-              <View style={{ marginTop: 10 }}>
-                <TextInput
-                  ref={(r) => {
-                    groupAddMembersInputRef.current = r;
-                  }}
-                  value={groupAddMembersDraft}
-                  onChangeText={setGroupAddMembersDraft}
-                  placeholder="Add usernames (comma/space separated)"
-                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                  selectionColor={isDark ? '#ffffff' : '#111'}
-                  cursorColor={isDark ? '#ffffff' : '#111'}
-                  // Use a fully explicit style here (avoid theme/style collisions in Android modals).
-                  style={{
-                    width: '100%',
-                    height: 48,
-                    paddingHorizontal: 12,
-                    borderWidth: 1,
-                    borderRadius: 10,
-                    // Off-color (so it stands out from the modal background).
-                    backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
-                    borderColor: isDark ? '#3a3a46' : '#e3e3e3',
-                    color: isDark ? '#ffffff' : '#111',
-                    fontSize: 16,
-                  }}
-                  // Keep focusable even while requests are running; only the Add button is disabled.
-                  editable
-                  returnKeyType="done"
-                />
-                <View style={[styles.summaryButtons, { justifyContent: 'flex-end' }]}>
-                  <Pressable
-                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, groupActionBusy ? { opacity: 0.6 } : null]}
-                    disabled={groupActionBusy}
-                    onPress={async () => {
-                      const raw = groupAddMembersDraft.trim();
-                      if (!raw) return;
-                      const usernames = Array.from(new Set(raw.split(/[,\s]+/g).map((t) => t.trim().toLowerCase()).filter(Boolean)));
-                      if (!usernames.length) return;
-                      await groupUpdate('addMembers', { usernames });
-                      setGroupAddMembersDraft('');
-                    }}
-                  >
-                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Add</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-
-            <ScrollView
-              style={{ marginTop: 0, maxHeight: 360 }}
-              contentContainerStyle={{ paddingTop: 0 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              <GroupMembersSectionList
-                members={groupMembersVisible as any}
-                mySub={typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : ''}
-                isDark={!!isDark}
-                styles={styles}
-                meIsAdmin={!!groupMeta?.meIsAdmin}
-                groupActionBusy={!!groupActionBusy}
-                kickCooldownUntilBySub={kickCooldownUntilBySub}
-                avatarUrlByPath={avatarUrlByPath}
-                onKick={(memberSub) => groupKick(memberSub)}
-                onUnban={(memberSub) => void groupUpdate('unban', { memberSub })}
-                onToggleAdmin={({ memberSub, isAdmin }) =>
-                  void groupUpdate(isAdmin ? 'demoteAdmin' : 'promoteAdmin', { memberSub })
-                }
-                onBan={async ({ memberSub, label }) => {
-                  if (typeof promptConfirm !== 'function') return;
-                  const ok = await promptConfirm(
-                    'Ban user?',
-                    `Ban ${label}?\n\nThey will be removed from the chat and stop receiving new messages.\n\nUnban removes the ban, but does not automatically re-add them. To add them back, use “Add” above.`,
-                    { confirmText: 'Ban', cancelText: 'Cancel', destructive: true }
-                  );
-                  if (!ok) return;
-                  await groupUpdate('ban', { memberSub });
-
-                  // Add a system note like kick, but for ban.
-                  // (Server validates admin + persists/broadcasts.)
-                  try {
-                    const ws = wsRef.current;
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                      ws.send(
-                        JSON.stringify({
-                          action: 'system',
-                          conversationId: activeConversationId,
-                          systemKind: 'ban',
-                          targetSub: memberSub,
-                          createdAt: Date.now(),
-                        })
-                      );
-                      // Eject target from UI without also logging a "kicked" system message.
-                      ws.send(
-                        JSON.stringify({
-                          action: 'kick',
-                          conversationId: activeConversationId,
-                          targetSub: memberSub,
-                          suppressSystem: true,
-                          createdAt: Date.now(),
-                        })
-                      );
-                    }
-                  } catch {
-                    // ignore
-                  }
-                }}
-              />
-            </ScrollView>
-
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => setGroupMembersOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={channelMembersOpen} transparent animationType="fade" onRequestClose={() => setChannelMembersOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              Members
-            </Text>
-            <ScrollView style={{ maxHeight: 520, alignSelf: 'stretch' }}>
-              <ChannelMembersSectionList
-                members={channelMembersVisible as any}
-                mySub={typeof myUserId === 'string' ? myUserId : ''}
-                isDark={isDark}
-                styles={styles}
-                meIsAdmin={!!channelMeta?.meIsAdmin}
-                actionBusy={channelActionBusy}
-                kickCooldownUntilBySub={kickCooldownUntilBySub}
-                avatarUrlByPath={avatarUrlByPath}
-                onBan={async ({ memberSub, label }) => {
-                  if (!memberSub) return;
-                  if (typeof promptConfirm !== 'function') return;
-                  const ok = await promptConfirm(
-                    'Ban member?',
-                    `Ban ${label || 'member'} from this channel?\n\nThey will be removed immediately and cannot join again until you unban them.\n\nUnban removes the ban, but does not automatically re-add them. If the channel is public, they can re-join from the channel list.`,
-                    { confirmText: 'Ban', cancelText: 'Cancel', destructive: true }
-                  );
-                  if (!ok) return;
-                  await channelUpdate('ban', { memberSub });
-                  // Persist + broadcast the system event, then eject target UI (best-effort).
-                  try {
-                    const ws = wsRef.current;
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                      ws.send(
-                        JSON.stringify({
-                          action: 'system',
-                          conversationId: activeConversationId,
-                          systemKind: 'ban',
-                          targetSub: memberSub,
-                          createdAt: Date.now(),
-                        })
-                      );
-                      ws.send(
-                        JSON.stringify({
-                          action: 'kick',
-                          conversationId: activeConversationId,
-                          targetSub: memberSub,
-                          suppressSystem: true,
-                          createdAt: Date.now(),
-                        })
-                      );
-                    }
-                  } catch {
-                    // ignore
-                  }
-                }}
-                onUnban={(memberSub) => void channelUpdate('unban', { memberSub })}
-                onKick={(memberSub) => channelKick(memberSub)}
-                onToggleAdmin={({ memberSub, isAdmin }) => {
-                  // Optimistic UI so "last admin" guard reflects immediately.
-                  setChannelMembers((prev) =>
-                    (Array.isArray(prev) ? prev : []).map((m) =>
-                      m && String(m.memberSub) === String(memberSub) ? { ...m, isAdmin: !isAdmin } : m
-                    )
-                  );
-                  void channelUpdate(isAdmin ? 'demoteAdmin' : 'promoteAdmin', { memberSub });
-                }}
-              />
-            </ScrollView>
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                onPress={() => setChannelMembersOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Close</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {linkConfirmOpen ? (
-        <ConfirmLinkModal
-          open={linkConfirmOpen}
-          isDark={isDark}
-          url={linkConfirmUrl}
-          domain={linkConfirmDomain}
-          onCancel={() => setLinkConfirmOpen(false)}
-          onOpen={() => {
-            const u = String(linkConfirmUrl || '').trim();
-            setLinkConfirmOpen(false);
-            if (!u) return;
-            void Linking.openURL(u).catch(() => {});
-          }}
-        />
-      ) : null}
-
-      <Modal
-        visible={channelAboutOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          // Treat back/escape as "Got it" in view mode (mark seen).
-          (async () => {
-            try {
-              if (!channelAboutEdit) {
-                const cid = String(activeConversationId).slice('ch#'.length).trim();
-                const v = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
-                if (cid && v) await AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
-              }
-            } catch {
-              // ignore
-            }
-            setChannelAboutEdit(false);
-            setChannelAboutOpen(false);
-          })();
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => {
-              // Treat tapping outside as "Got it" in view mode (mark seen).
-              (async () => {
-                try {
-                  if (!channelAboutEdit) {
-                    const cid = String(activeConversationId).slice('ch#'.length).trim();
-                    const v = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
-                    if (cid && v) await AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
-                  }
-                } catch {
-                  // ignore
-                }
-                setChannelAboutEdit(false);
-                setChannelAboutOpen(false);
-              })();
-            }}
-          />
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-              {channelMeta?.name ? `${channelMeta.name}` : 'About'}
-            </Text>
-
-            {channelAboutEdit ? (
-              <>
-                <Text
-                  style={[
-                    styles.summaryText,
-                    isDark ? styles.summaryTextDark : null,
-                    { marginBottom: 8 },
-                  ]}
-                >
-                  Supports **bold**, *italics*, and links. Max 4000 chars.
-                </Text>
-                <TextInput
-                  value={channelAboutDraft}
-                  onChangeText={(v) => setChannelAboutDraft(v.slice(0, 4000))}
-                  placeholder="Write channel info / rules…"
-                  placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-                  selectionColor={isDark ? '#ffffff' : '#111'}
-                  cursorColor={isDark ? '#ffffff' : '#111'}
-                  multiline
-                  autoFocus
-                  // Android: multiline TextInput defaults to vertically-centered text; force top-left like a real editor.
-                  textAlignVertical="top"
-                  style={{
-                    width: '100%',
-                    minHeight: 160,
-                    maxHeight: 320,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    borderWidth: 1,
-                    borderRadius: 10,
-                    backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
-                    borderColor: isDark ? '#3a3a46' : '#e3e3e3',
-                    color: isDark ? '#ffffff' : '#111',
-                    fontSize: 15,
-                  }}
-                />
-                <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null, { marginTop: 6 }]}>
-                  {`${String(channelAboutDraft || '').length}/4000`}
-                </Text>
-              </>
-            ) : (
-              <ScrollView style={styles.summaryScroll}>
-                {String(channelAboutDraft || '').trim() ? (
-                  <RichText
-                    text={String(channelAboutDraft || '')}
-                    isDark={isDark}
-                    style={[styles.summaryText, ...(isDark ? [styles.summaryTextDark] : [])]}
-                    enableMentions={false}
-                    variant="neutral"
-                    onOpenUrl={requestOpenLink}
-                  />
-                ) : (
-                  <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>(No channel about set.)</Text>
-                )}
-              </ScrollView>
-            )}
-
-            <View style={styles.summaryButtons}>
-              {channelAboutEdit ? (
-                <>
-                  <Pressable
-                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null, { marginRight: 'auto' }]}
-                    disabled={channelActionBusy}
-                    onPress={() => {
-                      setChannelAboutEdit(false);
-                    }}
-                  >
-                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Preview</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                    disabled={channelActionBusy}
-                    onPress={async () => {
-                      const next = String(channelAboutDraft || '').slice(0, 4000);
-                      const upd: any = await channelUpdate('setAbout', { aboutText: next });
-                      // Broadcast an "update" hint so others refresh promptly.
-                      try {
-                        const ws = wsRef.current;
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                          ws.send(
-                            JSON.stringify({
-                              action: 'system',
-                              conversationId: activeConversationId,
-                              systemKind: 'update',
-                              updateField: 'about',
-                              createdAt: Date.now(),
-                            })
-                          );
-                        }
-                      } catch {
-                        // ignore
-                      }
-                      // Mark the *new* version as seen (use server-returned aboutVersion when available).
-                      try {
-                        const cid = String(activeConversationId).slice('ch#'.length).trim();
-                        const v =
-                          typeof upd?.aboutVersion === 'number' && Number.isFinite(upd.aboutVersion)
-                            ? upd.aboutVersion
-                            : (typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0);
-                        if (cid && v) await AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
-                      } catch {
-                        // ignore
-                      }
-                      setChannelAboutEdit(false);
-                    }}
-                  >
-                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                    disabled={channelActionBusy}
-                    onPress={() => {
-                      setChannelAboutDraft(String(channelMeta?.aboutText || ''));
-                      setChannelAboutEdit(false);
-                      setChannelAboutOpen(false);
-                    }}
-                  >
-                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Pressable
-                    style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                    onPress={async () => {
-                      // Mark current version as seen on dismiss.
-                      try {
-                        const cid = String(activeConversationId).slice('ch#'.length).trim();
-                        const v = typeof channelMeta?.aboutVersion === 'number' ? channelMeta.aboutVersion : 0;
-                        if (cid && v) await AsyncStorage.setItem(`ui:channelAboutSeen:${cid}`, String(v));
-                      } catch {
-                        // ignore
-                      }
-                      setChannelAboutEdit(false);
-                      setChannelAboutOpen(false);
-                    }}
-                  >
-                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Got it</Text>
-                  </Pressable>
-                  {channelMeta?.meIsAdmin ? (
-                    <Pressable
-                      style={[styles.toolBtn, isDark ? styles.toolBtnDark : null]}
-                      onPress={() => {
-                        setChannelAboutEdit(true);
-                      }}
-                    >
-                      <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Edit</Text>
-                    </Pressable>
-                  ) : null}
-                </>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={channelNameEditOpen} transparent animationType="fade" onRequestClose={() => setChannelNameEditOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Channel Name</Text>
-            <TextInput
-              value={channelNameDraft}
-              onChangeText={setChannelNameDraft}
-              placeholder="Channel name"
-              maxLength={21}
-              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-              selectionColor={isDark ? '#ffffff' : '#111'}
-              cursorColor={isDark ? '#ffffff' : '#111'}
-              style={{
-                width: '100%',
-                height: 48,
-                paddingHorizontal: 12,
-                borderWidth: 1,
-                borderRadius: 10,
-                marginTop: 10,
-                backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
-                borderColor: isDark ? '#3a3a46' : '#e3e3e3',
-                color: isDark ? '#ffffff' : '#111',
-                fontSize: 16,
-              }}
-              editable
-              autoFocus
-            />
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[
-                  styles.toolBtn,
-                  isDark ? styles.toolBtnDark : null,
-                  channelActionBusy ? { opacity: 0.6 } : null,
-                ]}
-                disabled={channelActionBusy}
-                onPress={() => {
-                  const next = String(channelNameDraft || '').trim();
-                  void channelUpdate('setName', { name: next });
-                  setChannelMeta((prev) => (prev ? { ...prev, name: next || prev.name } : prev));
-                  // Broadcast a generic "channel updated" system event so other members refresh titles promptly.
-                  try {
-                    const ws = wsRef.current;
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                      ws.send(
-                        JSON.stringify({
-                          action: 'system',
-                          conversationId: activeConversationId,
-                          systemKind: 'update',
-                          updateField: 'channelName',
-                          channelName: next,
-                          createdAt: Date.now(),
-                        })
-                      );
-                    }
-                  } catch {
-                    // ignore
-                  }
-                  setChannelNameEditOpen(false);
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.toolBtn, isDark ? styles.toolBtnDark : null, channelActionBusy ? { opacity: 0.6 } : null]}
-                disabled={channelActionBusy}
-                onPress={() => setChannelNameEditOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={channelPasswordEditOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setChannelPasswordEditOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
-            <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Channel Password</Text>
-            <TextInput
-              value={channelPasswordDraft}
-              onChangeText={setChannelPasswordDraft}
-              placeholder="Password"
-              placeholderTextColor={isDark ? '#8f8fa3' : '#999'}
-              selectionColor={isDark ? '#ffffff' : '#111'}
-              cursorColor={isDark ? '#ffffff' : '#111'}
-              secureTextEntry
-              style={{
-                width: '100%',
-                height: 48,
-                paddingHorizontal: 12,
-                borderWidth: 1,
-                borderRadius: 10,
-                marginTop: 10,
-                backgroundColor: isDark ? '#1c1c22' : '#f2f2f7',
-                borderColor: isDark ? '#3a3a46' : '#e3e3e3',
-                color: isDark ? '#ffffff' : '#111',
-                fontSize: 16,
-              }}
-              editable
-              autoFocus
-            />
-            <View style={styles.summaryButtons}>
-              <Pressable
-                style={[
-                  styles.toolBtn,
-                  isDark ? styles.toolBtnDark : null,
-                  channelActionBusy ? { opacity: 0.6 } : null,
-                ]}
-                disabled={channelActionBusy}
-                onPress={() => {
-                  const pw = String(channelPasswordDraft || '').trim();
-                  if (!pw) {
-                    showAlert('Password required', 'Enter a password.');
-                    return;
-                  }
-                  void channelUpdate('setPassword', { password: pw });
-                  setChannelMeta((prev) => (prev ? { ...prev, hasPassword: true } : prev));
-                  setChannelPasswordEditOpen(false);
-                  setChannelPasswordDraft('');
-                }}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Save</Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.toolBtn,
-                  isDark ? styles.toolBtnDark : null,
-                  channelActionBusy ? { opacity: 0.6 } : null,
-                  // Some RN versions don't support `gap` reliably; enforce spacing explicitly.
-                  { marginLeft: 10 },
-                ]}
-                disabled={channelActionBusy}
-                onPress={() => setChannelPasswordEditOpen(false)}
-              >
-                <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <MediaViewerModal
-        open={viewerOpen}
-        viewerState={viewerState as any}
-        setViewerState={setViewerState as any}
-        dmFileUriByPath={dmFileUriByPath}
-        saving={viewerSaving}
-        onSave={() => void saveViewerMediaToDevice()}
-        onClose={() => {
-          setViewerOpen(false);
-          setViewerState(null);
-        }}
-      />
-
-      {toast ? (
-        <Animated.View
-          style={[
-            styles.toastWrap,
-            ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
-            {
-              bottom: Math.max(16, insets.bottom + 12),
-              opacity: toastAnim,
-              transform: [
-                {
-                  translateY: toastAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [12, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-          pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
-        >
-          <View
-            style={[
-              styles.toast,
-              isDark ? styles.toastDark : null,
-              toast.kind === 'error' ? (isDark ? styles.toastErrorDark : styles.toastError) : null,
-            ]}
-          >
-            <Text style={styles.toastText}>{toast.message}</Text>
-          </View>
-        </Animated.View>
-      ) : null}
+      <ChatScreenMain {...mainProps} />
+      <ChatScreenOverlays {...overlaysProps} />
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  safe: { flex: 1, backgroundColor: '#fff' },
-  safeDark: { backgroundColor: '#0b0b0f' },
-  container: { flex: 1 },
-  chatContentColumn: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
-  chatBody: { flex: 1, position: 'relative' },
-  chatBodyInner: { flex: 1 },
-  chatBgBase: { ...StyleSheet.absoluteFillObject },
-  messageList: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    // Keep the bottom tight so the message list starts closer to the header content.
-    paddingBottom: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e3e3e3',
-    backgroundColor: '#fafafa',
-  },
-  headerDark: {
-    backgroundColor: '#1c1c22',
-    borderBottomColor: '#2a2a33',
-  },
-  headerTopSlot: {
-    // Small, consistent breathing room between the app-level headerTop controls
-    // (Global/DM switch, menu, DM search) and the chat title row.
-    marginBottom: 6,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  title: { fontSize: 20, fontWeight: '600', color: '#222', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  titleDark: { color: '#fff' },
-  welcomeText: { fontSize: 14, color: '#555', marginTop: 2, fontWeight: '700' },
-  welcomeTextDark: { color: '#b7b7c2' },
-  welcomeTextFlex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  welcomeRow: { flexDirection: 'row', alignItems: 'center', flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  welcomeAvatar: { marginTop: 2, marginRight: 8, flexShrink: 0 },
-  welcomeStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexShrink: 0 },
-  welcomeStatusText: { fontSize: 12, color: '#666', fontWeight: '800' },
-  headerSubRow: {
-    marginTop: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  // (legacy) statusRow/statusText were used when connection status lived below the welcome line.
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  statusText: { fontSize: 12, color: '#666', marginTop: 6 },
-  statusTextDark: { color: '#a7a7b4' },
-  decryptRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  decryptLabel: { fontSize: 12, color: '#555', fontWeight: '600' },
-  decryptLabelDark: { color: '#b7b7c2' },
-  dmHeaderControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 12,
-    flexShrink: 0,
-    flexWrap: 'wrap',
-  },
-  dmHeaderControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dmSettingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 0,
-    // Keep DM settings on a single horizontal line (no stacking).
-    flexWrap: 'nowrap',
-  },
-  groupSettingsRow: {
-    marginTop: 0,
-  },
-  dmSettingSlotLeft: { flex: 1, alignItems: 'flex-start', minWidth: 0 },
-  dmSettingSlotCenter: { flex: 1, alignItems: 'center', minWidth: 0 },
-  dmSettingSlotRight: { flex: 1, alignItems: 'flex-end', minWidth: 0 },
-  dmSettingGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  channelAdminPanel: {
-    // Two-row admin layout for channels (Members/Name/Leave, then Visibility/Password).
-    alignSelf: 'stretch',
-    flexDirection: 'column',
-    marginTop: 0,
-  },
-  channelAdminRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  channelAdminActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    // Avoid relying on `gap` (not supported in some RN versions).
-    marginLeft: 10,
-  },
-  dmSettingLabel: { flexShrink: 1, minWidth: 0 },
-  dmSettingLabelCompact: { fontSize: 11 },
-  ttlChipCompact: { paddingHorizontal: 8, paddingVertical: 4 },
-  // Keep layout tight; use hitSlop on Pressable for tap area.
-  dmSettingsCaretBtn: {
-    width: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniToggleTrack: {
-    width: 28,
-    height: 18,
-    borderRadius: 999,
-    backgroundColor: '#cfd2d8',
-    padding: 2,
-    justifyContent: 'center',
-  },
-  miniToggleTrackDark: { backgroundColor: '#3a3a46' },
-  // Theme-neutral: match light/dark UI (no blue/green accent).
-  // Light: ON = slightly darker neutral gray. Dark: ON = white.
-  miniToggleTrackOn: { backgroundColor: '#aeb2bb' },
-  miniToggleTrackOnDark: { backgroundColor: '#fff' },
-  miniToggleThumb: {
-    width: 14,
-    height: 14,
-    borderRadius: 999,
-    backgroundColor: '#fff',
-    transform: [{ translateX: 0 }],
-  },
-  // In dark mode, use a dark thumb so it stays visible on the white "ON" track.
-  miniToggleThumbDark: { backgroundColor: '#0b0b0f' },
-  miniToggleThumbOn: { transform: [{ translateX: 10 }] },
-  miniToggleDisabled: { opacity: 0.6 },
-  miniTogglePressed: { opacity: 0.85 },
-  ttlChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#eee',
-  },
-  ttlChipText: { fontSize: 12, color: '#333', fontWeight: '700' },
-  ttlChipDark: {
-    backgroundColor: '#2a2a33',
-  },
-  ttlChipTextDark: {
-    color: '#fff',
-  },
-  ttlOptionRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    backgroundColor: '#f4f4f4',
-  },
-  ttlOptionRowSelected: { backgroundColor: '#111' },
-  ttlOptionRowDark: {
-    backgroundColor: '#1c1c22',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#2a2a33',
-  },
-  ttlOptionRowSelectedDark: {
-    backgroundColor: '#2a2a33',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#3a3a46',
-  },
-  ttlOptionLabel: { color: '#222', fontWeight: '600' },
-  ttlOptionLabelSelected: { color: '#fff', fontWeight: '800' },
-  ttlOptionRadio: { color: '#222', fontSize: 18, fontWeight: '800' },
-  ttlOptionRadioSelected: { color: '#fff' },
-  ttlOptionLabelDark: { color: '#fff' },
-  summarizeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ddd',
-  },
-  summarizeBtnDark: {
-    backgroundColor: '#2a2a33',
-    borderWidth: 0,
-    borderColor: 'transparent',
-  },
-  summarizeBtnText: { color: '#111', fontWeight: '700', fontSize: 13 },
-  summarizeBtnTextDark: { color: '#fff' },
-  headerTools: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
-  // kept for other modals using the same visual language
-  toolBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    // Light mode: neutral modal buttons should be off-gray.
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-  },
-  toolBtnDark: {
-    backgroundColor: '#2a2a33',
-    borderWidth: 0,
-    borderColor: 'transparent',
-  },
-  toolBtnText: { color: '#111', fontWeight: '700', fontSize: 13 },
-  toolBtnTextDark: { color: '#fff' },
-  attachOptionBtn: {
-    minHeight: 52,
-    paddingVertical: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachOptionText: {
-    textAlign: 'center',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  ok: { color: '#2e7d32' },
-  err: { color: '#b00020' },
-  error: { color: '#b00020', marginTop: 6 },
-  errorDark: { color: '#ff6b6b' },
-  listContent: { paddingVertical: 12, paddingHorizontal: 6 },
-  messageRow: {
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    // On web, ensure the row measures full width so bubble maxWidth percentages behave as expected.
-    width: '100%',
-  },
-  messageRowIncoming: { justifyContent: 'flex-start' },
-  messageRowOutgoing: { justifyContent: 'flex-end' },
-  avatarGutter: { marginRight: 8 },
-  avatarSpacer: { opacity: 0 },
-  messageBubble: {
-    // Match guest screen behavior: allow bubbles to grow wider so long text wraps naturally.
-    maxWidth: '96%',
-    flexShrink: 1,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-  },
-  // Media thumbnails should be allowed to be much wider (like typical chat apps),
-  // while keeping text-only bubbles tighter.
-  // (legacy) media bubble styles removed in favor of mediaCard layout
-  messageBubbleIncoming: { backgroundColor: '#f1f1f1' },
-  messageBubbleIncomingDark: { backgroundColor: '#1c1c22' },
-  messageBubbleOutgoing: { backgroundColor: '#1976d2' },
-  messageBubbleEditing: { maxWidth: '96%', width: '96%' },
-  // Retry hint needs to be readable on both light surfaces and the outgoing blue bubble.
-  sendFailedText: { marginTop: 6, fontSize: 12, color: '#8b0000', fontStyle: 'italic' },
-  sendFailedTextDark: { color: '#ff6b6b' },
-  sendFailedTextAlignOutgoing: {
-    textAlign: 'right',
-    alignSelf: 'flex-end',
-    // Use an OPAQUE red pill so it stays red on the blue bubble (no purple blending),
-    // and white bold text for maximum contrast.
-    backgroundColor: '#b00020',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    overflow: 'hidden',
-    color: '#fff',
-    fontWeight: '700',
-  },
-  messageTextRow: { flexDirection: 'row', alignItems: 'flex-end' },
-  messageTextRowOutgoing: { justifyContent: 'flex-end' },
-  // minWidth:0 is important on web flexbox so long unbroken text (e.g. links) can shrink/wrap inside the bubble.
-  messageTextFlex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  mentionText: { fontWeight: '900' },
-  replySnippet: {
-    marginTop: 6,
-    marginBottom: 6,
-    paddingLeft: 10,
-    borderLeftWidth: 2,
-  },
-  replySnippetOutgoing: { borderLeftColor: 'rgba(255,255,255,0.75)' },
-  replySnippetIncoming: { borderLeftColor: 'rgba(0,0,0,0.35)' },
-  replySnippetIncomingDark: { borderLeftColor: 'rgba(255,255,255,0.35)' },
-  replySnippetLabel: { fontSize: 12, fontWeight: '900' },
-  replySnippetLabelOutgoing: { color: 'rgba(255,255,255,0.92)' },
-  replySnippetLabelIncoming: { color: '#555' },
-  replySnippetLabelIncomingDark: { color: '#a7a7b4' },
-  replySnippetText: { fontSize: 13, marginTop: 2 },
-  replySnippetTextOutgoing: { color: 'rgba(255,255,255,0.92)' },
-  replySnippetTextIncoming: { color: '#111' },
-  replySnippetTextIncomingDark: { color: '#fff' },
-  replyThumbWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginBottom: 6,
-    alignSelf: 'flex-start',
-  },
-  replyThumb: { width: '100%', height: '100%' },
-  replyThumbPlaceholder: {
-    backgroundColor: 'rgba(0,0,0,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  replyThumbPlaceholderText: { fontSize: 9, fontWeight: '900', color: 'rgba(0,0,0,0.55)', textAlign: 'center' },
-  replyThumbCountBadge: {
-    position: 'absolute',
-    right: 2,
-    bottom: 2,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-  },
-  replyThumbCountText: { color: '#fff', fontSize: 10, fontWeight: '900' },
-  sendStatusInline: { marginLeft: 6, fontSize: 12 },
-  sendStatusInlineOutgoing: { color: 'rgba(255,255,255,0.9)' }, // readable on blue bubble (light mode)
-  sendStatusInlineOutgoingDark: { color: 'rgba(255,255,255,0.85)' }, // readable on blue bubble (dark mode)
-  sendStatusInlineIncoming: { color: '#555' }, // readable on light bubble
-  sendStatusInlineIncomingDark: { color: '#a7a7b4' }, // readable on dark bubble
-
-  editedLabel: { marginLeft: 6, fontSize: 12, fontStyle: 'italic', fontWeight: '400' },
-  editedLabelOutgoing: { color: 'rgba(255,255,255,0.9)' },
-  editedLabelOutgoingDark: { color: 'rgba(255,255,255,0.85)' },
-  editedLabelIncoming: { color: '#555' },
-  editedLabelIncomingDark: { color: '#a7a7b4' },
-  deletedText: { fontStyle: 'italic', opacity: 0.9 },
-  inlineEditWrap: { flex: 1, width: '100%' },
-  inlineEditInput: {
-    fontSize: 16,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-    marginTop: 1,
-    fontWeight: '400',
-  },
-  inlineEditInputIncoming: { color: '#222' },
-  inlineEditInputOutgoing: { color: '#fff' },
-  inlineEditActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 8,
-    width: '100%',
-  },
-  inlineEditBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.08)' },
-  inlineEditBtnPressed: { opacity: 0.75 },
-  // When editing an outgoing media message, the editor sits on a blue header bar.
-  // Use a translucent white pill so "Uploading…" doesn't look like a disabled grey block.
-  inlineEditBtnUploadingOutgoing: { backgroundColor: 'rgba(255,255,255,0.18)', borderColor: 'transparent', opacity: 0.95 },
-  inlineEditBtnText: { fontWeight: '700' },
-  inlineEditBtnTextIncoming: { color: '#111' },
-  inlineEditBtnTextOutgoing: { color: '#fff' },
-  mediaEditHint: { marginTop: 6, fontSize: 12, fontWeight: '700' },
-  mediaEditHintIncoming: { color: '#555' },
-  mediaEditHintIncomingDark: { color: '#b7b7c2' },
-  mediaEditHintOutgoing: { color: 'rgba(255,255,255,0.85)' },
-  messageMeta: { fontSize: 12, marginBottom: 1, fontWeight: '700' },
-  messageMetaIncoming: { color: '#555' },
-  messageMetaIncomingDark: { color: '#b7b7c2' },
-  messageMetaOutgoing: { color: 'rgba(255,255,255,0.9)', textAlign: 'right' },
-  messageText: { fontSize: 16, marginTop: 1, fontWeight: '400' },
-  messageTextIncoming: { color: '#222' },
-  messageTextIncomingDark: { color: '#fff' },
-  messageTextOutgoing: { color: '#fff' },
-  attachmentLink: {
-    marginTop: 6,
-    fontSize: 13,
-    color: '#1976d2',
-    fontWeight: '400',
-    textDecorationLine: 'underline',
-  },
-  mediaAlignIncoming: { alignSelf: 'flex-start' },
-  mediaAlignOutgoing: { alignSelf: 'flex-end' },
-  imagePreview: {
-    marginTop: 8,
-    width: '100%',
-    borderRadius: 16,
-    backgroundColor: '#e9e9e9',
-  },
-  imageThumbWrap: {
-    width: '100%',
-    height: 220,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    overflow: 'hidden',
-    // For resizeMode="contain", let the parent `mediaCard` provide the background.
-    // This avoids a visible dark seam between the header and the media in light mode.
-    backgroundColor: 'transparent',
-  },
-  mediaAutoImage: {
-    width: '100%',
-    backgroundColor: 'transparent',
-  },
-  mediaCappedImage: {
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    // Let the parent provide letterbox background.
-    backgroundColor: 'transparent',
-  },
-  mediaFrame: {
-    marginTop: 8,
-    width: '100%',
-    borderRadius: 16,
-    overflow: 'hidden',
-    // Match the message bubble background so "contain" letterboxing doesn't show as white.
-    backgroundColor: '#000',
-  },
-  mediaFill: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'transparent',
-  },
-  mediaThumb: {
-    width: '100%',
-    height: 220,
-    backgroundColor: '#000',
-  },
-  imageFrame: {
-    // Prefer showing the entire image (no cropping). Slightly shorter so tall images don't dominate.
-    height: 180,
-  },
-  videoThumbWrap: {
-    width: '100%',
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-  },
-  mediaMsg: {
-    width: '96%',
-  },
-  mediaMsgIncoming: { alignItems: 'flex-start' },
-  mediaMsgOutgoing: { alignItems: 'flex-end' },
-  mediaCard: {
-    width: '100%',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  // Outer wrapper to allow reaction chips to float outside the clipped (rounded) card.
-  mediaCardOuter: { position: 'relative', overflow: 'visible' },
-  mediaCardIncoming: { backgroundColor: '#f1f1f1' },
-  mediaCardIncomingDark: { backgroundColor: '#1c1c22' },
-  // Outgoing media uses "contain" sometimes → avoid blue letterbox edges by using neutral bg.
-  mediaCardOutgoing: { backgroundColor: '#000' },
-  mediaHeader: {
-    paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 4,
-  },
-  mediaHeaderIncoming: { backgroundColor: '#f1f1f1' },
-  mediaHeaderIncomingDark: { backgroundColor: '#1c1c22' },
-  mediaHeaderOutgoing: { backgroundColor: '#1976d2' },
-  mediaHeaderMeta: { fontSize: 12, fontWeight: '700' },
-  mediaHeaderMetaIncoming: { color: '#555' },
-  mediaHeaderMetaIncomingDark: { color: '#b7b7c2' },
-  mediaHeaderMetaOutgoing: { color: 'rgba(255,255,255,0.9)', textAlign: 'right' },
-  mediaHeaderCaption: { marginTop: 4, fontSize: 16, fontWeight: '400' },
-  mediaHeaderCaptionIncoming: { color: '#222' },
-  mediaHeaderCaptionIncomingDark: { color: '#fff' },
-  mediaHeaderCaptionOutgoing: { color: '#fff' },
-  videoPlayOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  videoPlayText: {
-    color: '#fff',
-    fontSize: 42,
-    fontWeight: '900',
-    ...(Platform.OS === 'web'
-      ? { textShadow: '0px 2px 6px rgba(0,0,0,0.6)' }
-      : { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }),
-  },
-  extraThumbRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 10,
-    gap: 8,
-  },
-  extraThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.08)',
-  },
-  extraThumbMediaWrap: { width: '100%', height: '100%' },
-  extraThumbImage: { width: '100%', height: '100%' },
-  extraThumbPlayOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  extraThumbPlayText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '900',
-    ...(Platform.OS === 'web'
-      ? { textShadow: '0px 1px 4px rgba(0,0,0,0.7)' }
-      : { textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }),
-  },
-  extraThumbPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  extraThumbPlaceholderText: { fontSize: 12, fontWeight: '800', color: '#444' },
-  mediaCountBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    zIndex: 5,
-  },
-  mediaCountBadgeText: { color: '#fff', fontWeight: '900', fontSize: 12 },
-  mediaCarouselNavBtn: {
-    position: 'absolute',
-    top: '50%',
-    marginTop: -18,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
-    zIndex: 7,
-  },
-  mediaCarouselNavLeft: { left: 10 },
-  mediaCarouselNavRight: { right: 10 },
-  mediaCarouselNavText: { color: '#fff', fontWeight: '900', fontSize: 22, lineHeight: 22, marginTop: -1 },
-  mediaDotsOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 6,
-  },
-  mediaDotsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-  },
-  mediaDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.55)',
-  },
-  mediaDotActive: {
-    width: 16,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-  },
-  seenText: {
-    marginTop: 6,
-    fontSize: 12,
-    fontStyle: 'italic',
-    fontWeight: '600',
-  },
-  seenTextAlignIncoming: { alignSelf: 'flex-start', textAlign: 'left' },
-  seenTextAlignOutgoing: { alignSelf: 'flex-end', textAlign: 'right' },
-  seenTextIncoming: { color: '#1976d2' },
-  seenTextOutgoing: { color: 'rgba(255,255,255,0.9)' },
-  // For outgoing MEDIA messages the seen label is rendered on the screen background (not inside the blue bubble),
-  // so use a readable light-mode color.
-  seenTextOutgoingOnLightSurface: { color: '#1976d2' },
-  inputRow: {
-    width: '100%',
-    alignSelf: 'stretch',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e3e3e3',
-    backgroundColor: '#f2f2f7',
-  },
-  inputRowInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    width: '100%',
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  inputRowDark: {
-    backgroundColor: '#1c1c22',
-    borderTopColor: '#2a2a33',
-  },
-  attachmentPill: {
-    marginHorizontal: 12,
-    marginBottom: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: '#f2f2f7',
-    borderWidth: 1,
-    borderColor: '#e3e3e3',
-  },
-  attachmentPillText: { color: '#111', fontWeight: '700' },
-  attachmentPillDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-  },
-  attachmentPillTextDark: { color: '#fff' },
-  pickBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ddd',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  pickBtnDark: {
-    backgroundColor: '#2a2a33',
-    borderWidth: 0,
-    borderColor: 'transparent',
-  },
-  pickTxt: { color: '#111', fontWeight: '800', fontSize: 18, lineHeight: 18 },
-  pickTxtDark: { color: '#fff' },
-  input: {
-    flex: 1,
-    flexBasis: 0,
-    minWidth: 0,
-    height: 44,
-    // Explicit text metrics + vertical alignment to prevent clipping on iOS/Android.
-    fontSize: 15,
-    // Use a lineHeight matching the control height for stable vertical centering.
-    lineHeight: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 0,
-    ...(Platform.OS === 'android'
-      ? ({
-          textAlignVertical: 'center',
-          includeFontPadding: false,
-        } as const)
-      : {}),
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    color: '#111',
-  },
-  inputDark: {
-    backgroundColor: '#14141a',
-    borderColor: '#2a2a33',
-    color: '#fff',
-  },
-  typingRow: {
-    paddingHorizontal: 12,
-    paddingBottom: 6,
-  },
-  editingBar: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f2f2f7',
-  },
-  editingBarDark: { backgroundColor: '#1c1c22' },
-  editingBarText: { color: '#444', fontWeight: '600' },
-  editingBarTextDark: { color: '#d7d7e0' },
-  editingBarCancelBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#e6e6ef',
-  },
-  editingBarCancelBtnDark: { backgroundColor: '#2a2a33' },
-  editingBarCancelText: { color: '#111', fontWeight: '700' },
-  editingBarCancelTextDark: { color: '#fff' },
-  typingIndicatorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  typingDotsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingLeft: 2,
-  },
-  typingText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-    fontStyle: 'italic',
-  },
-  typingTextDark: {
-    color: '#a7a7b4',
-  },
-  typingDot: {
-    fontSize: 18,
-    fontWeight: '900',
-    lineHeight: 18,
-  },
-  sendBtn: {
-    marginLeft: 8,
-    height: 44,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ddd',
-  },
-  sendBtnDark: {
-    backgroundColor: '#2a2a33',
-    borderWidth: 0,
-    borderColor: 'transparent',
-  },
-  sendBtnUploading: {
-    backgroundColor: '#111',
-    borderColor: '#111',
-    opacity: 0.92,
-  },
-  sendBtnUploadingDark: {
-    backgroundColor: '#2a2a33',
-    borderWidth: 0,
-    borderColor: 'transparent',
-    opacity: 0.8,
-  },
-  sendTxt: { color: '#111', fontWeight: '700' },
-  sendTxtDark: { color: '#fff' },
-  btnDisabled: {
-    backgroundColor: '#f2f2f7',
-    borderColor: '#ddd',
-    opacity: 0.8,
-  },
-  btnDisabledDark: {
-    backgroundColor: '#444',
-    borderWidth: 0,
-    borderColor: 'transparent',
-    opacity: 0.6,
-  },
-
-  reportPreviewBox: {
-    marginTop: 12,
-    marginBottom: 10,
-    borderRadius: 12,
-    padding: 10,
-    minHeight: 72,
-    backgroundColor: '#f6f6fb',
-    borderWidth: 1,
-    borderColor: '#e7e7ee',
-  },
-  reportPreviewBoxDark: { backgroundColor: '#1c1c22', borderColor: '#2a2a33' },
-  reportPreviewLabel: { fontWeight: '800', color: '#111', marginBottom: 4 },
-  reportPreviewLabelDark: { color: '#fff' },
-  reportPreviewText: { color: '#222', lineHeight: 18 },
-  reportPreviewTextDark: { color: '#d7d7e0' },
-  reportTargetLine: { marginTop: 10, marginBottom: 6, color: '#222', fontWeight: '700' },
-  reportTargetLineDark: { color: '#d7d7e0' },
-  reportNoticeBox: {
-    marginTop: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  reportNoticeBoxDark: {},
-  reportNoticeBoxError: { backgroundColor: '#fff5f5', borderColor: '#ffd5d5' },
-  reportNoticeBoxErrorDark: { backgroundColor: '#2a1518', borderColor: '#5a2a2f' },
-  reportNoticeBoxSuccess: { backgroundColor: '#f0fff4', borderColor: '#c7f0d0' },
-  reportNoticeBoxSuccessDark: { backgroundColor: '#0f2317', borderColor: '#1f4d33' },
-  reportNoticeText: { fontWeight: '800', lineHeight: 18 },
-  reportNoticeTextDark: {},
-  reportNoticeTextError: { color: '#b00020' },
-  reportNoticeTextErrorDark: { color: '#cf6679' },
-  reportNoticeTextSuccess: { color: '#0b6b2c' },
-  reportNoticeTextSuccessDark: { color: '#7de6a5' },
-  reportInput: {
-    marginTop: 10,
-    minHeight: 96,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e7e7ee',
-    // Off-color so it stands out from the modal background.
-    backgroundColor: '#f2f2f7',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#111',
-    textAlignVertical: 'top',
-  },
-  reportInputDark: {
-    borderColor: '#2a2a33',
-    backgroundColor: '#1c1c22',
-    color: '#fff',
-  },
-  reportCategoryWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  reportChip: {
-    borderWidth: 1,
-    borderColor: '#e7e7ee',
-    backgroundColor: '#fff',
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  reportChipDark: { borderColor: '#2a2a33', backgroundColor: '#1c1c22' },
-  // Keep chips neutral; "Report" should look destructive, not brand-blue.
-  reportChipActive: { borderColor: '#111', backgroundColor: '#f2f2f7' },
-  reportChipActiveDark: { borderColor: '#fff', backgroundColor: '#2a2a33' },
-  reportChipText: { color: '#222', fontWeight: '800' },
-  reportChipTextDark: { color: '#d7d7e0' },
-  reportChipTextActive: { color: '#111' },
-  reportChipTextActiveDark: { color: '#fff' },
-
-  reportTargetSwitchWrap: { flexDirection: 'row', gap: 10, marginTop: 10, alignItems: 'center' },
-  reportTargetToggleLabel: { color: '#222', fontWeight: '900' },
-  reportTargetToggleLabelDark: { color: '#d7d7e0' },
-  reportTargetChip: {
-    borderWidth: 1,
-    borderColor: '#e7e7ee',
-    backgroundColor: '#fff',
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  reportTargetChipDark: { borderColor: '#2a2a33', backgroundColor: '#1c1c22' },
-  reportTargetChipActive: { borderColor: '#111', backgroundColor: '#f2f2f7' },
-  reportTargetChipActiveDark: { borderColor: '#fff', backgroundColor: '#2a2a33' },
-  reportTargetChipText: { color: '#222', fontWeight: '900' },
-  reportTargetChipTextDark: { color: '#d7d7e0' },
-  reportTargetChipTextActive: { color: '#111' },
-
-  reportBtnDanger: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#b00020',
-    borderWidth: 0,
-  },
-  reportBtnDangerDark: { backgroundColor: '#cf6679' },
-  reportBtnDangerText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-
-  summaryModal: {
-    // On desktop web, constrain width/height so it feels like a modal (not a giant sheet).
-    ...(Platform.OS === 'web'
-      ? ({ width: '92%', maxWidth: 720, maxHeight: 640, alignSelf: 'center' } as const)
-      : ({ width: '88%', maxHeight: '80%' } as const)),
-    minHeight: 0,
-    // Modals should be white in light mode.
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-  },
-  summaryTitle: { fontSize: 18, fontWeight: '700', marginBottom: 10, color: '#111' },
-  summaryLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  summaryLoadingText: { color: '#555', fontWeight: '600' },
-  // IMPORTANT: allow scroll areas inside modals to shrink on small screens
-  // so footer buttons (Done/Close/Cancel) remain reachable.
-  summaryScroll: {
-    flexGrow: 1,
-    flexShrink: 1,
-    minHeight: 0,
-    ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
-  },
-  summaryText: { color: '#222', lineHeight: 20 },
-  summaryButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 10 },
-  summaryModalDark: { backgroundColor: '#14141a' },
-  summaryTitleDark: { color: '#fff' },
-  summaryTextDark: { color: '#d7d7e0' },
-  helperInput: {
-    minHeight: 44,
-    maxHeight: 140,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ddd',
-    backgroundColor: '#fafafa',
-    color: '#111',
-    ...(Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null),
-  },
-  helperInputFollowUp: {
-    marginTop: 10,
-  },
-  helperInputDark: {
-    borderColor: '#2a2a33',
-    backgroundColor: '#1c1c22',
-    color: '#fff',
-  },
-  helperModeRow: { marginTop: 8 },
-  helperModeSegment: {
-    flexDirection: 'row',
-    borderRadius: 999,
-    overflow: 'hidden',
-    backgroundColor: '#e9e9ee',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#ddd',
-  },
-  helperModeSegmentDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-  },
-  helperModeBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  helperModeBtnActive: {
-    backgroundColor: '#111',
-  },
-  helperModeBtnActiveDark: {
-    backgroundColor: '#ffffff',
-  },
-  helperModeBtnText: { fontWeight: '800', color: '#111' },
-  helperModeBtnTextDark: { color: '#fff' },
-  helperModeBtnTextActive: { color: '#fff' },
-  helperModeBtnTextActiveDark: { color: '#111' },
-  helperHint: { marginTop: 8, fontSize: 12, color: '#666', fontWeight: '600' },
-  helperHintDark: { color: '#a7a7b4' },
-  helperBlock: { marginTop: 10 },
-  helperSectionTitle: { fontSize: 13, fontWeight: '800', marginBottom: 6, color: '#111' },
-  helperTurnBubble: {
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e1e1e6',
-  },
-  helperTurnBubbleUser: {
-    backgroundColor: '#f7f7fb',
-  },
-  helperTurnBubbleAssistant: {
-    backgroundColor: '#f0f0f5',
-  },
-  helperTurnBubbleDark: {
-    borderColor: '#2a2a33',
-  },
-  helperTurnBubbleUserDark: {
-    backgroundColor: '#1c1c22',
-  },
-  helperTurnBubbleAssistantDark: {
-    backgroundColor: '#14141a',
-  },
-  helperTurnLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    opacity: 0.8,
-    marginBottom: 6,
-  },
-  helperSuggestionBubble: {
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: '#f4f4f4',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e7e7ea',
-  },
-  helperSuggestionBubbleDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-  },
-  helperSuggestionText: { color: '#222', lineHeight: 20 },
-  helperSuggestionActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
-  actionMenuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  actionMenuCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    overflow: 'hidden',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 10px 18px rgba(0,0,0,0.22)' }
-      : { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }),
-    elevation: 12,
-  },
-  actionMenuCardDark: { backgroundColor: '#14141a' },
-  actionMenuPreviewRow: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  actionMenuPreviewRowDark: { borderBottomColor: '#2a2a33' },
-  actionMenuMediaPreview: { gap: 10 },
-  actionMenuMediaThumbWrap: { alignSelf: 'flex-start' },
-  actionMenuMediaThumb: { width: 96, height: 96, borderRadius: 12 },
-  actionMenuMediaThumbPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 12,
-    backgroundColor: '#e9e9ee',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionMenuMediaThumbPlaceholderText: { color: '#555', fontWeight: '700' },
-  actionMenuMediaMeta: { color: '#666', fontWeight: '700', fontSize: 12, marginTop: -4 },
-  actionMenuMediaMetaDark: { color: '#a7a7b4' },
-  actionMenuMediaCaption: { color: '#222', lineHeight: 18 },
-  actionMenuMediaCaptionDark: { color: '#d7d7e0' },
-  actionMenuOptions: { paddingVertical: 6 },
-  actionMenuOptionsScroll: {
-    flexGrow: 0,
-    flexShrink: 1,
-    minHeight: 0,
-  },
-  actionMenuOptionsContent: { paddingVertical: 6 },
-  reactionInfoRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
-  reactionInfoRemoveHint: { opacity: 0.75, fontSize: 12, fontWeight: '700', fontStyle: 'italic', marginLeft: 8 },
-  reactionOverlay: {
-    position: 'absolute',
-    bottom: -12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 0,
-  },
-  // Always anchor reaction chips to the right edge (incoming + outgoing),
-  // so they line up consistently with the sender-side layout.
-  reactionOverlayIncoming: { right: 10 },
-  reactionOverlayOutgoing: { right: 10, flexDirection: 'row-reverse' },
-  mediaHeaderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  mediaHeaderTopLeft: { flex: 1, paddingRight: 10 },
-  mediaHeaderTopRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
-  mediaHeaderCaptionRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  mediaHeaderCaptionFlex: { flex: 1, marginTop: 0 },
-  mediaHeaderCaptionIndicators: { flexDirection: 'row', alignItems: 'flex-end', marginLeft: 10, gap: 6 },
-  reactionMiniChip: {
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 6px rgba(0,0,0,0.08)' }
-      : { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } }),
-    elevation: 2,
-  },
-  // Keep reaction chips consistent: no overlapping/stacking.
-  reactionMiniChipStacked: {
-    marginLeft: 0,
-  },
-  reactionMiniChipDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-    ...(Platform.OS === 'web' ? { boxShadow: 'none' } : { shadowOpacity: 0 }),
-    elevation: 0,
-  },
-  reactionMiniChipMine: {
-    // Higher-contrast "selected by me" in light theme
-    backgroundColor: 'rgba(17,17,17,0.18)',
-    borderColor: 'rgba(17,17,17,0.65)',
-  },
-  reactionMiniChipMineDark: {
-    backgroundColor: 'rgba(25,118,210,0.22)',
-    borderColor: 'rgba(25,118,210,0.45)',
-  },
-  reactionMiniText: { color: '#111', fontWeight: '800', fontSize: 12 },
-  reactionMiniTextDark: { color: '#fff' },
-
-  reactionQuickRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-    paddingTop: 6,
-    gap: 10,
-  },
-  reactionQuickScrollContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingRight: 6,
-  },
-  reactionQuickBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-  },
-  reactionQuickBtnDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-  },
-  reactionQuickBtnMine: {
-    backgroundColor: 'rgba(17,17,17,0.20)',
-    borderColor: 'rgba(17,17,17,0.70)',
-  },
-  reactionQuickBtnMineDark: {
-    backgroundColor: 'rgba(25,118,210,0.25)',
-    borderColor: 'rgba(25,118,210,0.45)',
-  },
-  reactionQuickEmoji: { fontSize: 18 },
-  reactionQuickMore: {
-    height: 38,
-    paddingHorizontal: 12,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-  },
-  reactionQuickMoreDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-  },
-  reactionQuickMoreText: { color: '#111', fontWeight: '800' },
-  reactionQuickMoreTextDark: { color: '#fff' },
-  reactionPickerGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingVertical: 10,
-  },
-  reactionPickerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f2f2f7',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e3e3e3',
-  },
-  reactionPickerBtnDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-  },
-  reactionPickerBtnMine: {
-    backgroundColor: 'rgba(17,17,17,0.20)',
-    borderColor: 'rgba(17,17,17,0.70)',
-  },
-  reactionPickerBtnMineDark: {
-    backgroundColor: 'rgba(25,118,210,0.25)',
-    borderColor: 'rgba(25,118,210,0.45)',
-  },
-  reactionPickerEmoji: { fontSize: 20 },
-  actionMenuRow: { paddingHorizontal: 16, paddingVertical: 12 },
-  actionMenuRowPressed: { opacity: 0.75 },
-  actionMenuText: { fontSize: 16, color: '#111', fontWeight: '600' },
-  actionMenuTextDark: { color: '#fff' },
-
-  viewerOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'flex-start',
-    alignItems: 'stretch',
-  },
-  viewerCard: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 0,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-    position: 'relative',
-  },
-  viewerTopBar: {
-    height: 52,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  viewerTitle: { color: '#fff', fontWeight: '700', flex: 1, marginRight: 12 },
-  viewerCloseBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  viewerCloseText: { color: '#fff', fontWeight: '700' },
-  viewerBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  viewerTapArea: { flex: 1, width: '100%', height: '100%' },
-  viewerNavBtn: {
-    position: 'absolute',
-    top: '50%',
-    marginTop: -24,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
-    zIndex: 11,
-  },
-  viewerNavLeft: { left: 12 },
-  viewerNavRight: { right: 12 },
-  viewerNavText: { color: '#fff', fontWeight: '900', fontSize: 28, lineHeight: 28, marginTop: -2 },
-  // RN-web deprecates `style.resizeMode`; use the Image prop instead.
-  viewerImage: { width: '100%', height: '100%' },
-  viewerVideo: { width: '100%', height: '100%' },
-  viewerFallback: { color: '#fff' },
-
-  toastWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toast: {
-    maxWidth: 340,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#111',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  toastDark: {
-    backgroundColor: '#1c1c22',
-    borderColor: '#2a2a33',
-  },
-  toastError: {
-    backgroundColor: '#b00020',
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  toastErrorDark: {
-    backgroundColor: '#7f0015',
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  toastText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-});
-
-

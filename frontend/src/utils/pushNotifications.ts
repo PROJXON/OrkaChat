@@ -1,7 +1,9 @@
-import { Platform } from 'react-native';
 import { fetchAuthSession } from '@aws-amplify/auth';
-import { API_URL } from '../src/config/env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
+import { API_URL } from '../config/env';
+import { PALETTE } from '../theme/colors';
 
 type ExpoNotificationsModule = typeof import('expo-notifications');
 type ExpoDeviceModule = typeof import('expo-device');
@@ -11,7 +13,6 @@ const STORAGE_EXPO_TOKEN = 'push:expoToken';
 
 async function tryImportNotifications(): Promise<ExpoNotificationsModule | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require('expo-notifications');
   } catch {
     return null;
@@ -20,7 +21,6 @@ async function tryImportNotifications(): Promise<ExpoNotificationsModule | null>
 
 async function tryImportDevice(): Promise<ExpoDeviceModule | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require('expo-device');
   } catch {
     return null;
@@ -37,7 +37,6 @@ async function getOrCreateDeviceId(): Promise<string> {
 
   let id = '';
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const CryptoMod = require('expo-crypto');
     const Crypto = CryptoMod?.default || CryptoMod;
     if (Crypto?.randomUUID) id = String(Crypto.randomUUID());
@@ -82,7 +81,7 @@ export async function ensureDmNotificationChannel(): Promise<void> {
       importance: Notifications.AndroidImportance.HIGH,
       sound: 'default',
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#1976d2',
+      lightColor: PALETTE.brandBlue,
     });
   }
 }
@@ -98,7 +97,7 @@ export async function ensureChannelsNotificationChannel(): Promise<void> {
       importance: Notifications.AndroidImportance.HIGH,
       sound: 'default',
       vibrationPattern: [0, 250],
-      lightColor: '#1976d2',
+      lightColor: PALETTE.brandBlue,
     });
   }
 }
@@ -111,7 +110,8 @@ export async function registerForDmPushNotifications(): Promise<{
   if (!API_URL) return { ok: false, reason: 'Missing API_URL' };
 
   const Notifications = await tryImportNotifications();
-  if (!Notifications) return { ok: false, reason: 'expo-notifications not installed (rebuild dev client)' };
+  if (!Notifications)
+    return { ok: false, reason: 'expo-notifications not installed (rebuild dev client)' };
 
   const Device = await tryImportDevice();
   // Expo push token generation can still work without expo-device, but we use it to skip simulators.
@@ -138,7 +138,6 @@ export async function registerForDmPushNotifications(): Promise<{
   try {
     let projectId: string | undefined;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const ConstantsMod = require('expo-constants');
       const Constants = ConstantsMod?.default || ConstantsMod;
       projectId =
@@ -149,10 +148,13 @@ export async function registerForDmPushNotifications(): Promise<{
       // ignore
     }
 
-    const tok = await Notifications.getExpoPushTokenAsync(projectId ? ({ projectId } as any) : undefined);
+    const tok = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     expoPushToken = tok?.data ? String(tok.data) : '';
   } catch (err) {
-    return { ok: false, reason: `Failed to get Expo push token: ${err instanceof Error ? err.message : String(err)}` };
+    return {
+      ok: false,
+      reason: `Failed to get Expo push token: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 
   if (!expoPushToken) return { ok: false, reason: 'Empty Expo push token' };
@@ -177,7 +179,10 @@ export async function registerForDmPushNotifications(): Promise<{
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
-    return { ok: false, reason: `Backend register push token failed (${resp.status}): ${text || 'unknown'}` };
+    return {
+      ok: false,
+      reason: `Backend register push token failed (${resp.status}): ${text || 'unknown'}`,
+    };
   }
 
   await setStoredExpoToken(expoPushToken);
@@ -224,5 +229,3 @@ export async function setForegroundNotificationPolicy(): Promise<void> {
     }),
   });
 }
-
-

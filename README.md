@@ -1,224 +1,160 @@
-# OrkaChat 📱
+# OrkaChat
 
-Mobile application for Projxon featuring LinkedIn integration, contact forms, ROI calculator, and blog content.
+Cross‑platform chat app (iOS / Android / Web) with **end‑to‑end encrypted (E2EE)** messaging, channels, media attachments, and AI tooling. Built with **React Native + Expo (RN Web)** on the frontend and **AWS (Amplify Gen 2 + API Gateway + Lambda)** on the backend.
 
-## 🏗️ Project Structure
+## Features
+
+### Messaging
+- **Encrypted DMs + group DMs (E2EE)**
+- **Channels**
+- **Persistent chat** (history kept) + **“Last active” sorting** in chats
+- **Typing indicator**
+- **Sent / delivered confirmation**
+- **Read receipts** (optional / where supported)
+- **Edit messages**
+- **Delete messages**
+- **Reactions**
+
+### Media
+- **Multi‑media messages** (images / video) with **previews**
+- **In‑app camera capture** for attaching media
+- **Encrypted media in DMs / group DMs (E2EE media)**
+
+### Safety & Moderation
+- **Block users**
+- **Report messages and users** (UGC compliance friendly)
+
+### UX / Personalization
+- **User profile settings**: avatar colors + optional image (crop + zoom)
+- **Chat background settings**: color or image
+- **Splash screens** (light/dark)
+
+### Web portal
+- **Open Graph (OG) previews** for sharing
+- **Mobile‑like rotated device layouts** supported on web
+
+### AI
+- **AI summarization**
+- **AI reply / response suggestions** using chat context
+
+### Platform
+- **Guest mode** (read‑only/public endpoints)
+- **Mobile push notifications**
+
+## Architecture (high level)
+
+- **Frontend**: `frontend/` is an Expo app (React Native + RN Web), written in **TypeScript**
+- **Auth**: **AWS Cognito** (via Amplify Auth)
+- **Realtime (signed‑in users)**: **API Gateway WebSockets** → Lambda route handler(s)
+- **HTTP (guest/public + some hydration)**: **API Gateway HTTP API** → Lambda handlers
+- **Data**: DynamoDB (users, messages, conversations, reads/unreads, blocks, reports, quotas, connections)
+- **Media**: S3 for storage + **CloudFront** for fast delivery
+  - Public channel media + public avatars: **unsigned CloudFront**
+  - DM/group DM media: **CloudFront signed URLs**
+- **Background jobs**: SQS + worker Lambda for **S3 media deletion cleanup**
+- **Abuse limits**: DynamoDB‑backed **AI quotas**, **media upload/download limits**, and **signed URL issuance limits**
+- **AI**: Lambda endpoints with caching (TTL) + quota enforcement
+
+## Repo layout
 
 ```
-OrkaChat/
-├── backend/              # TypeScript + Express API
-│   ├── src/
-│   │   └── server.ts     # Main Express server (TypeScript)
-│   ├── tsconfig.json     # TypeScript configuration
-│   ├── package.json      # Backend dependencies
-│   └── dist/             # Compiled JavaScript (auto-generated)
-├── frontend/             # React Native + Expo + TypeScript
-│   ├── App.tsx           # Main React Native component (TypeScript)
-│   ├── tsconfig.json     # TypeScript configuration
-│   ├── app.json          # Expo configuration
-│   └── package.json      # Frontend dependencies
-├── .gitignore            # Git ignore rules
-└── README.md             # This file
+ProjxonApp/
+├── frontend/                         # Expo (React Native + RN Web) + TypeScript
+│   ├── amplify/                      # Amplify Gen 2 backend definition (Auth/Storage/CloudFront outputs)
+│   ├── app.json                      # Expo config (includes runtime API/WS URLs in `expo.extra`)
+│   └── src/
+├── backend/
+│   └── aws/
+│       └── src/
+│           └── handlers/             # Lambda handlers (HTTP, WebSocket, async workers)
+├── layer/                            # Lambda layer(s)
+└── docs/                             # Deployment docs (web portal, policies, etc.)
 ```
 
-## 🚀 Features
+## Setup (local dev)
 
-- **LinkedIn Integration** - Display posts from company LinkedIn account
-- **Contact Form** - Lead capture and inquiry form
-- **ROI Calculator** - Interactive calculator for client value proposition
-- **Blog Integration** - Pull blog posts from WordPress Lightsail backend
-- **Cross-Platform** - iOS and Android support via React Native + Expo
+### Prerequisites
+- Node.js **18+**
+- npm
+- An AWS account with permissions to deploy Amplify Gen 2 resources (for sandbox deployments)
 
-## 🛠️ Tech Stack
+### Install & run
 
-### Backend
-- **Node.js** with **Express** framework
-- **TypeScript** for type safety and better developer experience
-- **CORS** enabled for mobile app requests
-- **Helmet** for security headers
-- **Morgan** for request logging
-- **ts-node** for TypeScript development
-- **Nodemon** for development auto-restart
+From `frontend/`:
 
-### Frontend
-- **React Native** with **Expo SDK 50**
-- **TypeScript** for type safety and better developer experience
-- **Metro** bundler for fast development
-- **Expo Go** app for easy mobile testing
-- Cross-platform support (iOS/Android/Web)
+```bash
+npm install
+npm start
+```
 
-## 📋 Prerequisites
+Useful commands:
+- Web (dev): `npm run web`
+- Android (native build + run): `npm run android`
+- iOS (native build + run, macOS only): `npm run ios`
+- Static web export: `npm run build:web` (outputs `frontend/dist/`)
 
-- **Node.js** (version 18 or higher)
-- **npm** or **yarn**
-- **Expo Go** app on your mobile device (for testing)
-- **Git** for version control
+Running **web + Android from one dev server**:
+- Run `npm start`, then press **`w`** to open web and **`a`** to open Android (emulator/device) from the same Expo server.
 
-## 🔐 CloudFront media (public + DM)
+Android emulation:
+- Install **Android Studio** and create an **AVD** (Android Virtual Device), then use `npm start` → press **`a`** or run `npm run android`.
+
+### Runtime configuration (API / WebSocket / CDN)
+
+The app reads URLs from:
+- `frontend/app.json` → `expo.extra.WS_URL` and `expo.extra.API_URL`
+- `frontend/amplify_outputs.web.json` (preferred for web) or `frontend/amplify_outputs.json` (generated) → `custom.cdnUrl`, `custom.signerApiUrl` (if present)
+- Code: `frontend/src/config/env.ts`
+
+## CloudFront media (public + DM)
 
 OrkaChat stores media in **S3**, but serves it via **CloudFront**:
-
 - Public channel media + public avatars: **CloudFront (unsigned)** via `CDN_URL`
-- DM media: **CloudFront (signed URLs)** via the `POST /media/dm/signed-url` signer endpoint
+- DM/group DM media: **CloudFront (signed URLs)** via the `POST /media/dm/signed-url` signer endpoint
 
 ### CloudFront key pair (DM signed URLs)
 
-DM media requires CloudFront signed URLs. You need an RSA key pair:
+DM media requires CloudFront signed URLs. Generate an RSA key pair:
 
 ```bash
 openssl genrsa -out cloudfront_private_key.pem 2048
 openssl rsa -pubout -in cloudfront_private_key.pem -out cloudfront_public_key.pem
 ```
 
-These files are intentionally ignored by git (see `.gitignore`). **Never commit private keys.**
+These files are intentionally ignored by git. **Never commit private keys.**
 
 ### Deploy CloudFront DM behavior in Amplify sandbox
 
-The Amplify backend only creates the DM-protected CloudFront behavior if you provide the **public key PEM** at deploy time:
+The Amplify backend only creates the DM‑protected CloudFront behavior if you provide the **public key PEM** at deploy time.
+
+**bash**:
 
 ```bash
-# from repo root (bash)
 export DM_CLOUDFRONT_PUBLIC_KEY_PEM="$(tr -d '\r' < cloudfront_public_key.pem)"
+cd frontend
+npx ampx sandbox
+```
+
+**PowerShell**:
+
+```powershell
+$env:DM_CLOUDFRONT_PUBLIC_KEY_PEM = (Get-Content .\cloudfront_public_key.pem -Raw) -replace "`r",""
 cd frontend
 npx ampx sandbox
 ```
 
 After deploy, check `frontend/amplify_outputs.json` for:
 - `custom.cdnUrl`
-- `custom.dmKeyPairId`
+- `custom.dmKeyPairId` (when DM key group is enabled)
 
 ### Configure the signer Lambda env vars
 
 The signer Lambda behind `POST /media/dm/signed-url` must have:
-
 - `CDN_URL` = `custom.cdnUrl`
 - `CLOUDFRONT_KEY_PAIR_ID` = `custom.dmKeyPairId`
 - `CLOUDFRONT_PRIVATE_KEY_PEM` = contents of `cloudfront_private_key.pem`
 
-### Verify
+## Docs / reference
 
-When working correctly, DM media downloads should use a CloudFront URL that includes:
-- `Expires=...`
-- `Signature=...`
-- `Key-Pair-Id=...`
-
-## 🚀 Getting Started
-
-### 1. Clone and Setup
-```bash
-git clone https://github.com/PROJXON/OrkaChat.git
-cd OrkaChat
-```
-
-### 2. Backend Setup
-```bash
-cd backend
-npm install
-npm run dev    # Starts server with auto-restart on changes
-```
-Backend will run on `http://localhost:3000`
-
-### 3. Frontend Setup
-```bash
-cd frontend
-npm install
-npm start      # Starts Expo development server
-```
-
-### 4. Mobile Testing with Expo Go
-1. **Install Expo Go** on your phone:
-   - iOS: [App Store](https://apps.apple.com/app/expo-go/id982107779)
-   - Android: [Google Play](https://play.google.com/store/apps/details?id=host.exp.exponent)
-
-2. **Connect to same WiFi** as your development computer
-
-3. **Scan QR code** from terminal:
-   - **iPhone**: Use Camera app
-   - **Android**: Use Expo Go app
-
-4. **App loads instantly** on your phone! 📱
-
-## 💻 Development Workflow
-
-### Backend Development
-```bash
-cd backend
-npm run dev         # TypeScript development with ts-node
-npm run dev:watch   # TypeScript development with auto-restart
-npm run build       # Compile TypeScript to JavaScript
-npm start           # Production mode (requires build first)
-```
-
-### Frontend Development
-```bash
-cd frontend
-npm start      # Starts Expo with hot reload
-# Press 'w' for web version
-# Press 'a' for Android emulator
-# Press 'i' for iOS simulator
-```
-
-### Making Changes
-- **Backend**: Save any `.ts` file → server automatically restarts with TypeScript compilation
-- **Frontend**: Save any `.tsx` component → app updates instantly on phone with TypeScript
-- **Both** support hot reload and TypeScript type checking for fast, safe development!
-
-## 🔄 Git Workflow
-
-1. **Create feature branch**: `git checkout -b your-name/feature-name`
-2. **Make changes** and commit
-3. **Push branch**: `git push origin your-name/feature-name`
-4. **Create Pull Request** on GitHub
-5. **Get approval** and merge to main
-
-> 🛡️ **Note**: Direct pushes to `main` are blocked. All changes require PR approval.
-
-## 🌐 API Endpoints (Planned)
-
-```
-GET  /api/health              # Health check
-GET  /api/linkedin/posts      # Company LinkedIn posts
-POST /api/contact             # Contact form submission
-POST /api/roi/calculate       # ROI calculator
-GET  /api/blog/posts          # WordPress blog posts
-```
-
-## 📱 Testing Options
-
-1. **Expo Go** (Recommended) - Real device testing
-2. **Web Browser** - Quick UI testing (`npm start` → press 'w')
-3. **Android Emulator** - Requires Android Studio
-4. **iOS Simulator** - Requires macOS + Xcode
-
-## 🤝 Team Development
-
-### First Time Setup
-1. Clone the repo
-2. Install dependencies in both `backend/` and `frontend/`
-3. Install Expo Go on your phone
-4. Run both servers and test!
-
-### Daily Development
-1. `git pull origin main` to get latest changes
-2. Create your feature branch
-3. Run `npm run dev:watch` in backend/ (TypeScript + auto-restart)
-4. Run `npm start` in frontend/ (TypeScript + Expo)
-5. Develop with live reload and type safety on your phone!
-
-## 🔧 Troubleshooting
-
-**Can't connect to Expo?**
-- Ensure phone and computer on same WiFi
-- Check firewall isn't blocking connections
-- Try restarting Expo server
-
-**Backend not starting?**
-- Check Node.js version (need 18+)
-- Run `npm install` in backend/
-- Check if port 3000 is available
-
-**Need help?** Ask in the team chat or create an issue!
-
----
-
-**Happy coding!** 🚀
+- Backend routes (HTTP + WebSocket): `backend/aws/src/handlers/README.md`
+- Web portal hosting (Amplify Hosting / S3+CloudFront): `docs/web-portal-deploy.md`

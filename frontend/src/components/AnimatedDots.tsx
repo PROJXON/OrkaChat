@@ -36,7 +36,7 @@ export function AnimatedDots({
         easing: Easing.linear,
         useNativeDriver: Platform.OS !== 'web',
       }),
-      { resetBeforeIteration: true }
+      { resetBeforeIteration: true },
     );
 
     loop.start();
@@ -90,5 +90,3 @@ export function AnimatedDots({
     </View>
   );
 }
-
-

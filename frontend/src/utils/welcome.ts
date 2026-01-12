@@ -9,7 +9,10 @@ export function welcomeSeenKey(opts: { conversationId: string; welcomeVersion: s
   return `welcomeSeen:${c}:${v}`;
 }
 
-export async function hasSeenWelcome(opts: { conversationId: string; welcomeVersion: string }): Promise<boolean> {
+export async function hasSeenWelcome(opts: {
+  conversationId: string;
+  welcomeVersion: string;
+}): Promise<boolean> {
   try {
     const key = welcomeSeenKey(opts);
     const v = await AsyncStorage.getItem(key);
@@ -19,7 +22,10 @@ export async function hasSeenWelcome(opts: { conversationId: string; welcomeVers
   }
 }
 
-export async function markWelcomeSeen(opts: { conversationId: string; welcomeVersion: string }): Promise<void> {
+export async function markWelcomeSeen(opts: {
+  conversationId: string;
+  welcomeVersion: string;
+}): Promise<void> {
   try {
     const key = welcomeSeenKey(opts);
     await AsyncStorage.setItem(key, '1');
@@ -27,5 +33,3 @@ export async function markWelcomeSeen(opts: { conversationId: string; welcomeVer
     // ignore
   }
 }
-
-

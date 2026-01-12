@@ -1,5 +1,9 @@
 import React from 'react';
-import { Alert, Linking, Platform, StyleProp, Text, TextStyle } from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
+import { Linking, Platform, Text } from 'react-native';
+
+import { useUiPromptOptional } from '../providers/UiPromptProvider';
+import { APP_COLORS, PALETTE, withAlpha } from '../theme/colors';
 
 type Segment =
   | { kind: 'text'; text: string; bold?: boolean; italic?: boolean }
@@ -33,8 +37,9 @@ function tryNormalizeUrlCandidate(raw: string): string | null {
 
   // Heuristic: bare domains / www.* (exclude emails).
   if (s0.includes('@')) return null;
-  const looksLikeDomain =
-    /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d{2,5})?(?:\/[^\s]*)?$/i.test(s0);
+  const looksLikeDomain = /^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d{2,5})?(?:\/[^\s]*)?$/i.test(
+    s0,
+  );
   if (!looksLikeDomain) return null;
   // Default to https.
   return tryParseHttpUrl(`https://${s0}`);
@@ -59,39 +64,10 @@ function insertSoftBreaksForUrlDisplay(s: string): string {
   return str.replace(re, '$1\u200B');
 }
 
-async function defaultConfirmAndOpenUrl(url: string): Promise<void> {
-  const safe = tryNormalizeUrlCandidate(url);
-  if (!safe) return;
-  const domain = getDomain(safe);
-  const title = 'Open External Link?';
-  const body = domain ? `${domain}\n\n${safe}` : safe;
-
-  if (Platform.OS === 'web') {
-    // eslint-disable-next-line no-alert
-    const ok = typeof window !== 'undefined' ? window.confirm(`${title}\n\n${body}`) : false;
-    if (!ok) return;
-    try {
-      await Linking.openURL(safe);
-    } catch {
-      // ignore
-    }
-    return;
-  }
-
-  // Open/Cancel order (as requested).
-  await new Promise<void>((resolve) => {
-    Alert.alert(title, body, [
-      {
-        text: 'Open',
-        style: 'default',
-        onPress: () => {
-          void Linking.openURL(safe).catch(() => {});
-          resolve();
-        },
-      },
-      { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
-    ]);
-  });
+async function _defaultConfirmAndOpenUrl(url: string): Promise<void> {
+  // Legacy no-op: kept only to preserve call sites in older builds.
+  // In current app flows, RichText is always rendered under UiPromptProvider so this shouldn't run.
+  void url;
 }
 
 function parseInline(text: string, opts: { enableMentions: boolean }): Segment[] {
@@ -167,7 +143,10 @@ function parseInline(text: string, opts: { enableMentions: boolean }): Segment[]
     }
   };
 
-  const processEmphasisAndMentions = (chunk: string, style?: { bold?: boolean; italic?: boolean }) => {
+  const processEmphasisAndMentions = (
+    chunk: string,
+    style?: { bold?: boolean; italic?: boolean },
+  ) => {
     const str = String(chunk || '');
     if (!str) return;
 
@@ -274,33 +253,80 @@ export function RichText({
   linkStyle?: StyleProp<TextStyle>;
   onOpenUrl?: (url: string) => void | Promise<void>;
 }): React.JSX.Element {
+  const ui = useUiPromptOptional();
+
+  const confirmAndOpenUrl = React.useCallback(
+    async (url: string): Promise<void> => {
+      const safe = tryNormalizeUrlCandidate(url);
+      if (!safe) return;
+      const domain = getDomain(safe);
+      const title = 'Open External Link?';
+      const body = domain ? `${domain}\n\n${safe}` : safe;
+
+      // Prefer our themed, app-wide prompt if available.
+      if (ui) {
+        const ok = await ui.confirm(title, body, { confirmText: 'Open', cancelText: 'Cancel' });
+        if (!ok) return;
+        try {
+          await Linking.openURL(safe);
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      // Fallback: legacy behavior for isolated renders outside UiPromptProvider.
+      if (Platform.OS === 'web') {
+        const ok = typeof window !== 'undefined' ? window.confirm(`${title}\n\n${body}`) : false;
+        if (!ok) return;
+      }
+      try {
+        await Linking.openURL(safe);
+      } catch {
+        // ignore
+      }
+    },
+    [ui],
+  );
+
   const segments = React.useMemo(
     () =>
       parseInline(text, {
         enableMentions: enableMentions !== false,
       }),
-    [text, enableMentions]
+    [text, enableMentions],
   );
 
   const v = variant || 'neutral';
   const baseLink: TextStyle =
     v === 'outgoing'
-      ? { color: 'rgba(255,255,255,0.95)', textDecorationLine: 'underline', fontWeight: '700' }
-      : { color: isDark ? '#9dd3ff' : '#0b62d6', textDecorationLine: 'underline', fontWeight: '700' };
+      ? {
+          color: withAlpha(PALETTE.white, 0.95),
+          textDecorationLine: 'underline',
+          fontWeight: '700',
+        }
+      : {
+          color: isDark ? APP_COLORS.dark.brand.link : APP_COLORS.light.brand.link,
+          textDecorationLine: 'underline',
+          fontWeight: '700',
+        };
   const baseMention: TextStyle = { fontWeight: '900' };
 
   return (
     <Text style={style}>
       {segments.map((seg, idx) => {
         if (seg.kind === 'link') {
-          const displayText = tryNormalizeUrlCandidate(seg.text) ? insertSoftBreaksForUrlDisplay(seg.text) : seg.text;
+          const displayText = tryNormalizeUrlCandidate(seg.text)
+            ? insertSoftBreaksForUrlDisplay(seg.text)
+            : seg.text;
           return (
             <Text
               key={`l:${idx}`}
               style={[baseLink, linkStyle]}
               onPress={() => {
-                if (typeof onOpenUrl === 'function') void Promise.resolve(onOpenUrl(seg.url)).catch(() => {});
-                else void defaultConfirmAndOpenUrl(seg.url);
+                if (typeof onOpenUrl === 'function')
+                  void Promise.resolve(onOpenUrl(seg.url)).catch(() => {});
+                else void confirmAndOpenUrl(seg.url);
               }}
               accessibilityRole="link"
               accessibilityLabel={`Open link ${seg.url}`}
@@ -331,4 +357,3 @@ export function RichText({
     </Text>
   );
 }
-
