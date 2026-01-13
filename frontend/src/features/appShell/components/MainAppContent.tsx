@@ -118,6 +118,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
   const {
     chatBackground,
     setChatBackground,
+    chatBackgroundImageScaleMode,
+    setChatBackgroundImageScaleMode,
     backgroundOpen,
     setBackgroundOpen,
     backgroundSaving,
@@ -133,6 +135,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     setBgEffectBlur,
     bgEffectOpacity,
     setBgEffectOpacity,
+    bgImageScaleModeDraft,
+    setBgImageScaleModeDraft,
   } = useChatBackgroundSettings();
 
   const [hasRecoveryBlob, setHasRecoveryBlob] = useState(false);
@@ -547,6 +551,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         backgroundSavingRef={backgroundSavingRef}
         chatBackground={chatBackground}
         setChatBackground={setChatBackground}
+        chatBackgroundImageScaleMode={chatBackgroundImageScaleMode}
+        setChatBackgroundImageScaleMode={setChatBackgroundImageScaleMode}
         backgroundDraft={backgroundDraft}
         setBackgroundDraft={setBackgroundDraft}
         backgroundDraftImageUri={backgroundDraftImageUri}
@@ -557,6 +563,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         setBgEffectBlur={setBgEffectBlur}
         bgEffectOpacity={bgEffectOpacity}
         setBgEffectOpacity={setBgEffectOpacity}
+        bgImageScaleModeDraft={bgImageScaleModeDraft}
+        setBgImageScaleModeDraft={setBgImageScaleModeDraft}
       />
 
       <MainAppChatsAndRecoveryModals
@@ -664,6 +672,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
             headerTop={headerTop}
             theme={theme}
             chatBackground={chatBackground}
+            chatBackgroundImageScaleMode={chatBackgroundImageScaleMode}
             blockedUserSubs={blockedSubs}
             keyEpoch={keyEpoch}
             onBlockUserSub={addBlockBySub}

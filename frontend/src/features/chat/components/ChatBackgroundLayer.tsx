@@ -7,7 +7,7 @@ import { APP_THEME_COLORS } from '../../../theme/colors';
 type ResolvedChatBg =
   | { mode: 'default' }
   | { mode: 'color'; color: string }
-  | { mode: 'image'; uri: string; blur?: number; opacity?: number };
+  | { mode: 'image'; uri: string; blur?: number; opacity?: number; scaleMode?: 'fill' | 'fit' };
 
 export type { ResolvedChatBg };
 
@@ -18,6 +18,8 @@ type Props = {
 };
 
 export function ChatBackgroundLayer({ styles, isDark, resolvedChatBg }: Props) {
+  const imageResizeMode =
+    resolvedChatBg.mode === 'image' && resolvedChatBg.scaleMode === 'fit' ? 'contain' : 'cover';
   return (
     <>
       <View
@@ -32,7 +34,12 @@ export function ChatBackgroundLayer({ styles, isDark, resolvedChatBg }: Props) {
               }
             : resolvedChatBg.mode === 'color'
               ? { backgroundColor: resolvedChatBg.color }
-              : null,
+              : {
+                  // In image mode, this fills the letterbox area when using "fit".
+                  backgroundColor: isDark
+                    ? APP_THEME_COLORS.dark.appBackground
+                    : APP_THEME_COLORS.light.appBackground,
+                },
         ]}
         pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
       />
@@ -47,7 +54,7 @@ export function ChatBackgroundLayer({ styles, isDark, resolvedChatBg }: Props) {
           <Image
             source={{ uri: resolvedChatBg.uri }}
             style={[StyleSheet.absoluteFill, { opacity: resolvedChatBg.opacity ?? 1 }]}
-            resizeMode="cover"
+            resizeMode={imageResizeMode}
             blurRadius={resolvedChatBg.blur ?? 0}
           />
         </View>

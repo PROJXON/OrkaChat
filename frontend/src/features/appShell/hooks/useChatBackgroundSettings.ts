@@ -6,9 +6,16 @@ export type ChatBackgroundState =
   | { mode: 'color'; color: string }
   | { mode: 'image'; uri: string; blur?: number; opacity?: number };
 
+export type ChatBackgroundImageScaleMode = 'fill' | 'fit';
+
 export function useChatBackgroundSettings(): {
   chatBackground: ChatBackgroundState;
   setChatBackground: React.Dispatch<React.SetStateAction<ChatBackgroundState>>;
+
+  chatBackgroundImageScaleMode: ChatBackgroundImageScaleMode;
+  setChatBackgroundImageScaleMode: React.Dispatch<
+    React.SetStateAction<ChatBackgroundImageScaleMode>
+  >;
 
   backgroundOpen: boolean;
   setBackgroundOpen: (v: boolean) => void;
@@ -29,10 +36,15 @@ export function useChatBackgroundSettings(): {
   setBgEffectBlur: (v: number) => void;
   bgEffectOpacity: number;
   setBgEffectOpacity: (v: number) => void;
+
+  bgImageScaleModeDraft: ChatBackgroundImageScaleMode;
+  setBgImageScaleModeDraft: React.Dispatch<React.SetStateAction<ChatBackgroundImageScaleMode>>;
 } {
   const [chatBackground, setChatBackground] = React.useState<ChatBackgroundState>({
     mode: 'default',
   });
+  const [chatBackgroundImageScaleMode, setChatBackgroundImageScaleMode] =
+    React.useState<ChatBackgroundImageScaleMode>('fill');
   const [backgroundOpen, setBackgroundOpen] = React.useState<boolean>(false);
   const [backgroundSaving, setBackgroundSaving] = React.useState<boolean>(false);
   const backgroundSavingRef = React.useRef<boolean>(false);
@@ -41,6 +53,8 @@ export function useChatBackgroundSettings(): {
     mode: 'default',
   });
   const [backgroundDraftImageUri, setBackgroundDraftImageUri] = React.useState<string | null>(null);
+  const [bgImageScaleModeDraft, setBgImageScaleModeDraft] =
+    React.useState<ChatBackgroundImageScaleMode>('fill');
 
   // Background "effects" are local draft controls for photo backgrounds.
   // Applied immediately to the preview; saved only on "Save".
@@ -78,10 +92,29 @@ export function useChatBackgroundSettings(): {
     };
   }, []);
 
+  // Load image scale mode preference (local-only).
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('ui:chatBackgroundImageScaleMode');
+        if (cancelled) return;
+        const v = String(raw || '').trim();
+        if (v === 'fit' || v === 'fill') setChatBackgroundImageScaleMode(v);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Initialize draft state when opening Background modal.
   React.useEffect(() => {
     if (!backgroundOpen) return;
     setBackgroundDraft(chatBackground);
+    setBgImageScaleModeDraft(chatBackgroundImageScaleMode);
     setBackgroundDraftImageUri(null);
     setBackgroundError(null);
     if (chatBackground?.mode === 'image') {
@@ -95,11 +128,13 @@ export function useChatBackgroundSettings(): {
       setBgEffectBlur(0);
       setBgEffectOpacity(1);
     }
-  }, [backgroundOpen, chatBackground]);
+  }, [backgroundOpen, chatBackground, chatBackgroundImageScaleMode]);
 
   return {
     chatBackground,
     setChatBackground,
+    chatBackgroundImageScaleMode,
+    setChatBackgroundImageScaleMode,
     backgroundOpen,
     setBackgroundOpen,
     backgroundSaving,
@@ -115,5 +150,7 @@ export function useChatBackgroundSettings(): {
     setBgEffectBlur,
     bgEffectOpacity,
     setBgEffectOpacity,
+    bgImageScaleModeDraft,
+    setBgImageScaleModeDraft,
   };
 }

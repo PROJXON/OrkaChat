@@ -165,6 +165,7 @@ type ChatScreenProps = {
     blur?: number;
     opacity?: number;
   };
+  chatBackgroundImageScaleMode?: 'fill' | 'fit';
   blockedUserSubs?: string[];
   // Bump this when keys are generated/recovered/reset so ChatScreen reloads them from storage.
   keyEpoch?: number;
@@ -190,6 +191,7 @@ export default function ChatScreen({
   headerTop,
   theme = 'light',
   chatBackground,
+  chatBackgroundImageScaleMode = 'fill',
   blockedUserSubs = [],
   keyEpoch,
   onBlockUserSub,
@@ -720,10 +722,16 @@ export default function ChatScreen({
       const opacityRaw = typeof bg.opacity === 'number' ? bg.opacity : 1;
       const blur = Math.max(0, Math.min(10, Math.round(blurRaw)));
       const opacity = Math.max(0.2, Math.min(1, Math.round(opacityRaw * 100) / 100));
-      return { mode: 'image' as const, uri: bg.uri.trim(), blur, opacity };
+      return {
+        mode: 'image' as const,
+        uri: bg.uri.trim(),
+        blur,
+        opacity,
+        scaleMode: chatBackgroundImageScaleMode,
+      };
     }
     return { mode: 'default' as const };
-  }, [chatBackground]);
+  }, [chatBackground, chatBackgroundImageScaleMode]);
 
   const headerTitle = React.useMemo(() => {
     return getChatHeaderTitle({
