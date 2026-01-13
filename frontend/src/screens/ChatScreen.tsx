@@ -149,6 +149,7 @@ type ChatScreenProps = {
   conversationId?: string | null;
   peer?: string | null;
   displayName: string;
+  myAvatarOverride?: { bgColor?: string; textColor?: string; imagePath?: string } | null;
   onNewDmNotification?: (conversationId: string, user: string, userSub?: string) => void;
   onKickedFromConversation?: (conversationId: string) => void;
   // Notify the parent (Chats list) that the current conversation's title changed.
@@ -181,6 +182,7 @@ export default function ChatScreen({
   conversationId,
   peer,
   displayName,
+  myAvatarOverride,
   onNewDmNotification,
   onKickedFromConversation,
   onConversationTitleChanged,
@@ -422,9 +424,49 @@ export default function ChatScreen({
     subs: wantedAvatarSubs,
     // Chat flow refetches by invalidating on new messages; otherwise only fetch missing.
     ttlMs: Number.POSITIVE_INFINITY,
-    resetKey: conversationId,
+    // IMPORTANT: don't reset on conversation switches, otherwise the header avatar can
+    // briefly fall back to the seeded default color before profiles rehydrate.
+    resetKey: myUserId || undefined,
     cdn: cdnAvatar,
   });
+
+  // Optimistic: when the user updates their avatar via Settings, update the header immediately.
+  // Otherwise, with ttl=Infinity, we'd only see the new avatar after a conversation switch or message event.
+  React.useEffect(() => {
+    const sub = String(myUserId || '').trim();
+    if (!sub) return;
+    const o = myAvatarOverride && typeof myAvatarOverride === 'object' ? myAvatarOverride : null;
+    if (!o) return;
+    const imagePath =
+      typeof o.imagePath === 'string' && o.imagePath.trim().length ? o.imagePath.trim() : undefined;
+    upsertAvatarProfiles([
+      {
+        sub,
+        profile: {
+          displayName,
+          avatarBgColor: typeof o.bgColor === 'string' ? o.bgColor : undefined,
+          avatarTextColor: typeof o.textColor === 'string' ? o.textColor : undefined,
+          avatarImagePath: imagePath,
+        },
+      },
+    ]);
+    if (imagePath) {
+      try {
+        cdnAvatar.ensure([imagePath]);
+      } catch {
+        // ignore
+      }
+    }
+  }, [
+    cdnAvatar,
+    displayName,
+    myAvatarOverride,
+    myAvatarOverride?.bgColor,
+    myAvatarOverride?.imagePath,
+    myAvatarOverride?.textColor,
+    myUserId,
+    upsertAvatarProfiles,
+  ]);
 
   const { toast, anim: toastAnim, showToast } = useToast();
 

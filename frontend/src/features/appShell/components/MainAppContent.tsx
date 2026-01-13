@@ -647,6 +647,11 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
             conversationId={conversationId}
             peer={peer}
             displayName={displayName}
+            myAvatarOverride={{
+              bgColor: myAvatar?.bgColor,
+              textColor: myAvatar?.textColor,
+              imagePath: myAvatar?.imagePath,
+            }}
             onNewDmNotification={handleNewDmNotification}
             onKickedFromConversation={(convId) => {
               if (!convId) return;

@@ -417,7 +417,10 @@ export function handleChatWsMessage(opts: {
     // so we refetch promptly and old messages update without waiting for TTL.
     const senderSubForAvatar =
       typeof payload.userSub === 'string' ? String(payload.userSub).trim() : '';
-    if (senderSubForAvatar) {
+    // IMPORTANT:
+    // Do NOT invalidate my own profile on my outgoing messages. That causes the header avatar
+    // (Welcome row) to briefly fall back to the seeded default color until the public profile refetches.
+    if (senderSubForAvatar && (!opts.myUserId || senderSubForAvatar !== opts.myUserId)) {
       const now = Date.now();
       const last = opts.lastAvatarRefetchAtBySubRef.current[senderSubForAvatar] || 0;
       if (now - last >= opts.avatarRefetchCooldownMs) {
