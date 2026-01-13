@@ -50,6 +50,11 @@ function getServerMessage(resp: AuthedPostResult): string {
   );
 }
 
+function looksLikeLastAdminError(msg: string): boolean {
+  const m = String(msg || '').toLowerCase();
+  return m.includes('last admin') && m.includes('promote');
+}
+
 export function useChatAdminOps(opts: {
   apiUrl: string | null | undefined;
   activeConversationId: string;
@@ -196,19 +201,45 @@ export function useChatAdminOps(opts: {
     } catch {
       // ignore; fall back to server enforcement
     }
-    const ok = await uiConfirm('Leave channel?', 'You will stop receiving new messages', {
-      confirmText: 'Leave',
-      cancelText: 'Cancel',
-      destructive: true,
-    });
-    if (!ok) return;
+
+    // UX guard: warn when leaving as the last active member (channel will be deleted).
+    let skipStandardConfirm = false;
+    try {
+      const mySub = typeof myUserId === 'string' && myUserId.trim() ? myUserId.trim() : '';
+      if (mySub) {
+        const active = channelMembers.filter((m) => m && m.status === 'active');
+        const meActive = active.filter((m) => String(m.memberSub) === mySub);
+        if (active.length === 1 && meActive.length === 1) {
+          const ok = await uiConfirm(
+            'Leave and delete channel?',
+            'You are the last member in this channel.\n\nIf you leave, the channel and its message history will be deleted.\n\nYou can recreate the channel later.',
+            { confirmText: 'Leave & delete', cancelText: 'Cancel', destructive: true },
+          );
+          if (!ok) return;
+          // The "leave & delete" prompt is the confirmation; do not show a second "Leave channel?" modal.
+          skipStandardConfirm = true;
+        }
+      }
+    } catch {
+      // ignore; fall back to backend behavior
+    }
+
+    if (!skipStandardConfirm) {
+      const ok = await uiConfirm('Leave channel?', 'You will stop receiving new messages', {
+        confirmText: 'Leave',
+        cancelText: 'Cancel',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     const cid = String(activeConversationId).slice('ch#'.length).trim();
     if (!cid) return;
     setChannelActionBusy(true);
     try {
       const resp = await authedPost(apiUrl, '/channels/leave', { channelId: cid });
       if (!resp.ok) {
-        showAlert('Leave failed', getServerMessage(resp));
+        const msg = getServerMessage(resp);
+        showAlert(looksLikeLastAdminError(msg) ? 'Wait!' : 'Leave failed', msg);
         return;
       }
       showToast('Left channel', 'success');

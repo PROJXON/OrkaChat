@@ -18,6 +18,8 @@ export function useChannelsFlow({
   apiUrl,
   getIdToken,
   promptAlert,
+  promptConfirm,
+  currentConversationId,
   // navigation + shared UI state
   setConversationId,
   setPeer,
@@ -28,6 +30,12 @@ export function useChannelsFlow({
   apiUrl: string;
   getIdToken: () => Promise<string | null>;
   promptAlert: (title: string, message: string) => Promise<void>;
+  promptConfirm: (
+    title: string,
+    message: string,
+    opts?: { confirmText?: string; cancelText?: string; destructive?: boolean },
+  ) => Promise<boolean>;
+  currentConversationId: string;
   setConversationId: (v: string) => void;
   setPeer: (v: string | null) => void;
   setSearchOpen: (v: boolean) => void;
@@ -71,6 +79,7 @@ export function useChannelsFlow({
   setChannelPasswordInput: React.Dispatch<React.SetStateAction<string>>;
   channelJoinError: string | null;
   setChannelJoinError: React.Dispatch<React.SetStateAction<string | null>>;
+  channelPasswordSubmitting: boolean;
   submitChannelPassword: () => Promise<void>;
 
   // inline create (inside My Channels modal)
@@ -125,6 +134,7 @@ export function useChannelsFlow({
   }>(null);
   const [channelPasswordInput, setChannelPasswordInput] = React.useState<string>('');
   const [channelJoinError, setChannelJoinError] = React.useState<string | null>(null);
+  const [channelPasswordSubmitting, setChannelPasswordSubmitting] = React.useState<boolean>(false);
 
   // Inline create form (inside My Channels modal)
   const [createChannelOpen, setCreateChannelOpen] = React.useState<boolean>(false);
@@ -221,6 +231,7 @@ export function useChannelsFlow({
       if (channel.hasPassword) {
         setChannelPasswordInput('');
         setChannelJoinError(null);
+        setChannelPasswordSubmitting(false);
         setChannelSearchOpen(false);
         setChannelPasswordPrompt({ channelId, name: String(channel.name || 'Channel') });
         return;
@@ -271,6 +282,7 @@ export function useChannelsFlow({
     const channelId = String(prompt.channelId || '').trim();
     const pw = String(channelPasswordInput || '').trim();
     if (!channelId) return;
+    if (channelPasswordSubmitting) return;
     if (!pw) {
       setChannelJoinError('Enter a password');
       return;
@@ -281,46 +293,57 @@ export function useChannelsFlow({
       setChannelJoinError('Unable to authenticate');
       return;
     }
-    setChannelJoinError(null);
-    const base = apiUrl.replace(/\/$/, '');
-    const resp = await fetch(`${base}/channels/join`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channelId, password: pw }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      let msg = `Join failed (${resp.status})`;
-      try {
-        const parsed = text ? JSON.parse(text) : null;
-        if (parsed && typeof parsed.message === 'string') msg = parsed.message;
-      } catch {
-        if (text.trim()) msg = `${msg}: ${text.trim()}`;
-      }
-      setChannelJoinError(msg);
-      return;
-    }
-    const raw: unknown = await resp.json().catch(() => ({}));
-    const rec = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
-    const chRec =
-      typeof rec.channel === 'object' && rec.channel != null
-        ? (rec.channel as Record<string, unknown>)
-        : {};
-    const name =
-      typeof chRec.name === 'string'
-        ? String(chRec.name).trim()
-        : String(prompt.name || 'Channel').trim();
-    setChannelNameById((prev) => ({ ...prev, [channelId]: name }));
-    // Save locally for re-join UX (optional).
     try {
-      await AsyncStorage.setItem(`channels:pw:${channelId}`, pw);
-    } catch {
-      // ignore
+      setChannelPasswordSubmitting(true);
+      setChannelJoinError(null);
+      const base = apiUrl.replace(/\/$/, '');
+      const resp = await fetch(`${base}/channels/join`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId, password: pw }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        let msg = `Join failed (${resp.status})`;
+        try {
+          const parsed = text ? JSON.parse(text) : null;
+          if (parsed && typeof parsed.message === 'string') msg = parsed.message;
+        } catch {
+          if (text.trim()) msg = `${msg}: ${text.trim()}`;
+        }
+        setChannelJoinError(msg);
+        return;
+      }
+      const raw: unknown = await resp.json().catch(() => ({}));
+      const rec = typeof raw === 'object' && raw != null ? (raw as Record<string, unknown>) : {};
+      const chRec =
+        typeof rec.channel === 'object' && rec.channel != null
+          ? (rec.channel as Record<string, unknown>)
+          : {};
+      const name =
+        typeof chRec.name === 'string'
+          ? String(chRec.name).trim()
+          : String(prompt.name || 'Channel').trim();
+      setChannelNameById((prev) => ({ ...prev, [channelId]: name }));
+      // Save locally for re-join UX (optional).
+      try {
+        await AsyncStorage.setItem(`channels:pw:${channelId}`, pw);
+      } catch {
+        // ignore
+      }
+      setChannelPasswordPrompt(null);
+      setChannelPasswordInput('');
+      enterChannelConversation(`ch#${channelId}`);
+    } finally {
+      setChannelPasswordSubmitting(false);
     }
-    setChannelPasswordPrompt(null);
-    setChannelPasswordInput('');
-    enterChannelConversation(`ch#${channelId}`);
-  }, [apiUrl, channelPasswordInput, channelPasswordPrompt, enterChannelConversation]);
+  }, [
+    apiUrl,
+    channelPasswordInput,
+    channelPasswordPrompt,
+    channelPasswordSubmitting,
+    enterChannelConversation,
+  ]);
 
   const fetchMyChannels = React.useCallback(async () => {
     if (!apiUrl) return;
@@ -372,6 +395,7 @@ export function useChannelsFlow({
       const cid = String(channelId || '').trim();
       if (!cid) return;
       if (!apiUrl) return;
+      const leavingActiveChannel = String(currentConversationId || '').trim() === `ch#${cid}`;
       try {
         const token = await getIdTokenRef.current();
         if (!token) {
@@ -379,6 +403,67 @@ export function useChannelsFlow({
           return;
         }
         const base = apiUrl.replace(/\/$/, '');
+        let skipStandardConfirm = false;
+
+        // Best-effort: fetch roster snapshot so we can match ChatScreen leave UX:
+        // - Block leaving if user is last admin (and other active members exist)
+        // - Warn if user is the last member (leaving will delete channel)
+        try {
+          const rosterResp = await fetch(
+            `${base}/channels/members?channelId=${encodeURIComponent(cid)}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          if (rosterResp.ok) {
+            const raw: unknown = await rosterResp.json().catch(() => ({}));
+            const data =
+              raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : ({} as const);
+            const me =
+              data.me && typeof data.me === 'object'
+                ? (data.me as Record<string, unknown>)
+                : ({} as const);
+            const meIsAdmin = !!me.isAdmin;
+            const membersRaw: unknown[] = Array.isArray(data.members) ? data.members : [];
+            const members = membersRaw
+              .map((m) => (m && typeof m === 'object' ? (m as Record<string, unknown>) : null))
+              .filter(Boolean) as Array<Record<string, unknown>>;
+            const active = members.filter((m) => String(m.status || '') === 'active');
+            const activeAdmins = active.filter((m) => !!m.isAdmin);
+            // If I'm an admin, and there are other active members, require at least one *other* active admin.
+            // We don't need mySub: if I'm admin and there's exactly one admin total, that admin must be me.
+            if (meIsAdmin && active.length > 1 && activeAdmins.length === 1) {
+              await promptAlert(
+                'Wait!',
+                'You are the last admin. Promote someone else before leaving.',
+              );
+              return;
+            }
+
+            if (active.length === 1) {
+              const ok = await promptConfirm(
+                'Leave and delete channel?',
+                'You are the last member in this channel.\n\nIf you leave, the channel and its message history will be deleted.\n\nYou can recreate the channel later.',
+                { confirmText: 'Leave & delete', cancelText: 'Cancel', destructive: true },
+              );
+              if (!ok) return;
+              // This prompt is the confirmation; do not show a second "Leave channel?" modal.
+              skipStandardConfirm = true;
+            }
+          }
+        } catch {
+          // ignore and fall back to basic confirm + server enforcement
+        }
+
+        if (!skipStandardConfirm) {
+          const ok = await promptConfirm('Leave channel?', 'You will stop receiving new messages', {
+            confirmText: 'Leave',
+            cancelText: 'Cancel',
+            destructive: true,
+          });
+          if (!ok) return;
+        }
+
         const resp = await fetch(`${base}/channels/leave`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -393,18 +478,31 @@ export function useChannelsFlow({
           } catch {
             if (text.trim()) msg = `${msg}: ${text.trim()}`;
           }
-          // Show a proper prompt (especially for "last admin" cases).
-          void promptAlert('Unable to leave', msg);
+          // Match ChatScreen: "last admin" should show as "Wait!".
+          const looksLikeLastAdmin =
+            String(msg || '')
+              .toLowerCase()
+              .includes('last admin') &&
+            String(msg || '')
+              .toLowerCase()
+              .includes('promote');
+          void promptAlert(looksLikeLastAdmin ? 'Wait!' : 'Unable to leave', msg);
           return;
         }
         setMyChannels((prev) =>
           (Array.isArray(prev) ? prev : []).filter((c) => String(c.channelId) !== cid),
         );
+
+        // If the user left the channel they're currently viewing, behave like the in-channel leave action:
+        // navigate back to Global and close any channel modals.
+        if (leavingActiveChannel) {
+          enterChannelConversation('global');
+        }
       } catch (e: unknown) {
         void promptAlert('Unable to leave', e instanceof Error ? e.message : 'Leave failed');
       }
     },
-    [apiUrl, promptAlert],
+    [apiUrl, currentConversationId, enterChannelConversation, promptAlert, promptConfirm],
   );
 
   const submitCreateChannelInline = React.useCallback(async () => {
@@ -512,6 +610,7 @@ export function useChannelsFlow({
     setChannelPasswordInput,
     channelJoinError,
     setChannelJoinError,
+    channelPasswordSubmitting,
     submitChannelPassword,
 
     createChannelOpen,

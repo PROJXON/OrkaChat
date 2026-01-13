@@ -277,6 +277,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     setChannelPasswordInput,
     channelJoinError,
     setChannelJoinError,
+    channelPasswordSubmitting,
     submitChannelPassword,
     channelNameById,
     setChannelNameById,
@@ -285,6 +286,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     apiUrl: API_URL,
     getIdToken,
     promptAlert,
+    promptConfirm,
+    currentConversationId: conversationId,
     setConversationId,
     setPeer,
     setSearchOpen,
@@ -617,6 +620,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         setChannelPasswordPrompt={setChannelPasswordPrompt}
         channelPasswordInput={channelPasswordInput}
         setChannelPasswordInput={setChannelPasswordInput}
+        channelPasswordSubmitting={channelPasswordSubmitting}
         submitChannelPassword={submitChannelPassword}
       />
 

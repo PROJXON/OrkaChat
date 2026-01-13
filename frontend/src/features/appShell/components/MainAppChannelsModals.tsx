@@ -60,6 +60,7 @@ export function MainAppChannelsModals({
   setChannelPasswordPrompt,
   channelPasswordInput,
   setChannelPasswordInput,
+  channelPasswordSubmitting,
   submitChannelPassword,
 }: {
   styles: AppStyles;
@@ -105,6 +106,7 @@ export function MainAppChannelsModals({
   setChannelPasswordPrompt: (v: null | { channelId: string; name: string }) => void;
   channelPasswordInput: string;
   setChannelPasswordInput: (v: string) => void;
+  channelPasswordSubmitting: boolean;
   submitChannelPassword: () => void | Promise<void>;
 }): React.JSX.Element {
   const [channelPasswordVisible, setChannelPasswordVisible] = React.useState<boolean>(false);
@@ -615,6 +617,7 @@ export function MainAppChannelsModals({
         transparent
         animationType="fade"
         onRequestClose={() => {
+          if (channelPasswordSubmitting) return;
           setChannelPasswordPrompt(null);
           setChannelPasswordVisible(false);
         }}
@@ -623,9 +626,11 @@ export function MainAppChannelsModals({
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => {
+              if (channelPasswordSubmitting) return;
               setChannelPasswordPrompt(null);
               setChannelPasswordVisible(false);
             }}
+            disabled={channelPasswordSubmitting}
           />
           <View style={[styles.profileCard, isDark ? styles.profileCardDark : null]}>
             <View style={styles.chatsTopRow}>
@@ -661,10 +666,12 @@ export function MainAppChannelsModals({
                 darkStyle={styles.blocksInputDark}
                 variant="blocksStandalone"
                 style={[styles.passphraseInput, { marginBottom: 0 }]}
+                editable={!channelPasswordSubmitting}
               />
               <Pressable
                 style={styles.passphraseEyeBtn}
                 onPress={() => setChannelPasswordVisible((v) => !v)}
+                disabled={channelPasswordSubmitting}
                 accessibilityRole="button"
                 accessibilityLabel={
                   channelPasswordVisible ? 'Hide channel password' : 'Show channel password'
@@ -689,12 +696,30 @@ export function MainAppChannelsModals({
                   styles.modalButton,
                   styles.modalButtonSmall,
                   isDark ? styles.modalButtonDark : null,
+                  channelPasswordSubmitting ? { opacity: 0.7 } : null,
                 ]}
                 onPress={() => void Promise.resolve(submitChannelPassword())}
+                disabled={channelPasswordSubmitting}
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                  Join
-                </Text>
+                {channelPasswordSubmitting ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Text
+                      style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                    >
+                      Loading
+                    </Text>
+                    <AnimatedDots
+                      color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                      size={18}
+                    />
+                  </View>
+                ) : (
+                  <Text
+                    style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                  >
+                    Join
+                  </Text>
+                )}
               </Pressable>
               <Pressable
                 style={[
@@ -702,6 +727,7 @@ export function MainAppChannelsModals({
                   styles.modalButtonSmall,
                   isDark ? styles.modalButtonDark : null,
                   { marginLeft: 8 },
+                  channelPasswordSubmitting ? { opacity: 0.45 } : null,
                 ]}
                 onPress={() => {
                   setChannelPasswordPrompt(null);
@@ -709,6 +735,7 @@ export function MainAppChannelsModals({
                   setChannelPasswordInput('');
                   setChannelJoinError(null);
                 }}
+                disabled={channelPasswordSubmitting}
               >
                 <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
                   Cancel
