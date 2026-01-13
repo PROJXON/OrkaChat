@@ -152,8 +152,9 @@ export function ChatScreenMain({
     <KeyboardAvoidingView
       style={styles.container}
       // iOS: use padding to lift input above keyboard.
-      // Android: rely on `softwareKeyboardLayoutMode: "resize"` (app.json) so the window resizes like Signal.
-      behavior={Platform.select({ ios: 'padding', android: undefined })}
+      // Android: edge-to-edge can prevent the window from resizing reliably in release builds,
+      // so use a KeyboardAvoidingView fallback here as well.
+      behavior={Platform.select({ ios: 'padding', android: 'height' })}
     >
       <View style={[styles.header, isDark ? styles.headerDark : null]}>
         <View style={isWideChatLayout ? styles.chatContentColumn : null}>

@@ -177,6 +177,7 @@ const ENCRYPTED_PLACEHOLDER = 'Encrypted message (tap to decrypt)';
 const EMPTY_URI_BY_PATH: Record<string, string> = {};
 const HISTORY_PAGE_SIZE = 50;
 const CHAT_MEDIA_MAX_HEIGHT = 240; // dp
+const CHAT_MEDIA_MAX_HEIGHT_PORTRAIT = 360; // dp (portrait thumbs can be taller without feeling "tiny")
 const CHAT_MEDIA_MAX_WIDTH_FRACTION = 0.86; // fraction of screen width (roughly bubble width)
 
 export default function ChatScreen({
@@ -780,7 +781,12 @@ export default function ChatScreen({
             ? availableWidth
             : windowWidth,
         maxWidthFraction: CHAT_MEDIA_MAX_WIDTH_FRACTION,
-        maxHeight: CHAT_MEDIA_MAX_HEIGHT,
+        // Portrait phone photos otherwise become very narrow once capped by height.
+        // Allow a taller cap for portrait to keep thumbnails reasonably sized.
+        maxHeight:
+          typeof aspect === 'number' && Number.isFinite(aspect) && aspect > 0 && aspect < 0.95
+            ? CHAT_MEDIA_MAX_HEIGHT_PORTRAIT
+            : CHAT_MEDIA_MAX_HEIGHT,
         minMaxWidth: 220,
         minW: 140,
         minH: 120,
@@ -1342,6 +1348,7 @@ export default function ChatScreen({
         mediaUrlByPath,
         dmThumbUriByPath,
         imageAspectByPath,
+        setImageAspectByPath,
         EMPTY_URI_BY_PATH,
         AVATAR_GUTTER,
         chatViewportWidth,
@@ -1375,6 +1382,7 @@ export default function ChatScreen({
       getCappedMediaSize,
       getSeenLabelFor,
       imageAspectByPath,
+      setImageAspectByPath,
       inlineEditAttachmentMode,
       inlineEditDraft,
       inlineEditTargetId,
