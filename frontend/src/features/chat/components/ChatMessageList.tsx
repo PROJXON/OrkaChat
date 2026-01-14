@@ -1,6 +1,6 @@
 import React from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { FlatList, Platform } from 'react-native';
+import { FlatList, Platform, View } from 'react-native';
 
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { ChatHistoryLoadMore } from './ChatHistoryLoadMore';
@@ -54,6 +54,8 @@ export function ChatMessageList<T extends { id: string }>({
   renderItem,
 }: Props<T>) {
   const isWeb = Platform.OS === 'web';
+  const isEmpty = visibleMessagesCount === 0;
+  const showEmptyCta = !!API_URL && isEmpty;
   return (
     <FlatList
       style={[styles.messageList, isWeb && !webReady ? { opacity: 0 } : null]}
@@ -69,15 +71,25 @@ export function ChatMessageList<T extends { id: string }>({
         // In the *inverted* (native) list, the header renders at the bottom near the composer.
         // In the non-inverted (web) list, the footer renders at the bottom.
         isWeb ? (
-          API_URL ? (
+          // Web: load-older affordance belongs at the top.
+          !isEmpty && API_URL ? (
             <ChatHistoryLoadMore
               isDark={isDark}
               hasMore={historyHasMore}
               loading={historyLoading}
-              isEmpty={visibleMessagesCount === 0}
+              isEmpty={false}
               onPress={loadOlderHistory}
             />
           ) : null
+        ) : showEmptyCta ? (
+          // Native: when empty, keep the CTA near the composer at the bottom.
+          <ChatHistoryLoadMore
+            isDark={isDark}
+            hasMore={false}
+            loading={false}
+            isEmpty
+            onPress={loadOlderHistory}
+          />
         ) : isGroup && groupStatus && groupStatus !== 'active' ? (
           <ChatReadOnlyBanner isDark={isDark} status={groupStatus} />
         ) : null
@@ -95,15 +107,30 @@ export function ChatMessageList<T extends { id: string }>({
       onEndReachedThreshold={0.2}
       ListFooterComponent={
         isWeb ? (
-          isGroup && groupStatus && groupStatus !== 'active' ? (
-            <ChatReadOnlyBanner isDark={isDark} status={groupStatus} />
+          showEmptyCta || (isGroup && groupStatus && groupStatus !== 'active') ? (
+            <View>
+              {isGroup && groupStatus && groupStatus !== 'active' ? (
+                <ChatReadOnlyBanner isDark={isDark} status={groupStatus} />
+              ) : null}
+              {showEmptyCta ? (
+                <ChatHistoryLoadMore
+                  isDark={isDark}
+                  hasMore={false}
+                  loading={false}
+                  isEmpty
+                  onPress={loadOlderHistory}
+                />
+              ) : null}
+            </View>
           ) : null
-        ) : API_URL ? (
+        ) : API_URL && !isEmpty ? (
+          // Native: footer sits at the top (older messages) for inverted lists.
+          // When empty we render the CTA in the header instead.
           <ChatHistoryLoadMore
             isDark={isDark}
             hasMore={historyHasMore}
             loading={historyLoading}
-            isEmpty={visibleMessagesCount === 0}
+            isEmpty={false}
             onPress={loadOlderHistory}
           />
         ) : null
@@ -120,6 +147,9 @@ export function ChatMessageList<T extends { id: string }>({
       contentContainerStyle={[
         styles.listContent,
         isWideChatLayout ? styles.chatContentColumn : null,
+        // When the list is empty on web (non-inverted), push the empty-state down
+        // so it sits above the composer like on mobile.
+        isWeb && isEmpty ? ({ flexGrow: 1, justifyContent: 'flex-end' } as const) : null,
       ]}
     />
   );

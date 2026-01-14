@@ -69,6 +69,7 @@ export function GuestGlobalMessageList({
   openViewer: (mediaList: MediaItem[], startIdx: number) => void;
 }): React.JSX.Element {
   const isWeb = Platform.OS === 'web';
+  const isEmpty = messages.length === 0;
   const webOnWheelProps = React.useMemo(() => {
     if (!isWeb) return {};
     if (!webWheelRefresh?.onWheel) return {};
@@ -134,21 +135,54 @@ export function GuestGlobalMessageList({
                 }
           }
           onEndReachedThreshold={0.2}
-          ListFooterComponent={
-            isWeb ? null : apiUrl ? (
+          ListHeaderComponent={
+            // Native lists are inverted, so the header appears near the bottom (by the composer).
+            !isWeb && apiUrl && isEmpty ? (
               <ChatHistoryLoadMore
                 isDark={isDark}
-                hasMore={historyHasMore}
-                loading={historyLoading}
-                isEmpty={messages.length === 0}
-                emptyText="Sign in to Start the Conversation!"
+                hasMore={false}
+                loading={false}
+                isEmpty
+                emptyText="Sign In to Start the Conversation!"
                 noMoreText="No Older Messages"
                 enablePressedOpacity
                 onPress={loadOlderHistory}
               />
             ) : null
           }
-          contentContainerStyle={[styles.listContent, isWideUi ? styles.contentColumn : null]}
+          ListFooterComponent={
+            isWeb ? (
+              apiUrl && isEmpty ? (
+                <ChatHistoryLoadMore
+                  isDark={isDark}
+                  hasMore={false}
+                  loading={false}
+                  isEmpty
+                  emptyText="Sign In to Start the Conversation!"
+                  noMoreText="No Older Messages"
+                  enablePressedOpacity
+                  onPress={loadOlderHistory}
+                />
+              ) : null
+            ) : apiUrl && !isEmpty ? (
+              <ChatHistoryLoadMore
+                isDark={isDark}
+                hasMore={historyHasMore}
+                loading={historyLoading}
+                isEmpty={false}
+                emptyText=" the Conversation!"
+                noMoreText="No Older Messages"
+                enablePressedOpacity
+                onPress={loadOlderHistory}
+              />
+            ) : null
+          }
+          contentContainerStyle={[
+            styles.listContent,
+            isWideUi ? styles.contentColumn : null,
+            // Web: keep empty CTA near the bottom (like mobile) even though the list is non-inverted.
+            isWeb && isEmpty ? ({ flexGrow: 1, justifyContent: 'flex-end' } as const) : null,
+          ]}
           // For web (non-inverted), load older history when the user scrolls to the top.
           onScroll={isWeb ? webPinned.onScroll : undefined}
           scrollEventThrottle={isWeb ? 16 : undefined}

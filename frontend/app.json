@@ -65,6 +65,7 @@
           }
         }
       ],
+      "react-native-quick-crypto",
       "expo-secure-store",
       "expo-camera",
       "expo-video",
