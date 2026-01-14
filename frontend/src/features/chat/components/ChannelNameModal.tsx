@@ -67,7 +67,7 @@ export function ChannelNameModal({
           }}
         >
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-            Channel Name
+            Set Channel Name
           </Text>
           <AppTextInput
             isDark={isDark}

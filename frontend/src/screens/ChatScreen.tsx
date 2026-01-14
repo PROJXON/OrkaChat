@@ -384,7 +384,7 @@ export default function ChatScreen({
     setValue: setDmSettingsOpen,
   });
 
-  const { uiAlert, uiConfirm, showAlert } = useUiPromptHelpers();
+  const { uiAlert, uiConfirm, uiChoice3, showAlert } = useUiPromptHelpers();
 
   const [isUploading, setIsUploading] = React.useState(false);
   const {
@@ -1075,6 +1075,7 @@ export default function ChatScreen({
     channelUpdate,
     showToast,
     uiAlert,
+    uiChoice3,
     setChannelPasswordDraft,
     setChannelPasswordEditOpen,
   });

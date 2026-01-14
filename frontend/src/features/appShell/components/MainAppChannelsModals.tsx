@@ -57,6 +57,9 @@ export function MainAppChannelsModals({
   // Search/join channels modal
   channelSearchOpen,
   setChannelSearchOpen,
+  showPinnedChannelInSearch,
+  pinnedChannelConversationId,
+  pinnedChannelLabel,
   channelsQuery,
   setChannelsQuery,
   channelsLoading,
@@ -103,6 +106,9 @@ export function MainAppChannelsModals({
 
   channelSearchOpen: boolean;
   setChannelSearchOpen: (v: boolean) => void;
+  showPinnedChannelInSearch?: boolean;
+  pinnedChannelConversationId?: string | null;
+  pinnedChannelLabel?: string | null;
   channelsQuery: string;
   setChannelsQuery: (v: string) => void;
   channelsLoading: boolean;
@@ -180,6 +186,23 @@ export function MainAppChannelsModals({
 
   const [channelPasswordVisible, setChannelPasswordVisible] = React.useState<boolean>(false);
   const showGlobalInChannelSearch = shouldShowGlobalForChannelSearch(channelsQuery);
+  const pinnedChannelConversationIdNorm = String(pinnedChannelConversationId || '').trim();
+  const pinnedChannelLabelNorm = String(pinnedChannelLabel || '').trim();
+  const pinnedChannelId = pinnedChannelConversationIdNorm.startsWith('ch#')
+    ? pinnedChannelConversationIdNorm.slice('ch#'.length).trim()
+    : '';
+  const pinnedFromResults = pinnedChannelId
+    ? channelsResults.find((c) => String(c.channelId || '').trim() === pinnedChannelId) || null
+    : null;
+  const showPinned =
+    !!showPinnedChannelInSearch &&
+    !String(channelsQuery || '').trim() &&
+    !!pinnedChannelId &&
+    !!pinnedChannelLabelNorm;
+  const channelsResultsWithoutPinned =
+    showPinned && pinnedChannelId
+      ? channelsResults.filter((c) => String(c.channelId || '').trim() !== pinnedChannelId)
+      : channelsResults;
 
   // Always default to hidden when opening/closing the prompt.
   React.useEffect(() => {
@@ -602,6 +625,68 @@ export function MainAppChannelsModals({
             ) : null}
 
             <ScrollView style={styles.chatsScroll}>
+              {showPinned ? (
+                <Pressable
+                  key="searchchannel:pinned"
+                  style={({ pressed }) => [
+                    styles.chatRow,
+                    isDark ? styles.chatRowDark : null,
+                    pressed ? { opacity: 0.9 } : null,
+                  ]}
+                  onPress={() =>
+                    void Promise.resolve(
+                      joinChannel(
+                        pinnedFromResults
+                          ? pinnedFromResults
+                          : ({
+                              channelId: pinnedChannelId,
+                              name: pinnedChannelLabelNorm,
+                              isMember: true,
+                            } as unknown as ChannelSearchResult),
+                      ),
+                    )
+                  }
+                >
+                  <View style={styles.chatRowLeft}>
+                    <Feather
+                      name="home"
+                      size={14}
+                      color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                    />
+                    <Text
+                      style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]}
+                      numberOfLines={1}
+                    >
+                      {pinnedFromResults?.name || pinnedChannelLabelNorm}
+                    </Text>
+                    {pinnedFromResults?.hasPassword ? (
+                      <View style={{ marginLeft: 8 }}>
+                        <Feather
+                          name="lock"
+                          size={14}
+                          color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={[styles.chatRowRight, { marginLeft: 10 }]}>
+                    <View style={[styles.memberChip, isDark ? styles.memberChipDark : null]}>
+                      <Text
+                        style={[styles.memberChipText, isDark ? styles.memberChipTextDark : null]}
+                      >
+                        {pinnedFromResults
+                          ? String(
+                              typeof pinnedFromResults.activeMemberCount === 'number'
+                                ? pinnedFromResults.activeMemberCount
+                                : 0,
+                            )
+                          : '—'}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              ) : null}
+
               {/* Show Global as a suggestion when empty, otherwise only when it matches the query. */}
               {showGlobalInChannelSearch ? (
                 <Pressable
@@ -651,8 +736,8 @@ export function MainAppChannelsModals({
                     />
                   </View>
                 </View>
-              ) : channelsResults.length ? (
-                channelsResults.map((c) => (
+              ) : channelsResultsWithoutPinned.length ? (
+                channelsResultsWithoutPinned.map((c) => (
                   <Pressable
                     key={`searchchannel:${c.channelId}`}
                     style={({ pressed }) => [
@@ -663,6 +748,13 @@ export function MainAppChannelsModals({
                     onPress={() => void Promise.resolve(joinChannel(c))}
                   >
                     <View style={styles.chatRowLeft}>
+                      {pinnedChannelId && String(c.channelId || '').trim() === pinnedChannelId ? (
+                        <Feather
+                          name="home"
+                          size={14}
+                          color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                        />
+                      ) : null}
                       <Text
                         style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]}
                         numberOfLines={1}
