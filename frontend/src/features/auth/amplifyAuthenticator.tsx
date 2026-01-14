@@ -24,6 +24,7 @@ type AmplifyFieldLike = Record<string, unknown> & {
   value?: unknown;
   labelHidden?: unknown;
   label?: unknown;
+  onFocus?: (event: unknown) => void;
   onBlur?: (event: unknown) => void;
   onChange?: (event: unknown) => void;
   onChangeText?: (value: unknown) => void;
@@ -916,23 +917,37 @@ const CustomSignUp = ({
     </form>
   ) : (
     // Native: use Amplify's built-in screen (DefaultContent is a web-oriented helper and can break on RN).
-    <Authenticator.SignUp
-      {...rest}
-      fields={fields}
-      handleBlur={handleBlur}
-      handleChange={handleChange}
-      handleSubmit={handleSubmit}
-      hasValidationErrors={hasValidationErrors}
-      hideSignIn={hideSignIn}
-      isPending={isPending}
-      socialProviders={socialProviders}
-      toFederatedSignIn={toFederatedSignIn}
-      toSignIn={toSignIn}
-      validationErrors={validationErrors}
-      Footer={Footer}
-      Header={Header}
-      FormFields={FormFields}
-    />
+    // But override the "Sign In" link label to match our desired wording.
+    <View>
+      <Authenticator.SignUp
+        {...rest}
+        fields={fields}
+        handleBlur={handleBlur}
+        handleChange={handleChange}
+        handleSubmit={handleSubmit}
+        hasValidationErrors={hasValidationErrors}
+        // Hide Amplify's built-in "Sign In" link so we can render our own wording below.
+        hideSignIn
+        isPending={isPending}
+        socialProviders={socialProviders}
+        toFederatedSignIn={toFederatedSignIn}
+        toSignIn={toSignIn}
+        validationErrors={validationErrors}
+        Footer={Footer}
+        Header={Header}
+        FormFields={FormFields}
+      />
+      {!hideSignIn && typeof toSignIn === 'function' ? (
+        <AmplifyButton
+          onPress={() => toSignIn()}
+          variant="link"
+          style={styles.authBackLinkBtn}
+          accessibilityLabel="Back to Sign In"
+        >
+          {secondaryButtonText}
+        </AmplifyButton>
+      ) : null}
+    </View>
   );
 };
 

@@ -2,6 +2,12 @@
 
 Cross‑platform chat app (iOS / Android / Web) with **end‑to‑end encrypted (E2EE)** messaging, channels, media attachments, and AI tooling. Built with **React Native + Expo (RN Web)** on the frontend and **AWS (Amplify Gen 2 + API Gateway + Lambda)** on the backend.
 
+Primary web app: **`https://chat.orkaos.com/`**
+
+Legacy redirects:
+- `https://app.orkaos.com/` → `https://chat.orkaos.com/`
+- `https://orkaos.com/chat` → `https://chat.orkaos.com/`
+
 ## Features
 
 ### Messaging

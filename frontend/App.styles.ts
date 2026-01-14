@@ -431,6 +431,16 @@ export const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 12,
   },
+  passphraseLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: APP_COLORS.light.text.secondary,
+    marginBottom: 6,
+    alignSelf: 'stretch',
+  },
+  passphraseLabelDark: {
+    color: APP_COLORS.dark.text.secondary,
+  },
   passphraseInput: {
     paddingRight: 40, // room for the eye icon (match sign-in tighter inset)
     marginBottom: 0,
@@ -443,6 +453,9 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: 32,
+    // Keep the eye icon above focused input elevation on Android.
+    zIndex: 2,
+    elevation: 4,
   },
   passphraseErrorText: {
     color: APP_COLORS.light.status.errorText,

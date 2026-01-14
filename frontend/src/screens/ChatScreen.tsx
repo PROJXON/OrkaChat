@@ -208,10 +208,26 @@ export default function ChatScreen({
       maxContentWidthPx: 1040,
     },
   );
-  const composerSafeAreaStyle = React.useMemo(
-    () => ({ paddingBottom: insets.bottom }),
-    [insets.bottom],
-  );
+  const ANDROID_COMPOSER_BOTTOM_PAD_MAX = 16;
+  // Android can report different bottom insets when an input is focused / keyboard shows.
+  // Cache a stable bottom inset so the composer doesn't "jump" or change height.
+  const [androidBottomInsetStable, setAndroidBottomInsetStable] = React.useState<number>(0);
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const b =
+      typeof insets.bottom === 'number' && Number.isFinite(insets.bottom) ? insets.bottom : 0;
+    // Keep the maximum seen value (gesture/nav area). When the keyboard shows, some devices report 0.
+    if (b > androidBottomInsetStable) setAndroidBottomInsetStable(b);
+  }, [androidBottomInsetStable, insets.bottom]);
+
+  const composerSafeAreaStyle = React.useMemo(() => {
+    const bottomInset =
+      Platform.OS === 'android'
+        ? Math.min(androidBottomInsetStable, ANDROID_COMPOSER_BOTTOM_PAD_MAX)
+        : insets.bottom;
+    return { paddingBottom: bottomInset };
+  }, [androidBottomInsetStable, insets.bottom]);
+  const composerBottomInsetBgHeight = Platform.OS === 'android' ? androidBottomInsetStable : 0;
   const composerHorizontalInsetsStyle = React.useMemo(
     () => ({ paddingLeft: 12 + insets.left, paddingRight: 12 + insets.right }),
     [insets.left, insets.right],
@@ -1507,6 +1523,7 @@ export default function ChatScreen({
     insertMention,
     composerSafeAreaStyle,
     composerHorizontalInsetsStyle,
+    composerBottomInsetBgHeight,
     textInputRef,
     inputEpoch,
     input,

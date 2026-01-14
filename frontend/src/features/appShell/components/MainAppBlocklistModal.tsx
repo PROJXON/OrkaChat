@@ -1,10 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AppTextInput } from '../../../components/AppTextInput';
+import {
+  calcCenteredModalBottomPadding,
+  useKeyboardOverlap,
+} from '../../../hooks/useKeyboardOverlap';
 import { APP_COLORS } from '../../../theme/colors';
 
 export function MainAppBlocklistModal({
@@ -40,6 +44,21 @@ export function MainAppBlocklistModal({
   }>;
   unblockUser: (sub: string, label?: string) => void | Promise<void>;
 }): React.JSX.Element {
+  const kb = useKeyboardOverlap({ enabled: blocklistOpen });
+  const [sheetHeight, setSheetHeight] = React.useState<number>(0);
+  const bottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: kb.keyboardVisible,
+          remainingOverlap: kb.remainingOverlap,
+          windowHeight: kb.windowHeight,
+        },
+        sheetHeight,
+        12,
+      ),
+    [kb.keyboardVisible, kb.remainingOverlap, kb.windowHeight, sheetHeight],
+  );
   return (
     <Modal
       visible={blocklistOpen}
@@ -47,9 +66,26 @@ export function MainAppBlocklistModal({
       animationType="fade"
       onRequestClose={() => setBlocklistOpen(false)}
     >
-      <View style={styles.modalOverlay}>
+      <View
+        style={[
+          styles.modalOverlay,
+          Platform.OS !== 'web' && bottomPad > 0 ? { paddingBottom: bottomPad } : null,
+        ]}
+      >
         <Pressable style={StyleSheet.absoluteFill} onPress={() => setBlocklistOpen(false)} />
-        <View style={[styles.blocksCard, isDark ? styles.blocksCardDark : null]}>
+        <View
+          style={[
+            styles.blocksCard,
+            isDark ? styles.blocksCardDark : null,
+            Platform.OS !== 'web' && kb.keyboardVisible
+              ? { maxHeight: kb.availableHeightAboveKeyboard, minHeight: 0 }
+              : null,
+          ]}
+          onLayout={(e) => {
+            const h = e?.nativeEvent?.layout?.height;
+            if (typeof h === 'number' && Number.isFinite(h) && h > 0) setSheetHeight(h);
+          }}
+        >
           <View style={styles.blocksTopRow}>
             <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
               Blocklist

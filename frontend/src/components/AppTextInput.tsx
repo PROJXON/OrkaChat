@@ -1,6 +1,6 @@
 import * as React from 'react';
 import type { StyleProp, TextInputProps, TextStyle } from 'react-native';
-import { StyleSheet, TextInput } from 'react-native';
+import { Platform, StyleSheet, TextInput } from 'react-native';
 
 import { APP_COLORS, PALETTE } from '../theme/colors';
 
@@ -38,6 +38,34 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     textAlignVertical: 'center',
   },
+  // Web: match other inputs (subtle inset ring, no browser default outline).
+  focusWebLight: {
+    outlineStyle: 'solid',
+    outlineWidth: 0,
+    outlineColor: 'transparent',
+    boxShadow: `inset 0px 0px 0px 1px ${PALETTE.black}`,
+  },
+  focusWebDark: {
+    outlineStyle: 'solid',
+    outlineWidth: 0,
+    outlineColor: 'transparent',
+    boxShadow: `inset 0px 0px 0px 2px ${PALETTE.white}`,
+  },
+  // Native: use a shadow highlight (avoid borderWidth changes / layout shift).
+  focusNativeLight: {
+    shadowColor: PALETTE.black,
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 2,
+  },
+  focusNativeDark: {
+    shadowColor: PALETTE.white,
+    shadowOpacity: 0.22,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 2,
+  },
 });
 
 export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(function AppTextInput(
@@ -50,6 +78,8 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(funct
     selectionColor,
     cursorColor,
     style,
+    onFocus,
+    onBlur,
     ...props
   },
   ref,
@@ -61,16 +91,35 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(funct
   const resolvedCursorColor =
     cursorColor ?? (isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary);
 
+  const [focused, setFocused] = React.useState(false);
+  const focusStyle =
+    Platform.OS === 'web'
+      ? isDark
+        ? s.focusWebDark
+        : s.focusWebLight
+      : isDark
+        ? s.focusNativeDark
+        : s.focusNativeLight;
+
   return (
     <TextInput
       ref={ref}
       placeholderTextColor={resolvedPlaceholderTextColor}
       selectionColor={resolvedSelectionColor}
       cursorColor={resolvedCursorColor}
+      onFocus={(e) => {
+        setFocused(true);
+        onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        onBlur?.(e);
+      }}
       style={[
         baseStyle,
         isDark ? darkStyle : null,
         variant === 'blocksStandalone' ? s.blocksStandalone : null,
+        focused ? focusStyle : null,
         style,
       ]}
       {...props}

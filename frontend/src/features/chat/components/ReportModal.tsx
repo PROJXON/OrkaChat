@@ -13,6 +13,10 @@ import {
 
 import { AppTextInput } from '../../../components/AppTextInput';
 import type { CdnUrlCacheApi } from '../../../hooks/useCdnUrlCache';
+import {
+  calcCenteredModalBottomPadding,
+  useKeyboardOverlap,
+} from '../../../hooks/useKeyboardOverlap';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
@@ -102,8 +106,23 @@ export function ReportModal({
   onSelectCategory,
   onChangeDetails,
 }: Props) {
+  const kb = useKeyboardOverlap({ enabled: visible });
   const ensureThumbUrl = cdnMedia.ensure;
   const [detailsFocused, setDetailsFocused] = React.useState(false);
+  const [sheetHeight, setSheetHeight] = React.useState<number>(0);
+  const bottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: kb.keyboardVisible,
+          remainingOverlap: kb.remainingOverlap,
+          windowHeight: kb.windowHeight,
+        },
+        sheetHeight,
+        12,
+      ),
+    [kb.keyboardVisible, kb.remainingOverlap, kb.windowHeight, sheetHeight],
+  );
 
   // If the modal is dismissed while focused, ensure we don't keep the "focused" ring
   // when it reopens.
@@ -145,9 +164,26 @@ export function ReportModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <View
+        style={[
+          styles.modalOverlay,
+          Platform.OS !== 'web' && bottomPad > 0 ? { paddingBottom: bottomPad } : null,
+        ]}
+      >
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} disabled={submitting} />
-        <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
+        <View
+          style={[
+            styles.summaryModal,
+            isDark ? styles.summaryModalDark : null,
+            Platform.OS !== 'web' && kb.keyboardVisible
+              ? { maxHeight: kb.availableHeightAboveKeyboard, minHeight: 0 }
+              : null,
+          ]}
+          onLayout={(e) => {
+            const h = e?.nativeEvent?.layout?.height;
+            if (typeof h === 'number' && Number.isFinite(h) && h > 0) setSheetHeight(h);
+          }}
+        >
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>Report</Text>
           <View style={{ flexGrow: 1, flexShrink: 1, minHeight: 0 }}>
             <ScrollView style={styles.summaryScroll} contentContainerStyle={{ paddingBottom: 8 }}>
