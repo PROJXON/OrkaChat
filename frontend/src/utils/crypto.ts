@@ -6,7 +6,7 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getRandomBytes } from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { Platform, TurboModuleRegistry } from 'react-native';
 
 import type { BackupBlob, EncryptedChatPayloadV1, KeyPair } from '../types/crypto';
 export type { BackupBlob, EncryptedChatPayloadV1, KeyPair } from '../types/crypto';
@@ -81,15 +81,195 @@ export const derivePublicKey = (privateKeyHex: string): string => {
   return bytesToHex(publicKeyPoint);
 };
 
-const deriveBackupKey = (passphrase: string, salt: Uint8Array) =>
-  pbkdf2(sha256, new TextEncoder().encode(passphrase), salt, { c: 100000, dkLen: 32 });
+const PBKDF2_ITERATIONS = 100_000;
+const PBKDF2_DKLEN_BYTES = 32;
+
+let _loggedPbkdf2Impl = false;
+const logPbkdf2ImplOnce = (msg: string) => {
+  if (!_loggedPbkdf2Impl && __DEV__) {
+    _loggedPbkdf2Impl = true;
+    console.log(msg);
+  }
+};
+
+let _loggedPbkdf2NativeSkip = false;
+const logPbkdf2NativeSkipOnce = (msg: string) => {
+  if (!_loggedPbkdf2NativeSkip && __DEV__) {
+    _loggedPbkdf2NativeSkip = true;
+    console.log(msg);
+  }
+};
+
+const deriveBackupKeyViaWebCrypto = async (
+  passphraseBytes: Uint8Array,
+  salt: Uint8Array,
+): Promise<Uint8Array | null> => {
+  try {
+    // Avoid TS lib mismatches between RN and DOM crypto types by treating subtle as opaque.
+    const subtle = (globalThis as unknown as { crypto?: { subtle?: any } }).crypto?.subtle;
+    if (!subtle) return null;
+    const baseKey = await subtle.importKey(
+      'raw',
+      passphraseBytes as unknown as BufferSource,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits'],
+    );
+    const bits = await subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        hash: 'SHA-256',
+        iterations: PBKDF2_ITERATIONS,
+        salt: salt as unknown as BufferSource,
+      },
+      baseKey,
+      PBKDF2_DKLEN_BYTES * 8,
+    );
+    const out = new Uint8Array(bits);
+    if (out.length !== PBKDF2_DKLEN_BYTES) return null;
+    return out;
+  } catch {
+    return null;
+  }
+};
+
+const deriveBackupKeyViaNativeCrypto = (
+  passphraseBytes: Uint8Array,
+  salt: Uint8Array,
+): Uint8Array | null => {
+  // Native fast-path. We keep this `require` inside the function so web bundlers
+  // don't try to include the native module.
+  try {
+    // Expo Go does not include custom native modules (like NitroModules/QuickCrypto).
+    // If we're running inside Expo Go, skip the native fast-path to avoid runtime errors.
+    try {
+      const Constants = require('expo-constants') as unknown;
+      const c =
+        Constants &&
+        typeof Constants === 'object' &&
+        'default' in (Constants as Record<string, unknown>)
+          ? (Constants as { default: unknown }).default
+          : Constants;
+      const appOwnership =
+        c && typeof c === 'object' && 'appOwnership' in (c as Record<string, unknown>)
+          ? (c as { appOwnership: unknown }).appOwnership
+          : undefined;
+      if (appOwnership === 'expo') {
+        logPbkdf2NativeSkipOnce('recovery PBKDF2: native QuickCrypto skipped (running in Expo Go)');
+        return null;
+      }
+    } catch {
+      // ignore and attempt native crypto
+    }
+
+    // If the NitroModules TurboModule isn't present in this binary (e.g. old dev build),
+    // do NOT attempt to import quick-crypto; importing it will throw loudly.
+    try {
+      const nitro =
+        typeof (TurboModuleRegistry as unknown as { get?: (name: string) => unknown })?.get ===
+        'function'
+          ? (TurboModuleRegistry as unknown as { get: (name: string) => unknown }).get(
+              'NitroModules',
+            )
+          : null;
+      if (!nitro) {
+        logPbkdf2NativeSkipOnce(
+          'recovery PBKDF2: native QuickCrypto skipped (NitroModules missing; rebuild dev client)',
+        );
+        return null;
+      }
+    } catch {
+      logPbkdf2NativeSkipOnce(
+        'recovery PBKDF2: native QuickCrypto skipped (NitroModules check failed; rebuild dev client)',
+      );
+      return null;
+    }
+
+    const rnqc = require('react-native-quick-crypto') as unknown;
+    const crypto =
+      rnqc && typeof rnqc === 'object' && 'default' in (rnqc as Record<string, unknown>)
+        ? (rnqc as { default: unknown }).default
+        : rnqc;
+    const pbkdf2Sync =
+      crypto && typeof crypto === 'object' && 'pbkdf2Sync' in (crypto as Record<string, unknown>)
+        ? (crypto as { pbkdf2Sync: unknown }).pbkdf2Sync
+        : null;
+    if (typeof pbkdf2Sync !== 'function') {
+      logPbkdf2NativeSkipOnce(
+        'recovery PBKDF2: native QuickCrypto skipped (pbkdf2Sync not available; rebuild dev client)',
+      );
+      return null;
+    }
+
+    // pbkdf2Sync(password, salt, iterations, keylen, digest) -> Buffer
+    const buf = (pbkdf2Sync as Function)(
+      passphraseBytes,
+      salt,
+      PBKDF2_ITERATIONS,
+      PBKDF2_DKLEN_BYTES,
+      'sha256',
+    );
+    if (!buf) return null;
+    // Buffer is a Uint8Array subclass; normalize to Uint8Array.
+    const out = new Uint8Array(buf);
+    if (out.length !== PBKDF2_DKLEN_BYTES) return null;
+    return out;
+  } catch {
+    logPbkdf2NativeSkipOnce(
+      'recovery PBKDF2: native QuickCrypto skipped (import/call failed; rebuild dev client)',
+    );
+    return null;
+  }
+};
+
+const deriveBackupKey = async (passphrase: string, salt: Uint8Array): Promise<Uint8Array> => {
+  const passphraseBytes = new TextEncoder().encode(passphrase);
+
+  // Web: use WebCrypto PBKDF2 (fast, non-JS).
+  if (Platform.OS === 'web') {
+    const t0 = __DEV__ ? Date.now() : 0;
+    const k = await deriveBackupKeyViaWebCrypto(passphraseBytes, salt);
+    if (k) {
+      logPbkdf2ImplOnce(
+        `recovery PBKDF2: WebCrypto (SHA-256, c=${PBKDF2_ITERATIONS}, dkLen=${PBKDF2_DKLEN_BYTES})` +
+          (__DEV__ ? ` in ${Date.now() - t0}ms` : ''),
+      );
+      return k;
+    }
+  }
+
+  // Native: use optimized PBKDF2 (fast, non-JS).
+  if (Platform.OS !== 'web') {
+    const t0 = __DEV__ ? Date.now() : 0;
+    const k = deriveBackupKeyViaNativeCrypto(passphraseBytes, salt);
+    if (k) {
+      logPbkdf2ImplOnce(
+        `recovery PBKDF2: native QuickCrypto (SHA-256, c=${PBKDF2_ITERATIONS}, dkLen=${PBKDF2_DKLEN_BYTES})` +
+          (__DEV__ ? ` in ${Date.now() - t0}ms` : ''),
+      );
+      return k;
+    }
+  }
+
+  // Guaranteed fallback: pure JS implementation (slower, but always available).
+  const t0 = __DEV__ ? Date.now() : 0;
+  const out = pbkdf2(sha256, passphraseBytes, salt, {
+    c: PBKDF2_ITERATIONS,
+    dkLen: PBKDF2_DKLEN_BYTES,
+  });
+  logPbkdf2ImplOnce(
+    `recovery PBKDF2: JS noble fallback (SHA-256, c=${PBKDF2_ITERATIONS}, dkLen=${PBKDF2_DKLEN_BYTES})` +
+      (__DEV__ ? ` in ${Date.now() - t0}ms` : ''),
+  );
+  return out;
+};
 
 export const encryptPrivateKey = async (
   privateKeyHex: string,
   passphrase: string,
 ): Promise<BackupBlob> => {
   const salt = getRandomBytes(16);
-  const key = deriveBackupKey(passphrase, salt);
+  const key = await deriveBackupKey(passphrase, salt);
   const iv = getRandomBytes(12);
   const cipher = gcm(key, iv);
   const encrypted = cipher.encrypt(hexToBytes(privateKeyHex));
@@ -109,7 +289,7 @@ export const decryptPrivateKey = async (blob: BackupBlob, passphrase: string): P
   const salt = hexToBytes(blob.salt);
   const iv = hexToBytes(blob.iv);
   const combined = hexToBytes(blob.ciphertext);
-  const key = deriveBackupKey(passphrase, salt);
+  const key = await deriveBackupKey(passphrase, salt);
   const cipher = gcm(key, iv);
   const decrypted = cipher.decrypt(combined);
   return bytesToHex(decrypted);
