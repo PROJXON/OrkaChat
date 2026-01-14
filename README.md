@@ -1,6 +1,6 @@
 # OrkaChat
 
-Cross‑platform chat app (iOS / Android / Web) with **end‑to‑end encrypted (E2EE)** messaging, channels, media attachments, and AI tooling. Built with **React Native + Expo (RN Web)** on the frontend and **AWS (Amplify Gen 2 + API Gateway + Lambda)** on the backend.
+Open‑source (**MIT‑licensed**) cross‑platform chat app (iOS / Android / Web) with **end‑to‑end encrypted (E2EE)** messaging, channels, media attachments, and AI tooling. Built with **React Native + Expo (RN Web)** on the frontend and **AWS (Amplify Gen 2 + API Gateway + Lambda)** on the backend.
 
 Primary web app: **`https://chat.orkaos.com/`**
 
@@ -46,6 +46,21 @@ Legacy redirects:
 ### Platform
 - **Guest mode** (read‑only/public endpoints)
 - **Mobile push notifications**
+
+## Security (high level)
+
+- **Transport security**: Client ↔ backend traffic uses **HTTPS/WSS (TLS)**.
+- **E2EE (DMs + group DMs)**:
+  - Clients generate a **secp256k1** keypair.
+  - DMs use **secp256k1 ECDH** to derive a shared secret, then derive a 32‑byte key (SHA‑256) and encrypt message payloads with **AES‑256‑GCM**.
+  - Group DMs encrypt the message payload with a per‑message random key (**AES‑256‑GCM**) and **wrap** that key per member so each participant can decrypt.
+- **Media**:
+  - **Channels**: uploaded and served as plaintext (standard access controls/CDN).
+  - **DMs / group DMs**: attachments (and thumbnails) are encrypted client‑side with a per‑attachment random key (**AES‑256‑GCM**); the attachment key is then wrapped for recipients (DM: ECDH‑derived key, group: per‑message key).
+- **Key storage**: on iOS/Android, keys are stored in OS secure storage (`expo-secure-store`); on web, storage is `AsyncStorage` (localStorage‑backed).
+- **Backups**: private‑key backup encryption uses **PBKDF2‑SHA256** (100k iterations) + **AES‑256‑GCM**.
+
+This project has not been independently security‑audited. Don’t rely on it for high‑risk threat models without review.
 
 ## Architecture (high level)
 
@@ -170,3 +185,7 @@ The signer Lambda behind `POST /media/dm/signed-url` must have:
 - Backend setup (manual AWS resources, routes, DynamoDB tables/GSIs): `backend/README.md`
 - Backend routes (HTTP + WebSocket): `backend/aws/src/handlers/README.md`
 - Web portal hosting (Amplify Hosting / S3+CloudFront): `docs/web-portal-deploy.md`
+
+## License
+
+MIT — see `LICENSE`.
