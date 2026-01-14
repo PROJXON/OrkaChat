@@ -1,9 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
+import {
+  calcCenteredModalBottomPadding,
+  useKeyboardOverlap,
+} from '../../../hooks/useKeyboardOverlap';
 import { APP_COLORS } from '../../../theme/colors';
 
 export function MainAppChatsAndRecoveryModals({
@@ -54,6 +58,41 @@ export function MainAppChatsAndRecoveryModals({
   deleteConversationFromList: (conversationId: string) => void | Promise<void>;
   formatChatActivityDate: (ts: number) => string;
 }): React.JSX.Element {
+  const recoveryKb = useKeyboardOverlap({ enabled: recoveryOpen });
+  const chatsKb = useKeyboardOverlap({ enabled: chatsOpen });
+  const [recoverySheetHeight, setRecoverySheetHeight] = React.useState<number>(0);
+  const [chatsSheetHeight, setChatsSheetHeight] = React.useState<number>(0);
+  const recoveryBottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: recoveryKb.keyboardVisible,
+          remainingOverlap: recoveryKb.remainingOverlap,
+          windowHeight: recoveryKb.windowHeight,
+        },
+        recoverySheetHeight,
+        12,
+      ),
+    [
+      recoveryKb.keyboardVisible,
+      recoveryKb.remainingOverlap,
+      recoveryKb.windowHeight,
+      recoverySheetHeight,
+    ],
+  );
+  const chatsBottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: chatsKb.keyboardVisible,
+          remainingOverlap: chatsKb.remainingOverlap,
+          windowHeight: chatsKb.windowHeight,
+        },
+        chatsSheetHeight,
+        12,
+      ),
+    [chatsKb.keyboardVisible, chatsKb.remainingOverlap, chatsKb.windowHeight, chatsSheetHeight],
+  );
   return (
     <>
       <Modal
@@ -62,9 +101,28 @@ export function MainAppChatsAndRecoveryModals({
         animationType="fade"
         onRequestClose={() => setRecoveryOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View
+          style={[
+            styles.modalOverlay,
+            Platform.OS !== 'web' && recoveryBottomPad > 0
+              ? { paddingBottom: recoveryBottomPad }
+              : null,
+          ]}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setRecoveryOpen(false)} />
-          <View style={[styles.profileCard, isDark ? styles.profileCardDark : null]}>
+          <View
+            style={[
+              styles.profileCard,
+              isDark ? styles.profileCardDark : null,
+              Platform.OS !== 'web' && recoveryKb.keyboardVisible
+                ? { maxHeight: recoveryKb.availableHeightAboveKeyboard, minHeight: 0 }
+                : null,
+            ]}
+            onLayout={(e) => {
+              const h = e?.nativeEvent?.layout?.height;
+              if (typeof h === 'number' && Number.isFinite(h) && h > 0) setRecoverySheetHeight(h);
+            }}
+          >
             <View style={styles.chatsTopRow}>
               <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
                 Recovery
@@ -187,9 +245,26 @@ export function MainAppChatsAndRecoveryModals({
         animationType="fade"
         onRequestClose={() => setChatsOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View
+          style={[
+            styles.modalOverlay,
+            Platform.OS !== 'web' && chatsBottomPad > 0 ? { paddingBottom: chatsBottomPad } : null,
+          ]}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setChatsOpen(false)} />
-          <View style={[styles.chatsCard, isDark ? styles.chatsCardDark : null]}>
+          <View
+            style={[
+              styles.chatsCard,
+              isDark ? styles.chatsCardDark : null,
+              Platform.OS !== 'web' && chatsKb.keyboardVisible
+                ? { maxHeight: chatsKb.availableHeightAboveKeyboard, minHeight: 0 }
+                : null,
+            ]}
+            onLayout={(e) => {
+              const h = e?.nativeEvent?.layout?.height;
+              if (typeof h === 'number' && Number.isFinite(h) && h > 0) setChatsSheetHeight(h);
+            }}
+          >
             <View style={styles.chatsTopRow}>
               <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Chats</Text>
             </View>

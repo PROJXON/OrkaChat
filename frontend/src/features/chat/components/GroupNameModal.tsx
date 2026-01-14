@@ -1,7 +1,11 @@
 import React from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, Text, View } from 'react-native';
 
 import { AppTextInput } from '../../../components/AppTextInput';
+import {
+  calcCenteredModalBottomPadding,
+  useKeyboardOverlap,
+} from '../../../hooks/useKeyboardOverlap';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS } from '../../../theme/colors';
 
@@ -28,10 +32,42 @@ export function GroupNameModal({
   onSave,
   onCancel,
 }: Props) {
+  const kb = useKeyboardOverlap({ enabled: visible });
+  const [sheetHeight, setSheetHeight] = React.useState<number>(0);
+  const bottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: kb.keyboardVisible,
+          remainingOverlap: kb.remainingOverlap,
+          windowHeight: kb.windowHeight,
+        },
+        sheetHeight,
+        12,
+      ),
+    [kb.keyboardVisible, kb.remainingOverlap, kb.windowHeight, sheetHeight],
+  );
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
+      <View
+        style={[
+          styles.modalOverlay,
+          Platform.OS !== 'web' && bottomPad > 0 ? { paddingBottom: bottomPad } : null,
+        ]}
+      >
+        <View
+          style={[
+            styles.summaryModal,
+            isDark ? styles.summaryModalDark : null,
+            Platform.OS !== 'web' && kb.keyboardVisible
+              ? { maxHeight: kb.availableHeightAboveKeyboard, minHeight: 0 }
+              : null,
+          ]}
+          onLayout={(e) => {
+            const h = e?.nativeEvent?.layout?.height;
+            if (typeof h === 'number' && Number.isFinite(h) && h > 0) setSheetHeight(h);
+          }}
+        >
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
             Group Name
           </Text>

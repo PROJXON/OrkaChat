@@ -1,11 +1,24 @@
 import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AppTextInput } from '../../../components/AppTextInput';
+import {
+  calcCenteredModalBottomPadding,
+  useKeyboardOverlap,
+} from '../../../hooks/useKeyboardOverlap';
 import { APP_COLORS } from '../../../theme/colors';
 import { shouldShowGlobalForChannelSearch } from '../../../utils/channelSearch';
 
@@ -60,6 +73,7 @@ export function MainAppChannelsModals({
   setChannelPasswordPrompt,
   channelPasswordInput,
   setChannelPasswordInput,
+  channelPasswordSubmitting,
   submitChannelPassword,
 }: {
   styles: AppStyles;
@@ -105,8 +119,65 @@ export function MainAppChannelsModals({
   setChannelPasswordPrompt: (v: null | { channelId: string; name: string }) => void;
   channelPasswordInput: string;
   setChannelPasswordInput: (v: string) => void;
+  channelPasswordSubmitting: boolean;
   submitChannelPassword: () => void | Promise<void>;
 }): React.JSX.Element {
+  const channelsKb = useKeyboardOverlap({ enabled: channelsOpen });
+  const searchKb = useKeyboardOverlap({ enabled: channelSearchOpen });
+  const passwordKb = useKeyboardOverlap({ enabled: !!channelPasswordPrompt });
+  const [channelsSheetHeight, setChannelsSheetHeight] = React.useState<number>(0);
+  const [searchSheetHeight, setSearchSheetHeight] = React.useState<number>(0);
+  const [passwordSheetHeight, setPasswordSheetHeight] = React.useState<number>(0);
+  const channelsBottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: channelsKb.keyboardVisible,
+          remainingOverlap: channelsKb.remainingOverlap,
+          windowHeight: channelsKb.windowHeight,
+        },
+        channelsSheetHeight,
+        12,
+      ),
+    [
+      channelsKb.keyboardVisible,
+      channelsKb.remainingOverlap,
+      channelsKb.windowHeight,
+      channelsSheetHeight,
+    ],
+  );
+  const searchBottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: searchKb.keyboardVisible,
+          remainingOverlap: searchKb.remainingOverlap,
+          windowHeight: searchKb.windowHeight,
+        },
+        searchSheetHeight,
+        12,
+      ),
+    [searchKb.keyboardVisible, searchKb.remainingOverlap, searchKb.windowHeight, searchSheetHeight],
+  );
+  const passwordBottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: passwordKb.keyboardVisible,
+          remainingOverlap: passwordKb.remainingOverlap,
+          windowHeight: passwordKb.windowHeight,
+        },
+        passwordSheetHeight,
+        12,
+      ),
+    [
+      passwordKb.keyboardVisible,
+      passwordKb.remainingOverlap,
+      passwordKb.windowHeight,
+      passwordSheetHeight,
+    ],
+  );
+
   const [channelPasswordVisible, setChannelPasswordVisible] = React.useState<boolean>(false);
   const showGlobalInChannelSearch = shouldShowGlobalForChannelSearch(channelsQuery);
 
@@ -128,9 +199,28 @@ export function MainAppChannelsModals({
         animationType="fade"
         onRequestClose={() => setChannelsOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View
+          style={[
+            styles.modalOverlay,
+            Platform.OS !== 'web' && channelsBottomPad > 0
+              ? { paddingBottom: channelsBottomPad }
+              : null,
+          ]}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelsOpen(false)} />
-          <View style={[styles.chatsCard, isDark ? styles.chatsCardDark : null]}>
+          <View
+            style={[
+              styles.chatsCard,
+              isDark ? styles.chatsCardDark : null,
+              Platform.OS !== 'web' && channelsKb.keyboardVisible
+                ? { maxHeight: channelsKb.availableHeightAboveKeyboard, minHeight: 0 }
+                : null,
+            ]}
+            onLayout={(e) => {
+              const h = e?.nativeEvent?.layout?.height;
+              if (typeof h === 'number' && Number.isFinite(h) && h > 0) setChannelsSheetHeight(h);
+            }}
+          >
             <View style={styles.chatsTopRow}>
               <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
                 Channels
@@ -441,9 +531,28 @@ export function MainAppChannelsModals({
         animationType="fade"
         onRequestClose={() => setChannelSearchOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View
+          style={[
+            styles.modalOverlay,
+            Platform.OS !== 'web' && searchBottomPad > 0
+              ? { paddingBottom: searchBottomPad }
+              : null,
+          ]}
+        >
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setChannelSearchOpen(false)} />
-          <View style={[styles.chatsCard, isDark ? styles.chatsCardDark : null]}>
+          <View
+            style={[
+              styles.chatsCard,
+              isDark ? styles.chatsCardDark : null,
+              Platform.OS !== 'web' && searchKb.keyboardVisible
+                ? { maxHeight: searchKb.availableHeightAboveKeyboard, minHeight: 0 }
+                : null,
+            ]}
+            onLayout={(e) => {
+              const h = e?.nativeEvent?.layout?.height;
+              if (typeof h === 'number' && Number.isFinite(h) && h > 0) setSearchSheetHeight(h);
+            }}
+          >
             <View style={styles.chatsTopRow}>
               <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
                 Find Channels
@@ -615,19 +724,41 @@ export function MainAppChannelsModals({
         transparent
         animationType="fade"
         onRequestClose={() => {
+          if (channelPasswordSubmitting) return;
           setChannelPasswordPrompt(null);
           setChannelPasswordVisible(false);
         }}
       >
-        <View style={styles.modalOverlay}>
+        <View
+          style={[
+            styles.modalOverlay,
+            Platform.OS !== 'web' && passwordBottomPad > 0
+              ? { paddingBottom: passwordBottomPad }
+              : null,
+          ]}
+        >
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => {
+              if (channelPasswordSubmitting) return;
               setChannelPasswordPrompt(null);
               setChannelPasswordVisible(false);
             }}
+            disabled={channelPasswordSubmitting}
           />
-          <View style={[styles.profileCard, isDark ? styles.profileCardDark : null]}>
+          <View
+            style={[
+              styles.profileCard,
+              isDark ? styles.profileCardDark : null,
+              Platform.OS !== 'web' && passwordKb.keyboardVisible
+                ? { maxHeight: passwordKb.availableHeightAboveKeyboard, minHeight: 0 }
+                : null,
+            ]}
+            onLayout={(e) => {
+              const h = e?.nativeEvent?.layout?.height;
+              if (typeof h === 'number' && Number.isFinite(h) && h > 0) setPasswordSheetHeight(h);
+            }}
+          >
             <View style={styles.chatsTopRow}>
               <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
                 Join {channelPasswordPrompt?.name || 'Channel'}
@@ -661,10 +792,12 @@ export function MainAppChannelsModals({
                 darkStyle={styles.blocksInputDark}
                 variant="blocksStandalone"
                 style={[styles.passphraseInput, { marginBottom: 0 }]}
+                editable={!channelPasswordSubmitting}
               />
               <Pressable
                 style={styles.passphraseEyeBtn}
                 onPress={() => setChannelPasswordVisible((v) => !v)}
+                disabled={channelPasswordSubmitting}
                 accessibilityRole="button"
                 accessibilityLabel={
                   channelPasswordVisible ? 'Hide channel password' : 'Show channel password'
@@ -689,12 +822,30 @@ export function MainAppChannelsModals({
                   styles.modalButton,
                   styles.modalButtonSmall,
                   isDark ? styles.modalButtonDark : null,
+                  channelPasswordSubmitting ? { opacity: 0.7 } : null,
                 ]}
                 onPress={() => void Promise.resolve(submitChannelPassword())}
+                disabled={channelPasswordSubmitting}
               >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                  Join
-                </Text>
+                {channelPasswordSubmitting ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Text
+                      style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                    >
+                      Loading
+                    </Text>
+                    <AnimatedDots
+                      color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+                      size={18}
+                    />
+                  </View>
+                ) : (
+                  <Text
+                    style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                  >
+                    Join
+                  </Text>
+                )}
               </Pressable>
               <Pressable
                 style={[
@@ -702,6 +853,7 @@ export function MainAppChannelsModals({
                   styles.modalButtonSmall,
                   isDark ? styles.modalButtonDark : null,
                   { marginLeft: 8 },
+                  channelPasswordSubmitting ? { opacity: 0.45 } : null,
                 ]}
                 onPress={() => {
                   setChannelPasswordPrompt(null);
@@ -709,6 +861,7 @@ export function MainAppChannelsModals({
                   setChannelPasswordInput('');
                   setChannelJoinError(null);
                 }}
+                disabled={channelPasswordSubmitting}
               >
                 <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
                   Cancel

@@ -52,6 +52,7 @@ export function renderChatListItem(args: {
   mediaUrlByPath: Record<string, string>;
   dmThumbUriByPath: Record<string, string>;
   imageAspectByPath: Record<string, number>;
+  setImageAspectByPath: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   EMPTY_URI_BY_PATH: Record<string, string>;
 
   AVATAR_GUTTER: number;
@@ -104,6 +105,7 @@ export function renderChatListItem(args: {
     mediaUrlByPath,
     dmThumbUriByPath,
     imageAspectByPath,
+    setImageAspectByPath,
     EMPTY_URI_BY_PATH,
     AVATAR_GUTTER,
     chatViewportWidth,
@@ -263,6 +265,19 @@ export function renderChatListItem(args: {
         loop
         uriByPath={isEncryptedChat ? EMPTY_URI_BY_PATH : mediaUrlByPath}
         thumbUriByPath={isEncryptedChat ? dmThumbUriByPath : undefined}
+        onImageAspect={(keyPath, aspect) => {
+          if (!keyPath) return;
+          // Only update if we don't have one yet, or if this corrects a bad value (e.g., EXIF-rotated images).
+          setImageAspectByPath((prev) => {
+            const cur = prev[keyPath];
+            if (typeof cur === 'number' && Number.isFinite(cur) && cur > 0) {
+              // If the measured aspect is materially different, prefer the measured value.
+              if (Math.abs(cur - aspect) < 0.02) return prev;
+              return { ...prev, [keyPath]: aspect };
+            }
+            return { ...prev, [keyPath]: aspect };
+          });
+        }}
         loadingTextColor={
           isOutgoing
             ? withAlpha(PALETTE.white, 0.9)

@@ -5,6 +5,10 @@ import { Image, Modal, Platform, Pressable, Text, View } from 'react-native';
 import type { AppStyles } from '../../../../App.styles';
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AppTextInput } from '../../../components/AppTextInput';
+import {
+  calcCenteredModalBottomPadding,
+  useKeyboardOverlap,
+} from '../../../hooks/useKeyboardOverlap';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type PassphrasePromptMode = 'setup' | 'restore' | 'change' | 'reset';
@@ -48,6 +52,21 @@ export function MainAppPassphrasePromptModal({
   onSubmit: () => void;
   onCancel: () => void | Promise<void>;
 }): React.JSX.Element {
+  const kb = useKeyboardOverlap({ enabled: visible });
+  const [sheetHeight, setSheetHeight] = React.useState<number>(0);
+  const bottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: kb.keyboardVisible,
+          remainingOverlap: kb.remainingOverlap,
+          windowHeight: kb.windowHeight,
+        },
+        sheetHeight,
+        12,
+      ),
+    [kb.keyboardVisible, kb.remainingOverlap, kb.windowHeight, sheetHeight],
+  );
   const requiresConfirm = mode === 'setup' || mode === 'change' || mode === 'reset';
   const submitDisabled =
     processing || !passphraseInput.trim() || (requiresConfirm && !passphraseConfirmInput.trim());
@@ -79,12 +98,16 @@ export function MainAppPassphrasePromptModal({
         </Text>
       ) : null}
 
+      <Text style={[styles.passphraseLabel, isDark ? styles.passphraseLabelDark : null]}>
+        Enter Passphrase
+      </Text>
       <View style={styles.passphraseFieldWrapper}>
         <AppTextInput
           isDark={isDark}
           style={[
             styles.modalInput,
             styles.passphraseInput,
+            { width: '100%' },
             isDark ? styles.modalInputDark : styles.modalInputLight,
             processing ? styles.modalInputDisabled : null,
             isDark && processing ? styles.modalInputDisabledDark : null,
@@ -95,7 +118,7 @@ export function MainAppPassphrasePromptModal({
             setPassphraseInput(t);
             if (passphraseError) setPassphraseError(null);
           }}
-          placeholder="Passphrase"
+          placeholder="Enter Passphrase"
           autoFocus
           editable={!processing}
         />
@@ -118,42 +141,48 @@ export function MainAppPassphrasePromptModal({
       </View>
 
       {requiresConfirm ? (
-        <View style={styles.passphraseFieldWrapper}>
-          <AppTextInput
-            isDark={isDark}
-            style={[
-              styles.modalInput,
-              styles.passphraseInput,
-              isDark ? styles.modalInputDark : styles.modalInputLight,
-              processing ? styles.modalInputDisabled : null,
-              isDark && processing ? styles.modalInputDisabledDark : null,
-            ]}
-            secureTextEntry={!passphraseVisible}
-            value={passphraseConfirmInput}
-            onChangeText={(t) => {
-              setPassphraseConfirmInput(t);
-              if (passphraseError) setPassphraseError(null);
-            }}
-            placeholder="Confirm Passphrase"
-            editable={!processing}
-          />
-          <Pressable
-            style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
-            onPress={() => setPassphraseVisible((v) => !v)}
-            disabled={processing}
-            accessibilityRole="button"
-            accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
-          >
-            <Image
-              source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
-              tintColor={isDark ? PALETTE.slate400 : PALETTE.slate450}
-              style={{
-                width: 18,
-                height: 18,
+        <>
+          <Text style={[styles.passphraseLabel, isDark ? styles.passphraseLabelDark : null]}>
+            Confirm Passphrase
+          </Text>
+          <View style={styles.passphraseFieldWrapper}>
+            <AppTextInput
+              isDark={isDark}
+              style={[
+                styles.modalInput,
+                styles.passphraseInput,
+                { width: '100%' },
+                isDark ? styles.modalInputDark : styles.modalInputLight,
+                processing ? styles.modalInputDisabled : null,
+                isDark && processing ? styles.modalInputDisabledDark : null,
+              ]}
+              secureTextEntry={!passphraseVisible}
+              value={passphraseConfirmInput}
+              onChangeText={(t) => {
+                setPassphraseConfirmInput(t);
+                if (passphraseError) setPassphraseError(null);
               }}
+              placeholder="Confirm Passphrase"
+              editable={!processing}
             />
-          </Pressable>
-        </View>
+            <Pressable
+              style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
+              onPress={() => setPassphraseVisible((v) => !v)}
+              disabled={processing}
+              accessibilityRole="button"
+              accessibilityLabel={passphraseVisible ? 'Hide passphrase' : 'Show passphrase'}
+            >
+              <Image
+                source={passphraseVisible ? icons.visibilityOn : icons.visibilityOff}
+                tintColor={isDark ? PALETTE.slate400 : PALETTE.slate450}
+                style={{
+                  width: 18,
+                  height: 18,
+                }}
+              />
+            </Pressable>
+          </View>
+        </>
       ) : null}
 
       {passphraseError ? (
@@ -209,7 +238,12 @@ export function MainAppPassphrasePromptModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
+      <View
+        style={[
+          styles.modalOverlay,
+          Platform.OS !== 'web' && bottomPad > 0 ? { paddingBottom: bottomPad } : null,
+        ]}
+      >
         {Platform.OS === 'web' ? (
           // Web: keep password inputs inside a <form> to satisfy browser heuristics.
           <form
@@ -223,7 +257,23 @@ export function MainAppPassphrasePromptModal({
             {content}
           </form>
         ) : (
-          content
+          <View
+            style={[
+              // Provide an explicit width context for percentage-based sheet sizing.
+              // Without this, the sheet can "shrink-wrap" on native and inputs appear sized-to-content.
+              { width: '100%', alignItems: 'center' },
+              // Constrain height on Android when keyboard is open.
+              kb.keyboardVisible
+                ? { maxHeight: kb.availableHeightAboveKeyboard, minHeight: 0 }
+                : null,
+            ]}
+            onLayout={(e) => {
+              const h = e?.nativeEvent?.layout?.height;
+              if (typeof h === 'number' && Number.isFinite(h) && h > 0) setSheetHeight(h);
+            }}
+          >
+            {content}
+          </View>
         )}
       </View>
     </Modal>

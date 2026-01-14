@@ -431,6 +431,16 @@ export const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 12,
   },
+  passphraseLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: APP_COLORS.light.text.secondary,
+    marginBottom: 6,
+    alignSelf: 'stretch',
+  },
+  passphraseLabelDark: {
+    color: APP_COLORS.dark.text.secondary,
+  },
   passphraseInput: {
     paddingRight: 40, // room for the eye icon (match sign-in tighter inset)
     marginBottom: 0,
@@ -443,6 +453,9 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: 32,
+    // Keep the eye icon above focused input elevation on Android.
+    zIndex: 2,
+    elevation: 4,
   },
   passphraseErrorText: {
     color: APP_COLORS.light.status.errorText,
@@ -606,7 +619,7 @@ export const styles = StyleSheet.create({
     borderColor: withAlpha(PALETTE.black, 0.25),
   },
   avatarColorDotSelected: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: APP_COLORS.light.text.primary,
     transform: [{ scale: 1.05 }],
   },
@@ -630,7 +643,7 @@ export const styles = StyleSheet.create({
     backgroundColor: APP_COLORS.dark.bg.header,
     borderColor: APP_COLORS.dark.border.subtle,
   },
-  avatarTextColorBtnSelected: { borderWidth: 2, borderColor: APP_COLORS.light.text.primary },
+  avatarTextColorBtnSelected: { borderWidth: 1, borderColor: APP_COLORS.light.text.primary },
   avatarTextColorBtnSelectedDark: { borderWidth: 2, borderColor: APP_COLORS.dark.text.primary },
   avatarTextColorLabel: { fontWeight: '800', color: APP_COLORS.light.text.primary },
   avatarTextColorLabelDark: { color: APP_COLORS.dark.text.primary },
@@ -650,7 +663,16 @@ export const styles = StyleSheet.create({
     backgroundColor: APP_COLORS.dark.bg.header,
     borderColor: APP_COLORS.dark.border.subtle,
   },
-  toolBtnText: { fontWeight: '800', color: APP_COLORS.light.text.primary },
+  toolBtnText: {
+    fontWeight: '800',
+    fontSize: 14,
+    lineHeight: 18,
+    textAlign: 'center',
+    // Helps avoid descender clipping on Android (e.g. the "g" in "Image").
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    color: APP_COLORS.light.text.primary,
+  },
   toolBtnTextDark: { color: APP_COLORS.dark.text.primary },
   bgEffectsHeaderRow: {
     flexDirection: 'row',

@@ -93,6 +93,7 @@ export function buildChatScreenMainProps(deps: {
   insertMention: ComposerProps['insertMention'];
   composerSafeAreaStyle: ComposerProps['composerSafeAreaStyle'];
   composerHorizontalInsetsStyle: ComposerProps['composerHorizontalInsetsStyle'];
+  composerBottomInsetBgHeight: ComposerProps['composerBottomInsetBgHeight'];
   textInputRef: ComposerProps['textInputRef'];
   inputEpoch: ComposerProps['inputEpoch'];
   input: ComposerProps['input'];
@@ -188,6 +189,7 @@ export function buildChatScreenMainProps(deps: {
       insertMention: deps.insertMention,
       composerSafeAreaStyle: deps.composerSafeAreaStyle,
       composerHorizontalInsetsStyle: deps.composerHorizontalInsetsStyle,
+      composerBottomInsetBgHeight: deps.composerBottomInsetBgHeight,
       textInputRef: deps.textInputRef,
       inputEpoch: deps.inputEpoch,
       input: deps.input,

@@ -39,10 +39,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.projxon.orkachat",
       "versionCode": 1,
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"]
     },
     "web": {
       "favicon": "./assets/favicon.png"

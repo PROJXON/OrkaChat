@@ -6,7 +6,15 @@ import type {
   NativeSyntheticEvent,
 } from 'react-native';
 import type { StyleProp, TextInput, ViewStyle } from 'react-native';
-import { KeyboardAvoidingView, LayoutAnimation, Platform, Text, View } from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  LayoutAnimation,
+  Platform,
+  Text,
+  View,
+} from 'react-native';
+import { useWindowDimensions } from 'react-native';
 
 import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
@@ -128,6 +136,7 @@ type ChatScreenMainProps = {
     insertMention: (v: string) => void;
     composerSafeAreaStyle: StyleProp<ViewStyle>;
     composerHorizontalInsetsStyle: StyleProp<ViewStyle>;
+    composerBottomInsetBgHeight?: number;
     textInputRef: React.MutableRefObject<TextInput | null>;
     inputEpoch: number;
     input: string;
@@ -148,12 +157,78 @@ export function ChatScreenMain({
   list,
   composer,
 }: ChatScreenMainProps): React.JSX.Element {
+  const { height: windowHeight } = useWindowDimensions();
+  const [androidKeyboardVisible, setAndroidKeyboardVisible] = React.useState(false);
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = React.useState<number>(0);
+  const heightBeforeKeyboardRef = React.useRef<number>(windowHeight);
+  const [androidWindowHeightDelta, setAndroidWindowHeightDelta] = React.useState<number>(0);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subShow = Keyboard.addListener('keyboardDidShow', (e) => {
+      setAndroidKeyboardVisible(true);
+      const hRaw =
+        e &&
+        typeof e === 'object' &&
+        typeof (e as { endCoordinates?: unknown }).endCoordinates === 'object'
+          ? (e as { endCoordinates?: { height?: unknown } }).endCoordinates?.height
+          : 0;
+      const h = typeof hRaw === 'number' && Number.isFinite(hRaw) ? hRaw : Number(hRaw) || 0;
+      setAndroidKeyboardHeight(h > 0 ? h : 0);
+    });
+    const subHide = Keyboard.addListener('keyboardDidHide', () => {
+      setAndroidKeyboardVisible(false);
+      setAndroidKeyboardHeight(0);
+      setAndroidWindowHeightDelta(0);
+    });
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    if (!androidKeyboardVisible) {
+      // Capture baseline height while keyboard is hidden.
+      heightBeforeKeyboardRef.current = windowHeight;
+      setAndroidWindowHeightDelta(0);
+      return;
+    }
+    // Keyboard is visible: track how much the OS already shrank the window.
+    // We'll subtract this from our own keyboard avoidance so we don't "double adjust".
+    const before = heightBeforeKeyboardRef.current;
+    const after = windowHeight;
+    if (!(before > 0 && after > 0)) return;
+    const delta = Math.max(0, before - after);
+    // Wait for a stable non-trivial measurement.
+    if (delta < 6) return;
+    setAndroidWindowHeightDelta(delta);
+  }, [androidKeyboardVisible, windowHeight]);
+
+  // Android keyboard behavior varies:
+  // - adjustResize: window shrinks by ~keyboard height (no extra lift needed)
+  // - adjustPan / partial resize (emulators/IMEs): window shrinks a bit (need to lift the remainder)
+  // Use the "remaining overlap" as an explicit composer lift so the input clears the whole keyboard,
+  // including the suggestion/action bar.
+  const androidKeyboardLift = React.useMemo(() => {
+    if (Platform.OS !== 'android') return 0;
+    if (!androidKeyboardVisible) return 0;
+    const remaining = Math.max(0, androidKeyboardHeight - androidWindowHeightDelta);
+    // Small buffer so we're never 1px under the IME chrome.
+    return remaining > 0 ? remaining + 8 : 0;
+  }, [androidKeyboardHeight, androidKeyboardVisible, androidWindowHeightDelta]);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       // iOS: use padding to lift input above keyboard.
-      // Android: rely on `softwareKeyboardLayoutMode: "resize"` (app.json) so the window resizes like Signal.
-      behavior={Platform.select({ ios: 'padding', android: undefined })}
+      // Android: edge-to-edge can prevent the window from resizing reliably in release builds,
+      // so use a KeyboardAvoidingView fallback here as well.
+      behavior={Platform.select({ ios: 'padding', android: 'height' })}
+      // On Android we do an explicit composer lift (below) based on keyboard + window resize.
+      // Keeping KAV enabled on Android can create double-adjust gaps depending on IME settings.
+      enabled={Platform.OS === 'ios'}
     >
       <View style={[styles.header, isDark ? styles.headerDark : null]}>
         <View style={isWideChatLayout ? styles.chatContentColumn : null}>
@@ -305,6 +380,8 @@ export function ChatScreenMain({
             insertMention={composer.insertMention}
             composerSafeAreaStyle={composer.composerSafeAreaStyle}
             composerHorizontalInsetsStyle={composer.composerHorizontalInsetsStyle}
+            composerBottomInsetBgHeight={composer.composerBottomInsetBgHeight}
+            androidKeyboardLift={androidKeyboardLift}
             isWideChatLayout={isWideChatLayout}
             textInputRef={composer.textInputRef}
             inputEpoch={composer.inputEpoch}

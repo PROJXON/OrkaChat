@@ -118,6 +118,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
   const {
     chatBackground,
     setChatBackground,
+    chatBackgroundImageScaleMode,
+    setChatBackgroundImageScaleMode,
     backgroundOpen,
     setBackgroundOpen,
     backgroundSaving,
@@ -133,6 +135,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     setBgEffectBlur,
     bgEffectOpacity,
     setBgEffectOpacity,
+    bgImageScaleModeDraft,
+    setBgImageScaleModeDraft,
   } = useChatBackgroundSettings();
 
   const [hasRecoveryBlob, setHasRecoveryBlob] = useState(false);
@@ -277,6 +281,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     setChannelPasswordInput,
     channelJoinError,
     setChannelJoinError,
+    channelPasswordSubmitting,
     submitChannelPassword,
     channelNameById,
     setChannelNameById,
@@ -285,6 +290,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     apiUrl: API_URL,
     getIdToken,
     promptAlert,
+    promptConfirm,
+    currentConversationId: conversationId,
     setConversationId,
     setPeer,
     setSearchOpen,
@@ -544,6 +551,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         backgroundSavingRef={backgroundSavingRef}
         chatBackground={chatBackground}
         setChatBackground={setChatBackground}
+        chatBackgroundImageScaleMode={chatBackgroundImageScaleMode}
+        setChatBackgroundImageScaleMode={setChatBackgroundImageScaleMode}
         backgroundDraft={backgroundDraft}
         setBackgroundDraft={setBackgroundDraft}
         backgroundDraftImageUri={backgroundDraftImageUri}
@@ -554,6 +563,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         setBgEffectBlur={setBgEffectBlur}
         bgEffectOpacity={bgEffectOpacity}
         setBgEffectOpacity={setBgEffectOpacity}
+        bgImageScaleModeDraft={bgImageScaleModeDraft}
+        setBgImageScaleModeDraft={setBgImageScaleModeDraft}
       />
 
       <MainAppChatsAndRecoveryModals
@@ -617,6 +628,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         setChannelPasswordPrompt={setChannelPasswordPrompt}
         channelPasswordInput={channelPasswordInput}
         setChannelPasswordInput={setChannelPasswordInput}
+        channelPasswordSubmitting={channelPasswordSubmitting}
         submitChannelPassword={submitChannelPassword}
       />
 
@@ -643,6 +655,11 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
             conversationId={conversationId}
             peer={peer}
             displayName={displayName}
+            myAvatarOverride={{
+              bgColor: myAvatar?.bgColor,
+              textColor: myAvatar?.textColor,
+              imagePath: myAvatar?.imagePath,
+            }}
             onNewDmNotification={handleNewDmNotification}
             onKickedFromConversation={(convId) => {
               if (!convId) return;
@@ -655,6 +672,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
             headerTop={headerTop}
             theme={theme}
             chatBackground={chatBackground}
+            chatBackgroundImageScaleMode={chatBackgroundImageScaleMode}
             blockedUserSubs={blockedSubs}
             keyEpoch={keyEpoch}
             onBlockUserSub={addBlockBySub}

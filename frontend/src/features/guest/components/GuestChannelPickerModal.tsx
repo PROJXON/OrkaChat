@@ -1,9 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import * as React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AppTextInput } from '../../../components/AppTextInput';
+import {
+  calcCenteredModalBottomPadding,
+  useKeyboardOverlap,
+} from '../../../hooks/useKeyboardOverlap';
 import { APP_COLORS } from '../../../theme/colors';
 import { shouldShowGlobalForChannelSearch } from '../../../utils/channelSearch';
 
@@ -44,12 +48,44 @@ export function GuestChannelPickerModal(props: {
   } = props;
 
   const showGlobalRow = shouldShowGlobalForChannelSearch(query);
+  const kb = useKeyboardOverlap({ enabled: open });
+  const [sheetHeight, setSheetHeight] = React.useState<number>(0);
+  const bottomPad = React.useMemo(
+    () =>
+      calcCenteredModalBottomPadding(
+        {
+          keyboardVisible: kb.keyboardVisible,
+          remainingOverlap: kb.remainingOverlap,
+          windowHeight: kb.windowHeight,
+        },
+        sheetHeight,
+        12,
+      ),
+    [kb.keyboardVisible, kb.remainingOverlap, kb.windowHeight, sheetHeight],
+  );
 
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <View
+        style={[
+          styles.modalOverlay,
+          Platform.OS !== 'web' && bottomPad > 0 ? { paddingBottom: bottomPad } : null,
+        ]}
+      >
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.modalCard, isDark ? styles.modalCardDark : null]}>
+        <View
+          style={[
+            styles.modalCard,
+            isDark ? styles.modalCardDark : null,
+            Platform.OS !== 'web' && kb.keyboardVisible
+              ? { maxHeight: kb.availableHeightAboveKeyboard, minHeight: 0 }
+              : null,
+          ]}
+          onLayout={(e) => {
+            const h = e?.nativeEvent?.layout?.height;
+            if (typeof h === 'number' && Number.isFinite(h) && h > 0) setSheetHeight(h);
+          }}
+        >
           <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Channels</Text>
 
           <AppTextInput

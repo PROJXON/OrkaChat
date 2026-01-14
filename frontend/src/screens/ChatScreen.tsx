@@ -149,6 +149,7 @@ type ChatScreenProps = {
   conversationId?: string | null;
   peer?: string | null;
   displayName: string;
+  myAvatarOverride?: { bgColor?: string; textColor?: string; imagePath?: string } | null;
   onNewDmNotification?: (conversationId: string, user: string, userSub?: string) => void;
   onKickedFromConversation?: (conversationId: string) => void;
   // Notify the parent (Chats list) that the current conversation's title changed.
@@ -164,6 +165,7 @@ type ChatScreenProps = {
     blur?: number;
     opacity?: number;
   };
+  chatBackgroundImageScaleMode?: 'fill' | 'fit';
   blockedUserSubs?: string[];
   // Bump this when keys are generated/recovered/reset so ChatScreen reloads them from storage.
   keyEpoch?: number;
@@ -175,12 +177,14 @@ const ENCRYPTED_PLACEHOLDER = 'Encrypted message (tap to decrypt)';
 const EMPTY_URI_BY_PATH: Record<string, string> = {};
 const HISTORY_PAGE_SIZE = 50;
 const CHAT_MEDIA_MAX_HEIGHT = 240; // dp
+const CHAT_MEDIA_MAX_HEIGHT_PORTRAIT = 360; // dp (portrait thumbs can be taller without feeling "tiny")
 const CHAT_MEDIA_MAX_WIDTH_FRACTION = 0.86; // fraction of screen width (roughly bubble width)
 
 export default function ChatScreen({
   conversationId,
   peer,
   displayName,
+  myAvatarOverride,
   onNewDmNotification,
   onKickedFromConversation,
   onConversationTitleChanged,
@@ -188,6 +192,7 @@ export default function ChatScreen({
   headerTop,
   theme = 'light',
   chatBackground,
+  chatBackgroundImageScaleMode = 'fill',
   blockedUserSubs = [],
   keyEpoch,
   onBlockUserSub,
@@ -203,10 +208,26 @@ export default function ChatScreen({
       maxContentWidthPx: 1040,
     },
   );
-  const composerSafeAreaStyle = React.useMemo(
-    () => ({ paddingBottom: insets.bottom }),
-    [insets.bottom],
-  );
+  const ANDROID_COMPOSER_BOTTOM_PAD_MAX = 16;
+  // Android can report different bottom insets when an input is focused / keyboard shows.
+  // Cache a stable bottom inset so the composer doesn't "jump" or change height.
+  const [androidBottomInsetStable, setAndroidBottomInsetStable] = React.useState<number>(0);
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const b =
+      typeof insets.bottom === 'number' && Number.isFinite(insets.bottom) ? insets.bottom : 0;
+    // Keep the maximum seen value (gesture/nav area). When the keyboard shows, some devices report 0.
+    if (b > androidBottomInsetStable) setAndroidBottomInsetStable(b);
+  }, [androidBottomInsetStable, insets.bottom]);
+
+  const composerSafeAreaStyle = React.useMemo(() => {
+    const bottomInset =
+      Platform.OS === 'android'
+        ? Math.min(androidBottomInsetStable, ANDROID_COMPOSER_BOTTOM_PAD_MAX)
+        : insets.bottom;
+    return { paddingBottom: bottomInset };
+  }, [androidBottomInsetStable, insets.bottom]);
+  const composerBottomInsetBgHeight = Platform.OS === 'android' ? androidBottomInsetStable : 0;
   const composerHorizontalInsetsStyle = React.useMemo(
     () => ({ paddingLeft: 12 + insets.left, paddingRight: 12 + insets.right }),
     [insets.left, insets.right],
@@ -422,9 +443,49 @@ export default function ChatScreen({
     subs: wantedAvatarSubs,
     // Chat flow refetches by invalidating on new messages; otherwise only fetch missing.
     ttlMs: Number.POSITIVE_INFINITY,
-    resetKey: conversationId,
+    // IMPORTANT: don't reset on conversation switches, otherwise the header avatar can
+    // briefly fall back to the seeded default color before profiles rehydrate.
+    resetKey: myUserId || undefined,
     cdn: cdnAvatar,
   });
+
+  // Optimistic: when the user updates their avatar via Settings, update the header immediately.
+  // Otherwise, with ttl=Infinity, we'd only see the new avatar after a conversation switch or message event.
+  React.useEffect(() => {
+    const sub = String(myUserId || '').trim();
+    if (!sub) return;
+    const o = myAvatarOverride && typeof myAvatarOverride === 'object' ? myAvatarOverride : null;
+    if (!o) return;
+    const imagePath =
+      typeof o.imagePath === 'string' && o.imagePath.trim().length ? o.imagePath.trim() : undefined;
+    upsertAvatarProfiles([
+      {
+        sub,
+        profile: {
+          displayName,
+          avatarBgColor: typeof o.bgColor === 'string' ? o.bgColor : undefined,
+          avatarTextColor: typeof o.textColor === 'string' ? o.textColor : undefined,
+          avatarImagePath: imagePath,
+        },
+      },
+    ]);
+    if (imagePath) {
+      try {
+        cdnAvatar.ensure([imagePath]);
+      } catch {
+        // ignore
+      }
+    }
+  }, [
+    cdnAvatar,
+    displayName,
+    myAvatarOverride,
+    myAvatarOverride?.bgColor,
+    myAvatarOverride?.imagePath,
+    myAvatarOverride?.textColor,
+    myUserId,
+    upsertAvatarProfiles,
+  ]);
 
   const { toast, anim: toastAnim, showToast } = useToast();
 
@@ -678,10 +739,16 @@ export default function ChatScreen({
       const opacityRaw = typeof bg.opacity === 'number' ? bg.opacity : 1;
       const blur = Math.max(0, Math.min(10, Math.round(blurRaw)));
       const opacity = Math.max(0.2, Math.min(1, Math.round(opacityRaw * 100) / 100));
-      return { mode: 'image' as const, uri: bg.uri.trim(), blur, opacity };
+      return {
+        mode: 'image' as const,
+        uri: bg.uri.trim(),
+        blur,
+        opacity,
+        scaleMode: chatBackgroundImageScaleMode,
+      };
     }
     return { mode: 'default' as const };
-  }, [chatBackground]);
+  }, [chatBackground, chatBackgroundImageScaleMode]);
 
   const headerTitle = React.useMemo(() => {
     return getChatHeaderTitle({
@@ -730,7 +797,12 @@ export default function ChatScreen({
             ? availableWidth
             : windowWidth,
         maxWidthFraction: CHAT_MEDIA_MAX_WIDTH_FRACTION,
-        maxHeight: CHAT_MEDIA_MAX_HEIGHT,
+        // Portrait phone photos otherwise become very narrow once capped by height.
+        // Allow a taller cap for portrait to keep thumbnails reasonably sized.
+        maxHeight:
+          typeof aspect === 'number' && Number.isFinite(aspect) && aspect > 0 && aspect < 0.95
+            ? CHAT_MEDIA_MAX_HEIGHT_PORTRAIT
+            : CHAT_MEDIA_MAX_HEIGHT,
         minMaxWidth: 220,
         minW: 140,
         minH: 120,
@@ -1292,6 +1364,7 @@ export default function ChatScreen({
         mediaUrlByPath,
         dmThumbUriByPath,
         imageAspectByPath,
+        setImageAspectByPath,
         EMPTY_URI_BY_PATH,
         AVATAR_GUTTER,
         chatViewportWidth,
@@ -1325,6 +1398,7 @@ export default function ChatScreen({
       getCappedMediaSize,
       getSeenLabelFor,
       imageAspectByPath,
+      setImageAspectByPath,
       inlineEditAttachmentMode,
       inlineEditDraft,
       inlineEditTargetId,
@@ -1449,6 +1523,7 @@ export default function ChatScreen({
     insertMention,
     composerSafeAreaStyle,
     composerHorizontalInsetsStyle,
+    composerBottomInsetBgHeight,
     textInputRef,
     inputEpoch,
     input,

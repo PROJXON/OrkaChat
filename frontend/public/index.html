@@ -7,15 +7,36 @@
     <title>%WEB_TITLE%</title>
     <meta name="description" content="OrkaChat — modern chat for groups and DMs." />
 
+    <!-- Primary web domain: chat.orkaos.com -->
+    <link rel="canonical" href="https://chat.orkaos.com/" />
+    <script>
+      (function () {
+        // Redirect legacy domains to primary domain (preserve path/query/hash).
+        var host = window.location.hostname;
+        var isLegacyHost =
+          host === 'app.orkaos.com' ||
+          (host === 'orkaos.com' && window.location.pathname.indexOf('/chat') === 0) ||
+          (host === 'www.orkaos.com' && window.location.pathname.indexOf('/chat') === 0);
+        if (!isLegacyHost) return;
+
+        var target =
+          'https://chat.orkaos.com' +
+          window.location.pathname +
+          window.location.search +
+          window.location.hash;
+        window.location.replace(target);
+      })();
+    </script>
+
     <!-- Link preview (Open Graph / Twitter Card) -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="OrkaChat" />
     <meta property="og:title" content="OrkaChat" />
     <meta property="og:description" content="OrkaChat - modern chat for groups and DMs" />
     <!-- NOTE: Many crawlers require an absolute URL for og:image -->
-    <meta property="og:url" content="https://app.orkaos.com/" />
-    <meta property="og:image" content="https://app.orkaos.com/og.png" />
-    <meta property="og:image:secure_url" content="https://app.orkaos.com/og.png" />
+    <meta property="og:url" content="https://chat.orkaos.com/" />
+    <meta property="og:image" content="https://chat.orkaos.com/og.png" />
+    <meta property="og:image:secure_url" content="https://chat.orkaos.com/og.png" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -24,7 +45,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="OrkaChat" />
     <meta name="twitter:description" content="OrkaChat - modern chat for groups and DMs" />
-    <meta name="twitter:image" content="https://app.orkaos.com/og.png" />
+    <meta name="twitter:image" content="https://chat.orkaos.com/og.png" />
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
       /* These styles make the body full-height */

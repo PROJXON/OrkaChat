@@ -19,6 +19,7 @@ export function MediaStackCarousel({
   loop = false,
   loadingTextColor,
   loadingDotsColor,
+  onImageAspect,
   onOpen,
 }: {
   messageId: string;
@@ -38,6 +39,9 @@ export function MediaStackCarousel({
   // Optional overrides for the "Loading" placeholder tint.
   loadingTextColor?: string;
   loadingDotsColor?: string;
+  // Optional callback to report measured image aspect ratio (w/h) from onLoad.
+  // Useful for correcting EXIF-rotated phone photos where Image.getSize can report swapped dims.
+  onImageAspect?: (keyPath: string, aspect: number) => void;
   onOpen: (idx: number, media: MediaItem) => void;
 }): React.JSX.Element | null {
   const n = Array.isArray(mediaList) ? mediaList.length : 0;
@@ -209,6 +213,15 @@ export function MediaStackCarousel({
                     source={{ uri: thumbUri }}
                     style={[styles.mediaCappedImage, { width, height, borderRadius: cornerRadius }]}
                     resizeMode="contain"
+                    onLoad={(e) => {
+                      if (!onImageAspect) return;
+                      if (!thumbKey) return;
+                      const w = getNativeEventNumber(e, ['nativeEvent', 'source', 'width']);
+                      const h = getNativeEventNumber(e, ['nativeEvent', 'source', 'height']);
+                      const aspect = w > 0 && h > 0 ? w / h : 0;
+                      if (!(aspect > 0) || !Number.isFinite(aspect)) return;
+                      onImageAspect(thumbKey, aspect);
+                    }}
                   />
                 ) : (
                   <View

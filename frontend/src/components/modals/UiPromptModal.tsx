@@ -13,172 +13,191 @@ export function UiPromptModal({
   setUiPrompt: React.Dispatch<React.SetStateAction<UiPrompt | null>>;
   isDark: boolean;
 }): React.JSX.Element {
-  const open = !!uiPrompt;
+  // IMPORTANT (esp. web):
+  // Keep this modal *unmounted* when closed.
+  //
+  // If we keep a hidden Modal mounted, other modals (e.g. Members list) can mount after it and
+  // sit above it in the DOM stacking order. Then when the prompt becomes visible, it can appear
+  // "behind" the already-open modal.
+  //
+  // Mounting only while open ensures the prompt portal is appended last and appears on top.
+  if (!uiPrompt) return <></>;
 
   return (
-    <Modal visible={open} transparent animationType="fade">
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={() => {
+        const p = uiPrompt;
+        setUiPrompt(null);
+        // Best-effort "cancel" behavior.
+        try {
+          if (p.kind === 'confirm') p.resolve(false);
+          else if (p.kind === 'choice3') p.resolve('secondary');
+          else p.resolve();
+        } catch {
+          // ignore
+        }
+      }}
+    >
       <View style={styles.modalOverlay}>
-        {/* Prevent "empty modal + OK button" flash during fade-out when uiPrompt has been cleared. */}
-        {uiPrompt ? (
-          <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
-            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
-              {uiPrompt.title || ''}
-            </Text>
-            <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
-              {uiPrompt.message || ''}
-            </Text>
+        <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
+          <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+            {uiPrompt.title || ''}
+          </Text>
+          <Text style={[styles.modalHelperText, isDark ? styles.modalHelperTextDark : null]}>
+            {uiPrompt.message || ''}
+          </Text>
 
-            {uiPrompt.kind === 'choice3' ? (
-              <View style={{ alignSelf: 'stretch', gap: 10 }}>
-                <Pressable
+          {uiPrompt.kind === 'choice3' ? (
+            <View style={{ alignSelf: 'stretch', gap: 10 }}>
+              <Pressable
+                style={[
+                  styles.modalButton,
+                  { alignSelf: 'stretch' },
+                  uiPrompt.primaryVariant === 'primary' ? styles.modalButtonPrimary : null,
+                  uiPrompt.primaryVariant === 'danger' ? styles.modalButtonDanger : null,
+                  isDark ? styles.modalButtonDark : null,
+                  isDark && uiPrompt.primaryVariant === 'primary'
+                    ? styles.modalButtonPrimaryDark
+                    : null,
+                  isDark && uiPrompt.primaryVariant === 'danger'
+                    ? styles.modalButtonDangerDark
+                    : null,
+                ]}
+                onPress={() => {
+                  const resolve = uiPrompt.resolve;
+                  setUiPrompt(null);
+                  resolve('primary');
+                }}
+              >
+                <Text
                   style={[
-                    styles.modalButton,
-                    { alignSelf: 'stretch' },
-                    uiPrompt.primaryVariant === 'primary' ? styles.modalButtonPrimary : null,
-                    uiPrompt.primaryVariant === 'danger' ? styles.modalButtonDanger : null,
-                    isDark ? styles.modalButtonDark : null,
-                    isDark && uiPrompt.primaryVariant === 'primary'
-                      ? styles.modalButtonPrimaryDark
-                      : null,
-                    isDark && uiPrompt.primaryVariant === 'danger'
-                      ? styles.modalButtonDangerDark
-                      : null,
+                    styles.modalButtonText,
+                    uiPrompt.primaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
+                    uiPrompt.primaryVariant === 'danger' ? styles.modalButtonDangerText : null,
+                    isDark ? styles.modalButtonTextDark : null,
                   ]}
+                >
+                  {uiPrompt.primaryText}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.modalButton,
+                  { alignSelf: 'stretch' },
+                  uiPrompt.secondaryVariant === 'primary' ? styles.modalButtonPrimary : null,
+                  uiPrompt.secondaryVariant === 'danger' ? styles.modalButtonDanger : null,
+                  isDark ? styles.modalButtonDark : null,
+                  isDark && uiPrompt.secondaryVariant === 'primary'
+                    ? styles.modalButtonPrimaryDark
+                    : null,
+                  isDark && uiPrompt.secondaryVariant === 'danger'
+                    ? styles.modalButtonDangerDark
+                    : null,
+                ]}
+                onPress={() => {
+                  const resolve = uiPrompt.resolve;
+                  setUiPrompt(null);
+                  resolve('secondary');
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    uiPrompt.secondaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
+                    uiPrompt.secondaryVariant === 'danger' ? styles.modalButtonDangerText : null,
+                    isDark ? styles.modalButtonTextDark : null,
+                  ]}
+                >
+                  {uiPrompt.secondaryText}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.modalButton,
+                  { alignSelf: 'stretch' },
+                  uiPrompt.tertiaryVariant === 'primary' ? styles.modalButtonPrimary : null,
+                  uiPrompt.tertiaryVariant === 'danger' ? styles.modalButtonDanger : null,
+                  isDark ? styles.modalButtonDark : null,
+                  isDark && uiPrompt.tertiaryVariant === 'primary'
+                    ? styles.modalButtonPrimaryDark
+                    : null,
+                  isDark && uiPrompt.tertiaryVariant === 'danger'
+                    ? styles.modalButtonDangerDark
+                    : null,
+                ]}
+                onPress={() => {
+                  const resolve = uiPrompt.resolve;
+                  setUiPrompt(null);
+                  resolve('tertiary');
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    uiPrompt.tertiaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
+                    uiPrompt.tertiaryVariant === 'danger' ? styles.modalButtonDangerText : null,
+                    isDark ? styles.modalButtonTextDark : null,
+                  ]}
+                >
+                  {uiPrompt.tertiaryText}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[
+                  styles.modalButton,
+                  uiPrompt.kind === 'alert' ? styles.modalButtonPrimary : null,
+                  uiPrompt.destructive ? styles.modalButtonDanger : null,
+                  isDark ? styles.modalButtonDark : null,
+                  isDark && uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
+                  isDark && uiPrompt.destructive ? styles.modalButtonDangerDark : null,
+                ]}
+                onPress={() => {
+                  setUiPrompt(null);
+                  if (uiPrompt.kind === 'confirm') {
+                    uiPrompt.resolve(true);
+                  } else {
+                    uiPrompt.resolve();
+                  }
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryText : null,
+                    uiPrompt.destructive ? styles.modalButtonDangerText : null,
+                    isDark ? styles.modalButtonTextDark : null,
+                  ]}
+                >
+                  {uiPrompt.confirmText || 'OK'}
+                </Text>
+              </Pressable>
+              {uiPrompt.kind === 'confirm' ? (
+                <Pressable
+                  style={[styles.modalButton, isDark ? styles.modalButtonDark : null]}
                   onPress={() => {
                     const resolve = uiPrompt.resolve;
                     setUiPrompt(null);
-                    resolve('primary');
+                    resolve(false);
                   }}
                 >
                   <Text
-                    style={[
-                      styles.modalButtonText,
-                      uiPrompt.primaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
-                      uiPrompt.primaryVariant === 'danger' ? styles.modalButtonDangerText : null,
-                      isDark ? styles.modalButtonTextDark : null,
-                    ]}
+                    style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
                   >
-                    {uiPrompt.primaryText}
+                    {uiPrompt.cancelText || 'Cancel'}
                   </Text>
                 </Pressable>
-
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    { alignSelf: 'stretch' },
-                    uiPrompt.secondaryVariant === 'primary' ? styles.modalButtonPrimary : null,
-                    uiPrompt.secondaryVariant === 'danger' ? styles.modalButtonDanger : null,
-                    isDark ? styles.modalButtonDark : null,
-                    isDark && uiPrompt.secondaryVariant === 'primary'
-                      ? styles.modalButtonPrimaryDark
-                      : null,
-                    isDark && uiPrompt.secondaryVariant === 'danger'
-                      ? styles.modalButtonDangerDark
-                      : null,
-                  ]}
-                  onPress={() => {
-                    const resolve = uiPrompt.resolve;
-                    setUiPrompt(null);
-                    resolve('secondary');
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.modalButtonText,
-                      uiPrompt.secondaryVariant === 'primary'
-                        ? styles.modalButtonPrimaryText
-                        : null,
-                      uiPrompt.secondaryVariant === 'danger' ? styles.modalButtonDangerText : null,
-                      isDark ? styles.modalButtonTextDark : null,
-                    ]}
-                  >
-                    {uiPrompt.secondaryText}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    { alignSelf: 'stretch' },
-                    uiPrompt.tertiaryVariant === 'primary' ? styles.modalButtonPrimary : null,
-                    uiPrompt.tertiaryVariant === 'danger' ? styles.modalButtonDanger : null,
-                    isDark ? styles.modalButtonDark : null,
-                    isDark && uiPrompt.tertiaryVariant === 'primary'
-                      ? styles.modalButtonPrimaryDark
-                      : null,
-                    isDark && uiPrompt.tertiaryVariant === 'danger'
-                      ? styles.modalButtonDangerDark
-                      : null,
-                  ]}
-                  onPress={() => {
-                    const resolve = uiPrompt.resolve;
-                    setUiPrompt(null);
-                    resolve('tertiary');
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.modalButtonText,
-                      uiPrompt.tertiaryVariant === 'primary' ? styles.modalButtonPrimaryText : null,
-                      uiPrompt.tertiaryVariant === 'danger' ? styles.modalButtonDangerText : null,
-                      isDark ? styles.modalButtonTextDark : null,
-                    ]}
-                  >
-                    {uiPrompt.tertiaryText}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={styles.modalButtons}>
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    uiPrompt.kind === 'alert' ? styles.modalButtonPrimary : null,
-                    uiPrompt.destructive ? styles.modalButtonDanger : null,
-                    isDark ? styles.modalButtonDark : null,
-                    isDark && uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
-                    isDark && uiPrompt.destructive ? styles.modalButtonDangerDark : null,
-                  ]}
-                  onPress={() => {
-                    setUiPrompt(null);
-                    if (uiPrompt.kind === 'confirm') {
-                      uiPrompt.resolve(true);
-                    } else {
-                      uiPrompt.resolve();
-                    }
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.modalButtonText,
-                      uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryText : null,
-                      uiPrompt.destructive ? styles.modalButtonDangerText : null,
-                      isDark ? styles.modalButtonTextDark : null,
-                    ]}
-                  >
-                    {uiPrompt.confirmText || 'OK'}
-                  </Text>
-                </Pressable>
-                {uiPrompt.kind === 'confirm' ? (
-                  <Pressable
-                    style={[styles.modalButton, isDark ? styles.modalButtonDark : null]}
-                    onPress={() => {
-                      const resolve = uiPrompt.resolve;
-                      setUiPrompt(null);
-                      resolve(false);
-                    }}
-                  >
-                    <Text
-                      style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
-                    >
-                      {uiPrompt.cancelText || 'Cancel'}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            )}
-          </View>
-        ) : null}
+              ) : null}
+            </View>
+          )}
+        </View>
       </View>
     </Modal>
   );

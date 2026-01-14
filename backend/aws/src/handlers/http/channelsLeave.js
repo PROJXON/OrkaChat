@@ -4,10 +4,18 @@
 // Env:
 // - CHANNELS_TABLE (required)
 // - CHANNEL_MEMBERS_TABLE (required)
+// - MESSAGES_TABLE (optional): if set, will best-effort delete channel message history when channel is deleted
 //
 // Auth: JWT (Cognito). Reads sub from requestContext.authorizer.jwt.claims.sub
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, UpdateCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+const {
+  DynamoDBDocumentClient,
+  BatchWriteCommand,
+  DeleteCommand,
+  GetCommand,
+  QueryCommand,
+  UpdateCommand,
+} = require('@aws-sdk/lib-dynamodb');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -17,6 +25,50 @@ const json = (statusCode, bodyObj) => ({
   headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   body: JSON.stringify(bodyObj),
 });
+
+async function batchDeleteAllByPartitionKey({
+  tableName,
+  pkName,
+  pkValue,
+  skName,
+  keyProjectionNames,
+}) {
+  if (!tableName) return { deleted: 0 };
+  let deleted = 0;
+  let lastKey = undefined;
+
+  while (true) {
+    const resp = await ddb.send(
+      new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: `${pkName} = :pk`,
+        ExpressionAttributeValues: { ':pk': pkValue },
+        ProjectionExpression: keyProjectionNames,
+        ExclusiveStartKey: lastKey,
+        Limit: 200,
+      })
+    );
+    const items = Array.isArray(resp.Items) ? resp.Items : [];
+    if (!items.length) break;
+
+    // BatchWrite supports up to 25 items.
+    for (let i = 0; i < items.length; i += 25) {
+      const chunk = items.slice(i, i + 25);
+      const req = chunk.map((it) => ({
+        DeleteRequest: {
+          Key: skName ? { [pkName]: it[pkName], [skName]: it[skName] } : { [pkName]: it[pkName] },
+        },
+      }));
+      await ddb.send(new BatchWriteCommand({ RequestItems: { [tableName]: req } }));
+      deleted += chunk.length;
+    }
+
+    lastKey = resp.LastEvaluatedKey;
+    if (!lastKey) break;
+  }
+
+  return { deleted };
+}
 
 function publicRankSk(activeMemberCount, channelId) {
   const CAP = 999_999_999_999;
@@ -121,7 +173,44 @@ exports.handler = async (event) => {
       )
       .catch(() => {});
 
-    return json(200, { ok: true, left: true });
+    // If this leave made the channel empty, delete the channel + its membership + message history.
+    // IMPORTANT:
+    // - This is best-effort cleanup. Even if cleanup fails, the caller has still left.
+    // - Message deletion can be expensive for large channels; consider adding TTL or asynchronous cleanup if needed.
+    let deletedChannel = false;
+    if (nextCount <= 0) {
+      try {
+        // Delete all member rows (best-effort).
+        await batchDeleteAllByPartitionKey({
+          tableName: membersTable,
+          pkName: 'channelId',
+          pkValue: channelId,
+          skName: 'memberSub',
+          keyProjectionNames: 'channelId, memberSub',
+        }).catch(() => {});
+
+        // Delete channel message history (best-effort).
+        const messagesTable = safeString(process.env.MESSAGES_TABLE);
+        if (messagesTable) {
+          await batchDeleteAllByPartitionKey({
+            tableName: messagesTable,
+            pkName: 'conversationId',
+            pkValue: `ch#${channelId}`,
+            skName: 'createdAt',
+            keyProjectionNames: 'conversationId, createdAt',
+          }).catch(() => {});
+        }
+
+        // Finally delete the channel record itself.
+        await ddb.send(new DeleteCommand({ TableName: channelsTable, Key: { channelId } }));
+        deletedChannel = true;
+      } catch {
+        // ignore cleanup failures
+        deletedChannel = false;
+      }
+    }
+
+    return json(200, { ok: true, left: true, deletedChannel });
   } catch (err) {
     console.error('channelsLeave error', err);
     if (String(err?.name || '').includes('ConditionalCheckFailed')) return json(200, { ok: true, left: false });

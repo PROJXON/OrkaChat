@@ -1,5 +1,5 @@
-import * as React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as React from 'react';
 import type { ScrollView, View } from 'react-native';
 import { findNodeHandle, UIManager } from 'react-native';
 
@@ -166,7 +166,7 @@ export function useAiHelper(opts: {
     lastTurnRef.current = null;
     // Also clear persisted history for this conversation.
     void AsyncStorage.removeItem(storageKey).catch(() => {});
-  }, []);
+  }, [storageKey]);
 
   // If the user switches conversations, treat AI helper history as per-conversation.
   React.useEffect(() => {
@@ -190,9 +190,7 @@ export function useAiHelper(opts: {
         if (hydrateRunRef.current !== runId) return;
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return;
-        const hydrated = parsed
-          .map(parseAiHelperTurn)
-          .filter((t): t is AiHelperTurn => !!t);
+        const hydrated = parsed.map(parseAiHelperTurn).filter((t): t is AiHelperTurn => !!t);
         if (hydrated.length) setThread(hydrated);
       } catch {
         // ignore

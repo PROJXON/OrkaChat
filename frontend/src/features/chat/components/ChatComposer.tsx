@@ -1,6 +1,6 @@
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Image, Pressable, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
@@ -57,6 +57,11 @@ export function ChatComposer(props: {
   // Composer container styles
   composerSafeAreaStyle: StyleProp<ViewStyle>;
   composerHorizontalInsetsStyle: StyleProp<ViewStyle>;
+  // Android-only: height of the bottom system inset to paint behind the composer.
+  // This should NOT affect layout height; it's only for background coverage.
+  composerBottomInsetBgHeight?: number;
+  // Android-only: remaining keyboard overlap to lift composer by.
+  androidKeyboardLift?: number;
   isWideChatLayout: boolean;
 
   // Input
@@ -95,6 +100,8 @@ export function ChatComposer(props: {
     insertMention,
     composerSafeAreaStyle,
     composerHorizontalInsetsStyle,
+    composerBottomInsetBgHeight,
+    androidKeyboardLift,
     isWideChatLayout,
     textInputRef,
     inputEpoch,
@@ -272,8 +279,25 @@ export function ChatComposer(props: {
           isDark ? styles.inputRowDark : null,
           // Fill the safe area with the bar background, but keep the inner content vertically centered.
           composerSafeAreaStyle,
+          { position: 'relative' },
+          Platform.OS === 'android' && androidKeyboardLift && androidKeyboardLift > 0
+            ? { marginBottom: androidKeyboardLift }
+            : null,
         ]}
       >
+        {composerBottomInsetBgHeight && composerBottomInsetBgHeight > 0 ? (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: -composerBottomInsetBgHeight,
+              height: composerBottomInsetBgHeight,
+              backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
+            }}
+          />
+        ) : null}
         <View
           style={[
             styles.inputRowInner,

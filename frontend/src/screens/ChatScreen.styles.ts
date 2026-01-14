@@ -531,8 +531,8 @@ export const styles = StyleSheet.create({
   mediaCardOuter: { position: 'relative', overflow: 'visible' },
   mediaCardIncoming: { backgroundColor: PALETTE.paper210 },
   mediaCardIncomingDark: { backgroundColor: APP_COLORS.dark.bg.header },
-  // Outgoing media uses "contain" sometimes → match outgoing bubble background behind letterbox.
-  mediaCardOutgoing: { backgroundColor: APP_COLORS.light.brand.primary },
+  // Outgoing image thumbs use "contain" → use a neutral letterbox background (not brand-blue).
+  mediaCardOutgoing: { backgroundColor: PALETTE.slate900 },
   mediaHeader: {
     paddingHorizontal: 12,
     paddingTop: 6,
