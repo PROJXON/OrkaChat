@@ -69,13 +69,13 @@ export function GroupNameModal({
           }}
         >
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-            Group Name
+            Set Group Name
           </Text>
           <AppTextInput
             isDark={isDark}
             value={draft}
             onChangeText={onChangeDraft}
-            placeholder="Group Name"
+            placeholder="Group name"
             maxLength={20}
             // Use a fully explicit style here (avoid theme/style collisions in Android modals).
             style={{

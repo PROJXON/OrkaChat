@@ -460,12 +460,9 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         menu.openFromRef({ enabled: isWideUi, onOpen: () => setMenuOpen(true) });
       }}
       onPressChannelTab={() => {
-        if (isDmMode) {
-          // Jump back to the last channel (default Global).
-          enterChannelConversation(activeChannelConversationId);
-          return;
-        }
-        // While already in channel mode, open the channel search/join picker (like "Start DM").
+        // Always open the channel search/join picker.
+        // Important UX: if the user is currently in a DM / Group DM, tapping the Channels pill
+        // should NOT pull them out of their DM; it should just open the search UI.
         setChannelsError(null);
         setChannelJoinError(null);
         setChannelsQuery('');
@@ -613,6 +610,9 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         submitCreateChannelInline={submitCreateChannelInline}
         channelSearchOpen={channelSearchOpen}
         setChannelSearchOpen={setChannelSearchOpen}
+        showPinnedChannelInSearch={isDmMode}
+        pinnedChannelConversationId={activeChannelConversationId}
+        pinnedChannelLabel={activeChannelLabel}
         channelsQuery={channelsQuery}
         setChannelsQuery={setChannelsQuery}
         channelsLoading={channelsLoading}

@@ -12,6 +12,18 @@ export function useChannelSettingsPanelActions(opts: {
   channelUpdate: ChannelUpdateFn;
   showToast: (msg: string, kind?: ToastKind) => void;
   uiAlert: (title: string, body: string) => Promise<void> | void;
+  uiChoice3: (
+    title: string,
+    message: string,
+    opts: {
+      primaryText: string;
+      secondaryText: string;
+      tertiaryText: string;
+      primaryVariant?: 'default' | 'primary' | 'danger';
+      secondaryVariant?: 'default' | 'primary' | 'danger';
+      tertiaryVariant?: 'default' | 'primary' | 'danger';
+    },
+  ) => Promise<'primary' | 'secondary' | 'tertiary'>;
   setChannelPasswordDraft: (v: string) => void;
   setChannelPasswordEditOpen: (v: boolean) => void;
 }) {
@@ -22,6 +34,7 @@ export function useChannelSettingsPanelActions(opts: {
     channelUpdate,
     showToast,
     uiAlert,
+    uiChoice3,
     setChannelPasswordDraft,
     setChannelPasswordEditOpen,
   } = opts;
@@ -55,21 +68,47 @@ export function useChannelSettingsPanelActions(opts: {
   );
 
   const onPressPassword = React.useCallback(() => {
-    if (channelMeta?.hasPassword) {
-      void channelUpdate('clearPassword', {});
-      setChannelMeta((prev) => (prev ? { ...prev, hasPassword: false } : prev));
-      showToast('Password cleared', 'success');
-      return;
-    }
-    setChannelPasswordDraft('');
-    setChannelPasswordEditOpen(true);
+    if (!channelMeta) return;
+    (async () => {
+      if (channelMeta.hasPassword) {
+        const choice = await uiChoice3('Channel Password', '', {
+          primaryText: 'Change Channel Password',
+          secondaryText: 'Turn Off Password',
+          tertiaryText: 'Cancel',
+          primaryVariant: 'primary',
+          secondaryVariant: 'primary',
+          tertiaryVariant: 'default',
+        });
+        if (choice === 'primary') {
+          setChannelPasswordDraft('');
+          setChannelPasswordEditOpen(true);
+          return;
+        }
+        if (choice === 'secondary') {
+          setChannelActionBusy(true);
+          try {
+            await channelUpdate('clearPassword', {});
+            setChannelMeta((prev) => (prev ? { ...prev, hasPassword: false } : prev));
+            showToast('Password turned off', 'success');
+          } finally {
+            setChannelActionBusy(false);
+          }
+        }
+        return;
+      }
+      // No existing password: prompt to set one.
+      setChannelPasswordDraft('');
+      setChannelPasswordEditOpen(true);
+    })().catch(() => {});
   }, [
-    channelMeta?.hasPassword,
+    channelMeta,
+    setChannelActionBusy,
     channelUpdate,
     setChannelMeta,
     setChannelPasswordDraft,
     setChannelPasswordEditOpen,
     showToast,
+    uiChoice3,
   ]);
 
   return { onTogglePublic, onPressPassword };

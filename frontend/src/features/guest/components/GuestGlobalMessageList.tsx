@@ -170,7 +170,7 @@ export function GuestGlobalMessageList({
                 hasMore={historyHasMore}
                 loading={historyLoading}
                 isEmpty={false}
-                emptyText=" the Conversation!"
+                emptyText="Sign In to Start the Conversation!"
                 noMoreText="No Older Messages"
                 enablePressedOpacity
                 onPress={loadOlderHistory}
