@@ -17,7 +17,7 @@ export function CiphertextModal({ visible, isDark, styles, text, onClose }: Prop
       <View style={styles.modalOverlay}>
         <View style={[styles.summaryModal, isDark ? styles.summaryModalDark : null]}>
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-            Encrypted payload
+            Encrypted Payload
           </Text>
           <ScrollView style={styles.summaryScroll}>
             <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>

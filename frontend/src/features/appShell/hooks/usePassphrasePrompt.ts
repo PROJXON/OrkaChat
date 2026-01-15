@@ -146,9 +146,9 @@ export function usePassphrasePrompt({
   const promptVisible = !!passphrasePrompt && !uiPromptOpen;
   const promptLabel =
     passphrasePrompt?.mode === 'restore'
-      ? 'Enter your Recovery Passphrase'
+      ? 'Enter Your Recovery Passphrase'
       : passphrasePrompt?.mode === 'change'
-        ? 'Change your Recovery Passphrase'
+        ? 'Change Your Recovery Passphrase'
         : passphrasePrompt?.mode === 'reset'
           ? 'Set a New Recovery Passphrase'
           : 'Create a Recovery Passphrase';

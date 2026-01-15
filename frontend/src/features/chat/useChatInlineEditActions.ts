@@ -194,7 +194,7 @@ export function useChatInlineEditActions(opts: {
     // - If the edit results in a media envelope, it's fine (the JSON string is non-empty).
     // - If the edit results in plain text (e.g. removing an attachment), we require non-empty text.
     if (inlineEditAttachmentMode === 'remove' && !nextCaption) {
-      openInfo('Add text', 'Add some text before removing the attachment (or choose Delete).');
+      openInfo('Add Text', 'Add some text before removing the attachment (or choose Delete)');
       return;
     }
 
