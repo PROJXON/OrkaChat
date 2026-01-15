@@ -191,6 +191,7 @@ export function MainAppChannelsModals({
   const pinnedChannelId = pinnedChannelConversationIdNorm.startsWith('ch#')
     ? pinnedChannelConversationIdNorm.slice('ch#'.length).trim()
     : '';
+  const pinnedChannelIsGlobal = pinnedChannelConversationIdNorm === 'global';
   const pinnedFromResults = pinnedChannelId
     ? channelsResults.find((c) => String(c.channelId || '').trim() === pinnedChannelId) || null
     : null;
@@ -699,6 +700,13 @@ export function MainAppChannelsModals({
                   onPress={() => enterChannelConversation('global')}
                 >
                   <View style={styles.chatRowLeft}>
+                    {pinnedChannelIsGlobal ? (
+                      <Feather
+                        name="home"
+                        size={14}
+                        color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                      />
+                    ) : null}
                     <Text
                       style={[styles.chatRowName, isDark ? styles.chatRowNameDark : null]}
                       numberOfLines={1}
