@@ -8,6 +8,12 @@ Legacy redirects:
 - `https://app.orkaos.com/` → `https://chat.orkaos.com/`
 - `https://orkaos.com/chat` → `https://chat.orkaos.com/`
 
+## Legal & support
+
+- Legal index: `https://projxon.github.io/OrkaChat/index.html`
+- Privacy policy: `https://projxon.github.io/OrkaChat/privacy.html`
+- Delete account: `https://projxon.github.io/OrkaChat/delete-account.html`
+
 ## Features
 
 ### Messaging
