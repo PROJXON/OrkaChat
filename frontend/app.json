@@ -47,6 +47,7 @@
     "extra": {
       "WS_URL": "wss://a6ersp1gab.execute-api.us-east-2.amazonaws.com/production",
       "API_URL": "https://828bp5ailc.execute-api.us-east-2.amazonaws.com",
+      "AI_API_URL": "https://cczniokc86.execute-api.us-east-2.amazonaws.com/prod",
       "eas": {
         "projectId": "590b8f3a-9f1a-4d98-bec3-9b8012b1a831"
       }

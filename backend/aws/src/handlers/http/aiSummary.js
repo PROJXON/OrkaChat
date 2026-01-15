@@ -125,7 +125,12 @@ exports.handler = async (event) => {
       `ConversationId: ${convoId}\n` +
       (peer ? `Peer: ${peer}\n` : '') +
       `\nMessages:\n${transcript}\n\n` +
-      `Return:\n- A 3-6 sentence summary\n- 3-7 bullet points of key takeaways\n`;
+      `Return EXACTLY this format:\n` +
+      `- First: 3-6 sentences of summary text (no heading like "Summary:" and no title line)\n` +
+      `- Then a blank line\n` +
+      `- Then the line: Key Takeaways\n` +
+      `- Then 3-7 bullet points, each starting with "- "\n` +
+      `Do NOT include any extra headings.\n`;
 
     const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 

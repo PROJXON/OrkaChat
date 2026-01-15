@@ -1,10 +1,88 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as React from 'react';
+import { Platform } from 'react-native';
 import type { ScrollView, View } from 'react-native';
 import { findNodeHandle, UIManager } from 'react-native';
 
 import { buildAiHelperContext } from './aiHelperContext';
 import type { ChatMessage } from './types';
+
+async function readSseTextDeltas(opts: {
+  response: Response;
+  onDelta: (delta: string) => void;
+  onFinal?: (finalJson: Record<string, unknown>) => void;
+  signal?: AbortSignal;
+}): Promise<void> {
+  const { response, onDelta, onFinal, signal } = opts;
+  const body: unknown = (response as unknown as { body?: unknown }).body;
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+  if (Platform.OS !== 'web') throw new Error('Streaming not supported on this platform');
+  if (!contentType.includes('text/event-stream')) throw new Error('Not an SSE response');
+  if (!body || typeof (body as { getReader?: unknown }).getReader !== 'function') {
+    throw new Error('Streaming body not available');
+  }
+
+  const reader = (body as ReadableStream<Uint8Array>).getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  const nextEventBreakIdx = (s: string): { idx: number; sepLen: number } | null => {
+    const a = s.indexOf('\n\n');
+    const b = s.indexOf('\r\n\r\n');
+    if (a < 0 && b < 0) return null;
+    if (a >= 0 && (b < 0 || a <= b)) return { idx: a, sepLen: 2 };
+    return { idx: b, sepLen: 4 };
+  };
+
+  while (true) {
+    if (signal?.aborted) {
+      try {
+        await reader.cancel();
+      } catch {
+        // ignore
+      }
+      break;
+    }
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    while (true) {
+      const hit = nextEventBreakIdx(buf);
+      if (!hit) break;
+      const rawEvent = buf.slice(0, hit.idx);
+      buf = buf.slice(hit.idx + hit.sepLen);
+
+      const lines = rawEvent
+        .split(/\r?\n/)
+        .map((l) => l.trimEnd())
+        .filter(Boolean);
+
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue;
+        const dataStr = line.slice('data:'.length).trim();
+        if (!dataStr) continue;
+        if (dataStr === '[DONE]') return;
+        try {
+          const parsed: unknown = JSON.parse(dataStr);
+          const rec = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+          if (rec.done === true) return;
+          if (typeof rec.delta === 'string' && rec.delta) onDelta(rec.delta);
+          else if (rec.final && typeof rec.final === 'object') {
+            onFinal?.(rec.final as Record<string, unknown>);
+          } else if (typeof rec.answer === 'string') {
+            // Some servers may stream full replacements.
+            onDelta(String(rec.answer));
+          }
+        } catch {
+          // Not JSON; treat as text delta.
+          onDelta(dataStr);
+        }
+      }
+    }
+  }
+}
 
 export type AiHelperTurn = {
   role: 'user' | 'assistant';
@@ -128,6 +206,7 @@ export function useAiHelper(opts: {
   );
   const hydrateRunRef = React.useRef<number>(0);
   const persistTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = React.useRef<AbortController | null>(null);
 
   const scrollRef = React.useRef<ScrollView | null>(null);
   const scrollViewportHRef = React.useRef<number>(0);
@@ -153,6 +232,12 @@ export function useAiHelper(opts: {
   }, []);
 
   const closeHelper = React.useCallback(() => {
+    try {
+      abortRef.current?.abort();
+    } catch {
+      // ignore
+    }
+    abortRef.current = null;
     setOpen(false);
     setInstruction('');
     // Keep `thread` so history (incl. reply options) persists across open/close.
@@ -325,6 +410,9 @@ export function useAiHelper(opts: {
     }
 
     try {
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+
       setInstruction('');
       setLoading(true);
 
@@ -354,7 +442,7 @@ export function useAiHelper(opts: {
         isDm,
         mediaUrlByPath,
         cdnResolve,
-        maxMessages: 50,
+        maxMessages: 25,
         maxThumbs: 3,
       });
 
@@ -374,6 +462,7 @@ export function useAiHelper(opts: {
           resetThread: shouldResetThread,
           attachments: attachmentsForAi,
         }),
+        signal: abortRef.current.signal,
       });
 
       if (!resp.ok) {
@@ -391,6 +480,119 @@ export function useAiHelper(opts: {
           return;
         }
         throw new Error(`AI helper failed (${resp.status}): ${bodyText || 'no body'}`);
+      }
+
+      const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+
+      // Optional streaming: if the server returns SSE, progressively fill the last assistant bubble.
+      if (Platform.OS === 'web' && contentType.includes('text/event-stream')) {
+        let acc = '';
+        // Replace the "thinking" placeholder with an empty assistant bubble we can append to.
+        setThread((prev) => {
+          const next = prev.slice();
+          if (
+            next.length &&
+            next[next.length - 1]?.role === 'assistant' &&
+            next[next.length - 1]?.thinking
+          ) {
+            next.pop();
+          }
+          next.push({ role: 'assistant', text: '' });
+          return next;
+        });
+
+        const applyFinal = (rec: Record<string, unknown>) => {
+          const nextAnswer =
+            typeof rec.answer === 'string' ? rec.answer.trim() : String(rec.answer ?? '').trim();
+          const nextSuggestions = Array.isArray(rec.suggestions)
+            ? rec.suggestions
+                .map((s) => (typeof s === 'string' ? s.trim() : String(s ?? '').trim()))
+                .filter(Boolean)
+                .slice(0, 3)
+            : [];
+          if (Array.isArray(rec.thread)) {
+            const parsedThread = rec.thread
+              .map(parseAiHelperTurn)
+              .filter((t): t is AiHelperTurn => !!t);
+            let nextThread = parsedThread;
+            if (!shouldResetThread) {
+              nextThread = mergeHistoricSuggestions(threadBefore, nextThread);
+            }
+            if (nextSuggestions.length) {
+              let lastAssistantIdx = -1;
+              for (let i = nextThread.length - 1; i >= 0; i--) {
+                if (nextThread[i]?.role === 'assistant') {
+                  lastAssistantIdx = i;
+                  break;
+                }
+              }
+              if (lastAssistantIdx >= 0) {
+                const t = nextThread[lastAssistantIdx];
+                nextThread = nextThread.slice();
+                nextThread[lastAssistantIdx] = { ...t, suggestions: nextSuggestions };
+              }
+            }
+            lastTurnRef.current = null;
+            if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
+            autoScrollRetryRef.current.timer = null;
+            autoScrollRetryRef.current.attempts = 0;
+            autoScrollIntentRef.current = 'answer';
+            if (nextThread.length) setThread(nextThread);
+            return;
+          }
+          // No thread provided; update last assistant bubble with streamed answer + suggestions.
+          setThread((prev) => {
+            const next = prev.slice();
+            for (let i = next.length - 1; i >= 0; i--) {
+              if (next[i]?.role !== 'assistant') continue;
+              next[i] = {
+                role: 'assistant',
+                text: nextAnswer || acc,
+                ...(nextSuggestions.length ? { suggestions: nextSuggestions } : {}),
+              };
+              break;
+            }
+            return next;
+          });
+        };
+
+        await readSseTextDeltas({
+          response: resp,
+          signal: abortRef.current.signal,
+          onDelta: (deltaOrFull) => {
+            // Heuristic: if server sends full replacements, prefer them.
+            if (deltaOrFull.length >= acc.length && (deltaOrFull.startsWith(acc) || acc === '')) {
+              acc = deltaOrFull;
+            } else {
+              acc += deltaOrFull;
+            }
+            setThread((prev) => {
+              const next = prev.slice();
+              for (let i = next.length - 1; i >= 0; i--) {
+                if (next[i]?.role !== 'assistant') continue;
+                if (next[i]?.thinking) continue;
+                next[i] = { ...next[i], text: acc };
+                break;
+              }
+              return next;
+            });
+          },
+          onFinal: (finalJson) => applyFinal(finalJson),
+        });
+        // If the server never sent a final payload, keep the streamed text as the answer.
+        if (acc.trim().length) {
+          setThread((prev) => {
+            const next = prev.slice();
+            for (let i = next.length - 1; i >= 0; i--) {
+              if (next[i]?.role !== 'assistant') continue;
+              if (next[i]?.thinking) continue;
+              next[i] = { ...next[i], text: acc.trim() };
+              break;
+            }
+            return next;
+          });
+        }
+        return;
       }
 
       const data = await resp.json().catch(() => ({}));
@@ -460,6 +662,7 @@ export function useAiHelper(opts: {
     } catch (e: unknown) {
       openInfo('AI helper failed', getErrorMessage(e));
     } finally {
+      abortRef.current = null;
       setLoading(false);
     }
   }, [

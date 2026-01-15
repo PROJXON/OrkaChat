@@ -10,7 +10,7 @@ import type { AppStateStatus, TextInput } from 'react-native';
 import { AppState, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { API_URL, CDN_URL, WS_URL } from '../config/env';
+import { AI_API_URL, API_URL, CDN_URL, WS_URL } from '../config/env';
 import { applyOptimisticSendForTextOnly } from '../features/chat/applyOptimisticSend';
 import {
   pendingMediaFromDocumentPickerAssets,
@@ -554,7 +554,8 @@ export default function ChatScreen({
   });
 
   const aiSummary = useAiSummary({
-    apiUrl: API_URL,
+    // Streaming is currently implemented web-only; native fetch typically can't consume SSE.
+    apiUrl: Platform.OS === 'web' ? AI_API_URL || API_URL : API_URL,
     activeConversationId,
     peer,
     messages,
@@ -564,7 +565,8 @@ export default function ChatScreen({
   });
 
   const aiHelper = useAiHelper({
-    apiUrl: API_URL,
+    // Streaming is currently implemented web-only; native fetch typically can't consume SSE.
+    apiUrl: Platform.OS === 'web' ? AI_API_URL || API_URL : API_URL,
     activeConversationId,
     peer,
     messages,
