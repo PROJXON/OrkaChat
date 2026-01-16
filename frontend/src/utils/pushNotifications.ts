@@ -10,6 +10,7 @@ type ExpoDeviceModule = typeof import('expo-device');
 
 const STORAGE_DEVICE_ID = 'push:deviceId';
 const STORAGE_EXPO_TOKEN = 'push:expoToken';
+const STORAGE_PUSH_LAST_STATUS = 'push:lastStatus';
 
 async function tryImportNotifications(): Promise<ExpoNotificationsModule | null> {
   try {
@@ -71,6 +72,56 @@ async function getStoredExpoToken(): Promise<string> {
   }
 }
 
+export async function getPushDebugStatus(): Promise<{
+  deviceId: string;
+  storedExpoToken: string;
+  lastStatus: string;
+  apiUrl: string;
+}> {
+  const [deviceId, storedExpoToken, lastStatus] = await Promise.all([
+    getOrCreateDeviceId(),
+    getStoredExpoToken(),
+    AsyncStorage.getItem(STORAGE_PUSH_LAST_STATUS).catch(() => ''),
+  ]);
+  return {
+    deviceId,
+    storedExpoToken,
+    lastStatus: String(lastStatus || ''),
+    apiUrl: String(API_URL || ''),
+  };
+}
+
+async function setPushLastStatus(status: string): Promise<void> {
+  try {
+    const s = String(status || '');
+    if (s) await AsyncStorage.setItem(STORAGE_PUSH_LAST_STATUS, s);
+    else await AsyncStorage.removeItem(STORAGE_PUSH_LAST_STATUS);
+  } catch {
+    // ignore
+  }
+}
+
+async function getIdTokenWithRetry(opts?: {
+  maxAttempts?: number;
+  delayMs?: number;
+}): Promise<string | null> {
+  const maxAttempts = Math.max(1, Math.min(20, Number(opts?.maxAttempts ?? 8)));
+  const delayMs = Math.max(0, Math.min(5_000, Number(opts?.delayMs ?? 250)));
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const idToken = (await fetchAuthSession()).tokens?.idToken?.toString();
+      if (idToken && idToken.trim()) return idToken.trim();
+    } catch {
+      // ignore and retry
+    }
+    if (i < maxAttempts - 1 && delayMs > 0) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return null;
+}
+
 export async function ensureDmNotificationChannel(): Promise<void> {
   const Notifications = await tryImportNotifications();
   if (!Notifications) return;
@@ -107,7 +158,10 @@ export async function registerForDmPushNotifications(): Promise<{
   reason?: string;
   expoPushToken?: string;
 }> {
-  if (!API_URL) return { ok: false, reason: 'Missing API_URL' };
+  if (!API_URL) {
+    await setPushLastStatus(`[${new Date().toISOString()}] register: fail Missing API_URL`);
+    return { ok: false, reason: 'Missing API_URL' };
+  }
 
   const Notifications = await tryImportNotifications();
   if (!Notifications)
@@ -116,6 +170,7 @@ export async function registerForDmPushNotifications(): Promise<{
   const Device = await tryImportDevice();
   // Expo push token generation can still work without expo-device, but we use it to skip simulators.
   if (Device && Device.isDevice === false) {
+    await setPushLastStatus(`[${new Date().toISOString()}] register: skip not a physical device`);
     return { ok: false, reason: 'Push tokens require a physical device' };
   }
 
@@ -129,6 +184,7 @@ export async function registerForDmPushNotifications(): Promise<{
     status = req.status;
   }
   if (status !== 'granted') {
+    await setPushLastStatus(`[${new Date().toISOString()}] register: fail permission not granted`);
     return { ok: false, reason: 'Notification permission not granted' };
   }
 
@@ -151,16 +207,27 @@ export async function registerForDmPushNotifications(): Promise<{
     const tok = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     expoPushToken = tok?.data ? String(tok.data) : '';
   } catch (err) {
+    await setPushLastStatus(
+      `[${new Date().toISOString()}] register: fail getExpoPushToken: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
     return {
       ok: false,
       reason: `Failed to get Expo push token: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 
-  if (!expoPushToken) return { ok: false, reason: 'Empty Expo push token' };
+  if (!expoPushToken) {
+    await setPushLastStatus(`[${new Date().toISOString()}] register: fail empty Expo push token`);
+    return { ok: false, reason: 'Empty Expo push token' };
+  }
 
-  const idToken = (await fetchAuthSession()).tokens?.idToken?.toString();
-  if (!idToken) return { ok: false, reason: 'Missing auth token' };
+  const idToken = await getIdTokenWithRetry({ maxAttempts: 10, delayMs: 250 });
+  if (!idToken) {
+    await setPushLastStatus(`[${new Date().toISOString()}] register: fail Missing auth token`);
+    return { ok: false, reason: 'Missing auth token' };
+  }
 
   const deviceId = await getOrCreateDeviceId();
 
@@ -179,6 +246,9 @@ export async function registerForDmPushNotifications(): Promise<{
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
+    await setPushLastStatus(
+      `[${new Date().toISOString()}] register: fail backend ${resp.status}: ${text || 'unknown'}`,
+    );
     return {
       ok: false,
       reason: `Backend register push token failed (${resp.status}): ${text || 'unknown'}`,
@@ -186,6 +256,7 @@ export async function registerForDmPushNotifications(): Promise<{
   }
 
   await setStoredExpoToken(expoPushToken);
+  await setPushLastStatus(`[${new Date().toISOString()}] register: ok`);
   return { ok: true, expoPushToken };
 }
 
