@@ -32,6 +32,14 @@ function clampText(s, maxLen) {
   return t.length > maxLen ? `${t.slice(0, maxLen)}…` : t;
 }
 
+function lastTurnIsSameUserInstruction(thread, instructionText) {
+  if (!Array.isArray(thread) || !thread.length) return false;
+  const last = thread[thread.length - 1];
+  if (!last || typeof last !== 'object') return false;
+  if (last.role !== 'user') return false;
+  return safeString(last.text) === safeString(instructionText);
+}
+
 function sanitizeThread(raw) {
   if (!Array.isArray(raw)) return [];
   const out = [];
@@ -426,9 +434,12 @@ exports.handler = async (event) => {
               suggestions2 = wantReplies ? ensureExactlyThreeSuggestions(suggestions2, instruction) : [];
 
               const result2 = { answer: answer2, suggestions: suggestions2 };
+              const userTurnText2 = clampText(instruction, 1200);
+              const baseThread2 = lastTurnIsSameUserInstruction(thread, userTurnText2)
+                ? thread
+                : [...thread, { role: 'user', text: userTurnText2 }];
               const nextThread2 = sanitizeThread([
-                ...thread,
-                { role: 'user', text: clampText(instruction, 1200) },
+                ...baseThread2,
                 { role: 'assistant', text: clampText(answer2 || '', 1600) },
               ]);
 
@@ -533,9 +544,12 @@ exports.handler = async (event) => {
     const result = { answer, suggestions };
 
     // Return thread for clients that want to keep local state in sync.
+    const userTurnText = clampText(instruction, 1200);
+    const baseThread = lastTurnIsSameUserInstruction(thread, userTurnText)
+      ? thread
+      : [...thread, { role: 'user', text: userTurnText }];
     const nextThread = sanitizeThread([
-      ...thread,
-      { role: 'user', text: clampText(instruction, 1200) },
+      ...baseThread,
       { role: 'assistant', text: clampText(answer || '', 1600) },
     ]);
 

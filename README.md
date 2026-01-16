@@ -138,6 +138,30 @@ The app reads URLs from:
 - `frontend/amplify_outputs.web.json` (preferred for web) or `frontend/amplify_outputs.json` (generated) → `custom.cdnUrl`, `custom.signerApiUrl` (if present)
 - Code: `frontend/src/config/env.ts`
 
+## Mobile push notifications (Expo)
+
+OrkaChat uses **Expo push notifications** (Expo push tokens stored in DynamoDB), sent from the backend when the recipient is offline.
+
+### How it works
+
+- **Client registration**: after sign-in, the app calls `Notifications.getExpoPushTokenAsync(...)` and POSTs it to `POST /push/token` (see `frontend/src/utils/pushNotifications.ts`).
+- **When pushes are sent** (backend `wsMessage.js`):
+  - **DMs / group DMs**: push is sent to the recipient **only if they have no active WebSocket connections**.
+  - **Channels**: push is sent for **@mentions and replies only** (no channel-wide fanout), and only when the recipient is offline.
+
+### Android prerequisites (FCM)
+
+For Android standalone builds (EAS), you generally must configure **Firebase Cloud Messaging (FCM)** for your Expo project (Firebase app matching `android.package`, plus Expo push credentials). If FCM is not set up, devices may successfully generate tokens but **never receive** pushes.
+
+### Quick troubleshooting checklist
+
+- **You won’t get a push for messages you send**: pushes are for the *recipient*.
+- **Foreground behavior**: while the app is open, it intentionally suppresses OS banners/sounds (see `setForegroundNotificationPolicy()` in `frontend/src/utils/pushNotifications.ts`).
+- **Offline-only**: if the recipient is actively connected (web or another device), the backend skips sending a push.
+- **Backend config**:
+  - `PUSH_TOKENS_TABLE` must be set for `POST /push/token` to work.
+  - The WebSocket message Lambda must be able to POST to Expo’s push API (`https://exp.host/--/api/v2/push/send`).
+
 ## CloudFront media (public + DM)
 
 OrkaChat stores media in **S3**, but serves it via **CloudFront**:

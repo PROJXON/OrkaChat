@@ -12,6 +12,8 @@ const {
   PostToConnectionCommand,
 } = require('@aws-sdk/client-apigatewaymanagementapi');
 const { enforceMediaBytesPerDay } = require('../../lib/mediaQuota');
+const https = require('https');
+const { URL } = require('url');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ddbRaw = new DynamoDBClient({});
@@ -224,26 +226,66 @@ const queryExpoPushTokensByUserSub = async (userSub) => {
 
 const sendExpoPush = async (messages) => {
   // Expo push endpoint doesn't require credentials (it validates tokens server-side).
-  // Requires Node 18+ for fetch in Lambda.
-  if (typeof fetch !== 'function') {
-    console.warn('sendExpoPush skipped: runtime missing fetch (use Node.js 18+ / 20.x)');
-    return;
-  }
   const url = process.env.EXPO_PUSH_URL || 'https://exp.host/--/api/v2/push/send';
   const payload = Array.isArray(messages) ? messages : [];
   if (!payload.length) return;
   try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    // Node 18+ has global fetch. For older runtimes, fall back to https.request.
+    const postJson = async (targetUrl, bodyObj) => {
+      if (typeof fetch === 'function') {
+        const resp = await fetch(targetUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyObj),
+        });
+        const text = await resp.text().catch(() => '');
+        return { ok: resp.ok, status: resp.status, text };
+      }
+
+      const u = new URL(String(targetUrl));
+      const data = Buffer.from(JSON.stringify(bodyObj || {}));
+      return await new Promise((resolve, reject) => {
+        const req = https.request(
+          {
+            method: 'POST',
+            protocol: u.protocol,
+            hostname: u.hostname,
+            port: u.port || (u.protocol === 'https:' ? 443 : 80),
+            path: `${u.pathname || ''}${u.search || ''}`,
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Length': data.length,
+            },
+          },
+          (res) => {
+            let text = '';
+            res.on('data', (chunk) => {
+              text += chunk ? chunk.toString('utf8') : '';
+            });
+            res.on('end', () => {
+              const status = typeof res.statusCode === 'number' ? res.statusCode : 0;
+              resolve({ ok: status >= 200 && status < 300, status, text });
+            });
+          }
+        );
+        req.on('error', reject);
+        req.write(data);
+        req.end();
+      });
+    };
+
+    const resp = await postJson(url, payload);
     if (!resp.ok) {
-      const text = await resp.text().catch(() => '');
-      console.warn('expo push non-2xx', resp.status, text);
+      console.warn('expo push non-2xx', resp.status, resp.text || '');
       return;
     }
-    const json = await resp.json().catch(() => null);
+    const json = (() => {
+      try {
+        return resp.text ? JSON.parse(resp.text) : null;
+      } catch {
+        return null;
+      }
+    })();
     const data = json && (json.data || json);
     if (Array.isArray(data)) {
       for (const r of data) {
