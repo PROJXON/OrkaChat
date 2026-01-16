@@ -245,6 +245,8 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    // Keep a consistent gap above footer buttons.
+    paddingTop: 6,
     gap: 8,
   },
   modalButton: {

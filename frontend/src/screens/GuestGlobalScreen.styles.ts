@@ -181,7 +181,9 @@ export const styles = StyleSheet.create({
   modalScroll: { maxHeight: 420 },
   modalRowText: { color: APP_COLORS.light.text.heading, lineHeight: 20, marginBottom: 8 },
   modalRowTextDark: { color: APP_COLORS.dark.text.body },
-  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 8 },
+  // Use padding (not margin) so the gap lives *above the buttons* rather than being
+  // treated as space after the last scroll/list item.
+  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: 6, gap: 8 },
   modalBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,

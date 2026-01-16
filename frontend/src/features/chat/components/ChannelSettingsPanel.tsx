@@ -106,6 +106,9 @@ export function ChannelSettingsPanel({
               styles.toolBtn,
               isDark ? styles.toolBtnDark : null,
               busy ? { opacity: 0.6 } : null,
+              // On compact screens, keep the Members chip slightly tighter to avoid
+              // visual collisions in the header row.
+              compact ? { paddingVertical: 4 } : null,
             ]}
             accessibilityRole="button"
             accessibilityLabel="Members"

@@ -494,6 +494,9 @@ export const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    // Leave consistent breathing room above footer buttons (esp. when a ScrollView above
+    // shrinks due to the keyboard and the modal becomes "scrunched").
+    paddingTop: 6,
     gap: 8,
   },
   modalButton: {
