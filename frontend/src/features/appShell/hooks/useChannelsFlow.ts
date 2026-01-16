@@ -442,9 +442,9 @@ export function useChannelsFlow({
 
             if (active.length === 1) {
               const ok = await promptConfirm(
-                'Leave and delete channel?',
+                'Leave and Delete Channel?',
                 'You are the last member in this channel.\n\nIf you leave, the channel and its message history will be deleted.\n\nYou can recreate the channel later.',
-                { confirmText: 'Leave & delete', cancelText: 'Cancel', destructive: true },
+                { confirmText: 'Leave & Delete', cancelText: 'Cancel', destructive: true },
               );
               if (!ok) return;
               // This prompt is the confirmation; do not show a second "Leave channel?" modal.
