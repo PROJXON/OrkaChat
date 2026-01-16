@@ -243,6 +243,9 @@ export function DmSettingsPanel({
                   styles.toolBtn,
                   isDark ? styles.toolBtnDark : null,
                   groupActionBusy ? { opacity: 0.6 } : null,
+                  // When the "Members" label is hidden (compact screens), shrink the chip slightly
+                  // instead of introducing extra vertical spacing above this row.
+                  compact ? { paddingVertical: 4 } : null,
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="Members"
