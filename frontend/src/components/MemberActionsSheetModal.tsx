@@ -59,12 +59,7 @@ export function MemberActionsSheetModal({
                       a.onPress();
                     }}
                   >
-                    <Text
-                      style={[
-                        styles.toolBtnText,
-                        isDark ? styles.toolBtnTextDark : null,
-                      ]}
-                    >
+                    <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
                       {a.label}
                     </Text>
                   </Pressable>
@@ -127,4 +122,3 @@ const sheetStyles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
 });
-

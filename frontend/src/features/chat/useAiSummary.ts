@@ -79,7 +79,8 @@ async function readTextResponseStream(opts: {
         if (dataStr === '[DONE]') return;
         try {
           const parsed: unknown = JSON.parse(dataStr);
-          const rec = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+          const rec =
+            parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
           if (rec.done === true) return;
           if (typeof rec.delta === 'string' && rec.delta) onText(rec.delta);
           else if (typeof rec.summary === 'string') {

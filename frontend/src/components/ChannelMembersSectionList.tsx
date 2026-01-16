@@ -193,7 +193,9 @@ export function ChannelMembersSectionList({
                             disabled={actionBusy || kickCoolingDown}
                             onPress={() => onKick(m.memberSub)}
                           >
-                            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                            <Text
+                              style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                            >
                               Kick
                             </Text>
                           </Pressable>
@@ -209,7 +211,9 @@ export function ChannelMembersSectionList({
                             disabled={actionBusy}
                             onPress={() => onUnban(m.memberSub)}
                           >
-                            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                            <Text
+                              style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                            >
                               Unban
                             </Text>
                           </Pressable>
@@ -225,7 +229,9 @@ export function ChannelMembersSectionList({
                               onBan({ memberSub: m.memberSub, label: String(label || '') })
                             }
                           >
-                            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                            <Text
+                              style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                            >
                               Ban
                             </Text>
                           </Pressable>
@@ -243,7 +249,9 @@ export function ChannelMembersSectionList({
                               onToggleAdmin({ memberSub: m.memberSub, isAdmin: !!m.isAdmin })
                             }
                           >
-                            <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
+                            <Text
+                              style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                            >
                               {m.isAdmin ? 'Demote' : 'Promote'}
                             </Text>
                           </Pressable>
