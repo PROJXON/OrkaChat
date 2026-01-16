@@ -1,10 +1,11 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import type { ChatScreenStyles } from '../screens/ChatScreen.styles';
 import { PALETTE } from '../theme/colors';
 import type { MemberRow } from '../types/members';
 import { AvatarBubble } from './AvatarBubble';
+import { MemberActionsSheetModal } from './MemberActionsSheetModal';
 
 export function ChannelMembersSectionList({
   members,
@@ -33,6 +34,18 @@ export function ChannelMembersSectionList({
   onKick: (memberSub: string) => void;
   onToggleAdmin: (member: { memberSub: string; isAdmin: boolean }) => void;
 }) {
+  const { width: windowW } = useWindowDimensions();
+  const useActionsSheet = windowW < 380;
+  const [sheet, setSheet] = React.useState<{
+    memberSub: string;
+    label: string;
+    isBanned: boolean;
+    canKick: boolean;
+    kickCoolingDown: boolean;
+    isAdmin: boolean;
+    isActive: boolean;
+  } | null>(null);
+
   const visible = (Array.isArray(members) ? members : []).filter(
     (m) => m && (m.status === 'active' || m.status === 'banned'),
   );
@@ -84,6 +97,7 @@ export function ChannelMembersSectionList({
             typeof kickCooldownUntilBySub[m.memberSub] === 'number' &&
             Date.now() < kickCooldownUntilBySub[m.memberSub];
           const isBanned = m.status === 'banned';
+          const isActive = m.status === 'active';
           const imageUri =
             m.avatarImagePath && avatarUrlByPath[String(m.avatarImagePath)]
               ? avatarUrlByPath[String(m.avatarImagePath)]
@@ -143,7 +157,7 @@ export function ChannelMembersSectionList({
                       justifyContent: 'flex-end',
                     }}
                   >
-                    {isBanned ? (
+                    {useActionsSheet ? (
                       <Pressable
                         style={[
                           styles.toolBtn,
@@ -151,63 +165,99 @@ export function ChannelMembersSectionList({
                           actionBusy ? { opacity: 0.6 } : null,
                         ]}
                         disabled={actionBusy}
-                        onPress={() => onUnban(m.memberSub)}
+                        onPress={() =>
+                          setSheet({
+                            memberSub: String(m.memberSub || ''),
+                            label: String(label || ''),
+                            isBanned,
+                            canKick,
+                            kickCoolingDown,
+                            isAdmin: !!m.isAdmin,
+                            isActive,
+                          })
+                        }
                       >
                         <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                          Unban
+                          Actions
                         </Text>
                       </Pressable>
                     ) : (
-                      <Pressable
-                        style={[
-                          styles.toolBtn,
-                          isDark ? styles.toolBtnDark : null,
-                          actionBusy ? { opacity: 0.6 } : null,
-                        ]}
-                        disabled={actionBusy}
-                        onPress={() =>
-                          onBan({ memberSub: m.memberSub, label: String(label || '') })
-                        }
-                      >
-                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                          Ban
-                        </Text>
-                      </Pressable>
+                      <>
+                        {canKick ? (
+                          <Pressable
+                            style={[
+                              styles.toolBtn,
+                              isDark ? styles.toolBtnDark : null,
+                              actionBusy || kickCoolingDown ? { opacity: 0.6 } : null,
+                            ]}
+                            disabled={actionBusy || kickCoolingDown}
+                            onPress={() => onKick(m.memberSub)}
+                          >
+                            <Text
+                              style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                            >
+                              Kick
+                            </Text>
+                          </Pressable>
+                        ) : null}
+
+                        {isBanned ? (
+                          <Pressable
+                            style={[
+                              styles.toolBtn,
+                              isDark ? styles.toolBtnDark : null,
+                              actionBusy ? { opacity: 0.6 } : null,
+                            ]}
+                            disabled={actionBusy}
+                            onPress={() => onUnban(m.memberSub)}
+                          >
+                            <Text
+                              style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                            >
+                              Unban
+                            </Text>
+                          </Pressable>
+                        ) : (
+                          <Pressable
+                            style={[
+                              styles.toolBtn,
+                              isDark ? styles.toolBtnDark : null,
+                              actionBusy ? { opacity: 0.6 } : null,
+                            ]}
+                            disabled={actionBusy}
+                            onPress={() =>
+                              onBan({ memberSub: m.memberSub, label: String(label || '') })
+                            }
+                          >
+                            <Text
+                              style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                            >
+                              Ban
+                            </Text>
+                          </Pressable>
+                        )}
+
+                        {m.status === 'active' ? (
+                          <Pressable
+                            style={[
+                              styles.toolBtn,
+                              isDark ? styles.toolBtnDark : null,
+                              actionBusy ? { opacity: 0.6 } : null,
+                            ]}
+                            disabled={actionBusy}
+                            onPress={() =>
+                              onToggleAdmin({ memberSub: m.memberSub, isAdmin: !!m.isAdmin })
+                            }
+                          >
+                            <Text
+                              style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}
+                            >
+                              {m.isAdmin ? 'Demote' : 'Promote'}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </>
                     )}
-
-                    {canKick ? (
-                      <Pressable
-                        style={[
-                          styles.toolBtn,
-                          isDark ? styles.toolBtnDark : null,
-                          actionBusy || kickCoolingDown ? { opacity: 0.6 } : null,
-                        ]}
-                        disabled={actionBusy || kickCoolingDown}
-                        onPress={() => onKick(m.memberSub)}
-                      >
-                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                          Kick
-                        </Text>
-                      </Pressable>
-                    ) : null}
-
-                    {m.status === 'active' ? (
-                      <Pressable
-                        style={[
-                          styles.toolBtn,
-                          isDark ? styles.toolBtnDark : null,
-                          actionBusy ? { opacity: 0.6 } : null,
-                        ]}
-                        disabled={actionBusy}
-                        onPress={() =>
-                          onToggleAdmin({ memberSub: m.memberSub, isAdmin: !!m.isAdmin })
-                        }
-                      >
-                        <Text style={[styles.toolBtnText, isDark ? styles.toolBtnTextDark : null]}>
-                          {m.isAdmin ? 'Demote' : 'Promote'}
-                        </Text>
-                      </Pressable>
-                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -220,6 +270,53 @@ export function ChannelMembersSectionList({
 
   return (
     <View>
+      <MemberActionsSheetModal
+        visible={!!sheet}
+        isDark={isDark}
+        styles={styles}
+        title={sheet?.label ? `Actions for ${sheet.label}` : 'Actions'}
+        onClose={() => setSheet(null)}
+        actions={
+          sheet
+            ? [
+                ...(sheet.canKick
+                  ? [
+                      {
+                        key: 'kick',
+                        label: sheet.kickCoolingDown ? 'Kick (cooldown)' : 'Kick',
+                        disabled: actionBusy || sheet.kickCoolingDown,
+                        onPress: () => onKick(sheet.memberSub),
+                      },
+                    ]
+                  : []),
+                sheet.isBanned
+                  ? {
+                      key: 'unban',
+                      label: 'Unban',
+                      disabled: actionBusy,
+                      onPress: () => onUnban(sheet.memberSub),
+                    }
+                  : {
+                      key: 'ban',
+                      label: 'Ban',
+                      disabled: actionBusy,
+                      onPress: () => onBan({ memberSub: sheet.memberSub, label: sheet.label }),
+                    },
+                ...(sheet.isActive
+                  ? [
+                      {
+                        key: 'toggleAdmin',
+                        label: sheet.isAdmin ? 'Demote' : 'Promote',
+                        disabled: actionBusy,
+                        onPress: () =>
+                          onToggleAdmin({ memberSub: sheet.memberSub, isAdmin: sheet.isAdmin }),
+                      },
+                    ]
+                  : []),
+              ]
+            : []
+        }
+      />
       {renderSection('Admins', admins)}
       {renderSection('Members', normalMembers)}
       {renderSection('Banned', banned)}

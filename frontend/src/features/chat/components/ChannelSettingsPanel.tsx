@@ -88,23 +88,30 @@ export function ChannelSettingsPanel({
       {/* Row 1: Members + (About/Name/Leave) */}
       <View style={[styles.channelAdminRow, compact ? { flexWrap: 'wrap' } : null]}>
         <View style={[styles.dmSettingGroup, { flexGrow: 1 }]}>
-          <Text
-            style={[
-              styles.decryptLabel,
-              isDark ? styles.decryptLabelDark : null,
-              styles.dmSettingLabel,
-              compact ? styles.dmSettingLabelCompact : null,
-            ]}
-            numberOfLines={1}
-          >
-            Members
-          </Text>
+          {!compact ? (
+            <Text
+              style={[
+                styles.decryptLabel,
+                isDark ? styles.decryptLabelDark : null,
+                styles.dmSettingLabel,
+                compact ? styles.dmSettingLabelCompact : null,
+              ]}
+              numberOfLines={1}
+            >
+              Members
+            </Text>
+          ) : null}
           <Pressable
             style={[
               styles.toolBtn,
               isDark ? styles.toolBtnDark : null,
               busy ? { opacity: 0.6 } : null,
+              // On compact screens, keep the Members chip slightly tighter to avoid
+              // visual collisions in the header row.
+              compact ? { paddingVertical: 4 } : null,
             ]}
+            accessibilityRole="button"
+            accessibilityLabel="Members"
             disabled={busy}
             onPress={onOpenMembers}
           >

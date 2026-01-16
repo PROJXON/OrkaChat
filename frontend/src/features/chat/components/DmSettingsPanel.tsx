@@ -214,26 +214,41 @@ export function DmSettingsPanel({
       ) : null}
 
       {isGroup ? (
-        <View style={[styles.dmSettingsRow, styles.groupSettingsRow]}>
-          <View style={styles.dmSettingSlotLeft}>
+        <View
+          style={[
+            styles.dmSettingsRow,
+            styles.groupSettingsRow,
+            // In compact mode, don't "three-column center" Auto‑Decrypt; align settings naturally
+            // so we don't leave a big empty gap when the Members label is hidden.
+            compact ? { justifyContent: 'flex-start' } : null,
+          ]}
+        >
+          <View style={[styles.dmSettingSlotLeft, compact ? { flex: 0 } : null]}>
             <View style={styles.dmSettingGroup}>
-              <Text
-                style={[
-                  styles.decryptLabel,
-                  isDark ? styles.decryptLabelDark : null,
-                  styles.dmSettingLabel,
-                  compact ? styles.dmSettingLabelCompact : null,
-                ]}
-                numberOfLines={1}
-              >
-                Members
-              </Text>
+              {!compact ? (
+                <Text
+                  style={[
+                    styles.decryptLabel,
+                    isDark ? styles.decryptLabelDark : null,
+                    styles.dmSettingLabel,
+                    compact ? styles.dmSettingLabelCompact : null,
+                  ]}
+                  numberOfLines={1}
+                >
+                  Members
+                </Text>
+              ) : null}
               <Pressable
                 style={[
                   styles.toolBtn,
                   isDark ? styles.toolBtnDark : null,
                   groupActionBusy ? { opacity: 0.6 } : null,
+                  // When the "Members" label is hidden (compact screens), shrink the chip slightly
+                  // instead of introducing extra vertical spacing above this row.
+                  compact ? { paddingVertical: 4 } : null,
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel="Members"
                 disabled={groupActionBusy}
                 onPress={onOpenGroupMembers}
               >
@@ -244,7 +259,14 @@ export function DmSettingsPanel({
             </View>
           </View>
 
-          <View style={styles.dmSettingSlotCenter}>
+          <View
+            style={[
+              styles.dmSettingSlotCenter,
+              // In compact mode, let Auto‑Decrypt sit more centered between
+              // the Members count (left) and Name/Leave (right).
+              compact ? { flex: 1, alignItems: 'center', paddingHorizontal: 8 } : null,
+            ]}
+          >
             <View style={styles.dmSettingGroup}>
               <Text
                 style={[
@@ -289,7 +311,9 @@ export function DmSettingsPanel({
             </View>
           </View>
 
-          <View style={styles.dmSettingSlotRight}>
+          <View
+            style={[styles.dmSettingSlotRight, compact ? { flex: 0, marginLeft: 'auto' } : null]}
+          >
             <View style={[styles.dmSettingGroup, { justifyContent: 'flex-end', gap: 10 }]}>
               {groupMeIsAdmin ? (
                 <Pressable

@@ -86,7 +86,6 @@ import { useChatUploadHandlers } from '../features/chat/useChatUploadHandlers';
 import { useChatWsConnection } from '../features/chat/useChatWsConnection';
 import { useChatWsMessageHandler } from '../features/chat/useChatWsMessageHandler';
 import { useDisplayNameBySub } from '../features/chat/useDisplayNameBySub';
-import { useFocusGroupAddMembersInputOnOpen } from '../features/chat/useFocusGroupAddMembersInputOnOpen';
 import { useGroupMembersModalActions } from '../features/chat/useGroupMembersModalActions';
 import { useGroupMembersUi } from '../features/chat/useGroupMembersUi';
 import { useGroupNameModalActions } from '../features/chat/useGroupNameModalActions';
@@ -1012,13 +1011,9 @@ export default function ChatScreen({
   });
   // group UI state comes from useChatGroupUiState()
 
-  useFocusGroupAddMembersInputOnOpen({
-    enabled: isGroup,
-    groupMembersOpen,
-    meIsAdmin: !!groupMeta?.meIsAdmin,
-    inputRef: groupAddMembersInputRef,
-    delayMs: 150,
-  });
+  // Don't auto-focus the "Add usernames" input when opening the Members modal.
+  // This prevents the keyboard from sliding up unnecessarily on mobile.
+  // (Users can tap the input when they actually want to add members.)
 
   useRefreshGroupRosterOnMembersModalOpen({
     enabled: isGroup,
