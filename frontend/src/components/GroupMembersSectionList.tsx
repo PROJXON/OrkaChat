@@ -276,7 +276,6 @@ export function GroupMembersSectionList({
                       {
                         key: 'kick',
                         label: sheet.kickCoolingDown ? 'Kick (cooldown)' : 'Kick',
-                        destructive: true,
                         disabled: groupActionBusy || sheet.kickCoolingDown,
                         onPress: () => onKick(sheet.memberSub),
                       },
@@ -292,7 +291,6 @@ export function GroupMembersSectionList({
                   : {
                       key: 'ban',
                       label: 'Ban',
-                      destructive: true,
                       disabled: groupActionBusy,
                       onPress: () => onBan({ memberSub: sheet.memberSub, label: sheet.label }),
                     },

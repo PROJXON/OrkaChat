@@ -276,7 +276,6 @@ export function ChannelMembersSectionList({
                       {
                         key: 'kick',
                         label: sheet.kickCoolingDown ? 'Kick (cooldown)' : 'Kick',
-                        destructive: true,
                         disabled: actionBusy || sheet.kickCoolingDown,
                         onPress: () => onKick(sheet.memberSub),
                       },
@@ -292,7 +291,6 @@ export function ChannelMembersSectionList({
                   : {
                       key: 'ban',
                       label: 'Ban',
-                      destructive: true,
                       disabled: actionBusy,
                       onPress: () => onBan({ memberSub: sheet.memberSub, label: sheet.label }),
                     },
