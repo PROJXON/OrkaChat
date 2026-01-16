@@ -44,12 +44,15 @@ type AiHelperController = {
   scrollRef: React.ComponentProps<typeof AiHelperModal>['scrollRef'];
   scrollContentRef: React.ComponentProps<typeof AiHelperModal>['scrollContentRef'];
   lastTurnRef: React.ComponentProps<typeof AiHelperModal>['lastTurnRef'];
+  lastAssistantLayoutRef: React.ComponentProps<typeof AiHelperModal>['lastAssistantLayoutRef'];
   scrollViewportHRef: React.ComponentProps<typeof AiHelperModal>['scrollViewportHRef'];
   scrollContentHRef: React.ComponentProps<typeof AiHelperModal>['scrollContentHRef'];
+  scrollYRef: React.ComponentProps<typeof AiHelperModal>['scrollYRef'];
   lastAutoScrollAtRef: React.ComponentProps<typeof AiHelperModal>['lastAutoScrollAtRef'];
   lastAutoScrollContentHRef: React.ComponentProps<
     typeof AiHelperModal
   >['lastAutoScrollContentHRef'];
+  lastAutoScrollModeRef: React.ComponentProps<typeof AiHelperModal>['lastAutoScrollModeRef'];
   autoScrollRetryRef: React.ComponentProps<typeof AiHelperModal>['autoScrollRetryRef'];
   autoScrollIntentRef: React.ComponentProps<typeof AiHelperModal>['autoScrollIntentRef'];
   autoScroll: () => void;
@@ -436,10 +439,13 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         scrollRef={aiHelper.scrollRef}
         scrollContentRef={aiHelper.scrollContentRef}
         lastTurnRef={aiHelper.lastTurnRef}
+        lastAssistantLayoutRef={aiHelper.lastAssistantLayoutRef}
         scrollViewportHRef={aiHelper.scrollViewportHRef}
         scrollContentHRef={aiHelper.scrollContentHRef}
+        scrollYRef={aiHelper.scrollYRef}
         lastAutoScrollAtRef={aiHelper.lastAutoScrollAtRef}
         lastAutoScrollContentHRef={aiHelper.lastAutoScrollContentHRef}
+        lastAutoScrollModeRef={aiHelper.lastAutoScrollModeRef}
         autoScrollRetryRef={aiHelper.autoScrollRetryRef}
         autoScrollIntentRef={aiHelper.autoScrollIntentRef}
         autoScroll={aiHelper.autoScroll}

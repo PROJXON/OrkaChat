@@ -1,5 +1,14 @@
 import React from 'react';
-import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import {
+  findNodeHandle,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  UIManager,
+  View,
+} from 'react-native';
 
 import { AnimatedDots } from '../../../components/AnimatedDots';
 import { AppTextInput } from '../../../components/AppTextInput';
@@ -38,10 +47,13 @@ type Props = {
   scrollRef: React.MutableRefObject<ScrollView | null>;
   scrollContentRef: React.MutableRefObject<View | null>;
   lastTurnRef: React.MutableRefObject<View | null>;
+  lastAssistantLayoutRef: React.MutableRefObject<null | { y: number; height: number }>;
   scrollViewportHRef: React.MutableRefObject<number>;
   scrollContentHRef: React.MutableRefObject<number>;
+  scrollYRef: React.MutableRefObject<number>;
   lastAutoScrollAtRef: React.MutableRefObject<number>;
   lastAutoScrollContentHRef: React.MutableRefObject<number>;
+  lastAutoScrollModeRef: React.MutableRefObject<null | 'end' | 'bubble'>;
   autoScrollRetryRef: React.MutableRefObject<{
     timer: ReturnType<typeof setTimeout> | null;
     attempts: number;
@@ -68,10 +80,13 @@ export function AiHelperModal({
   scrollRef,
   scrollContentRef,
   lastTurnRef,
+  lastAssistantLayoutRef,
   scrollViewportHRef,
   scrollContentHRef,
+  scrollYRef,
   lastAutoScrollAtRef,
   lastAutoScrollContentHRef,
+  lastAutoScrollModeRef,
   autoScrollRetryRef,
   autoScrollIntentRef,
   autoScroll,
@@ -126,6 +141,12 @@ export function AiHelperModal({
                 scrollViewportHRef.current = e.nativeEvent.layout.height;
                 setTimeout(() => autoScroll(), 0);
               }}
+              onScroll={(e) => {
+                // Needed on web for accurate "pin to bubble top" scrolling.
+                const y = e?.nativeEvent?.contentOffset?.y;
+                if (typeof y === 'number' && Number.isFinite(y)) scrollYRef.current = y;
+              }}
+              scrollEventThrottle={16}
               onContentSizeChange={(_w, h) => {
                 scrollContentHRef.current = h;
                 // RN-web can adjust content height after a programmatic scroll due to font/layout ticks.
@@ -168,9 +189,83 @@ export function AiHelperModal({
                             ref={(r) => {
                               if (idx === lastAssistantIdx) lastTurnRef.current = r;
                             }}
-                            onLayout={(_e) => {
+                            onLayout={(e) => {
                               if (idx !== lastAssistantIdx) return;
+                              // Record last assistant bubble position.
+                              // On web, `layout.y` is relative to the immediate parent, so also attempt
+                              // to measure relative to `scrollContentRef` for accurate scrolling.
+                              const yLocal = e?.nativeEvent?.layout?.y;
+                              const hLocal = e?.nativeEvent?.layout?.height;
+                              if (
+                                typeof yLocal === 'number' &&
+                                Number.isFinite(yLocal) &&
+                                typeof hLocal === 'number' &&
+                                Number.isFinite(hLocal)
+                              ) {
+                                lastAssistantLayoutRef.current = { y: yLocal, height: hLocal };
+                              }
+
+                              if (Platform.OS === 'web') {
+                                try {
+                                  const lastNode = lastTurnRef.current;
+                                  const scrollNode = scrollRef.current;
+                                  const scrollHandle = scrollNode
+                                    ? findNodeHandle(scrollNode)
+                                    : null;
+                                  const lastHandle = lastNode ? findNodeHandle(lastNode) : null;
+                                  if (scrollHandle && lastHandle) {
+                                    UIManager.measureLayout(
+                                      lastHandle,
+                                      scrollHandle,
+                                      () => {
+                                        // ignore; we'll fall back to local layout if needed
+                                      },
+                                      (_x: number, y: number, _w: number, h: number) => {
+                                        if (Number.isFinite(y) && Number.isFinite(h)) {
+                                          // Convert from viewport-relative to content scroll coordinates.
+                                          const yInContent = Math.max(
+                                            0,
+                                            Math.floor((scrollYRef.current || 0) + y),
+                                          );
+                                          lastAssistantLayoutRef.current = {
+                                            y: yInContent,
+                                            height: h,
+                                          };
+                                        }
+                                        // RN-web can shift layout after a scroll without changing content height.
+                                        // If we just "pinned to bubble top", keep following briefly.
+                                        const ageMs =
+                                          Date.now() - (lastAutoScrollAtRef.current || 0);
+                                        if (
+                                          !autoScrollIntentRef.current &&
+                                          lastAutoScrollModeRef.current === 'bubble' &&
+                                          ageMs >= 0 &&
+                                          ageMs < 700
+                                        ) {
+                                          autoScrollRetryRef.current.attempts = 0;
+                                          autoScrollIntentRef.current = 'answer';
+                                        }
+                                        setTimeout(() => autoScroll(), 0);
+                                      },
+                                    );
+                                  }
+                                } catch {
+                                  // ignore
+                                }
+                              }
                               // Ensure we re-run scroll logic after the newest assistant bubble lays out.
+                              if (Platform.OS === 'web') {
+                                const ageMs = Date.now() - (lastAutoScrollAtRef.current || 0);
+                                if (
+                                  !autoScrollIntentRef.current &&
+                                  lastAutoScrollModeRef.current === 'bubble' &&
+                                  ageMs >= 0 &&
+                                  ageMs < 700
+                                ) {
+                                  autoScrollRetryRef.current.attempts = 0;
+                                  autoScrollIntentRef.current = 'answer';
+                                }
+                              }
                               setTimeout(() => autoScroll(), 0);
                             }}
                           >
