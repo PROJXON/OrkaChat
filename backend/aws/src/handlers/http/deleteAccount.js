@@ -156,6 +156,14 @@ exports.handler = async (event) => {
       safeString(event.requestContext?.authorizer?.jwt?.claims?.username || '');
 
     const nowMs = Date.now();
+    const nowSec = Math.floor(nowMs / 1000);
+    // Optional retention control for tombstoned Messages rows:
+    // If you enable DynamoDB TTL on `Messages.expiresAt`, set `MESSAGES_TOMBSTONE_TTL_DAYS`
+    // to have account-delete scrubs automatically expire tombstones.
+    const tombstoneDays = Number(process.env.MESSAGES_TOMBSTONE_TTL_DAYS || 0);
+    const tombstoneTtlSeconds = Number.isFinite(tombstoneDays)
+      ? Math.max(0, Math.floor(tombstoneDays * 24 * 60 * 60))
+      : 0;
 
     // Fetch user row first for best-effort cleanup (e.g., avatar object path).
     let avatarImagePath = '';
@@ -562,7 +570,7 @@ exports.handler = async (event) => {
           const resp = await ddb.send(
             new ScanCommand({
               TableName: messagesTable,
-              ProjectionExpression: 'conversationId, createdAt, userSub, #t, mediaPaths',
+              ProjectionExpression: 'conversationId, createdAt, userSub, #t, mediaPaths, expiresAt',
               ExpressionAttributeNames: { '#t': 'text' },
               ExclusiveStartKey: lastKey,
               Limit: 50,
@@ -599,9 +607,27 @@ exports.handler = async (event) => {
                 new UpdateCommand({
                   TableName: messagesTable,
                   Key: { conversationId, createdAt },
-                  UpdateExpression: 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua REMOVE #t',
+                  UpdateExpression:
+                    tombstoneTtlSeconds > 0
+                      ? 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua, expiresAt = :e REMOVE #t'
+                      : 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua REMOVE #t',
                   ExpressionAttributeNames: { '#t': 'text' },
-                  ExpressionAttributeValues: { ':da': nowMs, ':db': String(sub), ':ua': nowMs },
+                  ExpressionAttributeValues:
+                    tombstoneTtlSeconds > 0
+                      ? {
+                          ':da': nowMs,
+                          ':db': String(sub),
+                          ':ua': nowMs,
+                          ':e': (() => {
+                            const existing =
+                              typeof it.expiresAt === 'number' && Number.isFinite(it.expiresAt)
+                                ? Math.floor(it.expiresAt)
+                                : undefined;
+                            const tombstoneExpiresAt = Math.max(nowSec + 60, nowSec + tombstoneTtlSeconds);
+                            return existing ? Math.min(existing, tombstoneExpiresAt) : tombstoneExpiresAt;
+                          })(),
+                        }
+                      : { ':da': nowMs, ':db': String(sub), ':ua': nowMs },
                 })
               );
               messagesDeleted += 1;

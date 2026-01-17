@@ -35,7 +35,11 @@ export function GroupMembersSectionList({
   onToggleAdmin: (member: { memberSub: string; isAdmin: boolean }) => void;
 }) {
   const { width: windowW } = useWindowDimensions();
-  const useActionsSheet = windowW < 380;
+  const [measuredRowWidth, setMeasuredRowWidth] = React.useState<number | null>(null);
+  // Use the *actual rendered row width* (inside the modal) instead of the full window width.
+  // Some Android phones report ~411dp wide, but our modal is ~88% width + padding, so inline buttons can still overflow.
+  const effectiveWidth = measuredRowWidth ?? windowW;
+  const useActionsSheet = effectiveWidth < 380;
   const [sheet, setSheet] = React.useState<{
     memberSub: string;
     label: string;
@@ -111,6 +115,12 @@ export function GroupMembersSectionList({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 10,
+                }}
+                onLayout={(e) => {
+                  const w = e?.nativeEvent?.layout?.width;
+                  if (typeof w === 'number' && Number.isFinite(w) && w > 0) {
+                    setMeasuredRowWidth((prev) => (prev && prev === w ? prev : w));
+                  }
                 }}
               >
                 <View

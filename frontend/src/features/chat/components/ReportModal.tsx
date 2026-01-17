@@ -21,7 +21,14 @@ import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
 import { previewLabelForMedia } from '../../../utils/mediaKinds';
-import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
+import {
+  normalizeChatMediaList,
+  normalizeDmMediaItems,
+  normalizeGroupMediaItems,
+  parseChatEnvelope,
+  parseDmMediaEnvelope,
+  parseGroupMediaEnvelope,
+} from '../parsers';
 import type { ChatMessage } from '../types';
 
 type ReportNotice = { type: 'success' | 'error'; message: string };
@@ -361,6 +368,23 @@ export function ReportModal({
                     const env =
                       !t.encrypted && !t.groupEncrypted ? parseChatEnvelope(rawText) : null;
                     const envMediaList: MediaItem[] = env ? normalizeChatMediaList(env.media) : [];
+
+                    // Encrypted DM/GDM media messages store a JSON media envelope in decryptedText.
+                    // Render a friendly summary instead of the raw JSON string.
+                    const dmEnv = t.encrypted ? parseDmMediaEnvelope(rawText) : null;
+                    const gdmEnv = t.groupEncrypted ? parseGroupMediaEnvelope(rawText) : null;
+                    const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
+                    const gdmItems = gdmEnv ? normalizeGroupMediaItems(gdmEnv) : [];
+                    const encItems = dmItems.length ? dmItems : gdmItems;
+                    const encMediaList: MediaItem[] = encItems.map((it) => ({
+                      path: it.media.path,
+                      thumbPath: it.media.thumbPath,
+                      kind: it.media.kind,
+                      contentType: it.media.contentType,
+                      thumbContentType: it.media.thumbContentType,
+                      fileName: it.media.fileName,
+                      size: it.media.size,
+                    }));
                     const fallbackList =
                       Array.isArray(t.mediaList) && t.mediaList.length
                         ? t.mediaList
@@ -369,6 +393,8 @@ export function ReportModal({
                           : [];
                     const previewMediaList: MediaItem[] = envMediaList.length
                       ? envMediaList
+                      : encMediaList.length
+                        ? encMediaList
                       : fallbackList;
                     const media: MediaItem | undefined = previewMediaList[0];
                     const mediaCount = previewMediaList.length;
@@ -414,11 +440,22 @@ export function ReportModal({
                       const msgText =
                         env?.text && typeof env.text === 'string' ? env.text.trim() : '';
                       if (msgText) return msgText;
+                      const encCaption =
+                        (dmEnv && typeof dmEnv.caption === 'string' ? dmEnv.caption.trim() : '') ||
+                        (gdmEnv && typeof gdmEnv.caption === 'string' ? gdmEnv.caption.trim() : '');
+                      if (encCaption) return encCaption;
                       // Fall back to the raw text ONLY if it doesn't look like a chat envelope.
                       if (
                         rawText.startsWith('{') &&
                         rawText.includes('"type"') &&
                         rawText.includes('"chat"')
+                      )
+                        return '';
+                      // Also hide raw encrypted media envelopes (dm_media_v*/gdm_media_v*).
+                      if (
+                        rawText.startsWith('{') &&
+                        rawText.includes('"type"') &&
+                        (rawText.includes('"dm_media_') || rawText.includes('"gdm_media_'))
                       )
                         return '';
                       return rawText;

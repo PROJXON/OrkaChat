@@ -1,7 +1,8 @@
 import * as React from 'react';
 
-export function useAiDmConsentGate(opts: { isDm: boolean }) {
-  const { isDm } = opts;
+export function useAiDmConsentGate(opts: { isDm: boolean; isGroup?: boolean }) {
+  const { isDm, isGroup } = opts;
+  const isEncryptedChat = !!isDm || !!isGroup;
 
   const [open, setOpen] = React.useState<boolean>(false);
   const [action, setAction] = React.useState<null | 'summary' | 'helper'>(null);
@@ -9,7 +10,7 @@ export function useAiDmConsentGate(opts: { isDm: boolean }) {
 
   const request = React.useCallback(
     (next: 'summary' | 'helper', run: (action: 'summary' | 'helper') => void) => {
-      const needsConsent = isDm && !dmAiConsentGranted;
+      const needsConsent = isEncryptedChat && !dmAiConsentGranted;
       if (needsConsent) {
         setAction(next);
         setOpen(true);
@@ -17,7 +18,7 @@ export function useAiDmConsentGate(opts: { isDm: boolean }) {
       }
       run(next);
     },
-    [dmAiConsentGranted, isDm],
+    [dmAiConsentGranted, isEncryptedChat],
   );
 
   const onProceed = React.useCallback(

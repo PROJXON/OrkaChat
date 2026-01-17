@@ -1494,14 +1494,38 @@ exports.handler = async (event) => {
         }).catch((err) => console.warn('enqueueMediaDeletes(delete) failed (ignored)', err));
       }
 
-      // Preserve audit fields, but remove message contents
+      // Preserve audit fields, but remove message contents.
+      //
+      // Optional retention control:
+      // If you enable DynamoDB TTL on `Messages.expiresAt`, you can set
+      // `MESSAGES_TOMBSTONE_TTL_DAYS` to automatically delete tombstoned rows after N days.
+      // (Default disabled to avoid surprising retention changes.)
+      const tombstoneDays = Number(process.env.MESSAGES_TOMBSTONE_TTL_DAYS || 0);
+      const tombstoneTtlSeconds = Number.isFinite(tombstoneDays)
+        ? Math.max(0, Math.floor(tombstoneDays * 24 * 60 * 60))
+        : 0;
+      const existingExpiresAt =
+        typeof msg.expiresAt === 'number' && Number.isFinite(msg.expiresAt)
+          ? Math.floor(msg.expiresAt)
+          : undefined;
+      const tombstoneExpiresAt =
+        tombstoneTtlSeconds > 0 ? Math.max(nowSec + 60, nowSec + tombstoneTtlSeconds) : undefined;
+      const newExpiresAt =
+        tombstoneExpiresAt && existingExpiresAt
+          ? Math.min(existingExpiresAt, tombstoneExpiresAt)
+          : tombstoneExpiresAt || undefined;
+
       await ddb.send(
         new UpdateCommand({
           TableName: process.env.MESSAGES_TABLE,
           Key: { conversationId, createdAt: messageCreatedAt },
-          UpdateExpression: 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua REMOVE #t',
+          UpdateExpression: newExpiresAt
+            ? 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua, expiresAt = :e REMOVE #t'
+            : 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua REMOVE #t',
           ExpressionAttributeNames: { '#t': 'text' },
-          ExpressionAttributeValues: { ':da': nowMs, ':db': senderSub, ':ua': nowMs },
+          ExpressionAttributeValues: newExpiresAt
+            ? { ':da': nowMs, ':db': senderSub, ':ua': nowMs, ':e': newExpiresAt }
+            : { ':da': nowMs, ':db': senderSub, ':ua': nowMs },
         })
       );
 

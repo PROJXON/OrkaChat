@@ -242,7 +242,7 @@ export function useChannelRoster(opts: {
     if (!enabled) {
       // Best-effort hint (e.g. user is currently in a DM).
       try {
-        void uiAlert('About', 'Open a channel to view its About.');
+        void uiAlert('About', 'Open a channel to view its About');
       } catch {
         // ignore
       }
