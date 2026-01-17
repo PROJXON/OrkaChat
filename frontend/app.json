@@ -23,8 +23,7 @@
     },
     "android": {
       "notification": {
-        "icon": "./assets/icons/notification-icon.png",
-        "color": "#1976d2"
+        "icon": "./assets/icons/notification-icon.png"
       },
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-android-icon.png",
@@ -75,7 +74,12 @@
       "expo-secure-store",
       "expo-camera",
       "expo-video",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icons/notification-icon.png"
+        }
+      ]
     ],
     "owner": "eperry2688"
   }

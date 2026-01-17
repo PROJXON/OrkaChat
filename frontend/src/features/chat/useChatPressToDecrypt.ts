@@ -122,7 +122,7 @@ export function useChatPressToDecrypt(opts: {
           lower.includes('ghash') || lower.includes('tag') || lower.includes('aes')
             ? "This message can't be decrypted on this device. It may have been encrypted with a different key, or the message is corrupted."
             : "This message can't be decrypted right now. Please try again later.";
-        openInfo("Couldn't decrypt message", hint);
+        openInfo("Couldn't Decrypt Message", hint);
       }
     },
     [

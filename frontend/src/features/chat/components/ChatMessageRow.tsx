@@ -554,7 +554,7 @@ export function ChatMessageRow(props: {
                         </Pressable>
                       </View>
                     </View>
-                  ) : captionText?.length || isEdited ? (
+                  ) : captionText?.length || isEdited || !!props.seenLabel ? (
                     <View style={styles.mediaHeaderCaptionRow}>
                       {captionText?.length ? (
                         <RichText
@@ -579,21 +579,38 @@ export function ChatMessageRow(props: {
                         // even when the caption is empty.
                         <View style={styles.mediaHeaderCaptionFlex} />
                       )}
-                      {isEdited ? (
-                        <Text
-                          style={[
-                            styles.editedLabel,
-                            isOutgoing
-                              ? isDark
-                                ? styles.editedLabelOutgoingDark
-                                : styles.editedLabelOutgoing
-                              : isDark
-                                ? styles.editedLabelIncomingDark
-                                : styles.editedLabelIncoming,
-                          ]}
-                        >
-                          Edited
-                        </Text>
+                      {isEdited || props.seenLabel ? (
+                        <View style={styles.mediaHeaderCaptionIndicators}>
+                          {isEdited ? (
+                            <Text
+                              style={[
+                                styles.editedLabel,
+                                isOutgoing
+                                  ? isDark
+                                    ? styles.editedLabelOutgoingDark
+                                    : styles.editedLabelOutgoing
+                                  : isDark
+                                    ? styles.editedLabelIncomingDark
+                                    : styles.editedLabelIncoming,
+                              ]}
+                            >
+                              Edited
+                            </Text>
+                          ) : null}
+
+                          {props.seenLabel ? (
+                            <Text
+                              style={[
+                                styles.seenText,
+                                // Inline in the media header: don't add vertical spacing.
+                                { marginTop: 0 },
+                                isOutgoing ? styles.seenTextOutgoing : styles.seenTextIncoming,
+                              ]}
+                            >
+                              {props.seenLabel}
+                            </Text>
+                          ) : null}
+                        </View>
                       ) : null}
                     </View>
                   ) : null}

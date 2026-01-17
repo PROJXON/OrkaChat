@@ -576,7 +576,7 @@ export default function ChatScreen({
     openInfo,
   });
 
-  const aiConsentGate = useAiDmConsentGate({ isDm });
+  const aiConsentGate = useAiDmConsentGate({ isDm, isGroup });
 
   const runAiAction = React.useCallback(
     (action: 'summary' | 'helper') => {

@@ -222,16 +222,43 @@ const queryExpoPushTokensByUserSub = async (userSub) => {
   }
 };
 
+const deleteExpoPushTokenForUser = async (userSub, expoPushToken) => {
+  const table = process.env.PUSH_TOKENS_TABLE;
+  if (!table) return;
+  const u = safeString(userSub);
+  const t = safeString(expoPushToken);
+  if (!u || !t) return;
+  if (!isLikelyExpoToken(t)) return;
+  try {
+    await ddb.send(
+      new DeleteCommand({
+        TableName: table,
+        Key: { userSub: u, expoPushToken: t },
+      })
+    );
+  } catch {
+    // ignore best-effort cleanup
+  }
+};
+
+const getExpoErrorCode = (r) => {
+  // Expo response item: { status: 'error', message, details: { error: 'DeviceNotRegistered', ... } }
+  const details = r && typeof r === 'object' ? r.details : undefined;
+  const det = details && typeof details === 'object' ? details : undefined;
+  const code = det && typeof det.error === 'string' ? det.error : '';
+  return safeString(code);
+};
+
 const sendExpoPush = async (messages) => {
   // Expo push endpoint doesn't require credentials (it validates tokens server-side).
   // Requires Node 18+ for fetch in Lambda.
   if (typeof fetch !== 'function') {
     console.warn('sendExpoPush skipped: runtime missing fetch (use Node.js 18+ / 20.x)');
-    return;
+    return null;
   }
   const url = process.env.EXPO_PUSH_URL || 'https://exp.host/--/api/v2/push/send';
   const payload = Array.isArray(messages) ? messages : [];
-  if (!payload.length) return;
+  if (!payload.length) return [];
   try {
     const resp = await fetch(url, {
       method: 'POST',
@@ -241,7 +268,7 @@ const sendExpoPush = async (messages) => {
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
       console.warn('expo push non-2xx', resp.status, text);
-      return;
+      return null;
     }
     const json = await resp.json().catch(() => null);
     const data = json && (json.data || json);
@@ -251,9 +278,12 @@ const sendExpoPush = async (messages) => {
           console.warn('expo push error', r?.message || r);
         }
       }
+      return data;
     }
+    return null;
   } catch (err) {
     console.warn('sendExpoPush failed', err);
+    return null;
   }
 };
 
@@ -289,7 +319,18 @@ const sendDmPushNotification = async ({ recipientSub, senderDisplayName, senderS
       const slice = tokens.slice(i, i + batchSize);
       const msgs = slice.map((to) => ({ ...base, to }));
       // eslint-disable-next-line no-await-in-loop
-      await sendExpoPush(msgs);
+      const results = await sendExpoPush(msgs);
+      if (Array.isArray(results) && results.length === msgs.length) {
+        await Promise.all(
+          results.map(async (r, idx) => {
+            if (!r || r.status !== 'error') return;
+            const code = getExpoErrorCode(r);
+            if (code === 'DeviceNotRegistered') {
+              await deleteExpoPushTokenForUser(recipientSub, msgs[idx]?.to);
+            }
+          })
+        );
+      }
     }
   } catch (err) {
     console.warn('sendDmPushNotification failed', err);
@@ -328,7 +369,18 @@ const sendChannelPushNotification = async ({ recipientSub, senderDisplayName, se
       const slice = tokens.slice(i, i + batchSize);
       const msgs = slice.map((to) => ({ ...base, to }));
       // eslint-disable-next-line no-await-in-loop
-      await sendExpoPush(msgs);
+      const results = await sendExpoPush(msgs);
+      if (Array.isArray(results) && results.length === msgs.length) {
+        await Promise.all(
+          results.map(async (r, idx) => {
+            if (!r || r.status !== 'error') return;
+            const code = getExpoErrorCode(r);
+            if (code === 'DeviceNotRegistered') {
+              await deleteExpoPushTokenForUser(recipientSub, msgs[idx]?.to);
+            }
+          })
+        );
+      }
     }
   } catch (err) {
     console.warn('sendChannelPushNotification failed', err);
@@ -366,7 +418,18 @@ const sendGlobalPushNotification = async ({ recipientSub, senderDisplayName, sen
       const slice = tokens.slice(i, i + batchSize);
       const msgs = slice.map((to) => ({ ...base, to }));
       // eslint-disable-next-line no-await-in-loop
-      await sendExpoPush(msgs);
+      const results = await sendExpoPush(msgs);
+      if (Array.isArray(results) && results.length === msgs.length) {
+        await Promise.all(
+          results.map(async (r, idx) => {
+            if (!r || r.status !== 'error') return;
+            const code = getExpoErrorCode(r);
+            if (code === 'DeviceNotRegistered') {
+              await deleteExpoPushTokenForUser(recipientSub, msgs[idx]?.to);
+            }
+          })
+        );
+      }
     }
   } catch (err) {
     console.warn('sendGlobalPushNotification failed', err);
@@ -1431,14 +1494,38 @@ exports.handler = async (event) => {
         }).catch((err) => console.warn('enqueueMediaDeletes(delete) failed (ignored)', err));
       }
 
-      // Preserve audit fields, but remove message contents
+      // Preserve audit fields, but remove message contents.
+      //
+      // Optional retention control:
+      // If you enable DynamoDB TTL on `Messages.expiresAt`, you can set
+      // `MESSAGES_TOMBSTONE_TTL_DAYS` to automatically delete tombstoned rows after N days.
+      // (Default disabled to avoid surprising retention changes.)
+      const tombstoneDays = Number(process.env.MESSAGES_TOMBSTONE_TTL_DAYS || 0);
+      const tombstoneTtlSeconds = Number.isFinite(tombstoneDays)
+        ? Math.max(0, Math.floor(tombstoneDays * 24 * 60 * 60))
+        : 0;
+      const existingExpiresAt =
+        typeof msg.expiresAt === 'number' && Number.isFinite(msg.expiresAt)
+          ? Math.floor(msg.expiresAt)
+          : undefined;
+      const tombstoneExpiresAt =
+        tombstoneTtlSeconds > 0 ? Math.max(nowSec + 60, nowSec + tombstoneTtlSeconds) : undefined;
+      const newExpiresAt =
+        tombstoneExpiresAt && existingExpiresAt
+          ? Math.min(existingExpiresAt, tombstoneExpiresAt)
+          : tombstoneExpiresAt || undefined;
+
       await ddb.send(
         new UpdateCommand({
           TableName: process.env.MESSAGES_TABLE,
           Key: { conversationId, createdAt: messageCreatedAt },
-          UpdateExpression: 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua REMOVE #t',
+          UpdateExpression: newExpiresAt
+            ? 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua, expiresAt = :e REMOVE #t'
+            : 'SET deletedAt = :da, deletedBySub = :db, updatedAt = :ua REMOVE #t',
           ExpressionAttributeNames: { '#t': 'text' },
-          ExpressionAttributeValues: { ':da': nowMs, ':db': senderSub, ':ua': nowMs },
+          ExpressionAttributeValues: newExpiresAt
+            ? { ':da': nowMs, ':db': senderSub, ':ua': nowMs, ':e': newExpiresAt }
+            : { ':da': nowMs, ':db': senderSub, ':ua': nowMs },
         })
       );
 

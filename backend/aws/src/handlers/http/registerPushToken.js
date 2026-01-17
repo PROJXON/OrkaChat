@@ -3,6 +3,7 @@
 //
 // Env:
 // - PUSH_TOKENS_TABLE (required): DynamoDB table for push tokens
+// - PUSH_TOKEN_TTL_DAYS (optional): if > 0, write `expiresAt` (epoch seconds) for DynamoDB TTL cleanup
 //
 // Table schema (recommended):
 // - PK: userSub (String)
@@ -66,6 +67,9 @@ exports.handler = async (event) => {
     }
 
     const nowMs = Date.now();
+    const ttlDays = Number(process.env.PUSH_TOKEN_TTL_DAYS || 0);
+    const ttlSeconds = Number.isFinite(ttlDays) ? Math.max(0, Math.floor(ttlDays * 24 * 60 * 60)) : 0;
+    const expiresAt = ttlSeconds > 0 ? Math.floor(nowMs / 1000) + ttlSeconds : undefined;
 
     await ddb.send(
       new PutCommand({
@@ -76,6 +80,7 @@ exports.handler = async (event) => {
           platform,
           ...(deviceId ? { deviceId } : {}),
           updatedAt: nowMs,
+          ...(expiresAt ? { expiresAt } : {}),
         },
       })
     );

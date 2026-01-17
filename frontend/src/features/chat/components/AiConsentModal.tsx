@@ -22,7 +22,7 @@ export function AiConsentModal({ visible, isDark, styles, onProceed, onCancel }:
           </Text>
           <ScrollView style={styles.summaryScroll}>
             <Text style={[styles.summaryText, isDark ? styles.summaryTextDark : null]}>
-              This is an encrypted DM. Using AI Helper / Summarize will send message content
+              This is an encrypted chat. Using AI Helper / Summarize will send message content
               (decrypted on-device) to a third-party AI provider to generate a response.
             </Text>
           </ScrollView>
