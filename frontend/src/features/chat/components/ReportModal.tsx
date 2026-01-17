@@ -395,7 +395,7 @@ export function ReportModal({
                       ? envMediaList
                       : encMediaList.length
                         ? encMediaList
-                      : fallbackList;
+                        : fallbackList;
                     const media: MediaItem | undefined = previewMediaList[0];
                     const mediaCount = previewMediaList.length;
                     const mediaFileNames = (() => {
