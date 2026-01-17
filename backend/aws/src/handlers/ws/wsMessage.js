@@ -335,6 +335,44 @@ const sendChannelPushNotification = async ({ recipientSub, senderDisplayName, se
   }
 };
 
+const sendGlobalPushNotification = async ({ recipientSub, senderDisplayName, senderSub, conversationId, kind }) => {
+  try {
+    const tokens = await queryExpoPushTokensByUserSub(recipientSub);
+    if (!tokens.length) return;
+
+    const title = 'Global';
+    const body = `${safeString(senderDisplayName) || 'Someone'} mentioned you`;
+    const convId = safeString(conversationId) || 'global';
+    const sSub = safeString(senderSub);
+    const k = safeString(kind) || 'globalMention';
+
+    const base = {
+      title,
+      body,
+      sound: 'default',
+      priority: 'high',
+      // Treat Global like a channel category so users can mute it separately from DMs.
+      channelId: 'channels',
+      data: {
+        kind: k,
+        conversationId: convId,
+        senderDisplayName: safeString(senderDisplayName),
+        senderSub: sSub,
+      },
+    };
+
+    const batchSize = 100;
+    for (let i = 0; i < tokens.length; i += batchSize) {
+      const slice = tokens.slice(i, i + batchSize);
+      const msgs = slice.map((to) => ({ ...base, to }));
+      // eslint-disable-next-line no-await-in-loop
+      await sendExpoPush(msgs);
+    }
+  } catch (err) {
+    console.warn('sendGlobalPushNotification failed', err);
+  }
+};
+
 const broadcast = async (mgmt, connectionIds, payloadObj) => {
   const data = Buffer.from(JSON.stringify(payloadObj));
   await Promise.all(
@@ -1798,6 +1836,29 @@ exports.handler = async (event) => {
               kind,
             });
           })
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    // Global notifications: mentions only (targeted, no global fanout).
+    if (isGlobal && Array.isArray(mentions) && mentions.length) {
+      try {
+        await Promise.all(
+          mentions
+            .filter((u) => u && u !== senderSub)
+            .map(async (u) => {
+              const activeConns = await queryConnIdsByUserSub(u).catch(() => []);
+              if (Array.isArray(activeConns) && activeConns.length) return;
+              await sendGlobalPushNotification({
+                recipientSub: String(u),
+                senderDisplayName,
+                senderSub,
+                conversationId: 'global',
+                kind: 'globalMention',
+              });
+            })
         );
       } catch {
         // ignore

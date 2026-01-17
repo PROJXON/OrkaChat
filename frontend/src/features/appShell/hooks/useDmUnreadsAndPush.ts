@@ -67,66 +67,89 @@ export function useDmUnreadsAndPush({
   React.useEffect(() => {
     type NotificationSubscription = { remove: () => void };
     type ExpoNotificationsLike = {
+      getLastNotificationResponseAsync?: () => Promise<unknown>;
       addNotificationResponseReceivedListener?: (
         cb: (resp: unknown) => void,
       ) => NotificationSubscription;
     };
     let sub: NotificationSubscription | null = null;
+    let cancelled = false;
+
+    const handleNotificationResponse = (resp: unknown) => {
+      const rec = typeof resp === 'object' && resp != null ? (resp as Record<string, unknown>) : {};
+      const notification =
+        typeof rec.notification === 'object' && rec.notification != null
+          ? (rec.notification as Record<string, unknown>)
+          : {};
+      const request =
+        typeof notification.request === 'object' && notification.request != null
+          ? (notification.request as Record<string, unknown>)
+          : {};
+      const content =
+        typeof request.content === 'object' && request.content != null
+          ? (request.content as Record<string, unknown>)
+          : {};
+      const data =
+        typeof content.data === 'object' && content.data != null
+          ? (content.data as Record<string, unknown>)
+          : {};
+      const kind = typeof data.kind === 'string' ? data.kind : '';
+      const convId = typeof data.conversationId === 'string' ? data.conversationId : '';
+      const senderName = typeof data.senderDisplayName === 'string' ? data.senderDisplayName : '';
+
+      if ((kind === 'dm' || kind === 'group') && convId) {
+        setSearchOpen(false);
+        setPeerInput('');
+        setSearchError(null);
+        setConversationId(convId);
+        setPeer(senderName || (kind === 'group' ? 'Group DM' : 'Direct Message'));
+        return;
+      }
+      if ((kind === 'channelMention' || kind === 'channelReply') && convId && convId.startsWith('ch#')) {
+        const channelName = typeof data.channelName === 'string' ? data.channelName : '';
+        const channelId = convId.slice('ch#'.length).trim();
+        if (channelId && channelName.trim()) {
+          setChannelNameById((prev) => ({ ...prev, [channelId]: channelName.trim() }));
+        }
+        setSearchOpen(false);
+        setPeerInput('');
+        setSearchError(null);
+        setPeer(null);
+        setConversationId(convId);
+        return;
+      }
+      if (kind === 'globalMention' && convId === 'global') {
+        setSearchOpen(false);
+        setPeerInput('');
+        setSearchError(null);
+        setPeer(null);
+        setConversationId('global');
+      }
+    };
+
     try {
       const NotificationsModule = require('expo-notifications') as ExpoNotificationsLike;
+
+      // Handle cold start / opened-from-notification (listener may not fire).
+      const getLast = NotificationsModule?.getLastNotificationResponseAsync ?? null;
+      if (getLast) {
+        void getLast()
+          .then((r) => {
+            if (cancelled) return;
+            if (r) handleNotificationResponse(r);
+          })
+          .catch(() => undefined);
+      }
+
       const addListener = NotificationsModule?.addNotificationResponseReceivedListener ?? null;
-      if (!addListener) return;
-      sub = addListener((resp: unknown) => {
-        const rec =
-          typeof resp === 'object' && resp != null ? (resp as Record<string, unknown>) : {};
-        const notification =
-          typeof rec.notification === 'object' && rec.notification != null
-            ? (rec.notification as Record<string, unknown>)
-            : {};
-        const request =
-          typeof notification.request === 'object' && notification.request != null
-            ? (notification.request as Record<string, unknown>)
-            : {};
-        const content =
-          typeof request.content === 'object' && request.content != null
-            ? (request.content as Record<string, unknown>)
-            : {};
-        const data =
-          typeof content.data === 'object' && content.data != null
-            ? (content.data as Record<string, unknown>)
-            : {};
-        const kind = typeof data.kind === 'string' ? data.kind : '';
-        const convId = typeof data.conversationId === 'string' ? data.conversationId : '';
-        const senderName = typeof data.senderDisplayName === 'string' ? data.senderDisplayName : '';
-        if ((kind === 'dm' || kind === 'group') && convId) {
-          setSearchOpen(false);
-          setPeerInput('');
-          setSearchError(null);
-          setConversationId(convId);
-          setPeer(senderName || (kind === 'group' ? 'Group DM' : 'Direct Message'));
-          return;
-        }
-        if (
-          (kind === 'channelMention' || kind === 'channelReply') &&
-          convId &&
-          convId.startsWith('ch#')
-        ) {
-          const channelName = typeof data.channelName === 'string' ? data.channelName : '';
-          const channelId = convId.slice('ch#'.length).trim();
-          if (channelId && channelName.trim()) {
-            setChannelNameById((prev) => ({ ...prev, [channelId]: channelName.trim() }));
-          }
-          setSearchOpen(false);
-          setPeerInput('');
-          setSearchError(null);
-          setPeer(null);
-          setConversationId(convId);
-        }
-      });
+      if (addListener) {
+        sub = addListener((resp: unknown) => handleNotificationResponse(resp));
+      }
     } catch {
       // expo-notifications not installed / dev client not rebuilt
     }
     return () => {
+      cancelled = true;
       try {
         sub?.remove();
       } catch {

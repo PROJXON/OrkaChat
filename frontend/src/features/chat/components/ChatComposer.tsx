@@ -239,15 +239,13 @@ export function ChatComposer(props: {
 
       {mentionSuggestions.length && !isEncryptedChat && !inlineEditTargetId ? (
         <View
-          style={{
-            marginTop: 8,
-            marginBottom: 2,
-            paddingHorizontal: 12,
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: 8,
-          }}
+          style={[
+            isWideChatLayout ? styles.chatContentColumn : null,
+            composerHorizontalInsetsStyle,
+            { marginTop: 8, marginBottom: 2 },
+          ]}
         >
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {mentionSuggestions.map((u) => (
             <Pressable
               key={`mention-suggest:${u}`}
@@ -270,6 +268,7 @@ export function ChatComposer(props: {
               </Text>
             </Pressable>
           ))}
+          </View>
         </View>
       ) : null}
 

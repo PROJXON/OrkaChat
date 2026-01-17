@@ -22,9 +22,13 @@
       }
     },
     "android": {
+      "notification": {
+        "icon": "./assets/icons/notification-icon.png",
+        "color": "#1976d2"
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-android-icon.png",
-        "monochromeImage": "./assets/icons/adaptive-android-icon.png",
+        "monochromeImage": "./assets/icons/monochrome-android.png",
         "backgroundImage": "./assets/icons/android-background.png"
       },
       "navigationBar": {

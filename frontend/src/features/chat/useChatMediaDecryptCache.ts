@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Image } from 'react-native';
+import { Platform } from 'react-native';
 
 import { defaultFileExtensionForContentType } from '../../utils/mediaKinds';
 import type { ChatMessage, DmMediaEnvelopeV1 } from './types';
@@ -11,6 +12,14 @@ type ExpoFileLike = {
 type ExpoFileSystemLike = {
   Paths?: { cache?: string; document?: string };
   File?: new (a: string, b?: string) => ExpoFileLike;
+  cacheDirectory?: string;
+  documentDirectory?: string;
+  writeAsStringAsync?: (
+    uri: string,
+    data: string,
+    opts?: { encoding?: string },
+  ) => Promise<void>;
+  EncodingType?: { Base64?: string };
 };
 
 export function useChatMediaDecryptCache(opts: {
@@ -54,6 +63,22 @@ export function useChatMediaDecryptCache(opts: {
   const [imageAspectByPath, setImageAspectByPath] = React.useState<Record<string, number>>({});
   const [dmThumbUriByPath, setDmThumbUriByPath] = React.useState<Record<string, string>>({});
   const [dmFileUriByPath, setDmFileUriByPath] = React.useState<Record<string, string>>({});
+  const objectUrlsRef = React.useRef<Set<string>>(new Set());
+
+  // Cleanup any blob: URLs we created (web only).
+  React.useEffect(() => {
+    return () => {
+      if (typeof URL === 'undefined') return;
+      for (const u of objectUrlsRef.current) {
+        try {
+          URL.revokeObjectURL(u);
+        } catch {
+          // ignore
+        }
+      }
+      objectUrlsRef.current.clear();
+    };
+  }, []);
 
   const decryptDmThumbToDataUri = React.useCallback(
     async (
@@ -169,16 +194,43 @@ export function useChatMediaDecryptCache(opts: {
       const ct = it.media.contentType || 'application/octet-stream';
       const ext = defaultFileExtensionForContentType(ct);
       const fileNameSafe = (it.media.fileName || `dm-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_');
-      const fs = require('expo-file-system') as ExpoFileSystemLike;
-      const root = fs.Paths?.cache || fs.Paths?.document;
-      if (!root) throw new Error('No writable cache directory');
-      if (!fs.File) throw new Error('File API not available');
-      const outFile = new fs.File(root, `dm-${fileNameSafe}.${ext}`);
-      if (typeof outFile.write !== 'function') throw new Error('File write API not available');
-      await outFile.write(plainBytes);
+      const outName = `dm-${fileNameSafe}.${ext}`;
 
-      const uri = typeof outFile.uri === 'string' ? outFile.uri : '';
-      if (!uri) throw new Error('File write produced no URI');
+      // Web: don't use expo-file-system; just create a blob URL for the decrypted bytes.
+      if (Platform.OS === 'web' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
+        const blob = new Blob([plainBytes], { type: ct });
+        const objUrl = URL.createObjectURL(blob);
+        objectUrlsRef.current.add(objUrl);
+        setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: objUrl }));
+        return objUrl;
+      }
+
+      const fs = require('expo-file-system') as ExpoFileSystemLike;
+      const root = fs.Paths?.cache || fs.Paths?.document || fs.cacheDirectory || fs.documentDirectory;
+      if (!root) throw new Error('No writable cache directory');
+
+      // Prefer modern File API when available.
+      if (fs.File) {
+        try {
+          const outFile = new fs.File(root, outName);
+          if (typeof outFile.write !== 'function') throw new Error('File write API not available');
+          await outFile.write(plainBytes);
+          const uri = typeof outFile.uri === 'string' ? outFile.uri : '';
+          if (!uri) throw new Error('File write produced no URI');
+          setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
+          return uri;
+        } catch {
+          // Fall through to legacy API.
+        }
+      }
+
+      // Legacy expo-file-system API: write base64 to a cache file.
+      if (typeof fs.writeAsStringAsync !== 'function') throw new Error('File write API not available');
+      const sep = root.endsWith('/') ? '' : '/';
+      const uri = `${root}${sep}${outName}`;
+      const b64 = fromByteArray(plainBytes);
+      const enc = fs.EncodingType?.Base64 || 'base64';
+      await fs.writeAsStringAsync(uri, b64, { encoding: enc });
       setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
       return uri;
     },
@@ -306,16 +358,40 @@ export function useChatMediaDecryptCache(opts: {
       const ct = it.media.contentType || 'application/octet-stream';
       const ext = defaultFileExtensionForContentType(ct);
       const fileNameSafe = (it.media.fileName || `gdm-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_');
-      const fs = require('expo-file-system') as ExpoFileSystemLike;
-      const root = fs.Paths?.cache || fs.Paths?.document;
-      if (!root) throw new Error('No writable cache directory');
-      if (!fs.File) throw new Error('File API not available');
-      const outFile = new fs.File(root, `gdm-${fileNameSafe}.${ext}`);
-      if (typeof outFile.write !== 'function') throw new Error('File write API not available');
-      await outFile.write(plainBytes);
+      const outName = `gdm-${fileNameSafe}.${ext}`;
 
-      const uri = typeof outFile.uri === 'string' ? outFile.uri : '';
-      if (!uri) throw new Error('File write produced no URI');
+      if (Platform.OS === 'web' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
+        const blob = new Blob([plainBytes], { type: ct });
+        const objUrl = URL.createObjectURL(blob);
+        objectUrlsRef.current.add(objUrl);
+        setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: objUrl }));
+        return objUrl;
+      }
+
+      const fs = require('expo-file-system') as ExpoFileSystemLike;
+      const root = fs.Paths?.cache || fs.Paths?.document || fs.cacheDirectory || fs.documentDirectory;
+      if (!root) throw new Error('No writable cache directory');
+
+      if (fs.File) {
+        try {
+          const outFile = new fs.File(root, outName);
+          if (typeof outFile.write !== 'function') throw new Error('File write API not available');
+          await outFile.write(plainBytes);
+          const uri = typeof outFile.uri === 'string' ? outFile.uri : '';
+          if (!uri) throw new Error('File write produced no URI');
+          setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
+          return uri;
+        } catch {
+          // Fall through.
+        }
+      }
+
+      if (typeof fs.writeAsStringAsync !== 'function') throw new Error('File write API not available');
+      const sep = root.endsWith('/') ? '' : '/';
+      const uri = `${root}${sep}${outName}`;
+      const b64 = fromByteArray(plainBytes);
+      const enc = fs.EncodingType?.Base64 || 'base64';
+      await fs.writeAsStringAsync(uri, b64, { encoding: enc });
       setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
       return uri;
     },

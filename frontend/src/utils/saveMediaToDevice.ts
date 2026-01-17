@@ -1,4 +1,5 @@
 import * as MediaLibrary from 'expo-media-library';
+import { Platform } from 'react-native';
 
 export type SaveMediaKind = 'image' | 'video' | 'file';
 
@@ -58,8 +59,55 @@ export async function saveMediaUrlToDevice({
   })();
   const ext = extFromName || (kind === 'image' ? 'jpg' : kind === 'video' ? 'mp4' : 'bin');
   const baseName = safeNameWithExt.replace(/\.[^.]+$/, '') || `attachment-${Date.now()}`;
+  const downloadName = `${baseName}.${ext}`;
 
   try {
+    // Web: use a browser download flow (MediaLibrary/FileSystem aren't applicable).
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const clickDownload = (href: string) => {
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = downloadName;
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      };
+
+      // Data/blob URLs can be downloaded directly.
+      if (url.startsWith('data:') || url.startsWith('blob:')) {
+        clickDownload(url);
+        onSuccess?.();
+        return;
+      }
+
+      // Prefer fetching the bytes so the download gets a filename.
+      // If CORS blocks fetch, fall back to a direct navigation.
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Download failed (${resp.status})`);
+        const blob = await resp.blob();
+        const objUrl = URL.createObjectURL(blob);
+        clickDownload(objUrl);
+        // Revoke shortly after the click has started.
+        setTimeout(() => URL.revokeObjectURL(objUrl), 10_000);
+        onSuccess?.();
+        return;
+      } catch {
+        // Last resort: open the URL (may still allow the user to save via browser UI).
+        try {
+          clickDownload(url);
+          onSuccess?.();
+          return;
+        } catch {
+          // ignore
+        }
+      }
+
+      throw new Error('Unable to download on web (blocked by browser/CORS)');
+    }
+
     const perm = await MediaLibrary.requestPermissionsAsync();
     if (!perm.granted) {
       onPermissionDenied?.();
@@ -81,7 +129,7 @@ export async function saveMediaUrlToDevice({
       if (!root) throw new Error('No writable cache directory');
       const File = fs.File;
       if (!File) throw new Error('File API not available');
-      const dest = new File(root, `${baseName}.${ext}`);
+      const dest = new File(root, downloadName);
       if (typeof dest.write !== 'function') throw new Error('File write API not available');
       await dest.write(b64, { encoding: 'base64' });
       await MediaLibrary.saveToLibraryAsync(dest.uri);
@@ -103,7 +151,7 @@ export async function saveMediaUrlToDevice({
     if (!root) throw new Error('No writable cache directory');
     const File = fs.File;
     if (!File) throw new Error('File API not available');
-    const dest = new File(root, `${baseName}.${ext}`);
+    const dest = new File(root, downloadName);
 
     // The docs support either instance or static download; support both for safety.
     if (typeof dest?.downloadFileAsync === 'function') {
