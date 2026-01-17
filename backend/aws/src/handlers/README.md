@@ -66,6 +66,8 @@ Below are the DynamoDB tables referenced by the backend handlers, plus the **GSI
 - **PK**: `userSub` (S)
 - **SK**: `expoPushToken` (S)
 - **Attributes used**: `platform`, `deviceId`, `updatedAt`
+- **Optional TTL**: enable DynamoDB TTL using attribute **`expiresAt`**
+  - Written by `POST /push/token` when `PUSH_TOKEN_TTL_DAYS` is set (recommended long TTL, e.g. 180–365 days).
 
 #### RecoveryKeys
 
