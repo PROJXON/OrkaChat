@@ -14,11 +14,7 @@ type ExpoFileSystemLike = {
   File?: new (a: string, b?: string) => ExpoFileLike;
   cacheDirectory?: string;
   documentDirectory?: string;
-  writeAsStringAsync?: (
-    uri: string,
-    data: string,
-    opts?: { encoding?: string },
-  ) => Promise<void>;
+  writeAsStringAsync?: (uri: string, data: string, opts?: { encoding?: string }) => Promise<void>;
   EncodingType?: { Base64?: string };
 };
 
@@ -67,16 +63,17 @@ export function useChatMediaDecryptCache(opts: {
 
   // Cleanup any blob: URLs we created (web only).
   React.useEffect(() => {
+    const urls = objectUrlsRef.current;
     return () => {
       if (typeof URL === 'undefined') return;
-      for (const u of objectUrlsRef.current) {
+      for (const u of urls) {
         try {
           URL.revokeObjectURL(u);
         } catch {
           // ignore
         }
       }
-      objectUrlsRef.current.clear();
+      urls.clear();
     };
   }, []);
 
@@ -198,7 +195,10 @@ export function useChatMediaDecryptCache(opts: {
 
       // Web: don't use expo-file-system; just create a blob URL for the decrypted bytes.
       if (Platform.OS === 'web' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
-        const blob = new Blob([plainBytes], { type: ct });
+        // TS/DOM typings can treat TypedArray buffers as ArrayBufferLike (incl SharedArrayBuffer),
+        // but Blob expects ArrayBuffer. Make a copy to a plain ArrayBuffer.
+        const blobBytes: ArrayBuffer = plainBytes.slice().buffer;
+        const blob = new Blob([blobBytes], { type: ct });
         const objUrl = URL.createObjectURL(blob);
         objectUrlsRef.current.add(objUrl);
         setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: objUrl }));
@@ -206,7 +206,8 @@ export function useChatMediaDecryptCache(opts: {
       }
 
       const fs = require('expo-file-system') as ExpoFileSystemLike;
-      const root = fs.Paths?.cache || fs.Paths?.document || fs.cacheDirectory || fs.documentDirectory;
+      const root =
+        fs.Paths?.cache || fs.Paths?.document || fs.cacheDirectory || fs.documentDirectory;
       if (!root) throw new Error('No writable cache directory');
 
       // Prefer modern File API when available.
@@ -225,7 +226,8 @@ export function useChatMediaDecryptCache(opts: {
       }
 
       // Legacy expo-file-system API: write base64 to a cache file.
-      if (typeof fs.writeAsStringAsync !== 'function') throw new Error('File write API not available');
+      if (typeof fs.writeAsStringAsync !== 'function')
+        throw new Error('File write API not available');
       const sep = root.endsWith('/') ? '' : '/';
       const uri = `${root}${sep}${outName}`;
       const b64 = fromByteArray(plainBytes);
@@ -234,7 +236,15 @@ export function useChatMediaDecryptCache(opts: {
       setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
       return uri;
     },
-    [aesGcmDecryptBytes, buildDmMediaKey, dmFileUriByPath, gcm, getDmMediaSignedUrl, hexToBytes],
+    [
+      aesGcmDecryptBytes,
+      buildDmMediaKey,
+      dmFileUriByPath,
+      fromByteArray,
+      gcm,
+      getDmMediaSignedUrl,
+      hexToBytes,
+    ],
   );
 
   const buildGroupMediaKey = React.useCallback(
@@ -361,7 +371,8 @@ export function useChatMediaDecryptCache(opts: {
       const outName = `gdm-${fileNameSafe}.${ext}`;
 
       if (Platform.OS === 'web' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
-        const blob = new Blob([plainBytes], { type: ct });
+        const blobBytes: ArrayBuffer = plainBytes.slice().buffer;
+        const blob = new Blob([blobBytes], { type: ct });
         const objUrl = URL.createObjectURL(blob);
         objectUrlsRef.current.add(objUrl);
         setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: objUrl }));
@@ -369,7 +380,8 @@ export function useChatMediaDecryptCache(opts: {
       }
 
       const fs = require('expo-file-system') as ExpoFileSystemLike;
-      const root = fs.Paths?.cache || fs.Paths?.document || fs.cacheDirectory || fs.documentDirectory;
+      const root =
+        fs.Paths?.cache || fs.Paths?.document || fs.cacheDirectory || fs.documentDirectory;
       if (!root) throw new Error('No writable cache directory');
 
       if (fs.File) {
@@ -386,7 +398,8 @@ export function useChatMediaDecryptCache(opts: {
         }
       }
 
-      if (typeof fs.writeAsStringAsync !== 'function') throw new Error('File write API not available');
+      if (typeof fs.writeAsStringAsync !== 'function')
+        throw new Error('File write API not available');
       const sep = root.endsWith('/') ? '' : '/';
       const uri = `${root}${sep}${outName}`;
       const b64 = fromByteArray(plainBytes);
@@ -395,7 +408,15 @@ export function useChatMediaDecryptCache(opts: {
       setDmFileUriByPath((prev) => ({ ...prev, [cacheKey]: uri }));
       return uri;
     },
-    [aesGcmDecryptBytes, buildGroupMediaKey, dmFileUriByPath, gcm, getDmMediaSignedUrl, hexToBytes],
+    [
+      aesGcmDecryptBytes,
+      buildGroupMediaKey,
+      dmFileUriByPath,
+      fromByteArray,
+      gcm,
+      getDmMediaSignedUrl,
+      hexToBytes,
+    ],
   );
 
   return React.useMemo(

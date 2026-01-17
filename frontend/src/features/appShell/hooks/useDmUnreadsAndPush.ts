@@ -105,7 +105,11 @@ export function useDmUnreadsAndPush({
         setPeer(senderName || (kind === 'group' ? 'Group DM' : 'Direct Message'));
         return;
       }
-      if ((kind === 'channelMention' || kind === 'channelReply') && convId && convId.startsWith('ch#')) {
+      if (
+        (kind === 'channelMention' || kind === 'channelReply') &&
+        convId &&
+        convId.startsWith('ch#')
+      ) {
         const channelName = typeof data.channelName === 'string' ? data.channelName : '';
         const channelId = convId.slice('ch#'.length).trim();
         if (channelId && channelName.trim()) {

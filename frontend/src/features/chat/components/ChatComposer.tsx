@@ -246,28 +246,28 @@ export function ChatComposer(props: {
           ]}
         >
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {mentionSuggestions.map((u) => (
-            <Pressable
-              key={`mention-suggest:${u}`}
-              onPress={() => insertMention(u)}
-              style={({ pressed }) => ({
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 999,
-                backgroundColor: isDark ? PALETTE.slate750 : PALETTE.mist,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <Text
-                style={{
-                  color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
-                  fontWeight: '800',
-                }}
+            {mentionSuggestions.map((u) => (
+              <Pressable
+                key={`mention-suggest:${u}`}
+                onPress={() => insertMention(u)}
+                style={({ pressed }) => ({
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  backgroundColor: isDark ? PALETTE.slate750 : PALETTE.mist,
+                  opacity: pressed ? 0.85 : 1,
+                })}
               >
-                @{u}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={{
+                    color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                    fontWeight: '800',
+                  }}
+                >
+                  @{u}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </View>
       ) : null}
