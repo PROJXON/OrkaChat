@@ -114,7 +114,7 @@ export function useMyAvatarSettings({
           await AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
         }
       } catch (e) {
-        console.log('avatar cache load failed', e);
+        if (__DEV__) console.debug('avatar cache load failed', e);
       }
     })();
     return () => {

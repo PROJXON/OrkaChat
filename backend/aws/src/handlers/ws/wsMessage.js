@@ -11,7 +11,7 @@ const {
   ApiGatewayManagementApiClient,
   PostToConnectionCommand,
 } = require('@aws-sdk/client-apigatewaymanagementapi');
-const { enforceMediaBytesPerDay } = require('../../lib/mediaQuota');
+const { enforceMediaBytesPerDay } = require('./lib/mediaQuota');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ddbRaw = new DynamoDBClient({});
@@ -332,6 +332,44 @@ const sendChannelPushNotification = async ({ recipientSub, senderDisplayName, se
     }
   } catch (err) {
     console.warn('sendChannelPushNotification failed', err);
+  }
+};
+
+const sendGlobalPushNotification = async ({ recipientSub, senderDisplayName, senderSub, conversationId, kind }) => {
+  try {
+    const tokens = await queryExpoPushTokensByUserSub(recipientSub);
+    if (!tokens.length) return;
+
+    const title = 'Global';
+    const body = `${safeString(senderDisplayName) || 'Someone'} mentioned you`;
+    const convId = safeString(conversationId) || 'global';
+    const sSub = safeString(senderSub);
+    const k = safeString(kind) || 'globalMention';
+
+    const base = {
+      title,
+      body,
+      sound: 'default',
+      priority: 'high',
+      // Treat Global like a channel category so users can mute it separately from DMs.
+      channelId: 'channels',
+      data: {
+        kind: k,
+        conversationId: convId,
+        senderDisplayName: safeString(senderDisplayName),
+        senderSub: sSub,
+      },
+    };
+
+    const batchSize = 100;
+    for (let i = 0; i < tokens.length; i += batchSize) {
+      const slice = tokens.slice(i, i + batchSize);
+      const msgs = slice.map((to) => ({ ...base, to }));
+      // eslint-disable-next-line no-await-in-loop
+      await sendExpoPush(msgs);
+    }
+  } catch (err) {
+    console.warn('sendGlobalPushNotification failed', err);
   }
 };
 
@@ -1652,26 +1690,11 @@ exports.handler = async (event) => {
                 context: { conversationId, messageId, bytes: totalBytes },
               }).catch(() => {});
               const retryAfter = Number(err.retryAfterSeconds || 60);
-
-              // WebSocket UX: send an explicit error payload to the sender so the client can show
-              // a theme-appropriate modal (works on web + native). Returning an HTTP 429 alone is
-              // not reliably surfaced to the UI in WS flows.
-              try {
-                await broadcast(mgmt, [connectionId], {
-                  type: 'error',
-                  code: 'media_quota',
-                  title: 'Upload limit reached',
-                  message: 'You’ve reached your daily upload limit. Please try again tomorrow.',
-                  retryAfterSeconds: retryAfter,
-                  bytesAttempted: totalBytes,
-                  conversationId,
-                });
-              } catch {
-                // ignore
-              }
-
-              // Do not persist/broadcast the message.
-              return { statusCode: 200, body: 'Media quota exceeded.' };
+              return {
+                statusCode: 429,
+                headers: { 'Retry-After': String(retryAfter) },
+                body: 'Daily media upload limit reached. Please try again later.',
+              };
             }
             console.warn('media quota check failed (continuing without quota)', err);
           }
@@ -1813,6 +1836,29 @@ exports.handler = async (event) => {
               kind,
             });
           })
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    // Global notifications: mentions only (targeted, no global fanout).
+    if (isGlobal && Array.isArray(mentions) && mentions.length) {
+      try {
+        await Promise.all(
+          mentions
+            .filter((u) => u && u !== senderSub)
+            .map(async (u) => {
+              const activeConns = await queryConnIdsByUserSub(u).catch(() => []);
+              if (Array.isArray(activeConns) && activeConns.length) return;
+              await sendGlobalPushNotification({
+                recipientSub: String(u),
+                senderDisplayName,
+                senderSub,
+                conversationId: 'global',
+                kind: 'globalMention',
+              });
+            })
         );
       } catch {
         // ignore

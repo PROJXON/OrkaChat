@@ -22,9 +22,9 @@ export function useAuthApiHelpers({
   const uploadRecoveryBlob = React.useCallback(
     async (token: string, privateKeyHex: string, passphrase: string) => {
       const t0 = Date.now();
-      console.log('encrypting backup...');
+      if (__DEV__) console.debug('encrypting backup...');
       const blob = await encryptPrivateKey(privateKeyHex, passphrase);
-      console.log('backup encrypted in', Date.now() - t0, 'ms');
+      if (__DEV__) console.debug('backup encrypted in', Date.now() - t0, 'ms');
 
       const controller = new AbortController();
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -77,13 +77,13 @@ export function useAuthApiHelpers({
         });
         if (resp.ok) return true;
         if (resp.status === 404) {
-          console.log('recovery blob exists check: 404');
+          if (__DEV__) console.debug('recovery blob exists check: 404');
           return false;
         }
-        console.log('recovery blob exists check: unexpected status', resp.status);
+        if (__DEV__) console.debug('recovery blob exists check: unexpected status', resp.status);
         return null;
       } catch {
-        console.log('recovery blob exists check: network error');
+        if (__DEV__) console.debug('recovery blob exists check: network error');
         return null;
       }
     },

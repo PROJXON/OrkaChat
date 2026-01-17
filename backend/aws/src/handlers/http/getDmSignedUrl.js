@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
-const { enforceAiQuota } = require('../../lib/aiQuota');
+const { enforceAiQuota } = require('./lib/aiquota');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ddbRaw = new DynamoDBClient({});
@@ -66,6 +66,15 @@ function normalizePem(s) {
   return t;
 }
 
+function normalizeCdnUrl(raw) {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  // Accept common config mistakes like "d123.cloudfront.net" (missing scheme).
+  if (t.startsWith('http://') || t.startsWith('https://')) return t.replace(/\/+$/, '');
+  if (t.startsWith('//')) return `https:${t}`.replace(/\/+$/, '');
+  return `https://${t}`.replace(/\/+$/, '');
+}
+
 // POST /media/dm/signed-url
 // Body: { path: "uploads/dm/<conversationId>/...", ttlSeconds?: number }
 //
@@ -82,7 +91,7 @@ exports.handler = async (event) => {
     const sub = typeof claims.sub === 'string' ? String(claims.sub).trim() : '';
     if (!sub) return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
 
-    const CDN_URL = String(process.env.CDN_URL || '').trim();
+    const CDN_URL = normalizeCdnUrl(process.env.CDN_URL);
     const KEY_PAIR_ID = String(process.env.CLOUDFRONT_KEY_PAIR_ID || '').trim();
     const PRIVATE_KEY_PEM = normalizePem(process.env.CLOUDFRONT_PRIVATE_KEY_PEM);
     if (!CDN_URL) return { statusCode: 500, body: JSON.stringify({ message: 'Server misconfigured: CDN_URL missing' }) };
@@ -165,7 +174,13 @@ exports.handler = async (event) => {
     // IMPORTANT: DM conversationIds contain '#', which is a URL fragment delimiter.
     // If we build the URL naively, everything after '#' (including query params) may not be sent to CloudFront.
     // So we must ensure '#' is percent-encoded as '%23' in the pathname.
-    const baseUrl = new URL(CDN_URL);
+    let baseUrl;
+    try {
+      baseUrl = new URL(CDN_URL);
+    } catch (e) {
+      console.error('getDmSignedUrl invalid CDN_URL', { CDN_URL });
+      return { statusCode: 500, body: JSON.stringify({ message: 'Server misconfigured: invalid CDN_URL (must be a valid URL)' }) };
+    }
     baseUrl.pathname = `/${path}`; // Node will encode unsafe chars in pathname (including '#')
     baseUrl.hash = '';
     baseUrl.search = '';

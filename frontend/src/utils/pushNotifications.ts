@@ -71,6 +71,26 @@ async function getStoredExpoToken(): Promise<string> {
   }
 }
 
+async function getIdTokenWithRetry(opts?: {
+  maxAttempts?: number;
+  delayMs?: number;
+}): Promise<string | null> {
+  const maxAttempts = Math.max(1, Math.min(20, Number(opts?.maxAttempts ?? 8)));
+  const delayMs = Math.max(0, Math.min(5_000, Number(opts?.delayMs ?? 250)));
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const idToken = (await fetchAuthSession()).tokens?.idToken?.toString();
+      if (idToken && idToken.trim()) return idToken.trim();
+    } catch {
+      // ignore and retry
+    }
+    if (i < maxAttempts - 1 && delayMs > 0) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return null;
+}
+
 export async function ensureDmNotificationChannel(): Promise<void> {
   const Notifications = await tryImportNotifications();
   if (!Notifications) return;
@@ -107,7 +127,9 @@ export async function registerForDmPushNotifications(): Promise<{
   reason?: string;
   expoPushToken?: string;
 }> {
-  if (!API_URL) return { ok: false, reason: 'Missing API_URL' };
+  if (!API_URL) {
+    return { ok: false, reason: 'Missing API_URL' };
+  }
 
   const Notifications = await tryImportNotifications();
   if (!Notifications)
@@ -157,10 +179,14 @@ export async function registerForDmPushNotifications(): Promise<{
     };
   }
 
-  if (!expoPushToken) return { ok: false, reason: 'Empty Expo push token' };
+  if (!expoPushToken) {
+    return { ok: false, reason: 'Empty Expo push token' };
+  }
 
-  const idToken = (await fetchAuthSession()).tokens?.idToken?.toString();
-  if (!idToken) return { ok: false, reason: 'Missing auth token' };
+  const idToken = await getIdTokenWithRetry({ maxAttempts: 10, delayMs: 250 });
+  if (!idToken) {
+    return { ok: false, reason: 'Missing auth token' };
+  }
 
   const deviceId = await getOrCreateDeviceId();
 

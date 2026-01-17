@@ -62,6 +62,14 @@ exports.handler = awslambda.streamifyResponse(async (event, responseStream) => {
     return t.length > maxLen ? `${t.slice(0, maxLen)}…` : t;
   };
 
+  const lastTurnIsSameUserInstruction = (turns, instructionText) => {
+    if (!Array.isArray(turns) || !turns.length) return false;
+    const last = turns[turns.length - 1];
+    if (!last || typeof last !== 'object') return false;
+    if (last.role !== 'user') return false;
+    return safeString(last.text) === safeString(instructionText);
+  };
+
   // Incrementally extract the value of the JSON string field `"answer"` from the model's streamed JSON.
   // We decode common JSON escapes so the UI shows real text while streaming.
   const makeAnswerStreamExtractor = () => {
@@ -473,9 +481,12 @@ exports.handler = awslambda.streamifyResponse(async (event, responseStream) => {
     }
     suggestions = wantReplies ? ensureExactlyThreeSuggestions(suggestions, instruction) : [];
 
+    const userTurnText = clampText(instruction, 1200);
+    const baseThread = lastTurnIsSameUserInstruction(thread, userTurnText)
+      ? thread
+      : [...thread, { role: 'user', text: userTurnText }];
     const nextThread = sanitizeThread([
-      ...thread,
-      { role: 'user', text: clampText(instruction, 1200) },
+      ...baseThread,
       { role: 'assistant', text: clampText(answer || '', 1600) },
     ]);
 

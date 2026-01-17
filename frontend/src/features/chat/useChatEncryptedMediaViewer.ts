@@ -77,7 +77,7 @@ export function useChatEncryptedMediaViewer(opts: {
         });
         viewer.setOpen(true);
       } catch (e: unknown) {
-        showAlert('Open failed', getErrorMessage(e) || 'Could not decrypt attachment');
+        showAlert('Open Failed', getErrorMessage(e) || 'Could not decrypt attachment');
       }
     },
     [
@@ -111,7 +111,7 @@ export function useChatEncryptedMediaViewer(opts: {
         });
         viewer.setOpen(true);
       } catch (e: unknown) {
-        showAlert('Open failed', getErrorMessage(e) || 'Could not decrypt attachment');
+        showAlert('Open Failed', getErrorMessage(e) || 'Could not decrypt attachment');
       }
     },
     [isDm, decryptDmFileToCacheUri, showAlert, viewer, parseDmMediaEnvelope, normalizeDmMediaItems],

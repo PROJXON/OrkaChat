@@ -170,7 +170,7 @@ export function useChatWsConnection(opts: {
         // RN WebSocket doesn't expose much, but log what we can
         const rec = typeof e === 'object' && e != null ? (e as Record<string, unknown>) : {};
         const msg = typeof rec.message === 'string' ? rec.message : 'WebSocket error';
-        console.log('WS error:', msg, 'url:', redactWsUrl(ws.url));
+        if (__DEV__) console.debug('WS error:', msg, 'url:', redactWsUrl(ws.url));
         setIsConnecting(false);
         setIsConnected(false);
         setError(
@@ -187,7 +187,7 @@ export function useChatWsConnection(opts: {
           typeof e === 'object' && e != null ? (e as { code?: unknown; reason?: unknown }) : {};
         const code = typeof rec.code === 'number' ? rec.code : undefined;
         const reason = typeof rec.reason === 'string' ? rec.reason : undefined;
-        console.log('WS close:', code, reason, 'url:', redactWsUrl(ws.url));
+        if (__DEV__) console.debug('WS close:', code, reason, 'url:', redactWsUrl(ws.url));
         setIsConnected(false);
         scheduleReconnect();
       };

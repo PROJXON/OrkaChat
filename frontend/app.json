@@ -22,9 +22,13 @@
       }
     },
     "android": {
+      "notification": {
+        "icon": "./assets/icons/notification-icon.png",
+        "color": "#1976d2"
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-android-icon.png",
-        "monochromeImage": "./assets/icons/adaptive-android-icon.png",
+        "monochromeImage": "./assets/icons/monochrome-android.png",
         "backgroundImage": "./assets/icons/android-background.png"
       },
       "navigationBar": {
@@ -39,6 +43,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.projxon.orkachat",
       "versionCode": 1,
+      "googleServicesFile": "./google-services.json",
       "permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"]
     },
     "web": {

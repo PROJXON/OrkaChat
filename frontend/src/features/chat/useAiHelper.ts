@@ -90,6 +90,26 @@ export type AiHelperTurn = {
   suggestions?: string[];
 };
 
+function dedupeAdjacentUserTurns(turns: AiHelperTurn[]): AiHelperTurn[] {
+  if (!Array.isArray(turns) || turns.length < 2) return turns;
+  const next: AiHelperTurn[] = [];
+  for (const t of turns) {
+    const prev = next[next.length - 1];
+    if (
+      prev &&
+      prev.role === 'user' &&
+      t.role === 'user' &&
+      String(prev.text || '').trim() === String(t.text || '').trim()
+    ) {
+      // The AI helper UI can't submit twice while `loading` is true, so adjacent identical user turns
+      // are always a server/client merge artifact. Drop the duplicate defensively.
+      continue;
+    }
+    next.push(t);
+  }
+  return next;
+}
+
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
   if (typeof err === 'string') return err || 'Unknown error';
@@ -789,6 +809,7 @@ export function useAiHelper(opts: {
                 nextThread[lastAssistantIdx] = { ...t, suggestions: nextSuggestions };
               }
             }
+            nextThread = dedupeAdjacentUserTurns(nextThread);
             lastTurnRef.current = null;
             if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
             autoScrollRetryRef.current.timer = null;
@@ -892,6 +913,7 @@ export function useAiHelper(opts: {
             nextThread[lastAssistantIdx] = { ...t, suggestions: nextSuggestions };
           }
         }
+        nextThread = dedupeAdjacentUserTurns(nextThread);
 
         lastTurnRef.current = null;
         if (autoScrollRetryRef.current.timer) clearTimeout(autoScrollRetryRef.current.timer);
