@@ -6,7 +6,10 @@ import { GlobalAboutContent } from '../../../components/globalAbout/GlobalAboutC
 import { HeaderMenuModal } from '../../../components/HeaderMenuModal';
 import { ThemeToggleRow } from '../../../components/ThemeToggleRow';
 import type { MenuAnchorRect } from '../../../hooks/useMenuAnchor';
-import { getPushDebugStatus, registerForDmPushNotifications } from '../../../utils/pushNotifications';
+import {
+  getPushDebugStatus,
+  registerForDmPushNotifications,
+} from '../../../utils/pushNotifications';
 
 export function MainAppMenuAndAboutOverlays({
   styles,
@@ -135,7 +138,9 @@ export function MainAppMenuAndAboutOverlays({
         ].join('\n'),
       );
     } catch (err) {
-      setPushDebugText(`Failed to load push status: ${err instanceof Error ? err.message : String(err)}`);
+      setPushDebugText(
+        `Failed to load push status: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }, []);
 
@@ -318,7 +323,9 @@ export function MainAppMenuAndAboutOverlays({
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setPushDebugOpen(false)} />
           <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
-            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>Push debug</Text>
+            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
+              Push debug
+            </Text>
             <Text
               style={[
                 styles.modalHelperText,
@@ -357,7 +364,9 @@ export function MainAppMenuAndAboutOverlays({
                   }));
                   await refreshPushDebug();
                   if (!res.ok) {
-                    setPushDebugText((prev) => `${prev}\n\nregister failed: ${res.reason || 'unknown'}`);
+                    setPushDebugText(
+                      (prev) => `${prev}\n\nregister failed: ${res.reason || 'unknown'}`,
+                    );
                   }
                 }}
               >

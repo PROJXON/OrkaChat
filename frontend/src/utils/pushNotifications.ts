@@ -115,7 +115,6 @@ async function getIdTokenWithRetry(opts?: {
       // ignore and retry
     }
     if (i < maxAttempts - 1 && delayMs > 0) {
-      // eslint-disable-next-line no-await-in-loop
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }

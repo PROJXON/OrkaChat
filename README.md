@@ -153,6 +153,12 @@ OrkaChat uses **Expo push notifications** (Expo push tokens stored in DynamoDB),
 
 For Android standalone builds (EAS), you generally must configure **Firebase Cloud Messaging (FCM)** for your Expo project (Firebase app matching `android.package`, plus Expo push credentials). If FCM is not set up, devices may successfully generate tokens but **never receive** pushes.
 
+At minimum for Android token generation:
+
+- Create a Firebase project and add an **Android app** with package name `com.projxon.orkachat`
+- Download **`google-services.json`** and place it at `frontend/google-services.json` (this repo ignores it)
+- Expo config expects: `frontend/app.json` → `expo.android.googleServicesFile = "./google-services.json"`
+
 ### Quick troubleshooting checklist
 
 - **You won’t get a push for messages you send**: pushes are for the *recipient*.
