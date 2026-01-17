@@ -156,12 +156,10 @@ For Android standalone builds (EAS), you generally must configure **Firebase Clo
 At minimum for Android token generation:
 
 - Create a Firebase project and add an **Android app** with package name `com.projxon.orkachat`
-- Download **`google-services.json`** and place it at `frontend/google-services.json` (this repo ignores it)
+- Download **`google-services.json`** and place it at `frontend/google-services.json`
 - Expo config expects: `frontend/app.json` → `expo.android.googleServicesFile = "./google-services.json"`
-- EAS Build note: because the file is ignored by git, you must provide it to EAS via an environment variable:
-  - Preferred: create a **File** env var `GOOGLE_SERVICES_JSON_FILE` pointing at the uploaded `google-services.json`
-  - Alternative: create a **secret** `GOOGLE_SERVICES_JSON_BASE64` (base64 of the file contents)
-  - The build runs `frontend/scripts/eas/copy-google-services.cjs` to write `frontend/google-services.json` during EAS builds
+
+Note: this file can be committed (simple/solo projects), or you can keep it out of git and inject it via EAS environment variables (multi-environment setups).
 
 ### Quick troubleshooting checklist
 

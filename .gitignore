@@ -24,7 +24,6 @@ ios/
 android/
 frontend/ios/
 frontend/android/
-frontend/google-services.json
 *.keystore
 *.jks
 *.p8
