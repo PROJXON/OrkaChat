@@ -1,3 +1,4 @@
+import { fetch as expoFetch } from 'expo/fetch';
 import * as React from 'react';
 import { Platform } from 'react-native';
 
@@ -13,10 +14,8 @@ async function readTextResponseStream(opts: {
   const body: unknown = (response as unknown as { body?: unknown }).body;
   const contentType = (response.headers.get('content-type') || '').toLowerCase();
 
-  // Most React Native runtimes do not expose ReadableStream; keep streaming web-only for now.
-  if (Platform.OS !== 'web') throw new Error('Streaming not supported on this platform');
   if (!body || typeof (body as { getReader?: unknown }).getReader !== 'function') {
-    throw new Error('Streaming body not available');
+    throw new Error('Streaming body not available (try expo/fetch on native)');
   }
 
   const reader = (body as ReadableStream<Uint8Array>).getReader();
@@ -113,6 +112,18 @@ export function useAiSummary(opts: {
   const [loading, setLoading] = React.useState(false);
   const abortRef = React.useRef<AbortController | null>(null);
 
+  // Ensure in-flight stream requests don't continue after the hook owner unmounts.
+  React.useEffect(() => {
+    return () => {
+      try {
+        abortRef.current?.abort();
+      } catch {
+        // ignore
+      }
+      abortRef.current = null;
+    };
+  }, []);
+
   const close = React.useCallback(() => {
     try {
       abortRef.current?.abort();
@@ -142,7 +153,9 @@ export function useAiSummary(opts: {
       if (!idToken) throw new Error('Not authenticated');
 
       const transcript = buildAiSummaryTranscript({ messages, maxMessages: 25 });
-      const resp = await fetch(`${apiUrl.replace(/\/$/, '')}/ai/summary`, {
+      const doFetch = Platform.OS === 'web' ? fetch : (expoFetch as unknown as typeof fetch);
+      const fullUrl = `${apiUrl.replace(/\/$/, '')}/ai/summary`;
+      const resp = await doFetch(fullUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${idToken}`,
@@ -175,7 +188,7 @@ export function useAiSummary(opts: {
 
       // If the server supports streaming (SSE or chunked text), show partial output as it arrives.
       const contentType = (resp.headers.get('content-type') || '').toLowerCase();
-      if (Platform.OS === 'web' && contentType.includes('text/event-stream')) {
+      if (contentType.includes('text/event-stream')) {
         let acc = '';
         await readTextResponseStream({
           response: resp,
@@ -195,6 +208,12 @@ export function useAiSummary(opts: {
         setText(summary);
       }
     } catch (e: unknown) {
+      const wasAborted = abortRef.current?.signal?.aborted === true;
+      if (wasAborted) {
+        // User-initiated cancellation (close / navigate away). Don't surface as an error.
+        setOpen(false);
+        return;
+      }
       const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Unknown error';
       showAlert('Summary failed', msg);
       setOpen(false);

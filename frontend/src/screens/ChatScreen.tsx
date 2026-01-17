@@ -553,8 +553,8 @@ export default function ChatScreen({
   });
 
   const aiSummary = useAiSummary({
-    // Streaming is currently implemented web-only; native fetch typically can't consume SSE.
-    apiUrl: Platform.OS === 'web' ? AI_API_URL || API_URL : API_URL,
+    // Prefer a dedicated AI base URL if configured (e.g. streaming-capable endpoint); fall back to API_URL.
+    apiUrl: AI_API_URL || API_URL,
     activeConversationId,
     peer,
     messages,
@@ -564,8 +564,8 @@ export default function ChatScreen({
   });
 
   const aiHelper = useAiHelper({
-    // Streaming is currently implemented web-only; native fetch typically can't consume SSE.
-    apiUrl: Platform.OS === 'web' ? AI_API_URL || API_URL : API_URL,
+    // Prefer a dedicated AI base URL if configured (e.g. streaming-capable endpoint); fall back to API_URL.
+    apiUrl: AI_API_URL || API_URL,
     activeConversationId,
     peer,
     messages,

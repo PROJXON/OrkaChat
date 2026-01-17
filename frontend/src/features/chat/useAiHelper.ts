@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetch as expoFetch } from 'expo/fetch';
 import * as React from 'react';
 import { findNodeHandle, Platform, type ScrollView, UIManager, type View } from 'react-native';
 
@@ -15,10 +16,9 @@ async function readSseTextDeltas(opts: {
   const body: unknown = (response as unknown as { body?: unknown }).body;
   const contentType = (response.headers.get('content-type') || '').toLowerCase();
 
-  if (Platform.OS !== 'web') throw new Error('Streaming not supported on this platform');
   if (!contentType.includes('text/event-stream')) throw new Error('Not an SSE response');
   if (!body || typeof (body as { getReader?: unknown }).getReader !== 'function') {
-    throw new Error('Streaming body not available');
+    throw new Error('Streaming body not available (try expo/fetch on native)');
   }
 
   const reader = (body as ReadableStream<Uint8Array>).getReader();
@@ -247,6 +247,17 @@ export function useAiHelper(opts: {
   const hydrateRunRef = React.useRef<number>(0);
   const persistTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = React.useRef<AbortController | null>(null);
+  // Ensure in-flight stream requests don't continue after the hook owner unmounts.
+  React.useEffect(() => {
+    return () => {
+      try {
+        abortRef.current?.abort();
+      } catch {
+        // ignore
+      }
+      abortRef.current = null;
+    };
+  }, []);
 
   const scrollRef = React.useRef<ScrollView | null>(null);
   const scrollViewportHRef = React.useRef<number>(0);
@@ -716,7 +727,9 @@ export function useAiHelper(opts: {
         maxThumbs: 3,
       });
 
-      const resp = await fetch(`${apiUrl.replace(/\/$/, '')}/ai/helper`, {
+      const doFetch = Platform.OS === 'web' ? fetch : (expoFetch as unknown as typeof fetch);
+      const fullUrl = `${apiUrl.replace(/\/$/, '')}/ai/helper`;
+      const resp = await doFetch(fullUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${idToken}`,
@@ -750,13 +763,13 @@ export function useAiHelper(opts: {
           openInfo('AI limit reached', msg);
           return;
         }
-        throw new Error(`AI helper failed (${resp.status}): ${bodyText || 'no body'}`);
+        throw new Error(`AI Helper Failed (${resp.status}): ${bodyText || 'no body'}`);
       }
 
       const contentType = (resp.headers.get('content-type') || '').toLowerCase();
 
       // Optional streaming: if the server returns SSE, progressively fill the last assistant bubble.
-      if (Platform.OS === 'web' && contentType.includes('text/event-stream')) {
+      if (contentType.includes('text/event-stream')) {
         let acc = '';
         // Replace the "thinking" placeholder with an empty assistant bubble we can append to.
         setThread((prev) => {
@@ -945,7 +958,8 @@ export function useAiHelper(opts: {
         });
       }
     } catch (e: unknown) {
-      openInfo('AI helper failed', getErrorMessage(e));
+      const wasAborted = abortRef.current?.signal?.aborted === true;
+      if (!wasAborted) openInfo('AI Helper Failed', getErrorMessage(e));
     } finally {
       abortRef.current = null;
       setLoading(false);
