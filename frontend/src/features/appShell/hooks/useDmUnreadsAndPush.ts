@@ -48,11 +48,11 @@ export function useDmUnreadsAndPush({
         const res = await registerForDmPushNotifications();
         if (!mounted) return;
         if (!res.ok) {
-          // Avoid spamming a modal; this should be transparent unless debugging.
-          console.log('push registration skipped/failed:', res.reason || 'unknown');
+          // Silent in production; optionally log in dev builds.
+          if (__DEV__) console.debug('push registration skipped/failed:', res.reason || 'unknown');
         }
       } catch (err) {
-        console.log('push registration error:', err);
+        if (__DEV__) console.debug('push registration error:', err);
       }
     })();
     return () => {

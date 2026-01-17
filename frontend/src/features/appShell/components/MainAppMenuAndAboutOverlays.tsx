@@ -6,10 +6,6 @@ import { GlobalAboutContent } from '../../../components/globalAbout/GlobalAboutC
 import { HeaderMenuModal } from '../../../components/HeaderMenuModal';
 import { ThemeToggleRow } from '../../../components/ThemeToggleRow';
 import type { MenuAnchorRect } from '../../../hooks/useMenuAnchor';
-import {
-  getPushDebugStatus,
-  registerForDmPushNotifications,
-} from '../../../utils/pushNotifications';
 
 export function MainAppMenuAndAboutOverlays({
   styles,
@@ -119,31 +115,6 @@ export function MainAppMenuAndAboutOverlays({
   globalAboutOpen: boolean;
   dismissGlobalAbout: () => void | Promise<void>;
 }): React.JSX.Element {
-  const [pushDebugOpen, setPushDebugOpen] = React.useState<boolean>(false);
-  const [pushDebugText, setPushDebugText] = React.useState<string>('Loading…');
-
-  const refreshPushDebug = React.useCallback(async () => {
-    try {
-      const st = await getPushDebugStatus();
-      const tokenShort =
-        st.storedExpoToken && st.storedExpoToken.length > 18
-          ? `${st.storedExpoToken.slice(0, 12)}…${st.storedExpoToken.slice(-6)}`
-          : st.storedExpoToken || '';
-      setPushDebugText(
-        [
-          `API_URL: ${st.apiUrl || '(missing)'}`,
-          `deviceId: ${st.deviceId || '(missing)'}`,
-          `stored token: ${tokenShort || '(none)'}`,
-          `last status: ${st.lastStatus || '(none)'}`,
-        ].join('\n'),
-      );
-    } catch (err) {
-      setPushDebugText(
-        `Failed to load push status: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }, []);
-
   return (
     <>
       <HeaderMenuModal
@@ -261,15 +232,6 @@ export function MainAppMenuAndAboutOverlays({
               }
             },
           },
-          {
-            key: 'pushDebug',
-            label: 'Push debug',
-            onPress: async () => {
-              setMenuOpen(false);
-              setPushDebugOpen(true);
-              await refreshPushDebug();
-            },
-          },
         ]}
       />
 
@@ -307,83 +269,6 @@ export function MainAppMenuAndAboutOverlays({
               >
                 <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
                   Got it
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={pushDebugOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPushDebugOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPushDebugOpen(false)} />
-          <View style={[styles.modalContent, isDark ? styles.modalContentDark : null]}>
-            <Text style={[styles.modalTitle, isDark ? styles.modalTitleDark : null]}>
-              Push debug
-            </Text>
-            <Text
-              style={[
-                styles.modalHelperText,
-                ...(isDark ? [styles.modalHelperTextDark] : []),
-                { marginBottom: 12, fontFamily: 'monospace' },
-              ]}
-            >
-              {pushDebugText}
-            </Text>
-            <View style={[styles.modalButtons, { justifyContent: 'flex-end', marginTop: 12 }]}>
-              <Pressable
-                style={[
-                  styles.modalButton,
-                  styles.modalButtonSmall,
-                  isDark ? styles.modalButtonDark : null,
-                ]}
-                onPress={async () => {
-                  await refreshPushDebug();
-                }}
-              >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                  Refresh
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.modalButton,
-                  styles.modalButtonSmall,
-                  isDark ? styles.modalButtonDark : null,
-                ]}
-                onPress={async () => {
-                  setPushDebugText('Registering…');
-                  const res = await registerForDmPushNotifications().catch((e: unknown) => ({
-                    ok: false,
-                    reason: e instanceof Error ? e.message : String(e),
-                  }));
-                  await refreshPushDebug();
-                  if (!res.ok) {
-                    setPushDebugText(
-                      (prev) => `${prev}\n\nregister failed: ${res.reason || 'unknown'}`,
-                    );
-                  }
-                }}
-              >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                  Register now
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.modalButton,
-                  styles.modalButtonSmall,
-                  isDark ? styles.modalButtonDark : null,
-                ]}
-                onPress={() => setPushDebugOpen(false)}
-              >
-                <Text style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}>
-                  Close
                 </Text>
               </Pressable>
             </View>

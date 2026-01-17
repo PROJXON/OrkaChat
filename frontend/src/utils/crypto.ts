@@ -17,7 +17,7 @@ const _PUBLIC_KEY_STORAGE_KEY = '@public_key';
 
 export const generateKeypair = async (): Promise<KeyPair> => {
   try {
-    console.log('Generating new cryptography keypair...');
+    if (__DEV__) console.debug('Generating new cryptography keypair...');
     const privateKeyBytes = getRandomBytes(32);
     let attempts = 0;
     let validPrivatekey = privateKeyBytes;
@@ -52,7 +52,7 @@ export const storeKeyPair = async (userId: string, keypair: KeyPair) => {
     } else {
       await SecureStore.setItemAsync(storageKey, keyData);
     }
-    console.log(`Keys stored for ${userId}`);
+    if (__DEV__) console.debug(`Keys stored for ${userId}`);
   } catch (error) {
     console.error('Error storing keys:', error);
     throw new Error('Failed to store keys');
@@ -88,7 +88,7 @@ let _loggedPbkdf2Impl = false;
 const logPbkdf2ImplOnce = (msg: string) => {
   if (!_loggedPbkdf2Impl && __DEV__) {
     _loggedPbkdf2Impl = true;
-    console.log(msg);
+    console.debug(msg);
   }
 };
 
@@ -96,7 +96,7 @@ let _loggedPbkdf2NativeSkip = false;
 const logPbkdf2NativeSkipOnce = (msg: string) => {
   if (!_loggedPbkdf2NativeSkip && __DEV__) {
     _loggedPbkdf2NativeSkip = true;
-    console.log(msg);
+    console.debug(msg);
   }
 };
 
