@@ -7,6 +7,7 @@ import type { ChatScreenStyles } from '../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 import type { MediaItem } from '../../types/media';
 import { shouldShowIncomingAvatar } from '../../utils/avatarGrouping';
+import { formatMessageMetaTimestamp } from '../../utils/chatDates';
 import { getOlderNeighbor } from '../../utils/listNeighbors';
 import {
   isImageLike as isImageLikeMedia,
@@ -148,14 +149,7 @@ export function renderChatListItem(args: {
     );
   }
 
-  const timestamp = new Date(item.createdAt);
-  const now = new Date();
-  const isToday =
-    timestamp.getFullYear() === now.getFullYear() &&
-    timestamp.getMonth() === now.getMonth() &&
-    timestamp.getDate() === now.getDate();
-  const time = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const formatted = isToday ? time : `${timestamp.toLocaleDateString()} · ${time}`;
+  const formatted = formatMessageMetaTimestamp(item.createdAt);
   const expiresIn = isDm && typeof item.expiresAt === 'number' ? item.expiresAt - nowSec : null;
 
   const isOutgoingByUserSub =

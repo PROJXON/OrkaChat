@@ -101,7 +101,7 @@ module.exports = [
       '@typescript-eslint/no-explicit-any': 'off',
 
       // Formatting: enforce Prettier (auto-fixable).
-      'prettier/prettier': 'error',
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
 

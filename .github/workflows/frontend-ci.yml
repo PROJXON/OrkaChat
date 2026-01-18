@@ -43,6 +43,9 @@ jobs:
       - name: Typecheck
         run: npm run -s typecheck
 
+      - name: Test (Jest)
+        run: npm run -s test:ci
+
       - name: Prettier check
         run: npm run -s format:check
 

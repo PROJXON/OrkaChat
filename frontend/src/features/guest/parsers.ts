@@ -1,19 +1,12 @@
 import type { MediaItem, MediaKind } from '../../types/media';
 import type { ReactionMap, ReactionUsersMap } from '../../types/reactions';
+import { formatMessageMetaTimestamp } from '../../utils/chatDates';
 import type { GuestChatEnvelope, GuestMessage } from './types';
 
 export function formatGuestTimestamp(ms: number): string {
   const t = Number(ms);
   if (!Number.isFinite(t) || t <= 0) return '';
-  const d = new Date(t);
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const now = new Date();
-  const isToday =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (isToday) return time;
-  return `${d.toLocaleDateString()} ${time}`;
+  return formatMessageMetaTimestamp(t);
 }
 
 export function normalizeGuestReactions(raw: unknown): ReactionMap | undefined {
