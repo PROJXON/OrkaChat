@@ -21,6 +21,7 @@ export function MediaStackCarousel({
   loadingDotsColor,
   onImageAspect,
   onOpen,
+  imageResizeMode = 'contain',
 }: {
   messageId: string;
   mediaList: MediaItem[];
@@ -43,6 +44,10 @@ export function MediaStackCarousel({
   // Useful for correcting EXIF-rotated phone photos where Image.getSize can report swapped dims.
   onImageAspect?: (keyPath: string, aspect: number) => void;
   onOpen: (idx: number, media: MediaItem) => void;
+  /**
+   * Resize mode for image thumbnails. Chat usually wants `cover` to avoid letterboxing bars.
+   */
+  imageResizeMode?: 'contain' | 'cover';
 }): React.JSX.Element | null {
   const n = Array.isArray(mediaList) ? mediaList.length : 0;
   const loopEnabled = !!loop && n > 1;
@@ -212,7 +217,7 @@ export function MediaStackCarousel({
                   <Image
                     source={{ uri: thumbUri }}
                     style={[styles.mediaCappedImage, { width, height, borderRadius: cornerRadius }]}
-                    resizeMode="contain"
+                    resizeMode={imageResizeMode}
                     onLoad={(e) => {
                       if (!onImageAspect) return;
                       if (!thumbKey) return;

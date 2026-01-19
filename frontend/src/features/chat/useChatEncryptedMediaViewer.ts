@@ -1,5 +1,6 @@
 import * as React from 'react';
 
+import { getPreviewKind } from '../../utils/mediaKinds';
 import type {
   ChatMessage,
   DmMediaEnvelope,
@@ -28,6 +29,15 @@ type GroupMediaItem = { media: GroupMediaEnvelopeV1['media']; wrap: GroupMediaEn
 export function useChatEncryptedMediaViewer(opts: {
   isDm: boolean;
   isGroup: boolean;
+  /**
+   * Called to open a URL externally (browser / OS viewer / download).
+   * For example, ChatScreen passes `requestOpenLink`.
+   */
+  openExternalUrl?: (args: {
+    url: string;
+    fileName?: string;
+    contentType?: string;
+  }) => Promise<void> | void;
   viewer: {
     setState: (next: NonNullable<ChatMediaViewerState>) => void;
     setOpen: (next: boolean) => void;
@@ -46,6 +56,7 @@ export function useChatEncryptedMediaViewer(opts: {
   const {
     isDm,
     isGroup,
+    openExternalUrl,
     viewer,
     showAlert,
     parseDmMediaEnvelope,
@@ -65,9 +76,21 @@ export function useChatEncryptedMediaViewer(opts: {
       const items = normalizeGroupMediaItems(env);
       const it = items[idx];
       if (!it) return;
+      const previewKind = getPreviewKind({
+        kind: it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file',
+        contentType: it.media.contentType,
+      });
       try {
         // Intentionally await so we fail fast if decrypt is impossible.
-        await decryptGroupFileToCacheUri(msg, it);
+        const uri = await decryptGroupFileToCacheUri(msg, it);
+        if (openExternalUrl && previewKind === 'file') {
+          await openExternalUrl({
+            url: uri,
+            fileName: it.media.fileName,
+            contentType: it.media.contentType,
+          });
+          return;
+        }
         viewer.setState({
           mode: 'gdm',
           index: Math.max(0, Math.min(items.length - 1, idx)),
@@ -87,6 +110,7 @@ export function useChatEncryptedMediaViewer(opts: {
       viewer,
       parseGroupMediaEnvelope,
       normalizeGroupMediaItems,
+      openExternalUrl,
     ],
   );
 
@@ -99,9 +123,21 @@ export function useChatEncryptedMediaViewer(opts: {
       const items = normalizeDmMediaItems(env);
       const it = items[idx];
       if (!it) return;
+      const previewKind = getPreviewKind({
+        kind: it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file',
+        contentType: it.media.contentType,
+      });
       try {
         // Start viewer in DM mode; additional pages will decrypt lazily.
-        await decryptDmFileToCacheUri(msg, it);
+        const uri = await decryptDmFileToCacheUri(msg, it);
+        if (openExternalUrl && previewKind === 'file') {
+          await openExternalUrl({
+            url: uri,
+            fileName: it.media.fileName,
+            contentType: it.media.contentType,
+          });
+          return;
+        }
         viewer.setState({
           mode: 'dm',
           index: Math.max(0, Math.min(items.length - 1, idx)),
@@ -114,7 +150,15 @@ export function useChatEncryptedMediaViewer(opts: {
         showAlert('Open Failed', getErrorMessage(e) || 'Could not decrypt attachment');
       }
     },
-    [isDm, decryptDmFileToCacheUri, showAlert, viewer, parseDmMediaEnvelope, normalizeDmMediaItems],
+    [
+      isDm,
+      decryptDmFileToCacheUri,
+      showAlert,
+      viewer,
+      parseDmMediaEnvelope,
+      normalizeDmMediaItems,
+      openExternalUrl,
+    ],
   );
 
   return { openDmMediaViewer, openGroupMediaViewer };

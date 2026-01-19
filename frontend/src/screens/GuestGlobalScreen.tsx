@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Pressable } from 'react-native';
-import { Linking, Platform, useWindowDimensions, View } from 'react-native';
+import { Platform, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MediaViewerState } from '../components/MediaViewerModal';
@@ -32,6 +32,7 @@ import { useWebSafeInvertedListData } from '../hooks/useWebSafeInvertedListData'
 import { useWebWheelRefresh } from '../hooks/useWebWheelRefresh';
 import { markChannelAboutSeen } from '../utils/channelAboutSeen';
 import { GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
+import { openExternalFile } from '../utils/openExternalFile';
 import { guestReactionInfoModalStyles, styles } from './GuestGlobalScreen.styles';
 
 export default function GuestGlobalScreen({
@@ -185,7 +186,13 @@ export default function GuestGlobalScreen({
     resolveUrlForPath: (path) => resolvePathUrl(String(path)),
     includeFilesInViewer: false,
     openExternalIfFile: true,
-    openExternalUrl: (url) => Linking.openURL(url),
+    openExternalUrl: ({ url, fileName, contentType }) =>
+      openExternalFile({
+        url,
+        fileName,
+        contentType,
+        requestOpenLink: Platform.OS === 'web' ? requestOpenLink : undefined,
+      }),
     viewer,
     buildGlobalState: ({ index, items }) => ({
       mode: 'global' as const,

@@ -10,7 +10,11 @@ export function useOpenGlobalViewer<TViewerState>(opts: {
   resolveUrlForPath: (path: string) => Promise<string | null> | string | null;
   includeFilesInViewer: boolean;
   openExternalIfFile: boolean;
-  openExternalUrl?: (url: string) => Promise<void> | void;
+  openExternalUrl?: (args: {
+    url: string;
+    fileName?: string;
+    contentType?: string;
+  }) => Promise<void> | void;
   viewer: {
     setState: React.Dispatch<React.SetStateAction<TViewerState | null>>;
     setOpen: (v: boolean) => void;
@@ -37,7 +41,12 @@ export function useOpenGlobalViewer<TViewerState>(opts: {
       });
       if (!result) return;
       if (result.mode === 'external') {
-        if (openExternalUrl) await openExternalUrl(result.url);
+        if (openExternalUrl)
+          await openExternalUrl({
+            url: result.url,
+            fileName: result.fileName,
+            contentType: result.contentType,
+          });
         return;
       }
       viewer.setState(buildGlobalState({ index: result.index, items: result.items }));

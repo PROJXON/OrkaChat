@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, Text, View } from 'react-native';
 
+import { FileAttachmentTile } from '../../components/media/FileAttachmentTile';
 import { MediaStackCarousel } from '../../components/MediaStackCarousel';
 import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
 import type { ChatScreenStyles } from '../../screens/ChatScreen.styles';
@@ -11,6 +12,7 @@ import { formatMessageMetaTimestamp } from '../../utils/chatDates';
 import { getOlderNeighbor } from '../../utils/listNeighbors';
 import {
   isImageLike as isImageLikeMedia,
+  isPreviewableMedia,
   isVideoLike as isVideoLikeMedia,
 } from '../../utils/mediaKinds';
 import { getChatSenderKey } from '../../utils/senderKeys';
@@ -206,11 +208,14 @@ export function renderChatListItem(args: {
   const media = mediaList.length ? mediaList[0] : null;
   const mediaLooksImage = !!media && isImageLikeMedia(media);
   const mediaLooksVideo = !!media && isVideoLikeMedia(media);
+  const hasAnyPreviewableMedia = !!mediaList.length && mediaList.some((m) => isPreviewableMedia(m));
   // IMPORTANT: if the message is still encrypted (not decrypted yet),
   // always render it as a normal encrypted-text bubble so media placeholders
   // don't appear larger than encrypted text placeholders.
   const isStillEncrypted = (!!item.encrypted || !!item.groupEncrypted) && !item.decryptedText;
-  const hasMedia = !!mediaList.length && !isStillEncrypted;
+  // Only images/videos should render in the large "media card" UI.
+  // File-only messages render as normal bubbles with attachment tiles.
+  const hasMedia = hasAnyPreviewableMedia && !isStillEncrypted;
   const thumbKeyPath =
     mediaLooksImage || mediaLooksVideo ? media?.thumbPath || media?.path : undefined;
   const thumbAspect =
@@ -257,6 +262,8 @@ export function renderChatListItem(args: {
         isDark={isDark}
         cornerRadius={0}
         loop
+        // Avoid letterboxing seams/bars in chat thumbnails (esp. outgoing on mobile).
+        imageResizeMode="cover"
         uriByPath={isEncryptedChat ? EMPTY_URI_BY_PATH : mediaUrlByPath}
         thumbUriByPath={isEncryptedChat ? dmThumbUriByPath : undefined}
         onImageAspect={(keyPath, aspect) => {
@@ -292,6 +299,25 @@ export function renderChatListItem(args: {
           else openViewer(mediaList, idx);
         }}
       />
+    ) : null;
+
+  const renderAttachments =
+    mediaList.length && !hasMedia && !isDeleted && !isStillEncrypted ? (
+      <View style={{ gap: 8 }}>
+        {mediaList.map((m2, idx2) => (
+          <FileAttachmentTile
+            key={`file:${item.id}:${String(m2.path || '')}:${idx2}`}
+            item={m2}
+            isDark={isDark}
+            isOutgoing={isOutgoing}
+            onPress={() => {
+              if (isDm) return void openDmMediaViewer(item, idx2);
+              if (isGroup) return void openGroupMediaViewer(item, idx2);
+              return void openViewer(mediaList, idx2);
+            }}
+          />
+        ))}
+      </View>
     ) : null;
 
   return (
@@ -364,6 +390,7 @@ export function renderChatListItem(args: {
       latestOutgoingMessageId={latestOutgoingMessageId}
       retryFailedMessage={retryFailedMessage}
       renderMediaCarousel={renderMediaCarousel}
+      renderAttachments={renderAttachments}
     />
   );
 }

@@ -293,7 +293,8 @@ export const styles = StyleSheet.create({
   messageBubbleIncoming: { backgroundColor: PALETTE.paper210 },
   messageBubbleIncomingDark: { backgroundColor: APP_COLORS.dark.bg.header },
   messageBubbleOutgoing: { backgroundColor: APP_COLORS.light.brand.primary },
-  messageBubbleEditing: { maxWidth: '96%', width: '96%' },
+  // Ensure inline-edit controls (Save/Cancel) have comfortable space and don't look clipped.
+  messageBubbleEditing: { maxWidth: '96%', width: '96%', paddingBottom: 12 },
   // Retry hint needs to be readable on both light surfaces and the outgoing blue bubble.
   sendFailedText: { marginTop: 6, fontSize: 12, color: PALETTE.dangerRedDark, fontStyle: 'italic' },
   sendFailedTextDark: { color: APP_COLORS.dark.status.errorText },
@@ -1219,8 +1220,7 @@ export const styles = StyleSheet.create({
   mediaHeaderCaptionFlex: { flex: 1, marginTop: 0 },
   mediaHeaderCaptionIndicators: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginLeft: 10,
+    alignItems: 'center',
     gap: 6,
   },
   reactionMiniChip: {

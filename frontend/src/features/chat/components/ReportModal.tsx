@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import {
   Image,
@@ -20,7 +21,13 @@ import {
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
-import { previewLabelForMedia } from '../../../utils/mediaKinds';
+import {
+  attachmentLabelForMedia,
+  fileBadgeForMedia,
+  fileBrandColorForMedia,
+  fileIconNameForMedia,
+  getPreviewKind,
+} from '../../../utils/mediaKinds';
 import {
   normalizeChatMediaList,
   normalizeDmMediaItems,
@@ -423,10 +430,11 @@ export function ReportModal({
                     })();
 
                     const mediaLabel = (() => {
-                      return previewLabelForMedia({
+                      return attachmentLabelForMedia({
                         kind: media?.kind ?? 'file',
                         contentType:
                           typeof media?.contentType === 'string' ? media.contentType : undefined,
+                        fileName: typeof media?.fileName === 'string' ? media.fileName : undefined,
                       });
                     })();
                     const mediaMetaLabel =
@@ -463,7 +471,9 @@ export function ReportModal({
 
                     const thumbPath = media?.thumbPath || media?.path || '';
                     const isEnc = typeof thumbPath === 'string' && thumbPath.includes('.enc');
-                    const thumbUrl = !isEnc && thumbPath ? cdnMedia.get(thumbPath) : '';
+                    const previewKind = media ? getPreviewKind(media) : 'file';
+                    const thumbUrl =
+                      !isEnc && previewKind !== 'file' && thumbPath ? cdnMedia.get(thumbPath) : '';
 
                     if (thumbUrl) {
                       return (
@@ -524,16 +534,90 @@ export function ReportModal({
                     if (media?.path) {
                       const line1 =
                         `${mediaMetaLabel || ''}${text ? `${mediaMetaLabel ? ': ' : ''}${text.slice(0, 200)}` : ''}${isEnc ? ' (encrypted attachment)' : ''}`.trim();
+                      const badge = fileBadgeForMedia({
+                        kind: media.kind,
+                        contentType: media.contentType,
+                        fileName: media.fileName,
+                      });
+                      const iconName = fileIconNameForMedia({
+                        kind: media.kind,
+                        contentType: media.contentType,
+                        fileName: media.fileName,
+                      });
+                      const brandColor = fileBrandColorForMedia({
+                        kind: media.kind,
+                        contentType: media.contentType,
+                        fileName: media.fileName,
+                      });
                       return (
-                        <Text
-                          style={[
-                            styles.reportPreviewText,
-                            isDark ? styles.reportPreviewTextDark : null,
-                          ]}
-                        >
-                          {line1 || (isEnc ? '(encrypted attachment)' : '')}
-                          {mediaFileNamesLines ? `\n${mediaFileNamesLines}` : ''}
-                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                          <View
+                            style={{
+                              width: 56,
+                              height: 56,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: 'transparent',
+                            }}
+                          >
+                            {iconName ? (
+                              <MaterialCommunityIcons
+                                name={iconName as never}
+                                size={30}
+                                color={
+                                  brandColor ||
+                                  (isDark
+                                    ? APP_COLORS.dark.text.primary
+                                    : APP_COLORS.light.text.primary)
+                                }
+                              />
+                            ) : (
+                              <View
+                                style={{
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 6,
+                                  borderRadius: 999,
+                                  backgroundColor: isDark
+                                    ? APP_COLORS.dark.bg.header
+                                    : PALETTE.paper240,
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.reportPreviewText,
+                                    isDark ? styles.reportPreviewTextDark : null,
+                                    { fontWeight: '900' },
+                                  ]}
+                                >
+                                  {badge}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text
+                              style={[
+                                styles.reportPreviewText,
+                                isDark ? styles.reportPreviewTextDark : null,
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {line1 || (isEnc ? '(encrypted attachment)' : '')}
+                            </Text>
+                            {mediaFileNamesLines ? (
+                              <Text
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                  { opacity: 0.75, marginTop: 4 },
+                                ]}
+                                numberOfLines={4}
+                              >
+                                {mediaFileNamesLines}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </View>
                       );
                     }
 
