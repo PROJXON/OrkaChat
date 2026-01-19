@@ -133,7 +133,8 @@ export default function GuestGlobalScreen({
     },
   });
 
-  const { requestOpenLink, closeConfirmLink, confirmLinkModal } = useConfirmLinkModal(isDark);
+  const { requestOpenLink, requestOpenFile, closeConfirmLink, confirmLinkModal } =
+    useConfirmLinkModal(isDark);
 
   const requestSignIn = useGuestRequestSignIn({
     onSignIn,
@@ -191,7 +192,7 @@ export default function GuestGlobalScreen({
         url,
         fileName,
         contentType,
-        requestOpenLink: Platform.OS === 'web' ? requestOpenLink : undefined,
+        requestOpenFile: Platform.OS === 'web' ? requestOpenFile : undefined,
       }),
     viewer,
     buildGlobalState: ({ index, items }) => ({

@@ -210,7 +210,7 @@ export function MediaStackCarousel({
               onPress={onPress}
               style={{ width, height }}
               accessibilityRole="button"
-              accessibilityLabel="Open attachment"
+              accessibilityLabel="Open Attachment"
             >
               {thumbUri && (looksImage || looksVideo) ? (
                 looksImage ? (

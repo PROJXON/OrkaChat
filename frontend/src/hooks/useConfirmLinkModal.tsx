@@ -6,11 +6,12 @@ import { useConfirmLink } from './useConfirmLink';
 
 export function useConfirmLinkModal(isDark: boolean): {
   requestOpenLink: (url: string) => void;
+  requestOpenFile: (args: { url: string; fileName?: string }) => void;
   closeConfirmLink: () => void;
   onLinkConfirmOpened: () => void;
   confirmLinkModal: React.JSX.Element | null;
 } {
-  const { state, requestOpenLink, close, onOpened } = useConfirmLink();
+  const { state, requestOpenLink, requestOpenFile, close, onOpened } = useConfirmLink();
 
   const confirmLinkModal = state.open ? (
     <ConfirmLinkModal
@@ -18,6 +19,9 @@ export function useConfirmLinkModal(isDark: boolean): {
       isDark={isDark}
       url={state.url}
       domain={state.domain}
+      title={state.mode === 'file' ? 'Open Attachment?' : 'Open External Link?'}
+      fileName={state.mode === 'file' ? state.fileName : undefined}
+      hideUrl={state.mode === 'file'}
       onCancel={close}
       onOpen={() => {
         const u = String(state.url || '').trim();
@@ -30,6 +34,7 @@ export function useConfirmLinkModal(isDark: boolean): {
 
   return {
     requestOpenLink,
+    requestOpenFile,
     closeConfirmLink: close,
     onLinkConfirmOpened: onOpened,
     confirmLinkModal,

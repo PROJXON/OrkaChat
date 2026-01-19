@@ -682,7 +682,7 @@ export default function ChatScreen({
     channelMembersActiveCount,
     channelMembersActiveCountHint,
   ]);
-  const { requestOpenLink, confirmLinkModal } = useConfirmLinkModal(isDark);
+  const { requestOpenLink, requestOpenFile, confirmLinkModal } = useConfirmLinkModal(isDark);
   const { refreshChannelRoster } = useChannelRoster({
     apiUrl: API_URL,
     enabled: isChannel,
@@ -880,7 +880,7 @@ export default function ChatScreen({
         fileName,
         contentType,
         // Web: confirm before opening (prevents surprise downloads).
-        requestOpenLink: Platform.OS === 'web' ? requestOpenLink : undefined,
+        requestOpenFile: Platform.OS === 'web' ? requestOpenFile : undefined,
       }),
     viewer,
     buildGlobalState: ({ index, items }) => ({
@@ -936,7 +936,7 @@ export default function ChatScreen({
         url,
         fileName,
         contentType,
-        requestOpenLink: Platform.OS === 'web' ? requestOpenLink : undefined,
+        requestOpenFile: Platform.OS === 'web' ? requestOpenFile : undefined,
       }),
     viewer,
     showAlert,
