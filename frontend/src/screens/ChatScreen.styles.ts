@@ -532,8 +532,11 @@ export const styles = StyleSheet.create({
   mediaCardOuter: { position: 'relative', overflow: 'visible' },
   mediaCardIncoming: { backgroundColor: PALETTE.paper210 },
   mediaCardIncomingDark: { backgroundColor: APP_COLORS.dark.bg.header },
-  // Outgoing image thumbs use "contain" → use a neutral letterbox background (not brand-blue).
-  mediaCardOutgoing: { backgroundColor: PALETTE.slate900 },
+  // Outgoing media card body background.
+  // In light mode, keep it consistent with incoming (avoids "black screen" feel on file slides).
+  mediaCardOutgoing: { backgroundColor: PALETTE.paper210 },
+  // In dark mode, keep a darker canvas behind media.
+  mediaCardOutgoingDark: { backgroundColor: PALETTE.slate900 },
   mediaHeader: {
     paddingHorizontal: 12,
     paddingTop: 6,

@@ -252,6 +252,14 @@ export function renderChatListItem(args: {
     ? ''
     : `${metaPrefix}${formatted}${expiresIn != null ? ` · disappears in ${formatRemaining(expiresIn)}` : ''}`;
 
+  // NOTE: This file is a render helper, not a React component, so we MUST NOT use hooks here.
+
+  const openFileAtOriginalIdx = (originalIdx: number) => {
+    if (isDm) return void openDmMediaViewer(item, originalIdx);
+    if (isGroup) return void openGroupMediaViewer(item, originalIdx);
+    return void openViewer(mediaList, originalIdx);
+  };
+
   const renderMediaCarousel =
     mediaList.length && hasMedia && !isDeleted ? (
       <MediaStackCarousel
@@ -301,20 +309,21 @@ export function renderChatListItem(args: {
       />
     ) : null;
 
+  const attachmentsToRender =
+    !mediaList.length || isDeleted || isStillEncrypted || hasMedia
+      ? []
+      : mediaList.map((m, idx2) => ({ m, idx: idx2 }));
+
   const renderAttachments =
-    mediaList.length && !hasMedia && !isDeleted && !isStillEncrypted ? (
+    attachmentsToRender.length && !isDeleted && !isStillEncrypted ? (
       <View style={{ gap: 8 }}>
-        {mediaList.map((m2, idx2) => (
+        {attachmentsToRender.map(({ m: m2, idx: idx2 }, renderIdx) => (
           <FileAttachmentTile
-            key={`file:${item.id}:${String(m2.path || '')}:${idx2}`}
+            key={`file:${item.id}:${String(m2.path || '')}:${idx2}:${renderIdx}`}
             item={m2}
             isDark={isDark}
             isOutgoing={isOutgoing}
-            onPress={() => {
-              if (isDm) return void openDmMediaViewer(item, idx2);
-              if (isGroup) return void openGroupMediaViewer(item, idx2);
-              return void openViewer(mediaList, idx2);
-            }}
+            onPress={() => openFileAtOriginalIdx(idx2)}
           />
         ))}
       </View>

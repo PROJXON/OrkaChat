@@ -255,7 +255,9 @@ export function ChatMessageRow(props: {
                 style={[
                   styles.mediaCard,
                   isOutgoing
-                    ? styles.mediaCardOutgoing
+                    ? isDark
+                      ? styles.mediaCardOutgoingDark
+                      : styles.mediaCardOutgoing
                     : isDark
                       ? styles.mediaCardIncomingDark
                       : styles.mediaCardIncoming,

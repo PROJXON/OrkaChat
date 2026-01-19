@@ -26,6 +26,16 @@ function getErrorMessage(err: unknown): string {
 type DmMediaItem = { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] };
 type GroupMediaItem = { media: GroupMediaEnvelopeV1['media']; wrap: GroupMediaEnvelopeV1['wrap'] };
 
+function previewKindForEncryptedMedia(media: {
+  kind: string;
+  contentType?: string;
+}): 'image' | 'video' | 'file' {
+  return getPreviewKind({
+    kind: media.kind === 'video' ? 'video' : media.kind === 'image' ? 'image' : 'file',
+    contentType: media.contentType,
+  });
+}
+
 export function useChatEncryptedMediaViewer(opts: {
   isDm: boolean;
   isGroup: boolean;
@@ -76,10 +86,7 @@ export function useChatEncryptedMediaViewer(opts: {
       const items = normalizeGroupMediaItems(env);
       const it = items[idx];
       if (!it) return;
-      const previewKind = getPreviewKind({
-        kind: it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file',
-        contentType: it.media.contentType,
-      });
+      const previewKind = previewKindForEncryptedMedia(it.media);
       try {
         // Intentionally await so we fail fast if decrypt is impossible.
         const uri = await decryptGroupFileToCacheUri(msg, it);
@@ -91,11 +98,24 @@ export function useChatEncryptedMediaViewer(opts: {
           });
           return;
         }
+
+        // Viewer should only include previewable media (image/video).
+        // Files are opened externally via attachment tiles.
+        const filtered: GroupMediaItem[] = [];
+        const previewIdxByOriginalIdx: number[] = [];
+        for (let i = 0; i < items.length; i++) {
+          if (previewKindForEncryptedMedia(items[i].media) !== 'file') {
+            previewIdxByOriginalIdx[i] = filtered.length;
+            filtered.push(items[i]);
+          }
+        }
+        const mappedIdx = previewIdxByOriginalIdx[idx] ?? 0;
+
         viewer.setState({
           mode: 'gdm',
-          index: Math.max(0, Math.min(items.length - 1, idx)),
+          index: Math.max(0, Math.min(filtered.length - 1, mappedIdx)),
           gdmMsg: msg,
-          gdmItems: items,
+          gdmItems: filtered,
           title: it.media.fileName,
         });
         viewer.setOpen(true);
@@ -123,10 +143,7 @@ export function useChatEncryptedMediaViewer(opts: {
       const items = normalizeDmMediaItems(env);
       const it = items[idx];
       if (!it) return;
-      const previewKind = getPreviewKind({
-        kind: it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file',
-        contentType: it.media.contentType,
-      });
+      const previewKind = previewKindForEncryptedMedia(it.media);
       try {
         // Start viewer in DM mode; additional pages will decrypt lazily.
         const uri = await decryptDmFileToCacheUri(msg, it);
@@ -138,11 +155,24 @@ export function useChatEncryptedMediaViewer(opts: {
           });
           return;
         }
+
+        // Viewer should only include previewable media (image/video).
+        // Files are opened externally via attachment tiles.
+        const filtered: DmMediaItem[] = [];
+        const previewIdxByOriginalIdx: number[] = [];
+        for (let i = 0; i < items.length; i++) {
+          if (previewKindForEncryptedMedia(items[i].media) !== 'file') {
+            previewIdxByOriginalIdx[i] = filtered.length;
+            filtered.push(items[i]);
+          }
+        }
+        const mappedIdx = previewIdxByOriginalIdx[idx] ?? 0;
+
         viewer.setState({
           mode: 'dm',
-          index: Math.max(0, Math.min(items.length - 1, idx)),
+          index: Math.max(0, Math.min(filtered.length - 1, mappedIdx)),
           dmMsg: msg,
-          dmItems: items,
+          dmItems: filtered,
           title: it.media.fileName,
         });
         viewer.setOpen(true);

@@ -1,11 +1,31 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 import type { MediaItem } from '../../types/media';
-import { isImageLike, isVideoLike } from '../../utils/mediaKinds';
+import {
+  attachmentLabelForMedia,
+  fileBadgeForMedia,
+  fileBrandColorForMedia,
+  fileIconNameForMedia,
+  isImageLike,
+  isVideoLike,
+} from '../../utils/mediaKinds';
 import { getNativeEventNumber } from '../../utils/nativeEvent';
 import { AnimatedDots } from '../AnimatedDots';
+
+function formatBytes(bytes: number | undefined): string {
+  const n = typeof bytes === 'number' && Number.isFinite(bytes) ? bytes : 0;
+  const units = ['B', 'KB', 'MB', 'GB'] as const;
+  let v = Math.max(0, n);
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
 
 export function MediaStackCarousel({
   messageId,
@@ -261,24 +281,77 @@ export function MediaStackCarousel({
               ) : (
                 <View
                   style={[
-                    styles.imageThumbWrap,
+                    styles.fileSlideOuter,
+                    isDark ? styles.fileSlideOuterDark : styles.fileSlideOuterLight,
                     {
                       width,
                       height,
-                      justifyContent: 'center',
-                      alignItems: 'center',
                       borderRadius: cornerRadius,
                     },
                   ]}
                 >
-                  <Text
-                    style={{
-                      color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
-                      fontWeight: '800',
-                    }}
-                  >
-                    {m2.fileName ? m2.fileName : 'Attachment'}
-                  </Text>
+                  {(() => {
+                    const iconName = fileIconNameForMedia(m2);
+                    const badge = fileBadgeForMedia(m2);
+                    const label = attachmentLabelForMedia(m2);
+                    const name = String(m2.fileName || '').trim() || label;
+                    const size =
+                      typeof (m2 as any).size === 'number' && Number.isFinite((m2 as any).size)
+                        ? ((m2 as any).size as number)
+                        : undefined;
+                    const brandColor = fileBrandColorForMedia(m2);
+                    const iconColor = brandColor
+                      ? brandColor
+                      : isDark
+                        ? APP_COLORS.dark.text.primary
+                        : APP_COLORS.light.text.primary;
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', maxWidth: 420 }}>
+                        {iconName ? (
+                          <View style={styles.fileSlideIconWrap}>
+                            <MaterialCommunityIcons
+                              name={iconName as never}
+                              size={44}
+                              color={iconColor}
+                            />
+                          </View>
+                        ) : (
+                          <View
+                            style={[
+                              styles.fileSlideBadge,
+                              isDark ? styles.fileSlideBadgeDark : null,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.fileSlideBadgeText,
+                                isDark ? styles.fileSlideBadgeTextDark : null,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {badge}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text
+                            style={[styles.fileSlideName, isDark ? styles.fileSlideNameDark : null]}
+                            numberOfLines={2}
+                            ellipsizeMode="tail"
+                          >
+                            {name}
+                          </Text>
+                          <Text
+                            style={[styles.fileSlideMeta, isDark ? styles.fileSlideMetaDark : null]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {size ? `${label} · ${formatBytes(size)}` : label}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
                 </View>
               )}
             </Pressable>
@@ -352,6 +425,49 @@ const styles = StyleSheet.create({
   videoThumbWrap: { position: 'relative', overflow: 'hidden' },
   mediaCappedImage: { backgroundColor: 'transparent' },
   imageThumbWrap: { overflow: 'hidden', backgroundColor: withAlpha(PALETTE.black, 0.06) },
+  fileSlideOuter: {
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  fileSlideOuterLight: { backgroundColor: withAlpha(PALETTE.black, 0.06) },
+  fileSlideOuterDark: { backgroundColor: withAlpha(PALETTE.white, 0.06) },
+  fileSlideIconWrap: {
+    width: 44,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  fileSlideBadge: {
+    minWidth: 50,
+    height: 34,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: withAlpha(APP_COLORS.light.brand.primary, 0.12),
+    marginRight: 6,
+  },
+  fileSlideBadgeDark: { backgroundColor: withAlpha(APP_COLORS.light.brand.primary, 0.22) },
+  fileSlideBadgeText: { color: APP_COLORS.light.brand.primary, fontWeight: '900', fontSize: 12 },
+  fileSlideBadgeTextDark: { color: APP_COLORS.dark.text.primary },
+  fileSlideName: {
+    color: APP_COLORS.light.text.primary,
+    fontWeight: '800',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  fileSlideNameDark: { color: APP_COLORS.dark.text.primary },
+  fileSlideMeta: {
+    color: APP_COLORS.light.text.secondary,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  fileSlideMetaDark: { color: APP_COLORS.dark.text.secondary },
   videoPlayOverlay: {
     position: 'absolute',
     top: 0,

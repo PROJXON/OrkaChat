@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { AppTextInput } from '../../../components/AppTextInput';
+import { RichText } from '../../../components/RichText';
 import type { CdnUrlCacheApi } from '../../../hooks/useCdnUrlCache';
 import {
   calcCenteredModalBottomPadding,
@@ -429,19 +430,47 @@ export function ReportModal({
                       return shown.join('\n') + (extra > 0 ? `\n+${extra} more` : '');
                     })();
 
-                    const mediaLabel = (() => {
+                    const attachmentTypeLabel = (m: MediaItem): string => {
+                      const kind = getPreviewKind(m);
+                      if (kind === 'file') {
+                        return fileBadgeForMedia({
+                          kind: m.kind,
+                          contentType: m.contentType,
+                          fileName: m.fileName,
+                        });
+                      }
                       return attachmentLabelForMedia({
-                        kind: media?.kind ?? 'file',
-                        contentType:
-                          typeof media?.contentType === 'string' ? media.contentType : undefined,
-                        fileName: typeof media?.fileName === 'string' ? media.fileName : undefined,
+                        kind: m.kind ?? 'file',
+                        contentType: typeof m.contentType === 'string' ? m.contentType : undefined,
+                        fileName: typeof m.fileName === 'string' ? m.fileName : undefined,
                       });
+                    };
+
+                    const mediaTypesLabel = (() => {
+                      if (!previewMediaList.length) return '';
+                      const raw = previewMediaList
+                        .map((m) => attachmentTypeLabel(m))
+                        .filter(Boolean);
+                      if (!raw.length) return '';
+                      // Keep order, de-dupe.
+                      const seen = new Set<string>();
+                      const uniq: string[] = [];
+                      for (const t of raw) {
+                        if (seen.has(t)) continue;
+                        seen.add(t);
+                        uniq.push(t);
+                      }
+                      const max = 3;
+                      const shown = uniq.slice(0, max);
+                      const extra = uniq.length - shown.length;
+                      return shown.join(', ') + (extra > 0 ? ` +${extra} more` : '');
                     })();
+
                     const mediaMetaLabel =
                       mediaCount > 1
-                        ? `${mediaLabel} · ${mediaCount} attachments`
+                        ? `${mediaTypesLabel || 'Attachments'} · ${mediaCount} attachments`
                         : mediaCount === 1
-                          ? mediaLabel
+                          ? mediaTypesLabel || 'Attachment'
                           : '';
 
                     const text = (() => {
@@ -498,21 +527,26 @@ export function ReportModal({
                                   isDark ? styles.reportPreviewTextDark : null,
                                   { opacity: 0.75, marginBottom: 2 },
                                 ]}
-                                numberOfLines={1}
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
                               >
                                 {mediaMetaLabel}
                               </Text>
                             ) : null}
                             {text ? (
-                              <Text
+                              <RichText
+                                text={text.slice(0, 200)}
+                                isDark={isDark}
+                                enableMentions={false}
+                                variant="neutral"
                                 style={[
                                   styles.reportPreviewText,
                                   isDark ? styles.reportPreviewTextDark : null,
                                 ]}
+                                linkStyle={{ textDecorationLine: 'underline' }}
                                 numberOfLines={3}
-                              >
-                                {text.slice(0, 200)}
-                              </Text>
+                                ellipsizeMode="tail"
+                              />
                             ) : null}
                             {mediaFileNames.length ? (
                               <Text
@@ -532,8 +566,9 @@ export function ReportModal({
                     }
 
                     if (media?.path) {
-                      const line1 =
-                        `${mediaMetaLabel || ''}${text ? `${mediaMetaLabel ? ': ' : ''}${text.slice(0, 200)}` : ''}${isEnc ? ' (encrypted attachment)' : ''}`.trim();
+                      const captionSnippet = text ? text.slice(0, 200) : '';
+                      const encSuffix = isEnc ? ' (encrypted attachment)' : '';
+                      const hasCaptionLine = !!`${captionSnippet}${encSuffix}`.trim();
                       const badge = fileBadgeForMedia({
                         kind: media.kind,
                         contentType: media.contentType,
@@ -550,11 +585,11 @@ export function ReportModal({
                         fileName: media.fileName,
                       });
                       return (
-                        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                           <View
                             style={{
-                              width: 56,
-                              height: 56,
+                              width: 50,
+                              height: 50,
                               alignItems: 'center',
                               justifyContent: 'center',
                               backgroundColor: 'transparent',
@@ -563,7 +598,7 @@ export function ReportModal({
                             {iconName ? (
                               <MaterialCommunityIcons
                                 name={iconName as never}
-                                size={30}
+                                size={50}
                                 color={
                                   brandColor ||
                                   (isDark
@@ -574,8 +609,8 @@ export function ReportModal({
                             ) : (
                               <View
                                 style={{
-                                  paddingHorizontal: 10,
-                                  paddingVertical: 6,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 5,
                                   borderRadius: 999,
                                   backgroundColor: isDark
                                     ? APP_COLORS.dark.bg.header
@@ -595,21 +630,50 @@ export function ReportModal({
                             )}
                           </View>
                           <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text
-                              style={[
-                                styles.reportPreviewText,
-                                isDark ? styles.reportPreviewTextDark : null,
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {line1 || (isEnc ? '(encrypted attachment)' : '')}
-                            </Text>
+                            {mediaMetaLabel ? (
+                              <Text
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                  { opacity: 0.75, marginBottom: 2 },
+                                ]}
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
+                              >
+                                {mediaMetaLabel}
+                              </Text>
+                            ) : null}
+                            {captionSnippet || encSuffix ? (
+                              <RichText
+                                text={`${captionSnippet}${encSuffix}`.trim()}
+                                isDark={isDark}
+                                enableMentions={false}
+                                variant="neutral"
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                ]}
+                                linkStyle={{ textDecorationLine: 'underline' }}
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
+                              />
+                            ) : isEnc ? (
+                              <Text
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                ]}
+                                numberOfLines={2}
+                              >
+                                (encrypted attachment)
+                              </Text>
+                            ) : null}
                             {mediaFileNamesLines ? (
                               <Text
                                 style={[
                                   styles.reportPreviewText,
                                   isDark ? styles.reportPreviewTextDark : null,
-                                  { opacity: 0.75, marginTop: 4 },
+                                  { opacity: 0.75, marginTop: hasCaptionLine ? 4 : 0 },
                                 ]}
                                 numberOfLines={4}
                               >
@@ -622,14 +686,19 @@ export function ReportModal({
                     }
 
                     return (
-                      <Text
+                      <RichText
+                        text={text ? text.slice(0, 200) : '(no text)'}
+                        isDark={isDark}
+                        enableMentions={false}
+                        variant="neutral"
                         style={[
                           styles.reportPreviewText,
                           isDark ? styles.reportPreviewTextDark : null,
                         ]}
-                      >
-                        {text ? text.slice(0, 200) : '(no text)'}
-                      </Text>
+                        linkStyle={{ textDecorationLine: 'underline' }}
+                        numberOfLines={6}
+                        ellipsizeMode="tail"
+                      />
                     );
                   })()}
                 </View>
