@@ -101,6 +101,62 @@ export function MediaStackCarousel({
     }, 0);
   }, [messageId, loopEnabled, width]);
 
+  // Web: map vertical wheel to horizontal paging so trackpad/mouse wheel "swipes" work naturally.
+  // Use a *passive* DOM listener to avoid Chrome's non-passive wheel warnings.
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    let node: any = null;
+    const handler = (e: any) => {
+      try {
+        const dxRaw = e?.deltaX ?? 0;
+        const dyRaw = e?.deltaY ?? 0;
+        const dx = typeof dxRaw === 'number' ? dxRaw : Number(dxRaw);
+        const dy = typeof dyRaw === 'number' ? dyRaw : Number(dyRaw);
+        if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+        if (Math.abs(dy) <= Math.abs(dx)) return;
+        scrollRef.current?.scrollTo({
+          x: Math.max(0, scrollXRef.current + dy),
+          y: 0,
+          animated: false,
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    let cancelled = false;
+    const attach = () => {
+      if (cancelled) return;
+      try {
+        const scrollObj: any = scrollRef.current;
+        node =
+          scrollObj?.getScrollableNode?.() ??
+          scrollObj?.getInnerViewNode?.() ??
+          scrollObj?.getNode?.() ??
+          null;
+        if (!node || typeof node.addEventListener !== 'function') {
+          setTimeout(attach, 0);
+          return;
+        }
+        node.addEventListener('wheel', handler, { passive: true });
+      } catch {
+        // ignore
+      }
+    };
+    attach();
+
+    return () => {
+      cancelled = true;
+      try {
+        if (node && typeof node.removeEventListener === 'function') {
+          node.removeEventListener('wheel', handler);
+        }
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
   const goTo = React.useCallback(
     (idx: number) => {
       const safe = Math.max(0, Math.min(n - 1, idx));
@@ -178,25 +234,6 @@ export function MediaStackCarousel({
             setPageIdx(Math.max(0, Math.min(n - 1, raw - 1)));
           }
         }}
-        {...(Platform.OS === 'web'
-          ? {
-              // Web: map vertical wheel to horizontal paging so trackpad/mouse wheel "swipes" work naturally.
-              onWheel: (e: unknown) => {
-                const dx = getNativeEventNumber(e, ['nativeEvent', 'deltaX']);
-                const dy = getNativeEventNumber(e, ['nativeEvent', 'deltaY']);
-                if (Math.abs(dy) <= Math.abs(dx)) return;
-                try {
-                  scrollRef.current?.scrollTo({
-                    x: Math.max(0, scrollXRef.current + dy),
-                    y: 0,
-                    animated: false,
-                  });
-                } catch {
-                  // ignore
-                }
-              },
-            }
-          : {})}
       >
         {pages.map((m2, idx2) => {
           const looksImage = isImageLike(m2);

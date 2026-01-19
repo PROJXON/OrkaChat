@@ -131,6 +131,13 @@ export async function registerForDmPushNotifications(): Promise<{
     return { ok: false, reason: 'Missing API_URL' };
   }
 
+  // Web push is not wired up in this app (Expo push tokens are for native clients).
+  // On web, requesting notification permission automatically (e.g., on login) also triggers
+  // browser warnings because permission prompts must be initiated by a user gesture.
+  if (Platform.OS === 'web') {
+    return { ok: false, reason: 'Web push registration is disabled' };
+  }
+
   const Notifications = await tryImportNotifications();
   if (!Notifications)
     return { ok: false, reason: 'expo-notifications not installed (rebuild dev client)' };
@@ -240,6 +247,7 @@ export async function unregisterDmPushNotifications(): Promise<void> {
 }
 
 export async function setForegroundNotificationPolicy(): Promise<void> {
+  if (Platform.OS === 'web') return;
   const Notifications = await tryImportNotifications();
   if (!Notifications) return;
 

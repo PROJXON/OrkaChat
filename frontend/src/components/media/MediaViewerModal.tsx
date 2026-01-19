@@ -706,9 +706,13 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 34,
     lineHeight: 34,
-    textShadowColor: withAlpha(PALETTE.black, 0.55),
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { textShadow: `0px 2px 6px ${withAlpha(PALETTE.black, 0.55)}` }
+      : {
+          textShadowColor: withAlpha(PALETTE.black, 0.55),
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 6,
+        }),
   },
   // RN-web deprecates `style.resizeMode`; use the Image prop instead.
   viewerImage: { width: '100%', height: '100%' },
