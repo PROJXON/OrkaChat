@@ -398,7 +398,6 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
                   onMomentumScrollEnd={onMomentumEnd}
-                  contentOffset={{ x: pageW * (vs.index || 0), y: 0 }}
                   style={{ width: pageW, height: pageH }}
                 >
                   {Array.from({ length: count }).map((_, i) => {
@@ -490,6 +489,69 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                 </ScrollView>
               );
             })()}
+
+            {/* Native/mobile: show a subtle swipe affordance for multi-attachment viewers.
+                Tied to the same chrome opacity so it doesn't change auto-hide behavior. */}
+            {Platform.OS !== 'web' && viewerState
+              ? (() => {
+                  const vs = viewerState;
+                  const count = getCount(vs);
+                  if (count <= 1) return null;
+                  const idx = Math.max(0, Math.min(count - 1, vs.index || 0));
+                  const go = (dir: -1 | 1) => {
+                    const next = (idx + dir + count) % count;
+                    const w = Number(Dimensions.get('window')?.width ?? 1);
+                    try {
+                      viewerScrollRef.current?.scrollTo?.({ x: w * next, y: 0, animated: true });
+                    } catch {
+                      // ignore
+                    }
+                    showChromeBriefly();
+                  };
+                  return (
+                    <Animated.View
+                      style={[
+                        StyleSheet.absoluteFillObject,
+                        { opacity: chromeOpacity, zIndex: 11 },
+                      ]}
+                      pointerEvents={chromeVisible ? 'box-none' : 'none'}
+                    >
+                      <View style={styles.viewerSwipeHintChevrons} pointerEvents="box-none">
+                        <Pressable
+                          style={styles.viewerSwipeChevronBtn}
+                          onPress={() => go(-1)}
+                          accessibilityRole="button"
+                          accessibilityLabel="Previous attachment"
+                        >
+                          <Text style={styles.viewerSwipeChevronText}>‹</Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.viewerSwipeChevronBtn}
+                          onPress={() => go(1)}
+                          accessibilityRole="button"
+                          accessibilityLabel="Next attachment"
+                        >
+                          <Text style={styles.viewerSwipeChevronText}>›</Text>
+                        </Pressable>
+                      </View>
+                      <View style={styles.viewerSwipeHintDots}>
+                        {Array.from({ length: count }).map((_, i) => {
+                          const active = i === idx;
+                          return (
+                            <View
+                              key={`vh:${i}`}
+                              style={[
+                                styles.viewerSwipeDot,
+                                active ? styles.viewerSwipeDotActive : null,
+                              ]}
+                            />
+                          );
+                        })}
+                      </View>
+                    </Animated.View>
+                  );
+                })()
+              : null}
 
             {/* Web: swipe/drag paging can be flaky; provide explicit nav controls for multi-media. */}
             {Platform.OS === 'web' && viewerState
@@ -605,6 +667,52 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 28,
     marginTop: -2,
+  },
+  viewerSwipeHintDots: {
+    position: 'absolute',
+    bottom: 18,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  viewerSwipeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: withAlpha(PALETTE.white, 0.35),
+  },
+  viewerSwipeDotActive: { backgroundColor: withAlpha(PALETTE.white, 0.9) },
+  viewerSwipeHintChevrons: {
+    position: 'absolute',
+    top: '50%',
+    left: 16,
+    right: 16,
+    marginTop: -24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  viewerSwipeChevronBtn: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerSwipeChevronText: {
+    color: withAlpha(PALETTE.white, 0.55),
+    fontWeight: '900',
+    fontSize: 34,
+    lineHeight: 34,
+    ...(Platform.OS === 'web'
+      ? { textShadow: `0px 2px 6px ${withAlpha(PALETTE.black, 0.55)}` }
+      : {
+          textShadowColor: withAlpha(PALETTE.black, 0.55),
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 6,
+        }),
   },
   // RN-web deprecates `style.resizeMode`; use the Image prop instead.
   viewerImage: { width: '100%', height: '100%' },

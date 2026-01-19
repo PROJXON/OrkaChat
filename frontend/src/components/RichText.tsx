@@ -243,6 +243,8 @@ export function RichText({
   mentionStyle,
   linkStyle,
   onOpenUrl,
+  numberOfLines,
+  ellipsizeMode,
 }: {
   text: string;
   isDark: boolean;
@@ -252,6 +254,8 @@ export function RichText({
   mentionStyle?: StyleProp<TextStyle>;
   linkStyle?: StyleProp<TextStyle>;
   onOpenUrl?: (url: string) => void | Promise<void>;
+  numberOfLines?: number;
+  ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip';
 }): React.JSX.Element {
   const ui = useUiPromptOptional();
 
@@ -313,7 +317,7 @@ export function RichText({
   const baseMention: TextStyle = { fontWeight: '900' };
 
   return (
-    <Text style={style}>
+    <Text style={style} numberOfLines={numberOfLines} ellipsizeMode={ellipsizeMode}>
       {segments.map((seg, idx) => {
         if (seg.kind === 'link') {
           const displayText = tryNormalizeUrlCandidate(seg.text)

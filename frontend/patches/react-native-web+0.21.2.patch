@@ -1,0 +1,22 @@
+diff --git a/node_modules/react-native-web/dist/vendor/react-native/VirtualizedList/index.js b/node_modules/react-native-web/dist/vendor/react-native/VirtualizedList/index.js
+index e561899..7f4c7a1 100644
+--- a/node_modules/react-native-web/dist/vendor/react-native/VirtualizedList/index.js
++++ b/node_modules/react-native-web/dist/vendor/react-native/VirtualizedList/index.js
+@@ -888,6 +888,9 @@ class VirtualizedList extends StateSafePureComponent {
+ 
+   // REACT-NATIVE-WEB patch to preserve during future RN merges: Support inverted wheel scroller.
+   setupWebWheelHandler() {
++    // Avoid attaching a non-passive wheel handler unless it's actually needed.
++    // We only need this on web when the list is inverted (the handler calls preventDefault()).
++    if (!this.props || !this.props.inverted) return;
+     if (this._scrollRef && this._scrollRef.getScrollableNode) {
+       this._scrollRef.getScrollableNode().addEventListener('wheel', this.invertedWheelEventHandler);
+     } else {
+@@ -898,6 +901,7 @@ class VirtualizedList extends StateSafePureComponent {
+ 
+   // REACT-NATIVE-WEB patch to preserve during future RN merges: Support inverted wheel scroller.
+   teardownWebWheelHandler() {
++    if (!this.props || !this.props.inverted) return;
+     if (this._scrollRef && this._scrollRef.getScrollableNode) {
+       this._scrollRef.getScrollableNode().removeEventListener('wheel', this.invertedWheelEventHandler);
+     }

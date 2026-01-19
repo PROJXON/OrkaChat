@@ -59,11 +59,28 @@ export function useChatWsConnection(opts: {
     }
     const ws = wsRef.current;
     wsRef.current = null;
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-      try {
-        ws.close(1000, 'app background');
-      } catch {
-        // ignore
+    if (ws) {
+      // NOTE (web): closing a socket while CONNECTING can produce noisy console errors like:
+      // "WebSocket is closed before the connection is established."
+      // Instead, defer the close until it opens (or fails naturally).
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.close(1000, 'app background');
+        } catch {
+          // ignore
+        }
+      } else if (ws.readyState === WebSocket.CONNECTING) {
+        try {
+          ws.onopen = () => {
+            try {
+              ws.close(1000, 'app background');
+            } catch {
+              // ignore
+            }
+          };
+        } catch {
+          // ignore
+        }
       }
     }
     setIsConnecting(false);

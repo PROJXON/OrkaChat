@@ -4,7 +4,7 @@ import { getPreviewKind, isPreviewableMedia } from './mediaKinds';
 export type GlobalViewerItem = { url: string; kind: 'image' | 'video' | 'file'; fileName?: string };
 
 export type OpenGlobalViewerResult =
-  | { mode: 'external'; url: string }
+  | { mode: 'external'; url: string; fileName?: string; contentType?: string }
   | { mode: 'viewer'; index: number; items: GlobalViewerItem[] }
   | null;
 
@@ -34,7 +34,9 @@ export async function openGlobalViewerFromMediaList(opts: {
   if (opts.openExternalIfFile && tapped?.path && tappedKind === 'file') {
     const u = await opts.resolveUrlForPath(String(tapped.path));
     const url = u ? String(u) : '';
-    return url ? { mode: 'external', url } : null;
+    return url
+      ? { mode: 'external', url, fileName: tapped.fileName, contentType: tapped.contentType }
+      : null;
   }
 
   // Chat: include everything (image/video/file) but drop items missing URLs, and use the original startIdx clamped to items.length.

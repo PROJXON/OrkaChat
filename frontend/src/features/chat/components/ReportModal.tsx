@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import {
   Image,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 
 import { AppTextInput } from '../../../components/AppTextInput';
+import { RichText } from '../../../components/RichText';
 import type { CdnUrlCacheApi } from '../../../hooks/useCdnUrlCache';
 import {
   calcCenteredModalBottomPadding,
@@ -20,7 +22,13 @@ import {
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
-import { previewLabelForMedia } from '../../../utils/mediaKinds';
+import {
+  attachmentLabelForMedia,
+  fileBadgeForMedia,
+  fileBrandColorForMedia,
+  fileIconNameForMedia,
+  getPreviewKind,
+} from '../../../utils/mediaKinds';
 import {
   normalizeChatMediaList,
   normalizeDmMediaItems,
@@ -422,18 +430,47 @@ export function ReportModal({
                       return shown.join('\n') + (extra > 0 ? `\n+${extra} more` : '');
                     })();
 
-                    const mediaLabel = (() => {
-                      return previewLabelForMedia({
-                        kind: media?.kind ?? 'file',
-                        contentType:
-                          typeof media?.contentType === 'string' ? media.contentType : undefined,
+                    const attachmentTypeLabel = (m: MediaItem): string => {
+                      const kind = getPreviewKind(m);
+                      if (kind === 'file') {
+                        return fileBadgeForMedia({
+                          kind: m.kind,
+                          contentType: m.contentType,
+                          fileName: m.fileName,
+                        });
+                      }
+                      return attachmentLabelForMedia({
+                        kind: m.kind ?? 'file',
+                        contentType: typeof m.contentType === 'string' ? m.contentType : undefined,
+                        fileName: typeof m.fileName === 'string' ? m.fileName : undefined,
                       });
+                    };
+
+                    const mediaTypesLabel = (() => {
+                      if (!previewMediaList.length) return '';
+                      const raw = previewMediaList
+                        .map((m) => attachmentTypeLabel(m))
+                        .filter(Boolean);
+                      if (!raw.length) return '';
+                      // Keep order, de-dupe.
+                      const seen = new Set<string>();
+                      const uniq: string[] = [];
+                      for (const t of raw) {
+                        if (seen.has(t)) continue;
+                        seen.add(t);
+                        uniq.push(t);
+                      }
+                      const max = 3;
+                      const shown = uniq.slice(0, max);
+                      const extra = uniq.length - shown.length;
+                      return shown.join(', ') + (extra > 0 ? ` +${extra} more` : '');
                     })();
+
                     const mediaMetaLabel =
                       mediaCount > 1
-                        ? `${mediaLabel} · ${mediaCount} attachments`
+                        ? `${mediaTypesLabel || 'Attachments'} · ${mediaCount} attachments`
                         : mediaCount === 1
-                          ? mediaLabel
+                          ? mediaTypesLabel || 'Attachment'
                           : '';
 
                     const text = (() => {
@@ -463,7 +500,9 @@ export function ReportModal({
 
                     const thumbPath = media?.thumbPath || media?.path || '';
                     const isEnc = typeof thumbPath === 'string' && thumbPath.includes('.enc');
-                    const thumbUrl = !isEnc && thumbPath ? cdnMedia.get(thumbPath) : '';
+                    const previewKind = media ? getPreviewKind(media) : 'file';
+                    const thumbUrl =
+                      !isEnc && previewKind !== 'file' && thumbPath ? cdnMedia.get(thumbPath) : '';
 
                     if (thumbUrl) {
                       return (
@@ -488,21 +527,26 @@ export function ReportModal({
                                   isDark ? styles.reportPreviewTextDark : null,
                                   { opacity: 0.75, marginBottom: 2 },
                                 ]}
-                                numberOfLines={1}
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
                               >
                                 {mediaMetaLabel}
                               </Text>
                             ) : null}
                             {text ? (
-                              <Text
+                              <RichText
+                                text={text.slice(0, 200)}
+                                isDark={isDark}
+                                enableMentions={false}
+                                variant="neutral"
                                 style={[
                                   styles.reportPreviewText,
                                   isDark ? styles.reportPreviewTextDark : null,
                                 ]}
+                                linkStyle={{ textDecorationLine: 'underline' }}
                                 numberOfLines={3}
-                              >
-                                {text.slice(0, 200)}
-                              </Text>
+                                ellipsizeMode="tail"
+                              />
                             ) : null}
                             {mediaFileNames.length ? (
                               <Text
@@ -522,30 +566,139 @@ export function ReportModal({
                     }
 
                     if (media?.path) {
-                      const line1 =
-                        `${mediaMetaLabel || ''}${text ? `${mediaMetaLabel ? ': ' : ''}${text.slice(0, 200)}` : ''}${isEnc ? ' (encrypted attachment)' : ''}`.trim();
+                      const captionSnippet = text ? text.slice(0, 200) : '';
+                      const encSuffix = isEnc ? ' (encrypted attachment)' : '';
+                      const hasCaptionLine = !!`${captionSnippet}${encSuffix}`.trim();
+                      const badge = fileBadgeForMedia({
+                        kind: media.kind,
+                        contentType: media.contentType,
+                        fileName: media.fileName,
+                      });
+                      const iconName = fileIconNameForMedia({
+                        kind: media.kind,
+                        contentType: media.contentType,
+                        fileName: media.fileName,
+                      });
+                      const brandColor = fileBrandColorForMedia({
+                        kind: media.kind,
+                        contentType: media.contentType,
+                        fileName: media.fileName,
+                      });
                       return (
-                        <Text
-                          style={[
-                            styles.reportPreviewText,
-                            isDark ? styles.reportPreviewTextDark : null,
-                          ]}
-                        >
-                          {line1 || (isEnc ? '(encrypted attachment)' : '')}
-                          {mediaFileNamesLines ? `\n${mediaFileNamesLines}` : ''}
-                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                          <View
+                            style={{
+                              width: 50,
+                              height: 50,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: 'transparent',
+                            }}
+                          >
+                            {iconName ? (
+                              <MaterialCommunityIcons
+                                name={iconName as never}
+                                size={50}
+                                color={
+                                  brandColor ||
+                                  (isDark
+                                    ? APP_COLORS.dark.text.primary
+                                    : APP_COLORS.light.text.primary)
+                                }
+                              />
+                            ) : (
+                              <View
+                                style={{
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 5,
+                                  borderRadius: 999,
+                                  backgroundColor: isDark
+                                    ? APP_COLORS.dark.bg.header
+                                    : PALETTE.paper240,
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.reportPreviewText,
+                                    isDark ? styles.reportPreviewTextDark : null,
+                                    { fontWeight: '900' },
+                                  ]}
+                                >
+                                  {badge}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            {mediaMetaLabel ? (
+                              <Text
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                  { opacity: 0.75, marginBottom: 2 },
+                                ]}
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
+                              >
+                                {mediaMetaLabel}
+                              </Text>
+                            ) : null}
+                            {captionSnippet || encSuffix ? (
+                              <RichText
+                                text={`${captionSnippet}${encSuffix}`.trim()}
+                                isDark={isDark}
+                                enableMentions={false}
+                                variant="neutral"
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                ]}
+                                linkStyle={{ textDecorationLine: 'underline' }}
+                                numberOfLines={2}
+                                ellipsizeMode="tail"
+                              />
+                            ) : isEnc ? (
+                              <Text
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                ]}
+                                numberOfLines={2}
+                              >
+                                (encrypted attachment)
+                              </Text>
+                            ) : null}
+                            {mediaFileNamesLines ? (
+                              <Text
+                                style={[
+                                  styles.reportPreviewText,
+                                  isDark ? styles.reportPreviewTextDark : null,
+                                  { opacity: 0.75, marginTop: hasCaptionLine ? 4 : 0 },
+                                ]}
+                                numberOfLines={4}
+                              >
+                                {mediaFileNamesLines}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </View>
                       );
                     }
 
                     return (
-                      <Text
+                      <RichText
+                        text={text ? text.slice(0, 200) : '(no text)'}
+                        isDark={isDark}
+                        enableMentions={false}
+                        variant="neutral"
                         style={[
                           styles.reportPreviewText,
                           isDark ? styles.reportPreviewTextDark : null,
                         ]}
-                      >
-                        {text ? text.slice(0, 200) : '(no text)'}
-                      </Text>
+                        linkStyle={{ textDecorationLine: 'underline' }}
+                        numberOfLines={6}
+                        ellipsizeMode="tail"
+                      />
                     );
                   })()}
                 </View>

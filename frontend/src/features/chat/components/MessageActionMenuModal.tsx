@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import {
   Animated,
@@ -12,7 +13,14 @@ import {
   View,
 } from 'react-native';
 
+import { RichText } from '../../../components/RichText';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import {
+  attachmentLabelForMedia,
+  fileBadgeForMedia,
+  fileBrandColorForMedia,
+  fileIconNameForMedia,
+} from '../../../utils/mediaKinds';
 import {
   normalizeChatMediaList,
   normalizeDmMediaItems,
@@ -235,6 +243,8 @@ export function MessageActionMenuModal({
                 let caption = '';
                 let thumbUri: string | null = null;
                 let kind: 'image' | 'video' | 'file' | null = null;
+                let fileName: string | undefined;
+                let contentType: string | undefined;
                 let hasMedia = false;
                 let mediaCount = 0;
 
@@ -262,6 +272,14 @@ export function MessageActionMenuModal({
                         : null;
                     const k = firstRec && typeof firstRec.kind === 'string' ? firstRec.kind : null;
                     kind = k === 'image' || k === 'video' ? k : 'file';
+                    fileName =
+                      firstRec && typeof firstRec.fileName === 'string'
+                        ? String(firstRec.fileName)
+                        : undefined;
+                    contentType =
+                      firstRec && typeof firstRec.contentType === 'string'
+                        ? String(firstRec.contentType)
+                        : undefined;
                     // Reuse decrypted thumb cache so message options show actual previews.
                     const thumbKey =
                       firstRec &&
@@ -269,7 +287,7 @@ export function MessageActionMenuModal({
                         typeof firstRec.thumbPath === 'number')
                         ? String(firstRec.thumbPath)
                         : null;
-                    if (thumbKey && dmThumbUriByPath[thumbKey]) {
+                    if (kind !== 'file' && thumbKey && dmThumbUriByPath[thumbKey]) {
                       thumbUri = dmThumbUriByPath[thumbKey];
                     } else {
                       thumbUri = null;
@@ -287,8 +305,13 @@ export function MessageActionMenuModal({
                     caption = String(env?.text || '');
                     const first = envList[0];
                     kind = first.kind === 'image' || first.kind === 'video' ? first.kind : 'file';
+                    fileName =
+                      typeof first.fileName === 'string' ? String(first.fileName) : undefined;
+                    contentType =
+                      typeof first.contentType === 'string' ? String(first.contentType) : undefined;
                     const key = String(first.thumbPath || first.path);
-                    thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+                    // Only show a thumbnail for actual images/videos.
+                    thumbUri = kind !== 'file' && mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
                   } else {
                     caption = raw;
                   }
@@ -297,46 +320,125 @@ export function MessageActionMenuModal({
                 if (!hasMedia) {
                   return (
                     <View style={[styles.messageBubble, bubbleStyle]}>
-                      <Text style={[styles.messageText, textStyle]}>{caption}</Text>
+                      <RichText
+                        text={String(caption || '')}
+                        isDark={isDark}
+                        enableMentions={!isDm}
+                        variant={isOutgoing ? 'outgoing' : 'incoming'}
+                        style={[styles.messageText, textStyle]}
+                      />
                     </View>
                   );
                 }
 
-                const label =
-                  kind === 'image' ? 'Photo' : kind === 'video' ? 'Video' : 'Attachment';
+                const label = attachmentLabelForMedia({
+                  kind: kind === 'image' || kind === 'video' ? kind : 'file',
+                  contentType,
+                  fileName,
+                });
                 const multiLabel = mediaCount > 1 ? `${label} · ${mediaCount} attachments` : label;
+                const isFile = kind === 'file';
+                const displayFileName = String(fileName || '').trim() || label;
+                const fileIconName = fileIconNameForMedia({
+                  kind: 'file',
+                  contentType,
+                  fileName,
+                });
+                const fileBadge = fileBadgeForMedia({ kind: 'file', contentType, fileName });
+                const fileColor =
+                  fileBrandColorForMedia({ kind: 'file', contentType, fileName }) ||
+                  (isDark ? styles.actionMenuMediaMetaDark?.color : undefined);
                 return (
                   <View style={styles.actionMenuMediaPreview}>
-                    <View style={styles.actionMenuMediaThumbWrap}>
-                      {thumbUri ? (
-                        <Image
-                          source={{ uri: thumbUri }}
-                          style={styles.actionMenuMediaThumb}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={styles.actionMenuMediaThumbPlaceholder}>
-                          <Text style={styles.actionMenuMediaThumbPlaceholderText}>{label}</Text>
+                    {isFile ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <View style={styles.actionMenuMediaThumbWrap}>
+                          {fileIconName ? (
+                            <MaterialCommunityIcons
+                              name={fileIconName as never}
+                              size={36}
+                              color={
+                                fileColor ||
+                                (isDark
+                                  ? styles.actionMenuMediaMetaDark?.color
+                                  : styles.actionMenuMediaMeta?.color)
+                              }
+                            />
+                          ) : (
+                            <Text
+                              style={[
+                                styles.actionMenuMediaThumbPlaceholderText,
+                                {
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 6,
+                                  borderRadius: 999,
+                                  backgroundColor: 'transparent',
+                                },
+                              ]}
+                            >
+                              {fileBadge}
+                            </Text>
+                          )}
                         </View>
-                      )}
-                    </View>
-                    <Text
-                      style={[
-                        styles.actionMenuMediaMeta,
-                        isDark ? styles.actionMenuMediaMetaDark : null,
-                      ]}
-                    >
-                      {multiLabel}
-                    </Text>
-                    {caption.trim().length ? (
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text
+                            style={[
+                              styles.actionMenuMediaCaption,
+                              isDark ? styles.actionMenuMediaCaptionDark : null,
+                              { fontWeight: '800' },
+                            ]}
+                            numberOfLines={1}
+                            ellipsizeMode="middle"
+                          >
+                            {displayFileName}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.actionMenuMediaMeta,
+                              isDark ? styles.actionMenuMediaMetaDark : null,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {multiLabel}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.actionMenuMediaThumbWrap}>
+                        {thumbUri ? (
+                          <Image
+                            source={{ uri: thumbUri }}
+                            style={styles.actionMenuMediaThumb}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.actionMenuMediaThumbPlaceholder}>
+                            <Text style={styles.actionMenuMediaThumbPlaceholderText}>{label}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    {!isFile ? (
                       <Text
+                        style={[
+                          styles.actionMenuMediaMeta,
+                          isDark ? styles.actionMenuMediaMetaDark : null,
+                        ]}
+                      >
+                        {multiLabel}
+                      </Text>
+                    ) : null}
+                    {caption.trim().length ? (
+                      <RichText
+                        text={caption.trim()}
+                        isDark={isDark}
+                        enableMentions={!isDm}
+                        variant={isOutgoing ? 'outgoing' : 'incoming'}
                         style={[
                           styles.actionMenuMediaCaption,
                           isDark ? styles.actionMenuMediaCaptionDark : null,
                         ]}
-                      >
-                        {caption.trim()}
-                      </Text>
+                      />
                     ) : null}
                   </View>
                 );

@@ -26,6 +26,30 @@ export type AppTextInputProps = Omit<TextInputProps, 'style'> & {
   style?: StyleProp<TextStyle>;
 };
 
+// NOTE: RN-web warns if `shadow*` style props exist anywhere in a StyleSheet, even if a branch
+// is never applied at runtime. Keep `shadow*` out of web bundles entirely.
+const focusNativeLight: TextStyle =
+  Platform.OS === 'web'
+    ? {}
+    : {
+        shadowColor: PALETTE.black,
+        shadowOpacity: 0.18,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 2,
+      };
+
+const focusNativeDark: TextStyle =
+  Platform.OS === 'web'
+    ? {}
+    : {
+        shadowColor: PALETTE.white,
+        shadowOpacity: 0.22,
+        shadowRadius: 7,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 2,
+      };
+
 const s = StyleSheet.create({
   blocksStandalone: {
     // `blocksInput` is often used in row layouts and has flex: 1; override for standalone column input.
@@ -52,20 +76,8 @@ const s = StyleSheet.create({
     boxShadow: `inset 0px 0px 0px 2px ${PALETTE.white}`,
   },
   // Native: use a shadow highlight (avoid borderWidth changes / layout shift).
-  focusNativeLight: {
-    shadowColor: PALETTE.black,
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 2,
-  },
-  focusNativeDark: {
-    shadowColor: PALETTE.white,
-    shadowOpacity: 0.22,
-    shadowRadius: 7,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 2,
-  },
+  focusNativeLight,
+  focusNativeDark,
 });
 
 export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(function AppTextInput(

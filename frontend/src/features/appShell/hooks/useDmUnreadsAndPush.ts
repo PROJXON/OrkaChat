@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Platform } from 'react-native';
 
 import type { AmplifyUiUser } from '../../../types/amplifyUi';
 
@@ -41,6 +42,7 @@ export function useDmUnreadsAndPush({
 } {
   // Best-effort: register DM push token after login (Signal-like: sender name only, no message preview).
   React.useEffect(() => {
+    if (Platform.OS === 'web') return;
     let mounted = true;
     (async () => {
       try {
@@ -65,6 +67,7 @@ export function useDmUnreadsAndPush({
 
   // Handle taps on OS notifications to jump into the DM.
   React.useEffect(() => {
+    if (Platform.OS === 'web') return;
     type NotificationSubscription = { remove: () => void };
     type ExpoNotificationsLike = {
       getLastNotificationResponseAsync?: () => Promise<unknown>;

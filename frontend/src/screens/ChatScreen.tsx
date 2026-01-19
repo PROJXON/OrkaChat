@@ -141,6 +141,7 @@ import { timestampId } from '../utils/ids';
 import { getPreviewKind } from '../utils/mediaKinds';
 import { calcCappedMediaSize } from '../utils/mediaSizing';
 import { normalizeUser } from '../utils/normalizeUser';
+import { openExternalFile } from '../utils/openExternalFile';
 import { getSeenLabelForCreatedAt } from '../utils/seenLabels';
 import { styles } from './ChatScreen.styles';
 
@@ -171,7 +172,7 @@ type ChatScreenProps = {
   onBlockUserSub?: (blockedSub: string, label?: string) => void | Promise<void>;
 };
 
-const ENCRYPTED_PLACEHOLDER = 'Encrypted message (tap to decrypt)';
+const ENCRYPTED_PLACEHOLDER = 'Encrypted Message (Tap to Decrypt)';
 
 const EMPTY_URI_BY_PATH: Record<string, string> = {};
 const HISTORY_PAGE_SIZE = 50;
@@ -681,7 +682,7 @@ export default function ChatScreen({
     channelMembersActiveCount,
     channelMembersActiveCountHint,
   ]);
-  const { requestOpenLink, confirmLinkModal } = useConfirmLinkModal(isDark);
+  const { requestOpenLink, requestOpenFile, confirmLinkModal } = useConfirmLinkModal(isDark);
   const { refreshChannelRoster } = useChannelRoster({
     apiUrl: API_URL,
     enabled: isChannel,
@@ -870,8 +871,17 @@ export default function ChatScreen({
   const openViewer = useOpenGlobalViewer<NonNullable<typeof viewer.state>>({
     resolveUrlForPath: (path) =>
       mediaUrlByPath[String(path)] ? mediaUrlByPath[String(path)] : null,
-    includeFilesInViewer: true,
-    openExternalIfFile: false,
+    // Chat: images/videos open in our viewer; files (PDF/DOCX/HTML/audio/etc) open externally.
+    includeFilesInViewer: false,
+    openExternalIfFile: true,
+    openExternalUrl: ({ url, fileName, contentType }) =>
+      openExternalFile({
+        url,
+        fileName,
+        contentType,
+        // Web: confirm before opening (prevents surprise downloads).
+        requestOpenFile: Platform.OS === 'web' ? requestOpenFile : undefined,
+      }),
     viewer,
     buildGlobalState: ({ index, items }) => ({
       mode: 'global' as const,
@@ -921,6 +931,13 @@ export default function ChatScreen({
   const { openDmMediaViewer, openGroupMediaViewer } = useChatEncryptedMediaViewer({
     isDm,
     isGroup,
+    openExternalUrl: ({ url, fileName, contentType }) =>
+      openExternalFile({
+        url,
+        fileName,
+        contentType,
+        requestOpenFile: Platform.OS === 'web' ? requestOpenFile : undefined,
+      }),
     viewer,
     showAlert,
     parseDmMediaEnvelope: (raw: unknown) => parseDmMediaEnvelope(String(raw ?? '')),

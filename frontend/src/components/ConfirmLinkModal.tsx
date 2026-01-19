@@ -8,6 +8,9 @@ export function ConfirmLinkModal({
   isDark,
   url,
   domain,
+  title = 'Open External Link?',
+  fileName,
+  hideUrl,
   onCancel,
   onOpen,
 }: {
@@ -15,6 +18,9 @@ export function ConfirmLinkModal({
   isDark: boolean;
   url: string;
   domain: string;
+  title?: string;
+  fileName?: string;
+  hideUrl?: boolean;
   onCancel: () => void;
   onOpen: () => void;
 }): React.JSX.Element {
@@ -23,15 +29,22 @@ export function ConfirmLinkModal({
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
         <View style={[styles.card, isDark ? styles.cardDark : null]}>
-          <Text style={[styles.title, isDark ? styles.titleDark : null]}>Open External Link?</Text>
+          <Text style={[styles.title, isDark ? styles.titleDark : null]}>{title}</Text>
+          {fileName ? (
+            <Text style={[styles.fileName, isDark ? styles.fileNameDark : null]} numberOfLines={1}>
+              {fileName}
+            </Text>
+          ) : null}
           {domain ? (
             <Text style={[styles.domain, isDark ? styles.domainDark : null]} numberOfLines={1}>
               {domain}
             </Text>
           ) : null}
-          <Text style={[styles.url, isDark ? styles.urlDark : null]} numberOfLines={3}>
-            {url}
-          </Text>
+          {!hideUrl ? (
+            <Text style={[styles.url, isDark ? styles.urlDark : null]} numberOfLines={3}>
+              {url}
+            </Text>
+          ) : null}
 
           <View style={styles.row}>
             <Pressable style={[styles.btn, isDark ? styles.btnDark : null]} onPress={onOpen}>
@@ -70,6 +83,13 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: '900', color: APP_COLORS.light.text.primary },
   titleDark: { color: APP_COLORS.dark.text.primary },
+  fileName: {
+    marginTop: 10,
+    fontSize: 15,
+    fontWeight: '900',
+    color: APP_COLORS.light.text.heading,
+  },
+  fileNameDark: { color: APP_COLORS.dark.text.primary },
   domain: { marginTop: 10, fontSize: 15, fontWeight: '900', color: APP_COLORS.light.text.body },
   domainDark: { color: APP_COLORS.dark.text.body },
   url: { marginTop: 8, fontSize: 15, color: APP_COLORS.light.text.body },

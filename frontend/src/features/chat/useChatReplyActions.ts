@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import type { MediaItem } from '../../types/media';
+import { attachmentLabelForMedia } from '../../utils/mediaKinds';
 import {
   normalizeChatMediaList,
   normalizeDmMediaItems,
@@ -43,6 +44,8 @@ export function useChatReplyActions(opts: {
       let mediaKind: 'image' | 'video' | 'file' | undefined;
       let mediaCount: number | undefined;
       let mediaThumbUri: string | null | undefined;
+      let mediaFileName: string | undefined;
+      let mediaContentType: string | undefined;
 
       // Best-effort: attach a tiny thumbnail/count for media replies.
       try {
@@ -62,6 +65,10 @@ export function useChatReplyActions(opts: {
             const first = items[0]?.media;
             const k = first?.kind;
             mediaKind = k === 'video' ? 'video' : k === 'image' ? 'image' : 'file';
+            mediaFileName =
+              typeof first?.fileName === 'string' ? String(first.fileName) : undefined;
+            mediaContentType =
+              typeof first?.contentType === 'string' ? String(first.contentType) : undefined;
             const thumbPath = typeof first?.thumbPath === 'string' ? first.thumbPath : '';
             mediaThumbUri =
               thumbPath && dmThumbUriByPath[thumbPath] ? dmThumbUriByPath[thumbPath] : null;
@@ -74,6 +81,9 @@ export function useChatReplyActions(opts: {
             mediaCount = envList.length;
             const first = envList[0];
             mediaKind = getPreviewKind(first);
+            mediaFileName = typeof first.fileName === 'string' ? String(first.fileName) : undefined;
+            mediaContentType =
+              typeof first.contentType === 'string' ? String(first.contentType) : undefined;
             const key = String(first.thumbPath || first.path);
             mediaThumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
           }
@@ -93,8 +103,11 @@ export function useChatReplyActions(opts: {
       preview = preview.replace(/\s+/g, ' ').trim();
       if (preview.length > 160) preview = `${preview.slice(0, 160)}…`;
       if (!preview && mediaCount && mediaCount > 0) {
-        const base =
-          mediaKind === 'image' ? 'Photo' : mediaKind === 'video' ? 'Video' : 'Attachment';
+        const base = attachmentLabelForMedia({
+          kind: mediaKind ?? 'file',
+          contentType: mediaContentType,
+          fileName: mediaFileName,
+        });
         preview = mediaCount > 1 ? `${base} · ${mediaCount} attachments` : base;
       }
 
