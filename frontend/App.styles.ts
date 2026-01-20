@@ -116,6 +116,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexShrink: 0,
   },
   themeToggle: {
     flexDirection: 'row',
@@ -178,23 +179,114 @@ export const styles = StyleSheet.create({
     padding: 3,
     borderRadius: 12,
     gap: 4,
+    // Prevent the segmented control from pushing the menu button off-screen on narrow widths.
+    flexShrink: 1,
+    minWidth: 0,
   },
   segmentDark: {
-    backgroundColor: APP_COLORS.dark.bg.header,
+    // Dark mode: make the segmented "track" distinct from the header background
+    // so the control reads like a slider (track + thumb), not two separate buttons.
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: APP_COLORS.dark.border.subtle,
   },
   segmentBtn: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 10,
-    minWidth: 84,
+    // Ensures Android clips the active background to rounded corners.
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 6,
+  },
+  // Allow the channel pill to take remaining width (so long channel names don't force the DM pill wider).
+  segmentBtnGrow: {
+    // Don't force expansion (causes big empty space between label and chip on mobile).
+    // Let the pill size to its contents, but allow shrink/ellipsis when space is tight.
+    flexGrow: 0,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  // Keep the DM pill sized to its contents (but allow shrink if screen is tight).
+  segmentBtnFixed: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  segmentBtnMainArea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 8,
+    minWidth: 0,
+  },
+  segmentBtnTextTruncate: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  // Default for header pills: allow the label area to shrink/truncate, but don't expand and create "dead space".
+  segmentBtnMainAreaShrink: {
+    flexGrow: 0,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  segmentBtnChipHitbox: {
+    width: 36,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  segmentBtnChipCircle: {
+    width: 32,
+    height: 18,
+    borderRadius: 8,
+    // Container only (do not add background/border here; those would affect layout if height changes).
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  segmentBtnChipHitboxWide: {
+    width: 48,
+  },
+  segmentBtnChipCircleWide: {
+    width: 44,
+  },
+  // Taller-looking chip background that does NOT affect layout height (absolute positioning).
+  segmentBtnChipBgTall: {
+    position: 'absolute',
+    width: 32,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: APP_COLORS.light.bg.surface2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: APP_COLORS.light.border.subtle,
+  },
+  segmentBtnChipBgTallWide: {
+    width: 44,
+  },
+  // Light mode: make the chip white when its parent pill is NOT selected.
+  segmentBtnChipBgTallLightUnselected: {
+    backgroundColor: APP_COLORS.light.bg.app,
+    borderColor: APP_COLORS.light.border.subtle,
+  },
+  segmentBtnChipBgTallDark: {
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderColor: APP_COLORS.dark.border.subtle,
+  },
+  segmentBtnChipCircleDark: {
+    backgroundColor: APP_COLORS.dark.bg.surface,
+    borderColor: APP_COLORS.dark.border.subtle,
+  },
   segmentBtnActive: {
     backgroundColor: APP_COLORS.light.bg.app,
+    borderRadius: 10,
   },
   segmentBtnActiveDark: {
     backgroundColor: PALETTE.slate750,
+    borderRadius: 10,
   },
   segmentBtnText: {
     fontSize: 14,

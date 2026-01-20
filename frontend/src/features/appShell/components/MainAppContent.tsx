@@ -43,6 +43,7 @@ import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
 import { useDeleteConversationFromList } from '../hooks/useDeleteConversationFromList';
 import { useDmUnreadsAndPush } from '../hooks/useDmUnreadsAndPush';
 import { useLastChannelConversation } from '../hooks/useLastChannelConversation';
+import { useLastDmConversation } from '../hooks/useLastDmConversation';
 import { useMyAvatarSettings } from '../hooks/useMyAvatarSettings';
 import { usePassphrasePrompt } from '../hooks/usePassphrasePrompt';
 import { useRecoveryFlow } from '../hooks/useRecoveryFlow';
@@ -228,6 +229,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     chatsLoading,
     titleOverrideByConvIdRef,
     upsertDmThread,
+    dmThreadsList,
     chatsList,
     fetchUnreads,
   } = useChatsInboxData({ apiUrl: API_URL, fetchAuthSession, chatsOpen });
@@ -238,6 +240,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     conversationId,
     setConversationId,
   });
+  const { lastDmConversationIdRef } = useLastDmConversation({ conversationId });
 
   const getIdToken = React.useCallback(async (): Promise<string | null> => {
     return await getIdTokenWithRetry({ maxAttempts: 10, delayMs: 200 });
@@ -405,9 +408,25 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     return channelNameById[id] || 'Channel';
   }, [activeChannelConversationId, getChannelIdFromConversationId, channelNameById]);
 
+  const activeDmLabel = React.useMemo(() => {
+    // Prefer the current DM title when you're in a DM.
+    if (isDmMode) {
+      const t = typeof peer === 'string' ? peer.trim() : '';
+      return t || 'DM';
+    }
+    // Otherwise show the last DM label (if we have one).
+    const cid = String(lastDmConversationIdRef.current || '').trim();
+    if (!(cid.startsWith('dm#') || cid.startsWith('gdm#'))) return 'DM';
+    const fromChats = chatsList.find((c) => c.conversationId === cid);
+    const t = String(fromChats?.peer || unreadDmMap[cid]?.user || '').trim();
+    return t || 'DM';
+  }, [chatsList, isDmMode, lastDmConversationIdRef, peer, unreadDmMap]);
+
   const { goToConversation } = useConversationNavigation({
     serverConversations,
     unreadDmMap,
+    dmThreadsList,
+    titleOverrideByConvIdRef,
     peer,
     upsertDmThread,
     setConversationId,
@@ -438,12 +457,56 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     registerForDmPushNotifications,
   });
 
+  const openFindChannels = React.useCallback(() => {
+    setChannelsError(null);
+    setChannelJoinError(null);
+    setChannelsQuery('');
+    setChannelSearchOpen(true);
+  }, [setChannelJoinError, setChannelSearchOpen, setChannelsError, setChannelsQuery]);
+
+  const goToLastChannel = React.useCallback(() => {
+    const target = String(activeChannelConversationId || '').trim() || 'global';
+    if (!target) return;
+    if (!isDmMode && target === conversationId) return; // already there
+    goToConversation(target);
+  }, [activeChannelConversationId, conversationId, goToConversation, isDmMode]);
+
+  const goToLastDmOrOpenDmSearch = React.useCallback(() => {
+    // If you're already in a DM, treat the big pill as a "return to DM view":
+    // close the Enter Names row if it's open.
+    if (isDmMode) {
+      setSearchOpen(false);
+      setPeerInput('');
+      setSearchError(null);
+      return;
+    }
+    const v = String(lastDmConversationIdRef.current || '').trim();
+    if (v.startsWith('dm#') || v.startsWith('gdm#')) {
+      goToConversation(v);
+      return;
+    }
+    // First-time / no last DM: fallback to showing Enter Names row.
+    setSearchOpen(true);
+  }, [
+    goToConversation,
+    isDmMode,
+    lastDmConversationIdRef,
+    setPeerInput,
+    setSearchError,
+    setSearchOpen,
+  ]);
+
+  const toggleDmSearchRow = React.useCallback(() => {
+    setSearchOpen((prev) => !prev);
+  }, [setSearchOpen]);
+
   const headerTop = (
     <MainAppHeaderTop
       styles={styles}
       isDark={isDark}
       isWideUi={isWideUi}
       activeChannelLabel={activeChannelLabel}
+      activeDmLabel={activeDmLabel}
       isChannelMode={isChannelMode}
       isDmMode={isDmMode}
       hasUnreadDms={hasUnreadDms}
@@ -459,15 +522,10 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
       openMenu={() => {
         menu.openFromRef({ enabled: isWideUi, onOpen: () => setMenuOpen(true) });
       }}
-      onPressChannelTab={() => {
-        // Always open the channel search/join picker.
-        // Important UX: if the user is currently in a DM / Group DM, tapping the Channels pill
-        // should NOT pull them out of their DM; it should just open the search UI.
-        setChannelsError(null);
-        setChannelJoinError(null);
-        setChannelsQuery('');
-        setChannelSearchOpen(true);
-      }}
+      onPressChannelNav={goToLastChannel}
+      onPressChannelSearch={openFindChannels}
+      onPressDmNav={goToLastDmOrOpenDmSearch}
+      onPressDmSearch={toggleDmSearchRow}
       onStartDm={startDM}
     />
   );
@@ -610,7 +668,9 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         submitCreateChannelInline={submitCreateChannelInline}
         channelSearchOpen={channelSearchOpen}
         setChannelSearchOpen={setChannelSearchOpen}
-        showPinnedChannelInSearch={isDmMode}
+        // Keep the "home/last channel" pinned at the top of Find Channels consistently
+        // (otherwise "Global" appears first when you're already in a channel).
+        showPinnedChannelInSearch
         pinnedChannelConversationId={activeChannelConversationId}
         pinnedChannelLabel={activeChannelLabel}
         channelsQuery={channelsQuery}
@@ -661,6 +721,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
               imagePath: myAvatar?.imagePath,
             }}
             onNewDmNotification={handleNewDmNotification}
+            refreshUnreads={fetchUnreads}
             onKickedFromConversation={(convId) => {
               if (!convId) return;
               if (conversationId !== convId) return;

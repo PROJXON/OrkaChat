@@ -343,7 +343,10 @@ const sendChannelPushNotification = async ({ recipientSub, senderDisplayName, se
     if (!tokens.length) return;
 
     const title = safeString(channelName) || 'Channel';
-    const body = kind === 'channelMention' ? `${safeString(senderDisplayName) || 'Someone'} mentioned you` : 'New reply';
+    const body =
+      kind === 'channelMention'
+        ? `${safeString(senderDisplayName) || 'Someone'} mentioned you`
+        : `${safeString(senderDisplayName) || 'Someone'} replied to you`;
     const convId = safeString(conversationId);
     const sSub = safeString(senderSub);
     const k = safeString(kind) || 'channelMention';
@@ -393,7 +396,10 @@ const sendGlobalPushNotification = async ({ recipientSub, senderDisplayName, sen
     if (!tokens.length) return;
 
     const title = 'Global';
-    const body = `${safeString(senderDisplayName) || 'Someone'} mentioned you`;
+    const body =
+      kind === 'globalReply'
+        ? `${safeString(senderDisplayName) || 'Someone'} replied to you`
+        : `${safeString(senderDisplayName) || 'Someone'} mentioned you`;
     const convId = safeString(conversationId) || 'global';
     const sSub = safeString(senderSub);
     const k = safeString(kind) || 'globalMention';
@@ -1929,21 +1935,26 @@ exports.handler = async (event) => {
       }
     }
 
-    // Global notifications: mentions only (targeted, no global fanout).
-    if (isGlobal && Array.isArray(mentions) && mentions.length) {
+    // Global notifications: targeted mentions + replies (no global fanout).
+    if (isGlobal) {
       try {
+        const notifySubs = new Set();
+        if (Array.isArray(mentions)) for (const s of mentions) if (s && s !== senderSub) notifySubs.add(String(s));
+        if (replyToUserSub && replyToUserSub !== senderSub) notifySubs.add(String(replyToUserSub));
+        const subs = Array.from(notifySubs);
+        if (!subs.length) return { statusCode: 200, body: 'Message broadcasted.' };
+
         await Promise.all(
-          mentions
-            .filter((u) => u && u !== senderSub)
-            .map(async (u) => {
+          subs.map(async (u) => {
               const activeConns = await queryConnIdsByUserSub(u).catch(() => []);
               if (Array.isArray(activeConns) && activeConns.length) return;
+              const kind = u === replyToUserSub ? 'globalReply' : 'globalMention';
               await sendGlobalPushNotification({
                 recipientSub: String(u),
                 senderDisplayName,
                 senderSub,
                 conversationId: 'global',
-                kind: 'globalMention',
+                kind,
               });
             })
         );

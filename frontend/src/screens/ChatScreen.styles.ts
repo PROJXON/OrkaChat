@@ -695,7 +695,8 @@ export const styles = StyleSheet.create({
     alignSelf: 'stretch',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: APP_COLORS.light.border.subtle,
-    backgroundColor: APP_COLORS.light.bg.surface2,
+    // Match the header bar in light mode (avoid mixing FAFAFA vs F2F2F7 for app chrome).
+    backgroundColor: APP_COLORS.light.bg.header,
   },
   inputRowInner: {
     flexDirection: 'row',

@@ -293,7 +293,7 @@ export function ChatComposer(props: {
               right: 0,
               bottom: -composerBottomInsetBgHeight,
               height: composerBottomInsetBgHeight,
-              backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
+              backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.header,
             }}
           />
         ) : null}
