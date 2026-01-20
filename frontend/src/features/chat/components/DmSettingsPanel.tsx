@@ -162,7 +162,13 @@ export function DmSettingsPanel({
                 ]}
                 onPress={onOpenTtlPicker}
               >
-                <Text style={[styles.ttlChipText, isDark ? styles.ttlChipTextDark : null]}>
+                <Text
+                  style={[
+                    styles.ttlChipText,
+                    isDark ? styles.ttlChipTextDark : null,
+                    String(ttlLabel).trim().toLowerCase() === 'off' ? styles.ttlChipTextOff : null,
+                  ]}
+                >
                   {ttlLabel}
                 </Text>
               </Pressable>

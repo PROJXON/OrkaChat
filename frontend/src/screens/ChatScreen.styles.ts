@@ -21,7 +21,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     // Keep the bottom tight so the message list starts closer to the header content.
-    paddingBottom: 4,
+    paddingBottom: 0,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: APP_COLORS.light.border.subtle,
     backgroundColor: APP_COLORS.light.bg.header,
@@ -57,7 +57,18 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
   },
   welcomeTextDark: { color: APP_COLORS.dark.text.secondary },
-  welcomeTextFlex: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  // Split "Welcome " and "<username>!" so we can hide "Welcome" entirely when space is tight,
+  // keeping the username whole as long as possible, then truncating username only if needed.
+  welcomeTextRow: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, minWidth: 0 },
+  welcomeMeasureRow: {
+    position: 'absolute',
+    opacity: 0,
+    left: 0,
+    top: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  welcomeNameFlex: { flexShrink: 1, minWidth: 0 },
   welcomeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -70,12 +81,13 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginLeft: 6,
     marginTop: 2,
     flexShrink: 0,
   },
   welcomeStatusText: { fontSize: 12, color: APP_COLORS.light.text.muted, fontWeight: '800' },
   headerSubRow: {
-    marginTop: 1,
+    marginTop: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -181,12 +193,15 @@ export const styles = StyleSheet.create({
   miniToggleDisabled: { opacity: 0.6 },
   miniTogglePressed: { opacity: 0.85 },
   ttlChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 999,
     backgroundColor: PALETTE.paper200,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ttlChipText: { fontSize: 12, color: PALETTE.slate870, fontWeight: '700' },
+  ttlChipTextOff: { marginTop: 1 },
   ttlChipDark: {
     backgroundColor: PALETTE.slate750,
   },
@@ -220,7 +235,7 @@ export const styles = StyleSheet.create({
   ttlOptionRadioSelected: { color: PALETTE.white },
   ttlOptionLabelDark: { color: PALETTE.white },
   summarizeBtn: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 8,
     borderRadius: 10,
     backgroundColor: PALETTE.white,
@@ -234,7 +249,15 @@ export const styles = StyleSheet.create({
   },
   summarizeBtnText: { color: APP_COLORS.light.text.primary, fontWeight: '700', fontSize: 13 },
   summarizeBtnTextDark: { color: PALETTE.white },
-  headerTools: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  // Keep AI buttons visible on small screens; let the Welcome text truncate instead.
+  headerTools: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+    flexGrow: 0,
+    flexWrap: 'nowrap',
+  },
   // kept for other modals using the same visual language
   toolBtn: {
     paddingHorizontal: 12,

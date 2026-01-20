@@ -53,6 +53,7 @@ type ChatScreenMainProps = {
     myUserId: string | null;
     avatarProfileBySub: Record<string, PublicAvatarProfileLite>;
     avatarUrlByPath: Record<string, string>;
+    myAvatarOverride?: { bgColor?: string; textColor?: string; imagePath?: string } | null;
     isConnecting: boolean;
     isConnected: boolean;
 
@@ -236,19 +237,19 @@ export function ChatScreenMain({
           <ChatHeaderTitleRow
             styles={styles}
             isDark={isDark}
-            title={header.headerTitle}
+            displayName={header.displayName}
+            myUserId={header.myUserId}
+            avatarProfileBySub={header.avatarProfileBySub}
+            avatarUrlByPath={header.avatarUrlByPath}
+            myAvatarOverride={header.myAvatarOverride}
+            isConnecting={header.isConnecting}
+            isConnected={header.isConnected}
             onPressSummarize={header.onPressSummarize}
             onPressAiHelper={header.onPressAiHelper}
           />
           <ChatHeaderStatusRow
             styles={styles}
             isDark={isDark}
-            displayName={header.displayName}
-            myUserId={header.myUserId}
-            avatarProfileBySub={header.avatarProfileBySub}
-            avatarUrlByPath={header.avatarUrlByPath}
-            isConnecting={header.isConnecting}
-            isConnected={header.isConnected}
             showCaret={!!(header.isEncryptedChat || header.isChannel)}
             caretExpanded={
               !!(header.isEncryptedChat ? header.dmSettingsOpen : header.channelSettingsOpen)

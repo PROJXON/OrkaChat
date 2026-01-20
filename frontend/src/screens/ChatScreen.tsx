@@ -550,6 +550,13 @@ export default function ChatScreen({
   );
   const isEncryptedChat = isDm || isGroup;
 
+  const groupMembersCountLabel = React.useMemo(() => {
+    if (!isGroup) return '-';
+    // Until roster hydrates, avoid flashing "0" (group always has at least 1 member once loaded).
+    if (!groupMembersVisible.length) return '-';
+    return `${groupMembersActiveCount || 0}`;
+  }, [groupMembersActiveCount, groupMembersVisible.length, isGroup]);
+
   const { kickCooldownUntilBySub, groupKick, channelKick } = useChatKickActions({
     wsRef,
     activeConversationId,
@@ -678,9 +685,11 @@ export default function ChatScreen({
       typeof channelMembersActiveCountHint === 'number' &&
       Number.isFinite(channelMembersActiveCountHint)
     ) {
-      return `${Math.max(0, Math.floor(channelMembersActiveCountHint))}`;
+      const n = Math.max(0, Math.floor(channelMembersActiveCountHint));
+      // Treat 0 as "unknown" for the hint so we don't flash 0 before roster hydrates.
+      if (n > 0) return `${n}`;
     }
-    return '—';
+    return '-';
   }, [
     channelRosterMatchesActive,
     channelMembersForUi.length,
@@ -758,14 +767,25 @@ export default function ChatScreen({
   }, [chatBackground, chatBackgroundImageScaleMode]);
 
   const headerTitle = React.useMemo(() => {
+    const cachedChannelName =
+      isChannel && channelHeaderCache.cached?.name
+        ? String(channelHeaderCache.cached.name).trim()
+        : '';
     return getChatHeaderTitle({
       isChannel,
-      channelName: channelMeta?.name,
+      channelName: cachedChannelName || channelMeta?.name,
       peer,
       isGroup,
       groupName: groupMeta?.groupName,
     });
-  }, [isChannel, channelMeta?.name, peer, isGroup, groupMeta?.groupName]);
+  }, [
+    isChannel,
+    channelHeaderCache.cached?.name,
+    channelMeta?.name,
+    peer,
+    isGroup,
+    groupMeta?.groupName,
+  ]);
 
   useChatScreenRefSync({
     activeConversationId,
@@ -1467,6 +1487,7 @@ export default function ChatScreen({
     myUserId,
     avatarProfileBySub,
     avatarUrlByPath,
+    myAvatarOverride,
     isConnecting,
     isConnected,
     isEncryptedChat,
@@ -1485,7 +1506,7 @@ export default function ChatScreen({
     onOpenTtlPicker,
     sendReadReceipts,
     onToggleReadReceipts: (v) => onToggleReadReceipts(!!v),
-    groupMembersCountLabel: `${groupMembersActiveCount || 0}`,
+    groupMembersCountLabel,
     groupActionBusy: !!groupActionBusy,
     groupMeIsAdmin: !!groupMeta?.meIsAdmin,
     onOpenGroupMembers: () => setGroupMembersOpen(true),

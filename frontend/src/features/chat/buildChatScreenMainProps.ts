@@ -21,6 +21,7 @@ export function buildChatScreenMainProps(deps: {
   myUserId: HeaderProps['myUserId'];
   avatarProfileBySub: HeaderProps['avatarProfileBySub'];
   avatarUrlByPath: HeaderProps['avatarUrlByPath'];
+  myAvatarOverride: HeaderProps['myAvatarOverride'];
   isConnecting: HeaderProps['isConnecting'];
   isConnected: HeaderProps['isConnected'];
   isEncryptedChat: HeaderProps['isEncryptedChat'];
@@ -116,6 +117,7 @@ export function buildChatScreenMainProps(deps: {
       myUserId: deps.myUserId,
       avatarProfileBySub: deps.avatarProfileBySub,
       avatarUrlByPath: deps.avatarUrlByPath,
+      myAvatarOverride: deps.myAvatarOverride,
       isConnecting: deps.isConnecting,
       isConnected: deps.isConnected,
       isEncryptedChat: deps.isEncryptedChat,

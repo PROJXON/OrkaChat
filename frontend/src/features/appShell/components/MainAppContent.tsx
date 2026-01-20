@@ -1,5 +1,6 @@
 import { fetchAuthSession } from '@aws-amplify/auth';
 import { useAuthenticator } from '@aws-amplify/ui-react-native/dist';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { deleteUser, fetchUserAttributes } from 'aws-amplify/auth';
 import React, { useState } from 'react';
 import type { Pressable } from 'react-native';
@@ -43,6 +44,7 @@ import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
 import { useDeleteConversationFromList } from '../hooks/useDeleteConversationFromList';
 import { useDmUnreadsAndPush } from '../hooks/useDmUnreadsAndPush';
 import { useLastChannelConversation } from '../hooks/useLastChannelConversation';
+import { useLastConversation } from '../hooks/useLastConversation';
 import { useLastDmConversation } from '../hooks/useLastDmConversation';
 import { useMyAvatarSettings } from '../hooks/useMyAvatarSettings';
 import { usePassphrasePrompt } from '../hooks/usePassphrasePrompt';
@@ -77,6 +79,30 @@ function getUsernameFromAuthenticatorUser(user: AmplifyUiUser): string | undefin
   return typeof u === 'string' && u.trim() ? u.trim() : undefined;
 }
 
+function readCachedDisplayNameSync(): string {
+  // Web-only: localStorage is synchronous; use it to avoid flashing "anon" before bootstrap finishes.
+  try {
+    const raw = globalThis?.localStorage?.getItem?.('ui:lastDisplayName:device');
+    const v = typeof raw === 'string' ? raw.trim() : '';
+    return v || '';
+  } catch {
+    return '';
+  }
+}
+
+function looksLikeOpaqueCognitoUsername(s: string): boolean {
+  const v = String(s || '').trim();
+  if (!v) return false;
+  // Common Cognito username format for some setups: UUID.
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return true;
+  // Generic "opaque id" heuristic: long + lots of dashes.
+  if (v.length >= 28 && (v.match(/-/g) || []).length >= 3) return true;
+  return false;
+}
+
+type LastChannelLabelCache = { conversationId: string; label: string };
+const LAST_CHANNEL_LABEL_CACHE_KEY = 'ui:lastChannelLabel:device';
+
 export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
   const { user } = useAuthenticator();
   const { signOut } = useAuthenticator();
@@ -87,7 +113,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     isOpen: uiPromptOpen,
   } = useUiPrompt();
   const cdn = useCdnUrlCache(CDN_URL);
-  const [displayName, setDisplayName] = useState<string>('anon');
+  const [displayName, setDisplayName] = useState<string>(() => readCachedDisplayNameSync());
   const [myUserSub, setMyUserSub] = React.useState<string | null>(null);
   // Bump this whenever we change/recover/reset keys so ChatScreen reloads them from storage.
   const [keyEpoch, setKeyEpoch] = React.useState<number>(0);
@@ -209,9 +235,59 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     promptAlert,
   });
 
-  const currentUsername = displayName.length
-    ? displayName
-    : getUsernameFromAuthenticatorUser(user) || 'anon';
+  // Mobile-only: hydrate cached display name ASAP so we don't flash an opaque Cognito username.
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('ui:lastDisplayName:device');
+        const v = typeof raw === 'string' ? raw.trim() : '';
+        if (!mounted) return;
+        if (!v) return;
+        setDisplayName((prev) => (String(prev || '').trim() ? prev : v));
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Mobile-only: hydrate cached "home channel label" ASAP so we don't flash the generic "Channel".
+  const [lastChannelLabelCache, setLastChannelLabelCache] =
+    React.useState<LastChannelLabelCache | null>(null);
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(LAST_CHANNEL_LABEL_CACHE_KEY);
+        const rec = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+        const conversationId =
+          rec && typeof rec.conversationId === 'string' ? rec.conversationId.trim() : '';
+        const label = rec && typeof rec.label === 'string' ? rec.label.trim() : '';
+        if (!mounted) return;
+        if (!conversationId || !label) return;
+        if (conversationId !== 'global' && !conversationId.startsWith('ch#')) return;
+        setLastChannelLabelCache({ conversationId, label });
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const effectiveDisplayName = (() => {
+    const a = String(displayName || '').trim();
+    if (a) return a;
+    const b = String(getUsernameFromAuthenticatorUser(user) || '').trim();
+    // Avoid showing a UUID-like Cognito username in the UI while we hydrate.
+    if (looksLikeOpaqueCognitoUsername(b)) return 'anon';
+    return b || 'anon';
+  })();
+  const currentUsername = effectiveDisplayName;
 
   const [conversationId, setConversationId] = useState<string>('global');
   const [peer, setPeer] = useState<string | null>(null);
@@ -239,6 +315,14 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
   const { channelRestoreDone, lastChannelConversationIdRef } = useLastChannelConversation({
     conversationId,
     setConversationId,
+  });
+  const { conversationRestoreDone } = useLastConversation({
+    userSub: myUserSub,
+    conversationId,
+    setConversationId,
+    setPeer,
+    serverConversations,
+    unreadDmMap,
   });
   const { lastDmConversationIdRef } = useLastDmConversation({ conversationId });
 
@@ -405,8 +489,39 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     if (activeChannelConversationId === 'global') return 'Global';
     const id = getChannelIdFromConversationId(activeChannelConversationId);
     if (!id) return 'Global';
-    return channelNameById[id] || 'Channel';
-  }, [activeChannelConversationId, getChannelIdFromConversationId, channelNameById]);
+    const fromMap = String(channelNameById[id] || '').trim();
+    if (fromMap) return fromMap;
+    // If channels map hasn't hydrated yet, fall back to cached label (mobile).
+    if (lastChannelLabelCache?.conversationId === activeChannelConversationId) {
+      const cached = String(lastChannelLabelCache.label || '').trim();
+      if (cached) return cached;
+    }
+    return 'Channel';
+  }, [
+    activeChannelConversationId,
+    channelNameById,
+    getChannelIdFromConversationId,
+    lastChannelLabelCache,
+  ]);
+
+  // Persist last known home channel label (best-effort; used to avoid "Channel" flash on mobile).
+  React.useEffect(() => {
+    const convId = String(activeChannelConversationId || '').trim();
+    if (!(convId === 'global' || convId.startsWith('ch#'))) return;
+    // Don't persist generic placeholders.
+    const label = String(activeChannelLabel || '').trim();
+    if (!label || label === 'Channel') return;
+    const payload: LastChannelLabelCache = { conversationId: convId, label };
+    try {
+      void AsyncStorage.setItem(LAST_CHANNEL_LABEL_CACHE_KEY, JSON.stringify(payload)).catch(
+        () => {},
+      );
+    } catch {
+      // ignore
+    }
+    // Keep local state in sync (so we can use it immediately for fallback).
+    setLastChannelLabelCache(payload);
+  }, [activeChannelConversationId, activeChannelLabel]);
 
   const activeDmLabel = React.useMemo(() => {
     // Prefer the current DM title when you're in a DM.
@@ -710,11 +825,11 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
       <MainAppPassphrasePromptModal styles={styles} isDark={isDark} {...passphraseModalProps} />
 
       <View style={{ flex: 1 }}>
-        {channelRestoreDone ? (
+        {channelRestoreDone && conversationRestoreDone ? (
           <ChatScreen
             conversationId={conversationId}
             peer={peer}
-            displayName={displayName}
+            displayName={effectiveDisplayName}
             myAvatarOverride={{
               bgColor: myAvatar?.bgColor,
               textColor: myAvatar?.textColor,

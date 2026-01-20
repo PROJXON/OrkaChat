@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as React from 'react';
+import { Platform } from 'react-native';
 
 export type ChannelHeaderCache = {
   v: 1;
@@ -22,7 +23,21 @@ export function useChannelHeaderCache(opts: { enabled: boolean; channelId: strin
   const enabled = !!opts.enabled;
   const channelId = String(opts.channelId || '').trim();
   const key = channelId ? `ui:channelCache:${channelId}` : '';
-  const [cached, setCached] = React.useState<ChannelHeaderCache | null>(null);
+  const [cached, setCached] = React.useState<ChannelHeaderCache | null>(() => {
+    // Web-only: localStorage is synchronous; read the exact key we write in `save`.
+    if (Platform.OS !== 'web') return null;
+    if (!key) return null;
+    try {
+      const raw = globalThis?.localStorage?.getItem?.(key);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object') return null;
+      if (String((obj as Record<string, unknown>).channelId || '') !== channelId) return null;
+      return obj as ChannelHeaderCache;
+    } catch {
+      return null;
+    }
+  });
 
   React.useEffect(() => {
     if (!enabled || !key) {
@@ -39,6 +54,14 @@ export function useChannelHeaderCache(opts: { enabled: boolean; channelId: strin
         if (!obj || typeof obj !== 'object') return;
         if (String(obj.channelId || '') !== channelId) return;
         setCached(obj as ChannelHeaderCache);
+        // Web-only: ensure the raw localStorage key exists for true first-paint sync hydration on next refresh.
+        if (Platform.OS === 'web') {
+          try {
+            globalThis?.localStorage?.setItem?.(key, JSON.stringify(obj));
+          } catch {
+            // ignore
+          }
+        }
       } catch {
         // ignore
       }
@@ -58,6 +81,9 @@ export function useChannelHeaderCache(opts: { enabled: boolean; channelId: strin
         ...next,
       };
       try {
+        // Web-only: write the raw localStorage key so refresh can hydrate synchronously.
+        if (Platform.OS === 'web')
+          globalThis?.localStorage?.setItem?.(key, JSON.stringify(payload));
         void AsyncStorage.setItem(key, JSON.stringify(payload));
       } catch {
         // ignore
