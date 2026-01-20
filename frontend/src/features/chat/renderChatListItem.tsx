@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, Text, View } from 'react-native';
 
+import { AudioAttachmentTile } from '../../components/media/AudioAttachmentTile';
 import { FileAttachmentTile } from '../../components/media/FileAttachmentTile';
 import { MediaStackCarousel } from '../../components/MediaStackCarousel';
 import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
@@ -20,6 +21,7 @@ import type { PendingMediaItem } from './attachments';
 import { ChatMessageRow } from './components/ChatMessageRow';
 import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
 import type { ChatMessage } from './types';
+import type { ChatAudioPlayback } from './useChatAudioPlayback';
 
 type Anchor = { x: number; y: number };
 
@@ -79,6 +81,17 @@ export function renderChatListItem(args: {
   openGroupMediaViewer: (m: ChatMessage, startIdx: number) => void | Promise<void>;
   requestOpenLink: (url: string) => void;
 
+  audioPlayback?: ChatAudioPlayback & {
+    getAudioKey: (msg: ChatMessage, idx: number, media: MediaItem) => string;
+    getAudioTitle: (media: MediaItem) => string;
+    onPressAudio: (args: {
+      msg: ChatMessage;
+      idx: number;
+      key: string;
+      media: MediaItem;
+    }) => void | Promise<void>;
+  };
+
   onPressMessage: (m: ChatMessage) => void;
   openMessageActions: (m: ChatMessage, anchor: Anchor) => void;
   latestOutgoingMessageId: string | null;
@@ -127,6 +140,7 @@ export function renderChatListItem(args: {
     openDmMediaViewer,
     openGroupMediaViewer,
     requestOpenLink,
+    audioPlayback,
     onPressMessage,
     openMessageActions,
     latestOutgoingMessageId,
@@ -208,7 +222,13 @@ export function renderChatListItem(args: {
   const media = mediaList.length ? mediaList[0] : null;
   const mediaLooksImage = !!media && isImageLikeMedia(media);
   const mediaLooksVideo = !!media && isVideoLikeMedia(media);
-  const hasAnyPreviewableMedia = !!mediaList.length && mediaList.some((m) => isPreviewableMedia(m));
+  const previewableWithOriginalIdx = mediaList
+    .map((m, idx) => ({ m, idx }))
+    .filter(({ m }) => isPreviewableMedia(m));
+  const fileLikeWithOriginalIdx = mediaList
+    .map((m, idx) => ({ m, idx }))
+    .filter(({ m }) => !isPreviewableMedia(m));
+  const hasAnyPreviewableMedia = previewableWithOriginalIdx.length > 0;
   // IMPORTANT: if the message is still encrypted (not decrypted yet),
   // always render it as a normal encrypted-text bubble so media placeholders
   // don't appear larger than encrypted text placeholders.
@@ -261,10 +281,10 @@ export function renderChatListItem(args: {
   };
 
   const renderMediaCarousel =
-    mediaList.length && hasMedia && !isDeleted ? (
+    previewableWithOriginalIdx.length && hasMedia && !isDeleted ? (
       <MediaStackCarousel
         messageId={item.id}
-        mediaList={mediaList}
+        mediaList={previewableWithOriginalIdx.map((x) => x.m)}
         width={capped.w}
         height={capped.h}
         isDark={isDark}
@@ -302,30 +322,67 @@ export function renderChatListItem(args: {
               : APP_COLORS.light.text.secondary
         }
         onOpen={(idx) => {
-          if (isDm) void openDmMediaViewer(item, idx);
-          else if (isGroup) void openGroupMediaViewer(item, idx);
-          else openViewer(mediaList, idx);
+          const originalIdx = previewableWithOriginalIdx[idx]?.idx ?? 0;
+          if (isDm) void openDmMediaViewer(item, originalIdx);
+          else if (isGroup) void openGroupMediaViewer(item, originalIdx);
+          else openViewer(mediaList, originalIdx);
         }}
       />
     ) : null;
 
+  // IMPORTANT: even when a message contains previewable media (image/video),
+  // we still want to show file-like attachments (PDF/audio/etc) below it.
   const attachmentsToRender =
-    !mediaList.length || isDeleted || isStillEncrypted || hasMedia
-      ? []
-      : mediaList.map((m, idx2) => ({ m, idx: idx2 }));
+    isDeleted || isStillEncrypted ? [] : fileLikeWithOriginalIdx.map(({ m, idx }) => ({ m, idx }));
 
   const renderAttachments =
     attachmentsToRender.length && !isDeleted && !isStillEncrypted ? (
       <View style={{ gap: 8 }}>
-        {attachmentsToRender.map(({ m: m2, idx: idx2 }, renderIdx) => (
-          <FileAttachmentTile
-            key={`file:${item.id}:${String(m2.path || '')}:${idx2}:${renderIdx}`}
-            item={m2}
-            isDark={isDark}
-            isOutgoing={isOutgoing}
-            onPress={() => openFileAtOriginalIdx(idx2)}
-          />
-        ))}
+        {attachmentsToRender.map(({ m: m2, idx: idx2 }, renderIdx) =>
+          String(m2?.contentType || '')
+            .trim()
+            .toLowerCase()
+            .startsWith('audio/') && audioPlayback ? (
+            <AudioAttachmentTile
+              key={`audio:${item.id}:${String(m2.path || '')}:${idx2}:${renderIdx}`}
+              isDark={isDark}
+              isOutgoing={isOutgoing}
+              state={{
+                key: audioPlayback.getAudioKey(item, idx2, m2),
+                title: audioPlayback.getAudioTitle(m2),
+                subtitle: undefined,
+                isPlaying:
+                  audioPlayback.currentKey === audioPlayback.getAudioKey(item, idx2, m2) &&
+                  audioPlayback.isPlaying,
+                isLoading: audioPlayback.loadingKey === audioPlayback.getAudioKey(item, idx2, m2),
+                positionMs:
+                  audioPlayback.currentKey === audioPlayback.getAudioKey(item, idx2, m2)
+                    ? audioPlayback.positionMs
+                    : 0,
+                durationMs:
+                  audioPlayback.currentKey === audioPlayback.getAudioKey(item, idx2, m2)
+                    ? audioPlayback.durationMs
+                    : null,
+                onToggle: () =>
+                  audioPlayback.onPressAudio({
+                    msg: item,
+                    idx: idx2,
+                    key: audioPlayback.getAudioKey(item, idx2, m2),
+                    media: m2,
+                  }),
+                onSeek: (nextMs) => audioPlayback.seek(nextMs),
+              }}
+            />
+          ) : (
+            <FileAttachmentTile
+              key={`file:${item.id}:${String(m2.path || '')}:${idx2}:${renderIdx}`}
+              item={m2}
+              isDark={isDark}
+              isOutgoing={isOutgoing}
+              onPress={() => openFileAtOriginalIdx(idx2)}
+            />
+          ),
+        )}
       </View>
     ) : null;
 

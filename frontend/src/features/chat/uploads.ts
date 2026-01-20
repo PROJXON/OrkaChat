@@ -7,6 +7,7 @@ import type { MediaKind } from '../../types/media';
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
 export const MAX_VIDEO_BYTES = 75 * 1024 * 1024; // 75MB
 export const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25MB (GIFs/documents)
+export const MAX_AUDIO_BYTES = 75 * 1024 * 1024; // 75MB (audio attachments)
 
 export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
 
@@ -43,8 +44,30 @@ export function getAttachmentHardLimitBytes(kind: MediaKind): number {
   return kind === 'image' ? MAX_IMAGE_BYTES : kind === 'video' ? MAX_VIDEO_BYTES : MAX_FILE_BYTES;
 }
 
-export function assertWithinAttachmentHardLimit(kind: MediaKind, sizeBytes: number): void {
-  const limit = getAttachmentHardLimitBytes(kind);
+function isAudioContentType(contentType?: string): boolean {
+  const ct = String(contentType || '')
+    .trim()
+    .toLowerCase()
+    .split(';')[0]
+    .trim();
+  return !!ct && ct.startsWith('audio/');
+}
+
+export function getAttachmentHardLimitBytesForContentType(
+  kind: MediaKind,
+  contentType?: string,
+): number {
+  if (kind !== 'image' && kind !== 'video' && isAudioContentType(contentType))
+    return MAX_AUDIO_BYTES;
+  return getAttachmentHardLimitBytes(kind);
+}
+
+export function assertWithinAttachmentHardLimit(
+  kind: MediaKind,
+  sizeBytes: number,
+  contentType?: string,
+): void {
+  const limit = getAttachmentHardLimitBytesForContentType(kind, contentType);
   if (Number.isFinite(sizeBytes) && sizeBytes > limit) {
     throw new Error(
       `File too large (${formatBytes(sizeBytes)}). Limit for ${kind} is ${formatBytes(limit)}.`,

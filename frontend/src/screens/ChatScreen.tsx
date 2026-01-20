@@ -25,6 +25,7 @@ import { ChatScreenOverlays } from '../features/chat/components/ChatScreenOverla
 import { TypingIndicator } from '../features/chat/components/TypingIndicator';
 import { isVisibleMemberRow, toMemberRow } from '../features/chat/memberRows';
 import {
+  normalizeChatMediaList,
   normalizeDmMediaItems,
   normalizeGroupMediaItems,
   normalizeReactions,
@@ -55,6 +56,7 @@ import { useChannelSettingsPanelActions } from '../features/chat/useChannelSetti
 import { useChatAdminOps } from '../features/chat/useChatAdminOps';
 import { useChatAttachmentPickers } from '../features/chat/useChatAttachmentPickers';
 import { useChatAttachments } from '../features/chat/useChatAttachments';
+import { useChatAudioPlayback } from '../features/chat/useChatAudioPlayback';
 import { useChatAutoDecrypt } from '../features/chat/useChatAutoDecrypt';
 import { useChatCdnMediaPrefetch } from '../features/chat/useChatCdnMediaPrefetch';
 import { useChatChannelUiState } from '../features/chat/useChatChannelUiState';
@@ -991,6 +993,134 @@ export default function ChatScreen({
     decryptGroupFileToCacheUri,
   });
 
+  // ---- Inline audio playback (Signal-style) ----
+  const audioQueue = React.useMemo(() => {
+    const items: Array<{
+      key: string;
+      createdAt: number;
+      idx: number;
+      title: string;
+      resolveUri: () => Promise<string>;
+    }> = [];
+
+    for (const msg of messages) {
+      const isStillEncrypted = (!!msg.encrypted || !!msg.groupEncrypted) && !msg.decryptedText;
+      if (isStillEncrypted) continue;
+
+      // Match renderer logic: plaintext chats can store attachments in a JSON envelope in rawText/text.
+      const env =
+        !msg.encrypted && !msg.groupEncrypted && !isDm
+          ? parseChatEnvelope(msg.rawText ?? msg.text)
+          : null;
+      const envMediaList = env ? normalizeChatMediaList(env.media) : [];
+      const list =
+        env && envMediaList.length
+          ? envMediaList
+          : msg.mediaList
+            ? msg.mediaList
+            : msg.media
+              ? [msg.media]
+              : [];
+      if (!list.length) continue;
+
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        const ct = String(m?.contentType || '')
+          .trim()
+          .toLowerCase()
+          .split(';')[0]
+          .trim();
+        if (!ct.startsWith('audio/')) continue;
+
+        const key = `${String(msg.id)}:${String(m.path || '')}:${i}`;
+        const title = String(m.fileName || '').trim() || 'Audio';
+
+        if (isDm) {
+          items.push({
+            key,
+            createdAt: Number(msg.createdAt) || 0,
+            idx: i,
+            title,
+            resolveUri: async () => {
+              const env = parseDmMediaEnvelope(String(msg.decryptedText || ''));
+              const arr = normalizeDmMediaItems(env);
+              const it = arr[i];
+              if (!it) throw new Error('Missing audio attachment');
+              return await decryptDmFileToCacheUri(msg, it);
+            },
+          });
+          continue;
+        }
+
+        if (isGroup) {
+          items.push({
+            key,
+            createdAt: Number(msg.createdAt) || 0,
+            idx: i,
+            title,
+            resolveUri: async () => {
+              const env = parseGroupMediaEnvelope(String(msg.decryptedText || ''));
+              const arr = normalizeGroupMediaItems(env);
+              const it = arr[i];
+              if (!it) throw new Error('Missing audio attachment');
+              return await decryptGroupFileToCacheUri(msg, it);
+            },
+          });
+          continue;
+        }
+
+        items.push({
+          key,
+          createdAt: Number(msg.createdAt) || 0,
+          idx: i,
+          title,
+          resolveUri: async () => {
+            const url = mediaUrlByPath[String(m.path || '')];
+            if (!url) throw new Error('Missing media URL');
+            return url;
+          },
+        });
+      }
+    }
+
+    // Always use chronological order for "autoplay next", regardless of list inversion on native.
+    items.sort((a, b) => a.createdAt - b.createdAt || a.idx - b.idx || a.key.localeCompare(b.key));
+    return items;
+  }, [
+    decryptDmFileToCacheUri,
+    decryptGroupFileToCacheUri,
+    isDm,
+    isGroup,
+    mediaUrlByPath,
+    messages,
+  ]);
+
+  const audioPlayback = useChatAudioPlayback({ queue: audioQueue });
+  const audioPlaybackForRender = React.useMemo(
+    () => ({
+      ...audioPlayback,
+      getAudioKey: (msg: ChatMessage, idx: number, media: { path: string }) =>
+        `${String(msg.id)}:${String(media.path || '')}:${idx}`,
+      getAudioTitle: (media: { fileName?: string }) =>
+        String(media.fileName || '').trim() || 'Audio',
+      onPressAudio: async (args: { key: string }) => {
+        try {
+          await audioPlayback.toggle(args.key);
+        } catch (e: unknown) {
+          const msg =
+            e instanceof Error
+              ? e.message || 'Could not play audio'
+              : typeof e === 'string'
+                ? e
+                : 'Could not play audio';
+          showAlert('Audio', msg);
+          console.warn('audio playback failed', e);
+        }
+      },
+    }),
+    [audioPlayback, showAlert],
+  );
+
   const markMySeen = React.useCallback(
     (messageCreatedAt: number, readAt: number) => {
       setMySeenAtByCreatedAt((prev) => ({
@@ -1426,6 +1556,7 @@ export default function ChatScreen({
         openDmMediaViewer,
         openGroupMediaViewer,
         requestOpenLink,
+        audioPlayback: audioPlaybackForRender,
         onPressMessage,
         openMessageActions,
         latestOutgoingMessageId,
@@ -1463,6 +1594,7 @@ export default function ChatScreen({
       openMessageActions,
       openReactionInfo,
       openViewer,
+      audioPlaybackForRender,
       peerSeenAtByCreatedAt,
       pendingMedia,
       requestOpenLink,

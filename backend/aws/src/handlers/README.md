@@ -230,6 +230,7 @@ The AI and media-quota handlers can optionally use DynamoDB for rate/usage track
   - **Auth**: JWT
   - **Body**: `{ conversationId, peer?, messages: [{ user, text, createdAt }] }`
   - **Returns**: `{ summary }`
+  - **Streaming variant (SSE)**: wire `http/aiSummaryStream.js` *instead* when using a streaming-capable integration (SSE `Content-Type: text/event-stream`)
   - **Abuse caps** (optional, requires `AI_SUMMARY_TABLE` + `dynamodb:UpdateItem` on that table):
     - `AI_SUMMARY_MAX_PER_MINUTE` (default: 3)
     - `AI_SUMMARY_MAX_PER_DAY` (default: 40)
@@ -238,6 +239,7 @@ The AI and media-quota handlers can optionally use DynamoDB for rate/usage track
   - **Auth**: JWT
   - **Body**: `{ conversationId, peer?, instruction, wantReplies?: boolean, messages: [{ user, text, createdAt }], thread?: [{ role: "user"|"assistant", text }], resetThread?: boolean, attachments?: [{ kind: "image"|"video", thumbKey, thumbUrl, fileName?, size?, user?, createdAt? }] }`
   - **Returns**: `{ answer, suggestions: string[], thread: [{ role, text }] }`
+  - **Streaming variant (SSE)**: wire `http/aiHelperStream.js` *instead* when using a streaming-capable integration (SSE `Content-Type: text/event-stream`)
   - **Abuse caps** (optional, requires `AI_HELPER_TABLE` + `dynamodb:UpdateItem` on that table):
     - `AI_HELPER_MAX_PER_MINUTE` (default: 10)
     - `AI_HELPER_MAX_PER_DAY` (default: 250)

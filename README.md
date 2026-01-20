@@ -31,6 +31,7 @@ Legacy redirects:
 - **Multi‑media messages** (images / video) with **previews**
 - **In‑app camera capture** for attaching media
 - **Encrypted media in DMs / group DMs (E2EE media)**
+- **File attachments + native file viewer** (PDF, Office docs, archives, audio, etc.)
 
 ### Safety & Moderation
 - **Block users**
@@ -48,10 +49,12 @@ Legacy redirects:
 ### AI
 - **AI summarization**
 - **AI reply / response suggestions** using chat context
+- **Streaming AI responses (SSE)** when the backend is wired behind a streaming-capable endpoint (the app can target a dedicated base URL via `AI_API_URL`)
 
 ### Platform
 - **Guest mode** (read‑only/public endpoints)
 - **Mobile push notifications**
+- **Local UI caches (AsyncStorage)** for faster cold-start hydration (e.g. display name, avatar settings, channel/DM labels)
 
 ## Security (high level)
 
@@ -124,6 +127,15 @@ Useful commands:
 - Android (native build + run): `npm run android`
 - iOS (native build + run, macOS only): `npm run ios`
 - Static web export: `npm run build:web` (outputs `frontend/dist/`)
+
+### Tests
+
+Jest is set up in `frontend/`:
+
+```bash
+cd frontend
+npm test
+```
 
 Running **web + Android from one dev server**:
 - Run `npm start`, then press **`w`** to open web and **`a`** to open Android (emulator/device) from the same Expo server.

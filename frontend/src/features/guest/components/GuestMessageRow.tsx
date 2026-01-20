@@ -2,10 +2,13 @@ import React from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AvatarBubble } from '../../../components/AvatarBubble';
+import { AudioAttachmentTile } from '../../../components/media/AudioAttachmentTile';
+import { FileAttachmentTile } from '../../../components/media/FileAttachmentTile';
 import { MediaStackCarousel } from '../../../components/MediaStackCarousel';
 import { RichText } from '../../../components/RichText';
 import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
+import { isPreviewableMedia } from '../../../utils/mediaKinds';
 import { calcCappedMediaSize } from '../../../utils/mediaSizing';
 import { resolveMediaUrlWithFallback } from '../../../utils/resolveMediaUrl';
 import { formatGuestTimestamp } from '../parsers';
@@ -18,6 +21,7 @@ export function GuestMessageRow({
   resolvePathUrl,
   onOpenReactionInfo,
   onOpenViewer,
+  audioPlayback,
   avatarSize,
   avatarGutter,
   avatarSeed,
@@ -33,6 +37,17 @@ export function GuestMessageRow({
   resolvePathUrl: (path: string) => Promise<string | null>;
   onOpenReactionInfo: (emoji: string, subs: string[], namesBySub?: Record<string, string>) => void;
   onOpenViewer: (mediaList: MediaItem[], startIdx: number) => void;
+  audioPlayback?: {
+    currentKey: string | null;
+    loadingKey: string | null;
+    isPlaying: boolean;
+    positionMs: number;
+    durationMs: number | null;
+    toggle: (key: string) => Promise<void>;
+    seek: (ms: number) => Promise<void>;
+    getKey: (msgId: string, idx: number, media: MediaItem) => string;
+    onPress: (key: string) => void | Promise<void>;
+  };
   avatarSize: number;
   avatarGutter: number;
   avatarSeed: string;
@@ -58,7 +73,15 @@ export function GuestMessageRow({
     [item.mediaList, item.media],
   );
   const primaryMedia = mediaList.length ? mediaList[0] : null;
-  const extraCount = Math.max(0, mediaList.length - 1);
+  const previewableWithIdx = React.useMemo(
+    () => mediaList.map((m, idx) => ({ m, idx })).filter(({ m }) => isPreviewableMedia(m)),
+    [mediaList],
+  );
+  const fileLikeWithIdx = React.useMemo(
+    () => mediaList.map((m, idx) => ({ m, idx })).filter(({ m }) => !isPreviewableMedia(m)),
+    [mediaList],
+  );
+  const extraCount = Math.max(0, previewableWithIdx.length - 1);
 
   // For multi-media previews, resolve thumb URLs for each page so the carousel can render immediately.
   React.useEffect(() => {
@@ -253,35 +276,39 @@ export function GuestMessageRow({
               ) : null}
             </View>
 
-            {mediaList.length > 1 ? (
+            {previewableWithIdx.length > 1 ? (
               <MediaStackCarousel
                 messageId={item.id}
-                mediaList={mediaList}
+                mediaList={previewableWithIdx.map((x) => x.m)}
                 width={capped.w}
                 height={capped.h}
                 isDark={isDark}
                 cornerRadius={0}
                 uriByPath={thumbUriByPath}
-                onOpen={(idx) => onOpenViewer(mediaList, idx)}
+                onOpen={(idx) => {
+                  const originalIdx = previewableWithIdx[idx]?.idx ?? 0;
+                  onOpenViewer(mediaList, originalIdx);
+                }}
               />
             ) : (
               <>
                 <Pressable
                   onPress={() => {
-                    if (primaryMedia) onOpenViewer(mediaList, 0);
+                    const originalIdx = previewableWithIdx[0]?.idx ?? 0;
+                    if (primaryMedia) onOpenViewer(mediaList, originalIdx);
                   }}
                   style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
                   accessibilityRole="button"
                   accessibilityLabel="Open media"
                 >
-                  {primaryMedia?.kind === 'image' && thumbUrl ? (
+                  {previewableWithIdx[0]?.m?.kind === 'image' && thumbUrl ? (
                     <Image
                       source={{ uri: thumbUrl }}
                       style={{ width: capped.w, height: capped.h }}
                       resizeMode="contain"
                       onError={() => void onThumbError()}
                     />
-                  ) : primaryMedia?.kind === 'video' && thumbUrl ? (
+                  ) : previewableWithIdx[0]?.m?.kind === 'video' && thumbUrl ? (
                     <View style={{ width: capped.w, height: capped.h }}>
                       <Image
                         source={{ uri: thumbUrl }}
@@ -294,20 +321,8 @@ export function GuestMessageRow({
                       </View>
                     </View>
                   ) : (
-                    <View
-                      style={[styles.guestMediaFileChip, isDark && styles.guestMediaFileChipDark]}
-                    >
-                      <Text
-                        style={[styles.guestMediaFileText, isDark && styles.guestMediaFileTextDark]}
-                        numberOfLines={1}
-                      >
-                        {primaryMedia?.fileName
-                          ? primaryMedia.fileName
-                          : primaryMedia?.kind === 'video'
-                            ? 'Video'
-                            : 'File'}
-                      </Text>
-                    </View>
+                    // If there is no previewable media, we render file/audio tiles below instead.
+                    <View />
                   )}
                 </Pressable>
 
@@ -326,6 +341,49 @@ export function GuestMessageRow({
               </>
             )}
           </View>
+
+          {/* File-like attachments (including audio) render as tiles below previewable media. */}
+          {fileLikeWithIdx.length ? (
+            <View style={{ marginTop: 8, gap: 8 }}>
+              {fileLikeWithIdx.map(({ m, idx }, renderIdx) => {
+                const ct = String(m?.contentType || '')
+                  .trim()
+                  .toLowerCase();
+                const isAudio = ct.startsWith('audio/');
+                const key = audioPlayback?.getKey(item.id, idx, m) ?? `${item.id}:${m.path}:${idx}`;
+                if (isAudio && audioPlayback) {
+                  return (
+                    <AudioAttachmentTile
+                      key={`guest-audio:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
+                      isDark={isDark}
+                      isOutgoing={false}
+                      state={{
+                        key,
+                        title: String(m.fileName || '').trim() || 'Audio',
+                        subtitle: undefined,
+                        isPlaying: audioPlayback.currentKey === key && audioPlayback.isPlaying,
+                        isLoading: audioPlayback.loadingKey === key,
+                        positionMs: audioPlayback.currentKey === key ? audioPlayback.positionMs : 0,
+                        durationMs:
+                          audioPlayback.currentKey === key ? audioPlayback.durationMs : null,
+                        onToggle: () => void audioPlayback.onPress(key),
+                        onSeek: (nextMs) => void audioPlayback.seek(nextMs),
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <FileAttachmentTile
+                    key={`guest-file:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
+                    item={m}
+                    isDark={isDark}
+                    isOutgoing={false}
+                    onPress={() => onOpenViewer(mediaList, idx)}
+                  />
+                );
+              })}
+            </View>
+          ) : null}
 
           {reactionEntriesVisible.length ? (
             <View

@@ -43,7 +43,10 @@
       "package": "com.projxon.orkachat",
       "versionCode": 1,
       "googleServicesFile": "./google-services.json",
-      "permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -79,7 +82,8 @@
         {
           "icon": "./assets/icons/notification-icon.png"
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "owner": "eperry2688"
   }

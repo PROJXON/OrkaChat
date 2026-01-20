@@ -23,10 +23,10 @@ export async function uploadChannelMediaPlain(args: {
   const { media, activeConversationId } = args;
 
   const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize);
+  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize, media.contentType);
 
   const bytes = await readUriBytes(media.uri);
-  assertWithinAttachmentHardLimit(media.kind, bytes.byteLength);
+  assertWithinAttachmentHardLimit(media.kind, bytes.byteLength, media.contentType);
 
   const safeName =
     (media.fileName || `${media.kind}-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_').slice(0, 120) ||
@@ -101,11 +101,11 @@ export async function uploadDmMediaEncrypted(args: {
   } = args;
 
   const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize);
+  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize, media.contentType);
 
   // 1) Read original bytes (avoid Blob.arrayBuffer on Android)
   const plainBytes = await readUriBytes(media.uri);
-  assertWithinAttachmentHardLimit(media.kind, plainBytes.byteLength);
+  assertWithinAttachmentHardLimit(media.kind, plainBytes.byteLength, media.contentType);
 
   // 2) Generate per-attachment key and encrypt bytes
   const fileKey = new Uint8Array(getRandomBytes(32));
@@ -180,10 +180,10 @@ export async function uploadGroupMediaEncrypted(args: {
   const { media, conversationKey, messageKeyBytes, inputText, captionOverride } = args;
 
   const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize);
+  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize, media.contentType);
 
   const plainBytes = await readUriBytes(media.uri);
-  assertWithinAttachmentHardLimit(media.kind, plainBytes.byteLength);
+  assertWithinAttachmentHardLimit(media.kind, plainBytes.byteLength, media.contentType);
 
   const fileKey = new Uint8Array(getRandomBytes(32));
   const fileIv = new Uint8Array(getRandomBytes(12));
