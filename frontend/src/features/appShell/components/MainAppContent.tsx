@@ -610,7 +610,9 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         submitCreateChannelInline={submitCreateChannelInline}
         channelSearchOpen={channelSearchOpen}
         setChannelSearchOpen={setChannelSearchOpen}
-        showPinnedChannelInSearch={isDmMode}
+        // Keep the "home/last channel" pinned at the top of Find Channels consistently
+        // (otherwise "Global" appears first when you're already in a channel).
+        showPinnedChannelInSearch
         pinnedChannelConversationId={activeChannelConversationId}
         pinnedChannelLabel={activeChannelLabel}
         channelsQuery={channelsQuery}
