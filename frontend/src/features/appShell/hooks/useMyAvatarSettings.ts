@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as React from 'react';
+import { Platform } from 'react-native';
 
 export type AvatarState = {
   bgColor?: string;
@@ -7,6 +8,48 @@ export type AvatarState = {
   imagePath?: string;
   imageUri?: string; // cached preview URL (not persisted)
 };
+
+const DEVICE_AVATAR_CACHE_KEY = 'ui:lastAvatar:v1:device';
+
+function persistDeviceAvatarCacheRaw(raw: string): void {
+  const v = typeof raw === 'string' ? raw : '';
+  if (!v) return;
+  try {
+    void AsyncStorage.setItem(DEVICE_AVATAR_CACHE_KEY, v).catch(() => {});
+  } catch {
+    // ignore
+  }
+  if (Platform.OS === 'web') {
+    try {
+      globalThis?.localStorage?.setItem?.(DEVICE_AVATAR_CACHE_KEY, v);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function readCachedAvatarSync(userSub: string | null): AvatarState | null {
+  // Web-only: localStorage is synchronous; use it to avoid flashing default avatar on refresh.
+  if (Platform.OS !== 'web') return null;
+  const sub = typeof userSub === 'string' ? userSub.trim() : '';
+  // If userSub isn't known yet (first paint), fall back to a device-level cache.
+  const key = sub ? `avatar:v1:${sub}` : DEVICE_AVATAR_CACHE_KEY;
+  try {
+    const raw = globalThis?.localStorage?.getItem?.(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const rec = parsed as Record<string, unknown>;
+    return {
+      bgColor: typeof rec.bgColor === 'string' ? rec.bgColor : undefined,
+      textColor: typeof rec.textColor === 'string' ? rec.textColor : undefined,
+      imagePath: typeof rec.imagePath === 'string' ? rec.imagePath : undefined,
+      imageUri: undefined,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export function useMyAvatarSettings({
   userSub,
@@ -48,11 +91,65 @@ export function useMyAvatarSettings({
   const [avatarError, setAvatarError] = React.useState<string | null>(null);
 
   // Persisted avatar state (what we actually saved / loaded).
-  const [myAvatar, setMyAvatar] = React.useState<AvatarState>(() => ({ textColor: '#fff' }));
+  const [myAvatar, setMyAvatar] = React.useState<AvatarState>(() => {
+    return readCachedAvatarSync(userSub) || { textColor: '#fff' };
+  });
   // Draft avatar state for the Avatar modal. Changes here should only commit on "Save".
   const [avatarDraft, setAvatarDraft] = React.useState<AvatarState>(() => ({ textColor: '#fff' }));
   const [avatarDraftImageUri, setAvatarDraftImageUri] = React.useState<string | null>(null);
   const [avatarDraftRemoveImage, setAvatarDraftRemoveImage] = React.useState<boolean>(false);
+
+  // Mobile-only: hydrate from device-level cache ASAP so the header can show the last avatar
+  // even before userSub is known / profile fetch completes.
+  React.useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(DEVICE_AVATAR_CACHE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return;
+        const rec = parsed as Record<string, unknown>;
+        const next: AvatarState = {
+          bgColor: typeof rec.bgColor === 'string' ? rec.bgColor : undefined,
+          textColor: typeof rec.textColor === 'string' ? rec.textColor : undefined,
+          imagePath: typeof rec.imagePath === 'string' ? rec.imagePath : undefined,
+          imageUri: undefined,
+        };
+        if (cancelled) return;
+        // Only apply if we don't already have a meaningful avatar.
+        setMyAvatar((prev) => {
+          const has =
+            !!String(prev?.imagePath || '').trim() ||
+            !!String(prev?.bgColor || '').trim() ||
+            (String(prev?.textColor || '').trim() &&
+              String(prev?.textColor || '').trim() !== '#fff');
+          if (has) return prev;
+          return { ...prev, ...next };
+        });
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // If userSub becomes known after bootstrap, hydrate from localStorage synchronously (web-only).
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const cached = readCachedAvatarSync(userSub);
+    if (!cached) return;
+    setMyAvatar((prev) => ({
+      ...prev,
+      bgColor: cached.bgColor ?? prev.bgColor,
+      textColor: cached.textColor ?? prev.textColor,
+      imagePath: cached.imagePath ?? prev.imagePath,
+      imageUri: undefined,
+    }));
+  }, [userSub]);
 
   // Initialize draft state when opening the Avatar modal.
   React.useEffect(() => {
@@ -81,6 +178,8 @@ export function useMyAvatarSettings({
               imageUri: undefined,
             }));
           }
+          // Also persist to a device-level cache so first paint can show the avatar before userSub is known.
+          persistDeviceAvatarCacheRaw(raw);
         }
 
         // Always do a best-effort server fetch too, even if we have cache, so changes
@@ -111,7 +210,9 @@ export function useMyAvatarSettings({
             imageUri: undefined,
           }));
           // Keep the local cache in sync with what the server says.
-          await AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+          const nextRaw = JSON.stringify(next);
+          await AsyncStorage.setItem(key, nextRaw).catch(() => {});
+          persistDeviceAvatarCacheRaw(nextRaw);
         }
       } catch (e) {
         if (__DEV__) console.debug('avatar cache load failed', e);
@@ -140,7 +241,10 @@ export function useMyAvatarSettings({
     async (next: { bgColor?: string; textColor?: string; imagePath?: string }) => {
       if (!userSub) return;
       const key = `avatar:v1:${userSub}`;
-      await AsyncStorage.setItem(key, JSON.stringify(next));
+      const raw = JSON.stringify(next);
+      await AsyncStorage.setItem(key, raw);
+      // Device-level cache for first paint.
+      persistDeviceAvatarCacheRaw(raw);
 
       if (!apiUrl) return;
       const { tokens } = await fetchAuthSession();

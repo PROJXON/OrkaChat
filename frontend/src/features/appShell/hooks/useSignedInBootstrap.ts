@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as React from 'react';
+import { Platform } from 'react-native';
 
 import type { AmplifyUiUser } from '../../../types/amplifyUi';
 import type { BackupBlob } from '../../../types/crypto';
@@ -103,6 +105,22 @@ export function useSignedInBootstrap({
         const userId = typeof attrs.sub === 'string' ? attrs.sub : String(attrs.sub || '');
         if (mounted) setMyUserSub(userId);
         if (mounted) setDisplayName(name);
+        // Best-effort: persist last display name for instant header hydration on next launch.
+        const dn = String(name || '').trim();
+        if (dn) {
+          try {
+            void AsyncStorage.setItem('ui:lastDisplayName:device', dn).catch(() => {});
+          } catch {
+            // ignore
+          }
+          if (Platform.OS === 'web') {
+            try {
+              globalThis?.localStorage?.setItem?.('ui:lastDisplayName:device', dn);
+            } catch {
+              // ignore
+            }
+          }
+        }
 
         let keyPair = await loadKeyPair(userId);
         // If a keypair exists locally, ensure it's internally consistent.

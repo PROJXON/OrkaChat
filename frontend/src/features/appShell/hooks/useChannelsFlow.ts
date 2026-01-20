@@ -4,6 +4,20 @@ import * as React from 'react';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { searchChannels } from '../../../utils/channelSearch';
 
+function readCachedChannelNamesByIdSync(): Record<string, string> {
+  // Web-only: localStorage is synchronous; use it to hydrate the header chip on first paint.
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem('ui:channelNamesById:v1');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
 export type ChannelSearchResult = {
   channelId: string;
   name: string;
@@ -127,7 +141,57 @@ export function useChannelsFlow({
   const [globalUserCount, setGlobalUserCount] = React.useState<number | null>(null);
   const [channelsResults, setChannelsResults] = React.useState<ChannelSearchResult[]>([]);
 
-  const [channelNameById, setChannelNameById] = React.useState<Record<string, string>>({});
+  const [channelNameById, setChannelNameById] = React.useState<Record<string, string>>(() =>
+    readCachedChannelNamesByIdSync(),
+  );
+
+  // Persist channelId -> name map so the header chip can hydrate instantly on refresh.
+  // (DMs already have dm:threads + conversations:cache; channels need a similar local cache.)
+  const [channelNamesRestoreDone, setChannelNamesRestoreDone] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        // localStorage sync hydration is handled in the state initializer; AsyncStorage is the fallback.
+        const raw = await AsyncStorage.getItem('ui:channelNamesById:v1');
+        if (!mounted) return;
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          setChannelNameById((prev) => ({ ...parsed, ...prev }));
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (mounted) setChannelNamesRestoreDone(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    // Avoid clobbering storage with {} before the restore runs.
+    if (!channelNamesRestoreDone) return;
+    const payload = channelNameById || {};
+    (async () => {
+      try {
+        await AsyncStorage.setItem('ui:channelNamesById:v1', JSON.stringify(payload));
+      } catch {
+        // ignore
+      }
+      // Web-only: also write raw localStorage for true first-paint hydration.
+      try {
+        if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+          window.localStorage.setItem('ui:channelNamesById:v1', JSON.stringify(payload));
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, [channelNameById, channelNamesRestoreDone]);
   const [channelPasswordPrompt, setChannelPasswordPrompt] = React.useState<null | {
     channelId: string;
     name: string;
