@@ -24,6 +24,7 @@ export function useChatWsMessageHandler(opts: {
   onNewDmNotification:
     | ((conversationId: string, senderLabel: string, senderSub?: string) => void)
     | undefined;
+  refreshUnreads: (() => void | Promise<void>) | undefined;
   onKickedFromConversation: ((conversationId: string) => void) | undefined;
 
   openInfo: (title: string, body: string) => void;
@@ -58,6 +59,7 @@ export function useChatWsMessageHandler(opts: {
     lastAvatarRefetchAtBySubRef,
     invalidateAvatarProfile,
     onNewDmNotification,
+    refreshUnreads,
     onKickedFromConversation,
     openInfo,
     showAlert,
@@ -108,6 +110,7 @@ export function useChatWsMessageHandler(opts: {
           lastAvatarRefetchAtBySubRef,
           invalidateAvatarProfile,
           onNewDmNotification,
+          refreshUnreads,
           onKickedFromConversation,
           openInfo,
           showAlert,
@@ -149,6 +152,7 @@ export function useChatWsMessageHandler(opts: {
       normalizeUser,
       onKickedFromConversation,
       onNewDmNotification,
+      refreshUnreads,
       openInfo,
       parseEncrypted,
       parseGroupEncrypted,

@@ -28,6 +28,7 @@ export function handleChatWsMessage(opts: {
   onNewDmNotification:
     | ((conversationId: string, senderLabel: string, senderSub?: string) => void)
     | undefined;
+  refreshUnreads: (() => void | Promise<void>) | undefined;
   onKickedFromConversation: ((conversationId: string) => void) | undefined;
   openInfo: ((title: string, body: string) => void) | undefined;
   showAlert: (title: string, body: string) => void;
@@ -71,7 +72,23 @@ export function handleChatWsMessage(opts: {
   ) {
     // System events shouldn't create "unread message" notifications.
     if (payload?.type === 'system' || payload?.kind === 'system') {
-      // ignore
+      // But "added to group" (and group updates) should refresh the unread inbox immediately,
+      // otherwise users won't see the "Added to group: <title>" hint until the next poll/login.
+      try {
+        const convId = String(payload.conversationId || '');
+        const systemKind = typeof payload.systemKind === 'string' ? payload.systemKind : '';
+        const targetSub = typeof payload.targetSub === 'string' ? payload.targetSub : '';
+        if (
+          convId.startsWith('gdm#') &&
+          (systemKind === 'added' || systemKind === 'update') &&
+          // Only refresh on "added" when it targets me.
+          (systemKind !== 'added' || (!!opts.myUserId && targetSub === opts.myUserId))
+        ) {
+          void Promise.resolve(opts.refreshUnreads?.());
+        }
+      } catch {
+        // ignore
+      }
     } else {
       // For group DMs, prefer server-provided groupTitle.
       const senderLabel =

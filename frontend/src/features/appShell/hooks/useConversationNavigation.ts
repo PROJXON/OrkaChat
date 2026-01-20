@@ -1,10 +1,12 @@
 import * as React from 'react';
 
-import type { ServerConversation, UnreadDmMap } from './useChatsInboxData';
+import type { ChatsListEntry, ServerConversation, UnreadDmMap } from './useChatsInboxData';
 
 export function useConversationNavigation({
   serverConversations,
   unreadDmMap,
+  dmThreadsList,
+  titleOverrideByConvIdRef,
   peer,
   upsertDmThread,
   setConversationId,
@@ -21,6 +23,8 @@ export function useConversationNavigation({
 }: {
   serverConversations: ServerConversation[];
   unreadDmMap: UnreadDmMap;
+  dmThreadsList?: ChatsListEntry[];
+  titleOverrideByConvIdRef?: React.MutableRefObject<Record<string, string>>;
   peer: string | null;
   upsertDmThread: (conversationId: string, title: string, lastActivityAt: number) => void;
   setConversationId: (v: string) => void;
@@ -56,10 +60,19 @@ export function useConversationNavigation({
 
       // Best-effort title selection:
       // 1) server conversations (authoritative titles for groups + DMs)
-      // 2) unread cache (push/unreads can provide a title)
-      // 3) fallback by kind
+      // 2) local overrides (group titles learned from in-chat meta)
+      // 3) chats list (persisted local snapshot)
+      // 4) unread cache (push/unreads can provide a title)
+      // 5) fallback by kind
       const server = serverConversations.find((c) => c.conversationId === targetConversationId);
       const cached = unreadDmMap[targetConversationId];
+      const overrideTitleRaw =
+        titleOverrideByConvIdRef?.current?.[String(targetConversationId || '')] || '';
+      const overrideTitle = String(overrideTitleRaw || '').trim();
+      const localThreadTitleRaw = dmThreadsList?.find(
+        (c) => c.conversationId === targetConversationId,
+      )?.peer;
+      const localThreadTitle = String(localThreadTitleRaw || '').trim();
       const kind =
         (typeof server?.conversationKind === 'string' ? server.conversationKind : undefined) ||
         (String(targetConversationId || '').startsWith('gdm#')
@@ -71,16 +84,17 @@ export function useConversationNavigation({
         server?.peerDisplayName != null ? String(server.peerDisplayName).trim() : '';
       const cachedTitle = cached?.user != null ? String(cached.user).trim() : '';
       const fallbackTitle =
-        targetConversationId === 'global' ? '' : kind === 'group' ? 'Group DM' : 'Direct Message';
-      const title = serverTitle || cachedTitle || fallbackTitle;
+        targetConversationId === 'global' ? '' : kind === 'group' ? '…' : 'Direct Message';
+      const title =
+        overrideTitle || serverTitle || localThreadTitle || cachedTitle || fallbackTitle;
 
       if (targetConversationId === 'global') setPeer(null);
-      else setPeer(title || (kind === 'group' ? 'Group DM' : 'Direct Message'));
+      else setPeer(title || (kind === 'group' ? '…' : 'Direct Message'));
 
       if (targetConversationId !== 'global') {
         upsertDmThread(
           targetConversationId,
-          title || peer || (kind === 'group' ? 'Group DM' : 'Direct Message'),
+          title || peer || (kind === 'group' ? '…' : 'Direct Message'),
           Date.now(),
         );
       }
@@ -90,6 +104,7 @@ export function useConversationNavigation({
       setSearchError(null);
     },
     [
+      dmThreadsList,
       peer,
       serverConversations,
       setChannelJoinError,
@@ -102,6 +117,7 @@ export function useConversationNavigation({
       setPeerInput,
       setSearchError,
       setSearchOpen,
+      titleOverrideByConvIdRef,
       unreadDmMap,
       upsertDmThread,
     ],

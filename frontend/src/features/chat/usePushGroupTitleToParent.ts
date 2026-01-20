@@ -25,6 +25,9 @@ export function usePushGroupTitleToParent(opts: {
       groupName && String(groupName).trim()
         ? String(groupName).trim()
         : String(computeDefaultTitle() || '').trim();
+    // Avoid pushing the placeholder title during initial group load (prevents "Group DM" flash).
+    // Once members/meta load, computeDefaultTitle will produce a real label and we'll push that.
+    if (!groupName && effective === 'Group DM') return;
     if (!effective) return;
     if (effective === lastPushedTitleRef.current) return;
     lastPushedTitleRef.current = effective;

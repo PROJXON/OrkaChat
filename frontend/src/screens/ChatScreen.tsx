@@ -151,6 +151,9 @@ type ChatScreenProps = {
   displayName: string;
   myAvatarOverride?: { bgColor?: string; textColor?: string; imagePath?: string } | null;
   onNewDmNotification?: (conversationId: string, user: string, userSub?: string) => void;
+  // Called when a system membership event arrives (e.g. "added to group") so the app shell can
+  // refresh the unread inbox immediately.
+  refreshUnreads?: () => void | Promise<void>;
   onKickedFromConversation?: (conversationId: string) => void;
   // Notify the parent (Chats list) that the current conversation's title changed.
   onConversationTitleChanged?: (conversationId: string, title: string) => void;
@@ -186,6 +189,7 @@ export default function ChatScreen({
   displayName,
   myAvatarOverride,
   onNewDmNotification,
+  refreshUnreads,
   onKickedFromConversation,
   onConversationTitleChanged,
   channelAboutRequestEpoch,
@@ -270,6 +274,7 @@ export default function ChatScreen({
   const displayNameRef = React.useRef<string>('');
   const myPublicKeyRef = React.useRef<string | null>(null);
   const onNewDmNotificationRef = React.useRef<typeof onNewDmNotification | undefined>(undefined);
+  const refreshUnreadsRef = React.useRef<typeof refreshUnreads | undefined>(undefined);
   const onKickedFromConversationRef = React.useRef<typeof onKickedFromConversation | undefined>(
     undefined,
   );
@@ -774,6 +779,8 @@ export default function ChatScreen({
     myPublicKeyRef,
     onNewDmNotification,
     onNewDmNotificationRef,
+    refreshUnreads,
+    refreshUnreadsRef,
     onKickedFromConversation,
     onKickedFromConversationRef,
   });
@@ -1149,6 +1156,7 @@ export default function ChatScreen({
     lastAvatarRefetchAtBySubRef,
     invalidateAvatarProfile,
     onNewDmNotification: onNewDmNotificationRef.current,
+    refreshUnreads: refreshUnreadsRef.current,
     onKickedFromConversation: onKickedFromConversationRef.current,
     openInfo,
     showAlert,

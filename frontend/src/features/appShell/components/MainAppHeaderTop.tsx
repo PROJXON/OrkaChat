@@ -1,9 +1,11 @@
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
 import { AppBrandIcon } from '../../../components/AppBrandIcon';
 import { AppTextInput } from '../../../components/AppTextInput';
+import { APP_COLORS } from '../../../theme/colors';
 
 export function MainAppHeaderTop({
   styles,
@@ -11,6 +13,7 @@ export function MainAppHeaderTop({
   isWideUi: _isWideUi,
 
   activeChannelLabel,
+  activeDmLabel,
   isChannelMode,
   isDmMode,
   hasUnreadDms,
@@ -28,7 +31,10 @@ export function MainAppHeaderTop({
   menuRef,
   openMenu,
 
-  onPressChannelTab,
+  onPressChannelNav,
+  onPressChannelSearch,
+  onPressDmNav,
+  onPressDmSearch,
   onStartDm,
 }: {
   styles: AppStyles;
@@ -36,6 +42,7 @@ export function MainAppHeaderTop({
   isWideUi: boolean;
 
   activeChannelLabel: string;
+  activeDmLabel: string;
   isChannelMode: boolean;
   isDmMode: boolean;
   hasUnreadDms: boolean;
@@ -53,61 +60,141 @@ export function MainAppHeaderTop({
   menuRef: React.MutableRefObject<React.ElementRef<typeof Pressable> | null>;
   openMenu: () => void;
 
-  onPressChannelTab: () => void;
+  onPressChannelNav: () => void;
+  onPressChannelSearch: () => void;
+  onPressDmNav: () => void;
+  onPressDmSearch: () => void;
   onStartDm: () => void | Promise<void>;
 }): React.JSX.Element {
+  const dmActive = isDmMode || searchOpen;
   return (
     <>
       <View style={styles.topRow}>
         <View style={[styles.segment, isDark && styles.segmentDark]}>
-          <Pressable
-            onPress={onPressChannelTab}
-            style={({ pressed }) => [
+          <View
+            style={[
               styles.segmentBtn,
+              styles.segmentBtnGrow,
               isChannelMode && styles.segmentBtnActive,
               isChannelMode && isDark && styles.segmentBtnActiveDark,
-              pressed && { opacity: 0.9 },
             ]}
-            accessibilityRole="button"
-            accessibilityLabel="Channels"
           >
-            <Text
-              style={[
-                styles.segmentBtnText,
-                isDark && styles.segmentBtnTextDark,
-                isChannelMode && styles.segmentBtnTextActive,
-                isChannelMode && isDark && styles.segmentBtnTextActiveDark,
+            <Pressable
+              onPress={onPressChannelNav}
+              style={({ pressed }) => [
+                styles.segmentBtnMainArea,
+                styles.segmentBtnMainAreaShrink,
+                pressed && { opacity: 0.9 },
               ]}
+              accessibilityRole="button"
+              accessibilityLabel="Go to channel"
             >
-              {activeChannelLabel}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setSearchOpen((prev) => !prev)}
-            style={({ pressed }) => [
-              styles.segmentBtn,
-              (isDmMode || searchOpen) && styles.segmentBtnActive,
-              (isDmMode || searchOpen) && isDark && styles.segmentBtnActiveDark,
-              pressed && { opacity: 0.9 },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Direct messages"
-          >
-            <View style={styles.dmPillInner}>
               <Text
                 style={[
                   styles.segmentBtnText,
+                  styles.segmentBtnTextTruncate,
                   isDark && styles.segmentBtnTextDark,
-                  (isDmMode || searchOpen) && styles.segmentBtnTextActive,
-                  (isDmMode || searchOpen) && isDark && styles.segmentBtnTextActiveDark,
+                  isChannelMode && styles.segmentBtnTextActive,
+                  isChannelMode && isDark && styles.segmentBtnTextActiveDark,
+                ]}
+                numberOfLines={1}
+              >
+                {activeChannelLabel}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onPressChannelSearch}
+              style={({ pressed }) => [styles.segmentBtnChipHitbox, pressed && { opacity: 0.9 }]}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Find channels"
+            >
+              <View style={styles.segmentBtnChipCircle}>
+                <View
+                  style={[
+                    styles.segmentBtnChipBgTall,
+                    !isDark && !isChannelMode && styles.segmentBtnChipBgTallLightUnselected,
+                    isDark && styles.segmentBtnChipBgTallDark,
+                  ]}
+                />
+                <Feather
+                  name="search"
+                  size={18}
+                  color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                />
+              </View>
+            </Pressable>
+          </View>
+
+          <View
+            style={[
+              styles.segmentBtn,
+              styles.segmentBtnFixed,
+              dmActive && styles.segmentBtnActive,
+              dmActive && isDark && styles.segmentBtnActiveDark,
+            ]}
+          >
+            <Pressable
+              onPress={onPressDmNav}
+              style={({ pressed }) => [
+                styles.segmentBtnMainArea,
+                styles.segmentBtnMainAreaShrink,
+                pressed && { opacity: 0.9 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Go to last direct message"
+            >
+              <View style={styles.dmPillInner}>
+                <Text
+                  style={[
+                    styles.segmentBtnText,
+                    styles.segmentBtnTextTruncate,
+                    isDark && styles.segmentBtnTextDark,
+                    dmActive && styles.segmentBtnTextActive,
+                    dmActive && isDark && styles.segmentBtnTextActiveDark,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {activeDmLabel || 'DM'}
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={onPressDmSearch}
+              style={({ pressed }) => [
+                styles.segmentBtnChipHitbox,
+                hasUnreadDms && styles.segmentBtnChipHitboxWide,
+                pressed && { opacity: 0.9 },
+              ]}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Enter names"
+            >
+              <View
+                style={[
+                  styles.segmentBtnChipCircle,
+                  hasUnreadDms && styles.segmentBtnChipCircleWide,
                 ]}
               >
-                DM
-              </Text>
-              {hasUnreadDms ? <View style={styles.unreadDot} /> : null}
-            </View>
-          </Pressable>
+                <View
+                  style={[
+                    styles.segmentBtnChipBgTall,
+                    hasUnreadDms && styles.segmentBtnChipBgTallWide,
+                    !isDark && !dmActive && styles.segmentBtnChipBgTallLightUnselected,
+                    isDark && styles.segmentBtnChipBgTallDark,
+                  ]}
+                />
+                {hasUnreadDms ? <View style={styles.unreadDot} /> : null}
+                <Feather
+                  name="search"
+                  size={18}
+                  color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                />
+              </View>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.rightControls}>

@@ -2,6 +2,7 @@ import * as React from 'react';
 
 type OnNewDmNotification = (conversationId: string, user: string, userSub?: string) => void;
 type OnKickedFromConversation = (conversationId: string) => void;
+type RefreshUnreads = () => void | Promise<void>;
 
 export function useChatScreenRefSync(opts: {
   activeConversationId: string;
@@ -15,6 +16,8 @@ export function useChatScreenRefSync(opts: {
   myPublicKeyRef: { current: string | null };
   onNewDmNotification?: OnNewDmNotification | undefined;
   onNewDmNotificationRef: React.MutableRefObject<OnNewDmNotification | undefined>;
+  refreshUnreads?: RefreshUnreads | undefined;
+  refreshUnreadsRef: React.MutableRefObject<RefreshUnreads | undefined>;
   onKickedFromConversation?: OnKickedFromConversation | undefined;
   onKickedFromConversationRef: React.MutableRefObject<OnKickedFromConversation | undefined>;
 }): void {
@@ -30,6 +33,8 @@ export function useChatScreenRefSync(opts: {
     myPublicKeyRef,
     onNewDmNotification,
     onNewDmNotificationRef,
+    refreshUnreads,
+    refreshUnreadsRef,
     onKickedFromConversation,
     onKickedFromConversationRef,
   } = opts;
@@ -60,6 +65,10 @@ export function useChatScreenRefSync(opts: {
   React.useEffect(() => {
     onNewDmNotificationRef.current = onNewDmNotification;
   }, [onNewDmNotification, onNewDmNotificationRef]);
+
+  React.useEffect(() => {
+    refreshUnreadsRef.current = refreshUnreads;
+  }, [refreshUnreads, refreshUnreadsRef]);
 
   React.useEffect(() => {
     onKickedFromConversationRef.current = onKickedFromConversation;
