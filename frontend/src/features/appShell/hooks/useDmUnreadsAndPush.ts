@@ -125,7 +125,7 @@ export function useDmUnreadsAndPush({
         setConversationId(convId);
         return;
       }
-      if (kind === 'globalMention' && convId === 'global') {
+      if ((kind === 'globalMention' || kind === 'globalReply') && convId === 'global') {
         setSearchOpen(false);
         setPeerInput('');
         setSearchError(null);
