@@ -32,7 +32,9 @@ export const styles = StyleSheet.create({
     // Keep it feeling like a popup, not a full screen.
     // ScrollView inside will handle overflow on small screens.
     maxHeight: 640,
-    minHeight: 360,
+    // Allow short auth screens (e.g. "Reset Password" email step) to shrink
+    // instead of leaving a large blank area under the content.
+    minHeight: 280,
     borderRadius: 16,
     backgroundColor: APP_COLORS.light.bg.app,
     overflow: 'hidden',
