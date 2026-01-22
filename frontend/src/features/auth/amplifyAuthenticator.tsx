@@ -82,6 +82,7 @@ function WebPasswordField({
   setShowPassword,
   webMarginBottom,
   onChangeText,
+  onSubmitEditing,
   onBlur,
   onFocus,
   focused,
@@ -98,6 +99,7 @@ function WebPasswordField({
   setShowPassword: React.Dispatch<React.SetStateAction<boolean>>;
   webMarginBottom?: number;
   onChangeText?: (t: string) => void;
+  onSubmitEditing?: () => void;
   onBlur?: (event: unknown) => void;
   onFocus?: (event: unknown) => void;
   focused: boolean;
@@ -166,6 +168,26 @@ function WebPasswordField({
           editable={!disabled}
           autoCapitalize="none"
           autoCorrect={false}
+          blurOnSubmit={false}
+          // RN-web: Enter often blurs instead of submitting. Intercept and route to submit.
+          {...(Platform.OS === 'web'
+            ? ({
+                onKeyPress: (e: unknown) => {
+                  const ev = e as {
+                    nativeEvent?: { key?: string };
+                    preventDefault?: () => void;
+                    stopPropagation?: () => void;
+                  };
+                  const key = String(ev?.nativeEvent?.key ?? '');
+                  if (key === 'Enter') {
+                    ev.preventDefault?.();
+                    ev.stopPropagation?.();
+                    onSubmitEditing?.();
+                  }
+                },
+              } as const)
+            : null)}
+          onSubmitEditing={() => onSubmitEditing?.()}
           style={{
             flexGrow: 1,
             flexShrink: 1,
@@ -336,6 +358,7 @@ const LinkedConfirmResetPasswordFormFields = ({
                   ? 6
                   : 10
               }
+              onSubmitEditing={() => (field as any)?.onSubmitEditing?.()}
               onChangeText={(t) => (field as any)?.onChangeText?.(t)}
               onFocus={(e) => {
                 setFocusedPasswordFieldName(name);
@@ -489,6 +512,7 @@ const LinkedSignUpFormFields = ({
                   ? 6
                   : 10
               }
+              onSubmitEditing={() => (field as any)?.onSubmitEditing?.()}
               onChangeText={(t) => (field as any)?.onChangeText?.(t)}
               onFocus={(e) => {
                 setFocusedPasswordFieldName(name);
@@ -646,6 +670,7 @@ const LinkedSignInFormFields = ({
               showPassword={showPassword}
               setShowPassword={setShowPassword}
               webMarginBottom={10}
+              onSubmitEditing={() => (field as any)?.onSubmitEditing?.()}
               onChangeText={(t) => (field as any)?.onChangeText?.(t)}
               onFocus={(e) => {
                 setFocusedPasswordFieldName(name);
@@ -989,6 +1014,22 @@ const CustomSignIn = ({
       validationErrors,
     });
 
+  const fieldsSubmitEnhanced = React.useMemo(() => {
+    return (Array.isArray(fieldsWithHandlers) ? fieldsWithHandlers : []).map((f) => {
+      const rec: AmplifyFieldLike =
+        typeof f === 'object' && f != null ? (f as AmplifyFieldLike) : {};
+      const type = String(rec.type ?? '');
+      if (type !== 'password') return rec;
+      return {
+        ...rec,
+        returnKeyType: 'go',
+        onSubmitEditing: () => {
+          if (!disableFormSubmit) handleFormSubmit();
+        },
+      } as AmplifyFieldLike;
+    });
+  }, [disableFormSubmit, fieldsWithHandlers, handleFormSubmit]);
+
   const body =
     Platform.OS === 'web' && socialProviders && typeof toFederatedSignIn === 'function' ? (
       <FederatedProviderButtons
@@ -1021,14 +1062,14 @@ const CustomSignIn = ({
     toSignUp,
   ]);
 
-  return Platform.OS === 'web' ? (
+  const content = (
     <WebAuthContent
       {...rest}
       isDark={isDark}
       body={body}
       buttons={buttons}
       error={rest?.error}
-      fields={fieldsWithHandlers}
+      fields={fieldsSubmitEnhanced}
       Footer={Footer}
       FormFields={FormFields}
       Header={Header}
@@ -1036,12 +1077,26 @@ const CustomSignIn = ({
       isPending={isPending}
       validationErrors={fieldValidationErrors}
     />
+  );
+
+  return Platform.OS === 'web' ? (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!disableFormSubmit) handleFormSubmit();
+      }}
+      style={{ width: '100%' }}
+    >
+      {/* Ensure Enter submits even without a native <button type="submit"> */}
+      <button type="submit" tabIndex={-1} aria-hidden="true" style={{ display: 'none' }} />
+      {content}
+    </form>
   ) : (
     // Native: pass through the full Authenticator-provided props.
     // If we omit Header/Footer/FormFields here, Amplify's DefaultContent will crash.
     <Authenticator.SignIn
       {...rest}
-      fields={fields}
+      fields={fieldsSubmitEnhanced}
       handleBlur={handleBlur}
       handleChange={handleChange}
       handleSubmit={handleSubmit}
@@ -1051,7 +1106,7 @@ const CustomSignIn = ({
       toFederatedSignIn={toFederatedSignIn}
       toForgotPassword={toForgotPassword}
       toSignUp={toSignUp}
-      validationErrors={validationErrors}
+      validationErrors={fieldValidationErrors}
       Footer={Footer}
       Header={Header}
       FormFields={FormFields}
@@ -1101,6 +1156,25 @@ const CustomForgotPassword = ({
       validationErrors,
     });
 
+  const fieldsSubmitEnhanced = React.useMemo(() => {
+    const arr = Array.isArray(fieldsWithHandlers) ? fieldsWithHandlers : [];
+    if (!arr.length) return arr;
+    const last = arr[arr.length - 1];
+    const name = String((last as any)?.name ?? '');
+    return arr.map((f) => {
+      const rec: AmplifyFieldLike =
+        typeof f === 'object' && f != null ? (f as AmplifyFieldLike) : {};
+      if (!name || String(rec.name ?? '') !== name) return rec;
+      return {
+        ...rec,
+        returnKeyType: 'go',
+        onSubmitEditing: () => {
+          if (!disableFormSubmit) handleFormSubmit();
+        },
+      } as AmplifyFieldLike;
+    });
+  }, [disableFormSubmit, fieldsWithHandlers, handleFormSubmit]);
+
   const buttons = React.useMemo(
     () => ({
       primary: {
@@ -1113,13 +1187,13 @@ const CustomForgotPassword = ({
     [disableFormSubmit, handleFormSubmit, primaryButtonText, secondaryButtonText, toSignIn],
   );
 
-  return Platform.OS === 'web' ? (
+  const content = (
     <WebAuthContent
       {...rest}
       isDark={isDark}
       buttons={buttons}
       error={rest?.error}
-      fields={fieldsWithHandlers}
+      fields={fieldsSubmitEnhanced}
       Footer={Footer}
       FormFields={FormFields}
       Header={Header}
@@ -1127,17 +1201,31 @@ const CustomForgotPassword = ({
       isPending={isPending}
       validationErrors={fieldValidationErrors}
     />
+  );
+
+  return Platform.OS === 'web' ? (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!disableFormSubmit) handleFormSubmit();
+      }}
+      style={{ width: '100%' }}
+    >
+      {/* Ensure Enter submits even without a native <button type="submit"> */}
+      <button type="submit" tabIndex={-1} aria-hidden="true" style={{ display: 'none' }} />
+      {content}
+    </form>
   ) : (
     // Native: pass through the full Authenticator-provided props (incl. Header/Footer/FormFields).
     <Authenticator.ForgotPassword
       {...rest}
-      fields={fields}
+      fields={fieldsSubmitEnhanced}
       handleBlur={handleBlur}
       handleChange={handleChange}
       handleSubmit={handleSubmit}
       isPending={isPending}
       toSignIn={toSignIn}
-      validationErrors={validationErrors}
+      validationErrors={fieldValidationErrors}
       Footer={Footer}
       Header={Header}
       FormFields={FormFields}
@@ -1224,6 +1312,8 @@ const CustomSignUp = ({
       }}
       style={{ width: '100%' }}
     >
+      {/* Ensure Enter submits even without a native <button type="submit"> */}
+      <button type="submit" tabIndex={-1} aria-hidden="true" style={{ display: 'none' }} />
       <WebAuthContent
         body={body}
         buttons={buttons}
@@ -1295,22 +1385,6 @@ const ConfirmResetPasswordWithBackToSignIn = ({
     </View>
   );
 };
-
-const WebForm = ({ children }: { children: React.ReactNode }): React.JSX.Element =>
-  Platform.OS === 'web' ? (
-    // Web warning fix: browsers expect password inputs inside a <form>.
-    // We prevent default submit behavior to avoid full-page reloads.
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-      }}
-      style={{ width: '100%' }}
-    >
-      {children}
-    </form>
-  ) : (
-    <>{children}</>
-  );
 
 export function useAmplifyAuthenticatorConfig(isDark: boolean): {
   amplifyTheme: React.ComponentProps<typeof ThemeProvider>['theme'];
@@ -1523,14 +1597,12 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
           typeof Authenticator.SignIn
         >;
         return (
-          <WebForm>
-            <CustomSignIn
-              isDark={isDark}
-              {...p}
-              fields={injectCaretColors(p.fields, caretProps)}
-              FormFields={signInFormFields}
-            />
-          </WebForm>
+          <CustomSignIn
+            isDark={isDark}
+            {...p}
+            fields={injectCaretColors(p.fields, caretProps)}
+            FormFields={signInFormFields}
+          />
         );
       },
       SignUp: (props: unknown) => {
@@ -1551,51 +1623,43 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
           typeof Authenticator.ForgotPassword
         >;
         return (
-          <WebForm>
-            <CustomForgotPassword
-              isDark={isDark}
-              {...p}
-              fields={injectCaretColors(p.fields, caretProps)}
-            />
-          </WebForm>
+          <CustomForgotPassword
+            isDark={isDark}
+            {...p}
+            fields={injectCaretColors(p.fields, caretProps)}
+          />
         );
       },
       ConfirmResetPassword: (props: unknown) => {
         const p =
           typeof props === 'object' && props != null ? (props as Record<string, unknown>) : {};
         return (
-          <WebForm>
-            <ConfirmResetPasswordWithBackToSignIn
-              {...(p as React.ComponentProps<typeof Authenticator.ConfirmResetPassword>)}
-              isDark={isDark}
-              fields={injectCaretColors(p.fields, caretProps)}
-              FormFields={confirmResetFormFields}
-            />
-          </WebForm>
+          <ConfirmResetPasswordWithBackToSignIn
+            {...(p as React.ComponentProps<typeof Authenticator.ConfirmResetPassword>)}
+            isDark={isDark}
+            fields={injectCaretColors(p.fields, caretProps)}
+            FormFields={confirmResetFormFields}
+          />
         );
       },
       ConfirmSignUp: (props: unknown) => {
         const p =
           typeof props === 'object' && props != null ? (props as Record<string, unknown>) : {};
         return (
-          <WebForm>
-            <Authenticator.ConfirmSignUp
-              {...(p as React.ComponentProps<typeof Authenticator.ConfirmSignUp>)}
-              fields={injectCaretColors(p.fields, caretProps)}
-            />
-          </WebForm>
+          <Authenticator.ConfirmSignUp
+            {...(p as React.ComponentProps<typeof Authenticator.ConfirmSignUp>)}
+            fields={injectCaretColors(p.fields, caretProps)}
+          />
         );
       },
       ConfirmSignIn: (props: unknown) => {
         const p =
           typeof props === 'object' && props != null ? (props as Record<string, unknown>) : {};
         return (
-          <WebForm>
-            <Authenticator.ConfirmSignIn
-              {...(p as React.ComponentProps<typeof Authenticator.ConfirmSignIn>)}
-              fields={injectCaretColors(p.fields, caretProps)}
-            />
-          </WebForm>
+          <Authenticator.ConfirmSignIn
+            {...(p as React.ComponentProps<typeof Authenticator.ConfirmSignIn>)}
+            fields={injectCaretColors(p.fields, caretProps)}
+          />
         );
       },
     }),

@@ -489,7 +489,10 @@ export function MediaStackCarousel({
                   ? ({
                       onContextMenu: (e: unknown) => {
                         if (!onLongPress) return;
-                        const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
+                        const ev = e as {
+                          preventDefault?: () => void;
+                          stopPropagation?: () => void;
+                        };
                         ev.preventDefault?.();
                         ev.stopPropagation?.();
                       },

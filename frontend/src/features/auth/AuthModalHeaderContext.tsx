@@ -22,10 +22,11 @@ export function AuthModalHeaderProvider({
     [title],
   );
 
-  return <AuthModalHeaderContext.Provider value={value}>{children}</AuthModalHeaderContext.Provider>;
+  return (
+    <AuthModalHeaderContext.Provider value={value}>{children}</AuthModalHeaderContext.Provider>
+  );
 }
 
 export function useAuthModalHeader(): AuthModalHeaderContextValue | null {
   return React.useContext(AuthModalHeaderContext);
 }
-
