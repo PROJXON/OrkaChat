@@ -289,9 +289,14 @@ export const styles = StyleSheet.create({
     borderRadius: 10,
   },
   segmentBtnText: {
-    fontSize: 14,
+    fontSize: 16,
+    // Keep the pill height stable: the chip circle is 18px tall, so keep text metrics <= 18.
+    lineHeight: 18,
     fontWeight: '700',
     color: APP_COLORS.light.text.muted,
+    // Helps avoid descender clipping and unexpected extra vertical space (Android).
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   segmentBtnTextDark: {
     color: APP_COLORS.dark.text.secondary,

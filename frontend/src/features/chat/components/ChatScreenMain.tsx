@@ -7,10 +7,12 @@ import type {
 } from 'react-native';
 import type { StyleProp, TextInput, ViewStyle } from 'react-native';
 import {
+  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   LayoutAnimation,
   Platform,
+  Pressable,
   Text,
   View,
 } from 'react-native';
@@ -18,6 +20,7 @@ import { useWindowDimensions } from 'react-native';
 
 import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { APP_COLORS, getAppThemeColors } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
 import { getNativeEventNumber } from '../../../utils/nativeEvent';
 import type { PendingMediaItem } from '../attachments';
@@ -147,6 +150,15 @@ type ChatScreenMainProps = {
     sendMessage: () => void;
     handlePickMedia: () => void;
   };
+
+  selection: {
+    active: boolean;
+    count: number;
+    canCopy: boolean;
+    onCancel: () => void;
+    onCopy: () => void;
+    onDelete: () => void;
+  };
 };
 
 export function ChatScreenMain({
@@ -157,8 +169,10 @@ export function ChatScreenMain({
   body,
   list,
   composer,
+  selection,
 }: ChatScreenMainProps): React.JSX.Element {
   const { height: windowHeight } = useWindowDimensions();
+  const appColors = getAppThemeColors(isDark);
   const [androidKeyboardVisible, setAndroidKeyboardVisible] = React.useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = React.useState<number>(0);
   const heightBeforeKeyboardRef = React.useRef<number>(windowHeight);
@@ -220,6 +234,12 @@ export function ChatScreenMain({
     return remaining > 0 ? remaining + 8 : 0;
   }, [androidKeyboardHeight, androidKeyboardVisible, androidWindowHeightDelta]);
 
+  // Avoid a brief "blank list" flash on first mount (web pinned list uses opacity: 0 until ready).
+  // Also show a spinner while the initial history load is in-flight and we have nothing to render yet.
+  const showListLoadingOverlay =
+    (Platform.OS === 'web' && !list.webPinned.ready) ||
+    (list.visibleMessagesCount === 0 && !!list.API_URL && list.historyLoading);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -231,7 +251,33 @@ export function ChatScreenMain({
       // Keeping KAV enabled on Android can create double-adjust gaps depending on IME settings.
       enabled={Platform.OS === 'ios'}
     >
-      <View style={[styles.header, isDark ? styles.headerDark : null]}>
+      {/* Stage 3 loader: center relative to the full screen (same as root spinners),
+          not just the message-list area below the header. */}
+      {showListLoadingOverlay ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+          }}
+        >
+          <ActivityIndicator size="large" color={appColors.appForeground} />
+        </View>
+      ) : null}
+
+      <View
+        style={[
+          styles.header,
+          isDark ? styles.headerDark : null,
+          !(header.isEncryptedChat || header.isChannel) ? styles.headerNoSubRow : null,
+        ]}
+      >
         <View style={isWideChatLayout ? styles.chatContentColumn : null}>
           {header.headerTop ? <View style={styles.headerTopSlot}>{header.headerTop}</View> : null}
           <ChatHeaderTitleRow
@@ -357,42 +403,157 @@ export function ChatScreenMain({
             renderItem={list.renderItem}
           />
 
-          <ChatComposer
-            styles={styles}
-            isDark={isDark}
-            isDm={composer.isDm}
-            isGroup={composer.isGroup}
-            isEncryptedChat={composer.isEncryptedChat}
-            groupMeta={composer.groupMeta}
-            inlineEditTargetId={composer.inlineEditTargetId}
-            inlineEditUploading={composer.inlineEditUploading}
-            cancelInlineEdit={composer.cancelInlineEdit}
-            pendingMedia={composer.pendingMedia}
-            setPendingMedia={composer.setPendingMedia}
-            isUploading={composer.isUploading}
-            replyTarget={composer.replyTarget}
-            setReplyTarget={composer.setReplyTarget}
-            messages={composer.messages}
-            openViewer={composer.openViewer}
-            typingIndicatorText={composer.typingIndicatorText}
-            TypingIndicator={composer.TypingIndicator}
-            typingColor={composer.typingColor}
-            mentionSuggestions={composer.mentionSuggestions}
-            insertMention={composer.insertMention}
-            composerSafeAreaStyle={composer.composerSafeAreaStyle}
-            composerHorizontalInsetsStyle={composer.composerHorizontalInsetsStyle}
-            composerBottomInsetBgHeight={composer.composerBottomInsetBgHeight}
-            androidKeyboardLift={androidKeyboardLift}
-            isWideChatLayout={isWideChatLayout}
-            textInputRef={composer.textInputRef}
-            inputEpoch={composer.inputEpoch}
-            input={composer.input}
-            onChangeInput={composer.onChangeInput}
-            isTypingRef={composer.isTypingRef}
-            sendTyping={composer.sendTyping}
-            sendMessage={composer.sendMessage}
-            handlePickMedia={composer.handlePickMedia}
-          />
+          {selection.active ? (
+            <View
+              style={[
+                // Match the composer container exactly (height/spacing/background).
+                styles.inputRow,
+                isDark ? styles.inputRowDark : null,
+                composer.composerSafeAreaStyle,
+                { position: 'relative' },
+                Platform.OS === 'android' && androidKeyboardLift && androidKeyboardLift > 0
+                  ? { marginBottom: androidKeyboardLift }
+                  : null,
+              ]}
+            >
+              {composer.composerBottomInsetBgHeight && composer.composerBottomInsetBgHeight > 0 ? (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: -composer.composerBottomInsetBgHeight,
+                    height: composer.composerBottomInsetBgHeight,
+                    backgroundColor: isDark
+                      ? APP_COLORS.dark.bg.header
+                      : APP_COLORS.light.bg.header,
+                  }}
+                />
+              ) : null}
+              <View
+                style={[
+                  // Match the composer inner row exactly (height/spacing).
+                  styles.inputRowInner,
+                  isWideChatLayout ? styles.chatContentColumn : null,
+                  composer.composerHorizontalInsetsStyle,
+                  // Match the composer's tallest control (pick/send buttons are 44px).
+                  { minHeight: 44 },
+                ]}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    gap: 10,
+                  }}
+                >
+                  {selection.canCopy ? (
+                    <Pressable
+                      onPress={selection.onCopy}
+                      style={({ pressed }) => [
+                        { height: 44, justifyContent: 'center', paddingHorizontal: 10 },
+                        pressed ? { opacity: 0.85 } : null,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Copy selected messages"
+                    >
+                      <Text
+                        style={{
+                          color: isDark
+                            ? APP_COLORS.dark.text.primary
+                            : APP_COLORS.light.text.primary,
+                          fontWeight: '900',
+                        }}
+                      >
+                        Copy
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
+                  <Pressable
+                    onPress={selection.onDelete}
+                    style={({ pressed }) => [
+                      { height: 44, justifyContent: 'center', paddingHorizontal: 10 },
+                      pressed ? { opacity: 0.85 } : null,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete selected messages for me"
+                  >
+                    <Text
+                      style={{
+                        color: isDark
+                          ? APP_COLORS.dark.text.primary
+                          : APP_COLORS.light.text.primary,
+                        fontWeight: '900',
+                      }}
+                    >
+                      Delete for me
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={selection.onCancel}
+                    style={({ pressed }) => [
+                      { height: 44, justifyContent: 'center', paddingHorizontal: 10 },
+                      pressed ? { opacity: 0.85 } : null,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel selection"
+                  >
+                    <Text
+                      style={{
+                        color: isDark
+                          ? APP_COLORS.dark.text.primary
+                          : APP_COLORS.light.text.primary,
+                        fontWeight: '900',
+                      }}
+                    >
+                      Cancel
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <ChatComposer
+              styles={styles}
+              isDark={isDark}
+              isDm={composer.isDm}
+              isGroup={composer.isGroup}
+              isEncryptedChat={composer.isEncryptedChat}
+              groupMeta={composer.groupMeta}
+              inlineEditTargetId={composer.inlineEditTargetId}
+              inlineEditUploading={composer.inlineEditUploading}
+              cancelInlineEdit={composer.cancelInlineEdit}
+              pendingMedia={composer.pendingMedia}
+              setPendingMedia={composer.setPendingMedia}
+              isUploading={composer.isUploading}
+              replyTarget={composer.replyTarget}
+              setReplyTarget={composer.setReplyTarget}
+              messages={composer.messages}
+              openViewer={composer.openViewer}
+              typingIndicatorText={composer.typingIndicatorText}
+              TypingIndicator={composer.TypingIndicator}
+              typingColor={composer.typingColor}
+              mentionSuggestions={composer.mentionSuggestions}
+              insertMention={composer.insertMention}
+              composerSafeAreaStyle={composer.composerSafeAreaStyle}
+              composerHorizontalInsetsStyle={composer.composerHorizontalInsetsStyle}
+              composerBottomInsetBgHeight={composer.composerBottomInsetBgHeight}
+              androidKeyboardLift={androidKeyboardLift}
+              isWideChatLayout={isWideChatLayout}
+              textInputRef={composer.textInputRef}
+              inputEpoch={composer.inputEpoch}
+              input={composer.input}
+              onChangeInput={composer.onChangeInput}
+              isTypingRef={composer.isTypingRef}
+              sendTyping={composer.sendTyping}
+              sendMessage={composer.sendMessage}
+              handlePickMedia={composer.handlePickMedia}
+            />
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>

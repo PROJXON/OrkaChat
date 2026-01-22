@@ -1,7 +1,6 @@
 import React from 'react';
 import { FlatList, Platform, RefreshControl, Text, View } from 'react-native';
 
-import { AnimatedDots } from '../../../components/AnimatedDots';
 import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 import type { WebPinnedListState } from '../../../hooks/useWebPinnedList';
 import type { useWebWheelRefresh } from '../../../hooks/useWebWheelRefresh';
@@ -22,7 +21,7 @@ export function GuestGlobalMessageList({
   messageListData,
   // Error/loading
   error,
-  loading,
+  loading: _loading,
   refreshing,
   fetchNow,
   // History paging
@@ -91,26 +90,6 @@ export function GuestGlobalMessageList({
         >
           {error}
         </Text>
-      ) : null}
-
-      {loading && messages.length === 0 ? (
-        <View style={[styles.loadingWrap, isWideUi ? styles.contentColumn : null]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text
-              style={{
-                color: isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary,
-                fontWeight: '700',
-                fontSize: 14,
-              }}
-            >
-              Loading
-            </Text>
-            <AnimatedDots
-              color={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.secondary}
-              size={16}
-            />
-          </View>
-        </View>
       ) : null}
 
       {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.

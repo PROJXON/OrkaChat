@@ -103,6 +103,11 @@ export function renderChatListItem(args: {
   openMessageActions: (m: ChatMessage, anchor: Anchor) => void;
   latestOutgoingMessageId: string | null;
   retryFailedMessage: (m: ChatMessage) => void;
+
+  // Multi-select mode
+  selectionActive: boolean;
+  selectedIdSet: Set<string>;
+  toggleSelectedMessageId: (id: string) => void;
 }): React.JSX.Element {
   const {
     styles,
@@ -153,6 +158,9 @@ export function renderChatListItem(args: {
     openMessageActions,
     latestOutgoingMessageId,
     retryFailedMessage,
+    selectionActive,
+    selectedIdSet,
+    toggleSelectedMessageId,
   } = args;
 
   if (item.kind === 'system') {
@@ -532,6 +540,9 @@ export function renderChatListItem(args: {
         const y = Number(yRaw) || 0;
         openMessageActions(item, { x, y });
       }}
+      selectionActive={selectionActive}
+      isSelected={selectedIdSet.has(String(item.id))}
+      onToggleSelected={() => toggleSelectedMessageId(String(item.id))}
       latestOutgoingMessageId={latestOutgoingMessageId}
       retryFailedMessage={retryFailedMessage}
       renderMediaCarousel={renderMediaCarousel}

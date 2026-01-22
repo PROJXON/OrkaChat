@@ -30,6 +30,7 @@ import type { ResolvedChatBg } from '../features/chat/components/ChatBackgroundL
 import { ChatScreenMain } from '../features/chat/components/ChatScreenMain';
 import { ChatScreenOverlays } from '../features/chat/components/ChatScreenOverlays';
 import { TypingIndicator } from '../features/chat/components/TypingIndicator';
+import { getCopyableMessageText } from '../features/chat/getCopyableMessageText';
 import { isVisibleMemberRow, toMemberRow } from '../features/chat/memberRows';
 import {
   normalizeChatMediaList,
@@ -342,6 +343,59 @@ export default function ChatScreen({
   const messageActionTarget = messageActionMenu.target;
   const openMessageActions = messageActionMenu.openMenu;
   const closeMessageActions = messageActionMenu.closeMenu;
+  const [selectionActive, setSelectionActive] = React.useState<boolean>(false);
+  const [selectedMessageIds, setSelectedMessageIds] = React.useState<string[]>([]);
+  const selectedIdSet = React.useMemo(
+    () => new Set((selectedMessageIds || []).filter(Boolean)),
+    [selectedMessageIds],
+  );
+
+  // Reset selection when switching conversations.
+  React.useEffect(() => {
+    setSelectionActive(false);
+    setSelectedMessageIds([]);
+  }, [conversationId]);
+
+  // Keep selection clean if messages are removed.
+  React.useEffect(() => {
+    if (!selectionActive) return;
+    if (!selectedMessageIds.length) return;
+    const ids = new Set(messages.map((m) => String(m.id)));
+    setSelectedMessageIds((prev) => prev.filter((id) => ids.has(String(id))));
+  }, [messages, selectedMessageIds.length, selectionActive]);
+
+  const toggleSelectedMessageId = React.useCallback((id: string) => {
+    const key = String(id || '').trim();
+    if (!key) return;
+    setSelectedMessageIds((prev) => {
+      const has = prev.includes(key);
+      if (has) return prev.filter((x) => x !== key);
+      return [...prev, key];
+    });
+  }, []);
+
+  const exitSelectionMode = React.useCallback(() => {
+    setSelectionActive(false);
+    setSelectedMessageIds([]);
+  }, []);
+
+  const enterSelectionModeForMessage = React.useCallback(
+    (msg: ChatMessage) => {
+      if (!msg?.id) return;
+      setSelectionActive(true);
+      setSelectedMessageIds((prev) => {
+        const id = String(msg.id);
+        return prev.includes(id) ? prev : [...prev, id];
+      });
+      // Avoid leaving the actions menu open behind selection UI.
+      closeMessageActions();
+      // Avoid inline edit conflicts.
+      setInlineEditTargetId(null);
+      setInlineEditDraft('');
+      setInlineEditAttachmentMode('keep');
+    },
+    [closeMessageActions],
+  );
   const [inlineEditTargetId, setInlineEditTargetId] = React.useState<string | null>(null);
   const [inlineEditDraft, setInlineEditDraft] = React.useState<string>('');
   const [inlineEditAttachmentMode, setInlineEditAttachmentMode] = React.useState<
@@ -1440,6 +1494,7 @@ export default function ChatScreen({
     wsRef,
     activeConversationId,
     isDm,
+    isGroup,
     messages,
     setMessages,
     setError,
@@ -1453,10 +1508,17 @@ export default function ChatScreen({
     setInlineEditUploading,
     pendingMediaRef,
     clearPendingMedia,
+    myUserId,
+    groupMembers,
+    groupPublicKeyBySub,
+    getRandomBytes,
     myPrivateKey,
     peerPublicKey,
     encryptChatMessageV1,
     parseEncrypted,
+    parseGroupEncrypted,
+    prepareGroupMediaPlaintext,
+    encryptGroupOutgoingEncryptedText,
     parseChatEnvelope,
     parseDmMediaEnvelope,
     parseGroupMediaEnvelope,
@@ -1464,6 +1526,7 @@ export default function ChatScreen({
     normalizeGroupMediaItems,
     uploadPendingMedia,
     uploadPendingMediaDmEncrypted,
+    uploadPendingMediaGroupEncrypted,
     openInfo,
     showAlert,
     closeMessageActions,
@@ -1484,6 +1547,54 @@ export default function ChatScreen({
     showAlert,
   });
   const deleteForMe = messageOps.deleteForMe;
+  const selectedMessages = React.useMemo(() => {
+    if (!selectionActive) return [];
+    if (!selectedMessageIds.length) return [];
+    const byId = new Map(messages.map((m) => [String(m.id), m] as const));
+    return selectedMessageIds
+      .map((id) => byId.get(String(id)) || null)
+      .filter(Boolean) as ChatMessage[];
+  }, [messages, selectedMessageIds, selectionActive]);
+
+  const selectedCopyText = React.useMemo(() => {
+    if (!selectionActive) return null;
+    const parts = selectedMessages
+      .map((m) => getCopyableMessageText({ msg: m, isDm }))
+      .filter((t): t is string => !!t);
+    return parts.length ? parts.join('\n\n') : null;
+  }, [isDm, selectedMessages, selectionActive]);
+
+  const copySelectedMessages = React.useCallback(async () => {
+    if (!selectedCopyText) return;
+    await copyToClipboard(selectedCopyText);
+    exitSelectionMode();
+  }, [copyToClipboard, exitSelectionMode, selectedCopyText]);
+
+  const deleteSelectedMessagesForMe = React.useCallback(async () => {
+    if (!selectionActive) return;
+    if (!selectedMessages.length) return;
+    const ok = await uiConfirm(
+      'Delete Selected Messages?',
+      'This will only delete the messages for you.',
+      {
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        destructive: true,
+      },
+    );
+    if (!ok) return;
+    // Delete best-effort; ignore failures per-message.
+    for (const m of selectedMessages) {
+      try {
+        // Skip already deleted.
+        if (m.deletedAt) continue;
+        await Promise.resolve(deleteForMe(m));
+      } catch {
+        // ignore
+      }
+    }
+    exitSelectionMode();
+  }, [deleteForMe, exitSelectionMode, selectedMessages, selectionActive, uiConfirm]);
   const sendDelete = messageOps.sendDeleteForEveryone;
   const sendReaction = messageOps.sendReaction;
   const openReactionPicker = messageOps.openReactionPicker;
@@ -1553,9 +1664,12 @@ export default function ChatScreen({
         requestOpenLink,
         audioPlayback: audioPlaybackForRender,
         onPressMessage,
-        openMessageActions,
+        openMessageActions: selectionActive ? (_m, _a) => {} : openMessageActions,
         latestOutgoingMessageId,
         retryFailedMessage,
+        selectionActive,
+        selectedIdSet,
+        toggleSelectedMessageId,
       }),
     [
       AVATAR_GUTTER,
@@ -1600,6 +1714,9 @@ export default function ChatScreen({
       avatarProfileBySub,
       avatarUrlByPath,
       visibleMessages,
+      selectionActive,
+      selectedIdSet,
+      toggleSelectedMessageId,
     ],
   );
 
@@ -1704,6 +1821,12 @@ export default function ChatScreen({
     sendTyping,
     sendMessage,
     handlePickMedia,
+    selectionActive,
+    selectionCount: selectedMessageIds.length,
+    selectionCanCopy: !!selectedCopyText,
+    selectionOnCancel: exitSelectionMode,
+    selectionOnCopy: () => void copySelectedMessages(),
+    selectionOnDelete: () => void deleteSelectedMessagesForMe(),
   });
 
   const overlaysProps = buildChatScreenOverlaysProps({
@@ -1732,6 +1855,8 @@ export default function ChatScreen({
     report: chatReport,
     cdnMedia,
     messageActionMenu,
+    selectionActive,
+    onSelectMessage: enterSelectionModeForMessage,
     myUserId,
     myPublicKey,
     displayName,
@@ -1744,6 +1869,7 @@ export default function ChatScreen({
     blockedSubsSet,
     onBlockUserSub,
     uiConfirm,
+    uiChoice3,
     messageOps: {
       deleteForMe,
       sendDeleteForEveryone: sendDelete,

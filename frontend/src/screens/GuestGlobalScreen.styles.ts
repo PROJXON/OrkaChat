@@ -33,7 +33,8 @@ export const styles = StyleSheet.create({
   },
   contentColumn: { width: '100%', maxWidth: 1040, alignSelf: 'center' },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: '800',
     color: APP_COLORS.light.text.primary,
   },

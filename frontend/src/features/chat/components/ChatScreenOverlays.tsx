@@ -33,6 +33,7 @@ import { SummaryModal } from './SummaryModal';
 import { TtlPickerModal } from './TtlPickerModal';
 
 type UiConfirm = React.ComponentProps<typeof MessageActionMenuModal>['uiConfirm'];
+type UiChoice3 = React.ComponentProps<typeof MessageActionMenuModal>['uiChoice3'];
 type ReportCdnMedia = React.ComponentProps<typeof ReportModal>['cdnMedia'];
 
 type AiHelperController = {
@@ -180,7 +181,11 @@ export type ChatScreenOverlaysProps = {
   blockedSubsSet: Set<string>;
   onBlockUserSub?: (blockedSub: string, label?: string) => void | Promise<void>;
   uiConfirm: UiConfirm;
+  uiChoice3: UiChoice3;
   messageOps: MessageOps;
+  // Multi-select
+  selectionActive?: boolean;
+  onSelectMessage?: (msg: ChatMessage) => void;
 
   reactionPickerOpen: boolean;
   reactionPickerTarget: ChatMessage | null;
@@ -320,7 +325,10 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
     blockedSubsSet,
     onBlockUserSub,
     uiConfirm,
+    uiChoice3,
     messageOps,
+    selectionActive,
+    onSelectMessage,
     reactionPickerOpen,
     reactionPickerTarget,
     emojis,
@@ -526,8 +534,12 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         blockedSubsSet={blockedSubsSet}
         onBlockUserSub={onBlockUserSub}
         uiConfirm={uiConfirm}
+        uiChoice3={uiChoice3}
         showAlert={camera.showAlert}
         close={messageActionMenu.closeMenu}
+        copyToClipboard={copyToClipboard}
+        selectionActive={!!selectionActive}
+        onSelectMessage={onSelectMessage}
         sendReaction={messageOps.sendReaction}
         openReactionPicker={messageOps.openReactionPicker}
         setCipherText={messageOps.setCipherText}

@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { deleteUser, fetchUserAttributes } from 'aws-amplify/auth';
 import React, { useState } from 'react';
 import type { Pressable } from 'react-native';
-import { ActivityIndicator, useWindowDimensions, View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../../../../App.styles';
 import { AVATAR_DEFAULT_COLORS } from '../../../components/AvatarBubble';
@@ -103,7 +103,13 @@ function looksLikeOpaqueCognitoUsername(s: string): boolean {
 type LastChannelLabelCache = { conversationId: string; label: string };
 const LAST_CHANNEL_LABEL_CACHE_KEY = 'ui:lastChannelLabel:device';
 
-export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) => {
+export const MainAppContent = ({
+  onSignedOut,
+  onRehydrateReady,
+}: {
+  onSignedOut?: () => void;
+  onRehydrateReady?: (ready: boolean) => void;
+}) => {
   const { user } = useAuthenticator();
   const { signOut } = useAuthenticator();
   const {
@@ -325,6 +331,11 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
     unreadDmMap,
   });
   const { lastDmConversationIdRef } = useLastDmConversation({ conversationId });
+
+  const rehydrateReady = channelRestoreDone && conversationRestoreDone;
+  React.useEffect(() => {
+    onRehydrateReady?.(rehydrateReady);
+  }, [onRehydrateReady, rehydrateReady]);
 
   const getIdToken = React.useCallback(async (): Promise<string | null> => {
     return await getIdTokenWithRetry({ maxAttempts: 10, delayMs: 200 });
@@ -656,6 +667,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
         setMenuOpen={setMenuOpen}
         onSetTheme={setTheme}
         activeChannelConversationId={activeChannelConversationId}
+        isDmMode={isDmMode}
         setGlobalAboutOpen={setGlobalAboutOpen}
         setChannelAboutRequestEpoch={setChannelAboutRequestEpoch}
         setChatsOpen={setChatsOpen}
@@ -825,7 +837,7 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
       <MainAppPassphrasePromptModal styles={styles} isDark={isDark} {...passphraseModalProps} />
 
       <View style={{ flex: 1 }}>
-        {channelRestoreDone && conversationRestoreDone ? (
+        {rehydrateReady ? (
           <ChatScreen
             conversationId={conversationId}
             peer={peer}
@@ -854,16 +866,8 @@ export const MainAppContent = ({ onSignedOut }: { onSignedOut?: () => void }) =>
             onBlockUserSub={addBlockBySub}
           />
         ) : (
-          <View
-            style={{
-              flex: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: appColors.appBackground,
-            }}
-          >
-            <ActivityIndicator size="large" color={appColors.appForeground} />
-          </View>
+          // Root-level overlay spinner (App.tsx) stays visible during rehydrate.
+          <View style={{ flex: 1, backgroundColor: appColors.appBackground }} />
         )}
       </View>
     </View>

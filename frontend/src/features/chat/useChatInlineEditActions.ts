@@ -1,3 +1,4 @@
+import { bytesToHex } from '@noble/hashes/utils.js';
 import type { RefObject } from 'react';
 import * as React from 'react';
 
@@ -9,7 +10,9 @@ import type {
   ChatMessage,
   DmMediaEnvelope,
   DmMediaEnvelopeV1,
+  EncryptedGroupPayloadV1,
   GroupMediaEnvelope,
+  GroupMediaEnvelopeV1,
 } from './types';
 
 function getErrorMessage(err: unknown): string {
@@ -32,6 +35,7 @@ export function useChatInlineEditActions(opts: {
   wsRef: RefObject<WebSocket | null>;
   activeConversationId: string;
   isDm: boolean;
+  isGroup: boolean;
 
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
@@ -52,6 +56,10 @@ export function useChatInlineEditActions(opts: {
   clearPendingMedia: () => void;
 
   // crypto
+  myUserId: string | null | undefined;
+  groupMembers: Array<{ status: string; memberSub: string }>;
+  groupPublicKeyBySub: Record<string, string | undefined>;
+  getRandomBytes: (n: number) => Uint8Array;
   myPrivateKey: string | null | undefined;
   peerPublicKey: string | null | undefined;
   encryptChatMessageV1: (
@@ -60,6 +68,27 @@ export function useChatInlineEditActions(opts: {
     peerPublicKey: string,
   ) => EncryptedChatPayloadV1;
   parseEncrypted: (s: string) => EncryptedChatPayloadV1 | null;
+  parseGroupEncrypted: (s: string) => EncryptedGroupPayloadV1 | null;
+  prepareGroupMediaPlaintext: (args: {
+    conversationId: string;
+    pendingMedia: PendingMediaItem[] | null | undefined;
+    caption: string;
+    messageKeyBytes: Uint8Array;
+    uploadPendingMediaGroupEncrypted: (
+      item: PendingMediaItem,
+      conversationId: string,
+      messageKeyBytes: Uint8Array,
+      caption?: string,
+    ) => Promise<GroupMediaEnvelopeV1>;
+  }) => Promise<{ plaintextToEncrypt: string; mediaPathsToSend: string[] }>;
+  encryptGroupOutgoingEncryptedText: (args: {
+    plaintextToEncrypt: string;
+    messageKeyBytes: Uint8Array;
+    myPrivateKey: string;
+    myUserId: string;
+    activeMemberSubs: string[];
+    groupPublicKeyBySub: Record<string, string | undefined>;
+  }) => string;
 
   // parsing/normalizing (passed in to avoid deep imports)
   parseChatEnvelope: (raw: string) => ChatEnvelope | null;
@@ -77,6 +106,12 @@ export function useChatInlineEditActions(opts: {
     recipientPublicKeyHex: string,
     captionOverride?: string,
   ) => Promise<DmMediaEnvelopeV1>;
+  uploadPendingMediaGroupEncrypted: (
+    media: PendingMediaItem,
+    conversationKey: string,
+    messageKeyBytes: Uint8Array,
+    captionOverride?: string,
+  ) => Promise<GroupMediaEnvelopeV1>;
 
   // ui
   openInfo: (title: string, body: string) => void;
@@ -87,6 +122,7 @@ export function useChatInlineEditActions(opts: {
     wsRef,
     activeConversationId,
     isDm,
+    isGroup,
     messages,
     setMessages,
     setError,
@@ -100,17 +136,25 @@ export function useChatInlineEditActions(opts: {
     setInlineEditUploading,
     pendingMediaRef,
     clearPendingMedia,
+    myUserId,
+    groupMembers,
+    groupPublicKeyBySub,
+    getRandomBytes,
     myPrivateKey,
     peerPublicKey,
     encryptChatMessageV1,
     parseEncrypted,
+    parseGroupEncrypted,
+    prepareGroupMediaPlaintext,
+    encryptGroupOutgoingEncryptedText,
     parseChatEnvelope,
     parseDmMediaEnvelope,
     parseGroupMediaEnvelope,
     normalizeDmMediaItems,
-    normalizeGroupMediaItems: _normalizeGroupMediaItems,
+    normalizeGroupMediaItems,
     uploadPendingMedia,
     uploadPendingMediaDmEncrypted,
+    uploadPendingMediaGroupEncrypted,
     openInfo,
     showAlert,
     closeMessageActions,
@@ -203,9 +247,16 @@ export function useChatInlineEditActions(opts: {
     let dmMediaSent: ChatMessage['media'] | undefined = undefined;
     let dmMediaListSent: MediaItem[] | undefined = undefined;
     let dmMediaPathsSent: string[] | undefined = undefined;
-    const needsEncryption = isDm && !!target.encrypted;
+    let groupPlaintextSent: string | null = null;
+    let groupMediaSent: ChatMessage['media'] | undefined = undefined;
+    let groupMediaListSent: MediaItem[] | undefined = undefined;
+    let groupMediaPathsSent: string[] | undefined = undefined;
+    let groupKeyHexSent: string | undefined = undefined;
 
-    if (needsEncryption) {
+    const needsDmEncryption = isDm && !!target.encrypted;
+    const needsGroupEncryption = isGroup && !!target.groupEncrypted;
+
+    if (needsDmEncryption) {
       if (!myPrivateKey || !peerPublicKey) {
         showAlert('Encryption not ready', 'Missing keys for editing.');
         return;
@@ -278,6 +329,86 @@ export function useChatInlineEditActions(opts: {
 
       const enc = encryptChatMessageV1(plaintextToEncrypt, myPrivateKey, peerPublicKey);
       outgoingText = JSON.stringify(enc);
+    } else if (needsGroupEncryption) {
+      if (!myPrivateKey || !myUserId) {
+        showAlert('Encryption not ready', 'Missing keys for editing.');
+        return;
+      }
+      const activeMemberSubs = groupMembers
+        .filter((m) => m && m.status === 'active' && m.memberSub)
+        .map((m) => String(m.memberSub))
+        .filter(Boolean);
+      if (!activeMemberSubs.length) {
+        showAlert('Encryption not ready', 'Missing active group members for editing.');
+        return;
+      }
+
+      // For group edits we mint a new per-message key (same as sending a new message).
+      const messageKeyBytes = getRandomBytes(32);
+      groupKeyHexSent = bytesToHex(messageKeyBytes);
+
+      // If this is a Group DM media message:
+      // - keep: update caption only (preserve existing gdm_media envelope)
+      // - replace: upload new group-encrypted media + create new gdm_media_v1/v2 envelope
+      // - remove: send plain text (caption only) group message
+      let plaintextToEncrypt = nextCaption;
+      const existingPlain = String(target.decryptedText || '');
+      const existingGEnv = parseGroupMediaEnvelope(existingPlain);
+
+      if (
+        inlineEditAttachmentMode === 'replace' &&
+        pendingMediaRef.current &&
+        pendingMediaRef.current.length
+      ) {
+        setInlineEditUploading(true);
+        try {
+          const prepared = await prepareGroupMediaPlaintext({
+            conversationId: activeConversationId,
+            pendingMedia: pendingMediaRef.current,
+            caption: nextCaption,
+            messageKeyBytes,
+            uploadPendingMediaGroupEncrypted,
+          });
+          plaintextToEncrypt = prepared.plaintextToEncrypt;
+          groupMediaPathsSent = prepared.mediaPathsToSend;
+        } finally {
+          setInlineEditUploading(false);
+        }
+      } else if (inlineEditAttachmentMode === 'keep' && existingGEnv) {
+        plaintextToEncrypt = JSON.stringify({
+          ...existingGEnv,
+          caption: nextCaption || undefined,
+        });
+      }
+
+      groupPlaintextSent = plaintextToEncrypt;
+      const parsed = parseGroupMediaEnvelope(groupPlaintextSent);
+      const gItems = normalizeGroupMediaItems(parsed);
+      if (gItems.length) {
+        groupMediaListSent = gItems.map((it) => ({
+          path: it.media.path,
+          thumbPath: it.media.thumbPath,
+          kind: it.media.kind,
+          contentType: it.media.contentType,
+          thumbContentType: it.media.thumbContentType,
+          fileName: it.media.fileName,
+          size: it.media.size,
+          durationMs: it.media.durationMs,
+        }));
+        groupMediaSent = groupMediaListSent[0];
+        groupMediaPathsSent = gItems
+          .flatMap((it) => [it.media.path, it.media.thumbPath].filter(Boolean))
+          .map(String);
+      }
+
+      outgoingText = encryptGroupOutgoingEncryptedText({
+        plaintextToEncrypt,
+        messageKeyBytes,
+        myPrivateKey,
+        myUserId,
+        activeMemberSubs,
+        groupPublicKeyBySub,
+      });
     } else if (!isDm) {
       // Global messages:
       // - keep: if it's a media envelope, preserve media and update caption
@@ -316,17 +447,24 @@ export function useChatInlineEditActions(opts: {
     }
 
     try {
+      const mediaPathsPayload =
+        needsDmEncryption && inlineEditAttachmentMode === 'remove'
+          ? { mediaPaths: [] }
+          : needsDmEncryption && inlineEditAttachmentMode === 'replace'
+            ? { mediaPaths: dmMediaPathsSent || [] }
+            : needsGroupEncryption && inlineEditAttachmentMode === 'remove'
+              ? { mediaPaths: [] }
+              : needsGroupEncryption && inlineEditAttachmentMode === 'replace'
+                ? { mediaPaths: groupMediaPathsSent || [] }
+                : {};
+
       wsRef.current.send(
         JSON.stringify({
           action: 'edit',
           conversationId: activeConversationId,
           messageCreatedAt: target.createdAt,
           text: outgoingText,
-          ...(needsEncryption && inlineEditAttachmentMode === 'remove'
-            ? { mediaPaths: [] }
-            : needsEncryption && inlineEditAttachmentMode === 'replace'
-              ? { mediaPaths: dmMediaPathsSent || [] }
-              : {}),
+          ...mediaPathsPayload,
           createdAt: Date.now(),
         }),
       );
@@ -337,7 +475,8 @@ export function useChatInlineEditActions(opts: {
       let optimisticDecryptedText: string | undefined = undefined;
       let optimisticMedia: ChatMessage['media'] | undefined = undefined;
       let optimisticMediaList: ChatMessage['mediaList'] | undefined = undefined;
-      if (needsEncryption) {
+      let optimisticGroupKeyHex: string | undefined = undefined;
+      if (needsDmEncryption) {
         if (inlineEditAttachmentMode === 'remove') {
           optimisticDecryptedText = nextCaption;
           optimisticMedia = undefined;
@@ -349,6 +488,19 @@ export function useChatInlineEditActions(opts: {
         } else {
           optimisticDecryptedText = nextCaption;
         }
+      } else if (needsGroupEncryption) {
+        optimisticGroupKeyHex = groupKeyHexSent;
+        if (inlineEditAttachmentMode === 'remove') {
+          optimisticDecryptedText = nextCaption;
+          optimisticMedia = undefined;
+          optimisticMediaList = undefined;
+        } else if (groupPlaintextSent) {
+          optimisticDecryptedText = groupPlaintextSent;
+          optimisticMedia = groupMediaSent;
+          optimisticMediaList = groupMediaListSent;
+        } else {
+          optimisticDecryptedText = nextCaption;
+        }
       }
       setMessages((prev) =>
         prev.map((m) =>
@@ -356,10 +508,22 @@ export function useChatInlineEditActions(opts: {
             ? {
                 ...m,
                 rawText: outgoingText,
-                encrypted: parseEncrypted(outgoingText) ?? undefined,
-                decryptedText: needsEncryption ? optimisticDecryptedText : m.decryptedText,
-                media: needsEncryption ? optimisticMedia : m.media,
-                mediaList: needsEncryption ? optimisticMediaList : m.mediaList,
+                encrypted: needsDmEncryption
+                  ? (parseEncrypted(outgoingText) ?? undefined)
+                  : m.encrypted,
+                groupEncrypted: needsGroupEncryption
+                  ? (parseGroupEncrypted(outgoingText) ?? undefined)
+                  : m.groupEncrypted,
+                decryptedText:
+                  needsDmEncryption || needsGroupEncryption
+                    ? optimisticDecryptedText
+                    : m.decryptedText,
+                groupKeyHex: needsGroupEncryption ? optimisticGroupKeyHex : m.groupKeyHex,
+                decryptFailed:
+                  needsDmEncryption || needsGroupEncryption ? undefined : m.decryptFailed,
+                media: needsDmEncryption || needsGroupEncryption ? optimisticMedia : m.media,
+                mediaList:
+                  needsDmEncryption || needsGroupEncryption ? optimisticMediaList : m.mediaList,
                 // Always show the edited caption in the UI (even for envelopes).
                 text: nextCaption,
                 editedAt: now,
@@ -375,16 +539,26 @@ export function useChatInlineEditActions(opts: {
     activeConversationId,
     cancelInlineEdit,
     encryptChatMessageV1,
+    encryptGroupOutgoingEncryptedText,
+    getRandomBytes,
+    groupMembers,
+    groupPublicKeyBySub,
     inlineEditAttachmentMode,
     inlineEditDraft,
     inlineEditTargetId,
     inlineEditUploading,
+    isGroup,
     messages,
+    myUserId,
     myPrivateKey,
     normalizeDmMediaItems,
+    normalizeGroupMediaItems,
     parseChatEnvelope,
     parseDmMediaEnvelope,
     parseEncrypted,
+    parseGroupEncrypted,
+    parseGroupMediaEnvelope,
+    prepareGroupMediaPlaintext,
     peerPublicKey,
     pendingMediaRef,
     setError,
@@ -393,6 +567,7 @@ export function useChatInlineEditActions(opts: {
     showAlert,
     uploadPendingMedia,
     uploadPendingMediaDmEncrypted,
+    uploadPendingMediaGroupEncrypted,
     wsRef,
     isDm,
     openInfo,

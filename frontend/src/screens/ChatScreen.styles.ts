@@ -26,6 +26,11 @@ export const styles = StyleSheet.create({
     borderBottomColor: APP_COLORS.light.border.subtle,
     backgroundColor: APP_COLORS.light.bg.header,
   },
+  // Global chat (signed-in) has no caret/options row; keep a little breathing room
+  // below the welcome/tools row so the list doesn't feel glued to the header.
+  headerNoSubRow: {
+    paddingBottom: 5,
+  },
   headerDark: {
     backgroundColor: APP_COLORS.dark.bg.header,
     borderBottomColor: APP_COLORS.dark.border.subtle,
