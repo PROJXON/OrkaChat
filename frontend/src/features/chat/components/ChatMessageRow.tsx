@@ -964,7 +964,17 @@ export function ChatMessageRow(props: {
             })()}
 
             {renderAttachments ? (
-              <View style={{ marginTop: displayText?.length ? 8 : 4 }}>{renderAttachments}</View>
+              <View
+                style={{
+                  marginTop:
+                    (inlineEditTargetId && item.id === inlineEditTargetId && !isDeleted) ||
+                    !!displayText?.length
+                      ? 8
+                      : 4,
+                }}
+              >
+                {renderAttachments}
+              </View>
             ) : null}
 
             {isOutgoing && item.localStatus === 'failed' ? (
