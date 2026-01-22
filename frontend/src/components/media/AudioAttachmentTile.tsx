@@ -6,6 +6,8 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useUiPromptOptional } from '../../providers/UiPromptProvider';
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 import {
+  DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_KEY,
+  DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_LABEL,
   SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
   SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,
 } from '../../utils/saveToPhonePrompt';
@@ -61,7 +63,7 @@ export function AudioAttachmentTile({
     if (!onDownload) return;
     try {
       const name = String(state.title || '').trim() || 'Audio';
-      const title = Platform.OS === 'web' ? 'Download attachment?' : 'Save to phone?';
+      const title = Platform.OS === 'web' ? 'Download Attachment?' : 'Save to Phone?';
       const msg =
         Platform.OS === 'web'
           ? `Download "${name}" to your device?`
@@ -72,7 +74,10 @@ export function AudioAttachmentTile({
             cancelText: 'Cancel',
             dontShowAgain:
               Platform.OS === 'web'
-                ? undefined
+                ? {
+                    storageKey: DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_KEY,
+                    label: DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_LABEL,
+                  }
                 : {
                     storageKey: SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
                     label: SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,

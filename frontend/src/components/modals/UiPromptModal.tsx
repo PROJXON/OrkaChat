@@ -169,10 +169,18 @@ export function UiPromptModal({
                       style={[
                         styles.checkboxBox,
                         isDark ? styles.checkboxBoxDark : null,
-                        dontShowAgain ? styles.checkboxBoxChecked : null,
+                        dontShowAgain
+                          ? isDark
+                            ? styles.checkboxBoxCheckedDark
+                            : styles.checkboxBoxCheckedLight
+                          : null,
                       ]}
                     >
-                      {dontShowAgain ? <Text style={styles.checkboxCheck}>✓</Text> : null}
+                      {dontShowAgain ? (
+                        <Text style={[styles.checkboxCheck, isDark ? styles.checkboxCheckDark : null]}>
+                          ✓
+                        </Text>
+                      ) : null}
                     </View>
                     <Text style={[styles.checkboxLabel, isDark ? styles.checkboxLabelDark : null]}>
                       {uiPrompt.dontShowAgain.label}
@@ -291,11 +299,17 @@ const styles = StyleSheet.create({
     borderColor: APP_COLORS.dark.border.default,
     backgroundColor: withAlpha(PALETTE.white, 0.06),
   },
-  checkboxBoxChecked: {
-    backgroundColor: APP_COLORS.light.brand.primary,
-    borderColor: APP_COLORS.light.brand.primary,
+  // Checked styles should be thematic (not brand-blue).
+  checkboxBoxCheckedLight: {
+    backgroundColor: APP_COLORS.light.text.primary,
+    borderColor: APP_COLORS.light.text.primary,
+  },
+  checkboxBoxCheckedDark: {
+    backgroundColor: APP_COLORS.dark.text.primary,
+    borderColor: APP_COLORS.dark.text.primary,
   },
   checkboxCheck: { color: PALETTE.white, fontWeight: '900', fontSize: 12, marginTop: -1 },
+  checkboxCheckDark: { color: PALETTE.black },
   checkboxLabel: { color: APP_COLORS.light.text.secondary, fontWeight: '700' },
   checkboxLabelDark: { color: APP_COLORS.dark.text.secondary },
   modalButtons: {

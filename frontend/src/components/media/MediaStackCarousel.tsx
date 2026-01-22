@@ -16,6 +16,8 @@ import {
 import { getNativeEventNumber } from '../../utils/nativeEvent';
 import { saveMediaUrlToDevice } from '../../utils/saveMediaToDevice';
 import {
+  DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_KEY,
+  DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_LABEL,
   SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
   SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,
 } from '../../utils/saveToPhonePrompt';
@@ -635,7 +637,10 @@ export function MediaStackCarousel({
                                 cancelText: 'Cancel',
                                 dontShowAgain:
                                   Platform.OS === 'web'
-                                    ? undefined
+                                    ? {
+                                        storageKey: DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_KEY,
+                                        label: DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_LABEL,
+                                      }
                                     : {
                                         storageKey: SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
                                         label: SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,

@@ -12,6 +12,8 @@ import {
   fileIconNameForMedia,
 } from '../../utils/mediaKinds';
 import {
+  DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_KEY,
+  DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_LABEL,
   SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
   SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,
 } from '../../utils/saveToPhonePrompt';
@@ -75,7 +77,10 @@ export function FileAttachmentTile({
             cancelText: 'Cancel',
             dontShowAgain:
               Platform.OS === 'web'
-                ? undefined
+                ? {
+                    storageKey: DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_KEY,
+                    label: DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_LABEL,
+                  }
                 : {
                     storageKey: SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
                     label: SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,
