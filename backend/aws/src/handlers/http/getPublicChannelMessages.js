@@ -58,15 +58,21 @@ exports.handler = async (event) => {
     const channelsTable = safeString(process.env.CHANNELS_TABLE);
     if (!channelsTable) return { statusCode: 500, body: 'CHANNELS_TABLE not configured' };
 
-    const ch = await ddb.send(new GetCommand({ TableName: channelsTable, Key: { channelId: parsed.channelId } }));
+    const ch = await ddb.send(
+      new GetCommand({ TableName: channelsTable, Key: { channelId: parsed.channelId } })
+    );
     const channel = ch.Item;
+    const hasPassword =
+      !!channel?.hasPassword ||
+      (typeof channel?.passwordHash === 'string' && String(channel.passwordHash).trim().length > 0);
+
     // Guests may only read non-deleted, public, non-password channels.
     // Password-protected channels require an authenticated join flow.
     if (
       !channel ||
       (typeof channel.deletedAt === 'number' && channel.deletedAt > 0) ||
       !channel.isPublic ||
-      !!channel.hasPassword
+      hasPassword
     ) {
       return {
         statusCode: 403,
