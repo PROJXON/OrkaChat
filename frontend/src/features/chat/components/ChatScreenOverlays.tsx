@@ -1,12 +1,17 @@
 import * as React from 'react';
 import type { TextInput } from 'react-native';
-import { Animated, Platform, Text, View } from 'react-native';
+import { Animated, Modal, Platform, Text, View } from 'react-native';
 
+import { AppBrandIcon } from '../../../components/AppBrandIcon';
 import type { InAppCameraCapture } from '../../../components/InAppCameraModal';
 import { InAppCameraModal } from '../../../components/InAppCameraModal';
 import { MediaViewerModal } from '../../../components/MediaViewerModal';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import type { MemberRow } from '../../../types/members';
+import {
+  SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
+  SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,
+} from '../../../utils/saveToPhonePrompt';
 import type { ChatMessage } from '../types';
 import type { ChatMediaViewerState } from '../viewerTypes';
 import { AiConsentModal } from './AiConsentModal';
@@ -707,41 +712,91 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         setViewerState={viewer.setState}
         dmFileUriByPath={dmFileUriByPath}
         saving={viewer.saving}
-        onSave={() => void viewer.saveToDevice()}
+        onSave={async () => {
+          if (Platform.OS === 'web') {
+            await viewer.saveToDevice();
+            return;
+          }
+          const ok = await uiConfirm('Save to phone?', 'Save this media to your device?', {
+            confirmText: 'Save',
+            cancelText: 'Cancel',
+            dontShowAgain: {
+              storageKey: SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
+              label: SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,
+            },
+          });
+          if (!ok) return;
+          await viewer.saveToDevice();
+        }}
         onClose={viewer.close}
       />
 
-      {toast ? (
-        <Animated.View
-          style={[
-            styles.toastWrap,
-            ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
-            {
-              bottom: Math.max(16, insets.bottom + 12),
-              opacity: toastAnim,
-              transform: [
-                {
-                  translateY: toastAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [12, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-          pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
-        >
-          <View
-            style={[
-              styles.toast,
-              isDark ? styles.toastDark : null,
-              toast.kind === 'error' ? (isDark ? styles.toastErrorDark : styles.toastError) : null,
-            ]}
-          >
-            <Text style={styles.toastText}>{toast.message}</Text>
-          </View>
-        </Animated.View>
-      ) : null}
+      {toast
+        ? (() => {
+            const toastNode = (
+              <Animated.View
+                style={[
+                  styles.toastWrap,
+                  ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+                  {
+                    bottom: Math.max(16, insets.bottom + 12),
+                    opacity: toastAnim,
+                    transform: [
+                      {
+                        translateY: toastAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [12, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+                pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
+              >
+                <View
+                  style={[
+                    styles.toast,
+                    !isDark ? styles.toastLight : null,
+                    isDark ? styles.toastDark : null,
+                    toast.kind === 'error'
+                      ? isDark
+                        ? styles.toastErrorDark
+                        : styles.toastError
+                      : null,
+                  ]}
+                >
+                  {toast.kind === 'error' ? null : (
+                    <AppBrandIcon isDark={isDark} slotWidth={18} slotHeight={18} />
+                  )}
+                  <Text style={[styles.toastText, !isDark ? styles.toastTextLight : null]}>
+                    {toast.message}
+                  </Text>
+                </View>
+              </Animated.View>
+            );
+
+            // On native, other UI is often rendered inside Modal portals (e.g. MediaViewerModal).
+            // Render the toast in its own transparent Modal so it appears above those.
+            if (Platform.OS !== 'web') {
+              return (
+                <Modal
+                  visible
+                  transparent
+                  animationType="none"
+                  onRequestClose={() => {
+                    // no-op (toast auto-hides)
+                  }}
+                >
+                  <View style={{ flex: 1 }} pointerEvents="none">
+                    {toastNode}
+                  </View>
+                </Modal>
+              );
+            }
+
+            return toastNode;
+          })()
+        : null}
     </>
   );
 }

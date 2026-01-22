@@ -1,9 +1,15 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 
 import { UiPromptModal } from '../components/modals/UiPromptModal';
 import type { UiPrompt, UiPromptVariant } from '../types/uiPrompt';
 
-type ConfirmOpts = { confirmText?: string; cancelText?: string; destructive?: boolean };
+type ConfirmOpts = {
+  confirmText?: string;
+  cancelText?: string;
+  destructive?: boolean;
+  dontShowAgain?: { storageKey: string; label?: string };
+};
 type AlertOpts = { confirmText?: string; destructive?: boolean };
 type Choice3Opts = {
   primaryText: string;
@@ -87,8 +93,18 @@ export function UiPromptProvider({
             resolve,
           });
         }),
-      confirm: async (title: string, message: string, opts?: ConfirmOpts) =>
-        await new Promise<boolean>((resolve) => {
+      confirm: async (title: string, message: string, opts?: ConfirmOpts) => {
+        const key = String(opts?.dontShowAgain?.storageKey || '').trim();
+        if (key) {
+          try {
+            const v = await AsyncStorage.getItem(key);
+            if (v === '1') return true;
+          } catch {
+            // ignore
+          }
+        }
+
+        const res = await new Promise<{ confirmed: boolean; dontShowAgain: boolean }>((resolve) => {
           enqueue({
             kind: 'confirm',
             title: String(title || ''),
@@ -96,9 +112,22 @@ export function UiPromptProvider({
             confirmText: opts?.confirmText,
             cancelText: opts?.cancelText,
             destructive: !!opts?.destructive,
+            dontShowAgain: key
+              ? { label: String(opts?.dontShowAgain?.label || "Don't show again") }
+              : undefined,
             resolve,
           });
-        }),
+        });
+
+        if (res.confirmed && res.dontShowAgain && key) {
+          try {
+            await AsyncStorage.setItem(key, '1');
+          } catch {
+            // ignore
+          }
+        }
+        return !!res.confirmed;
+      },
       choice3: (async (
         titleOrArgs: string | Choice3Args,
         message?: string,

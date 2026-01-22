@@ -1,7 +1,8 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useUiPromptOptional } from '../../providers/UiPromptProvider';
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
 import type { MediaItem } from '../../types/media';
 import {
@@ -10,6 +11,12 @@ import {
   fileBrandColorForMedia,
   fileIconNameForMedia,
 } from '../../utils/mediaKinds';
+import {
+  DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_KEY,
+  DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_LABEL,
+  SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
+  SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,
+} from '../../utils/saveToPhonePrompt';
 
 function formatBytes(bytes: number | undefined): string {
   const n = typeof bytes === 'number' && Number.isFinite(bytes) ? bytes : 0;
@@ -28,11 +35,13 @@ export function FileAttachmentTile({
   isDark,
   isOutgoing,
   onPress,
+  onDownload,
 }: {
   item: MediaItem;
   isDark: boolean;
   isOutgoing: boolean;
   onPress: () => void | Promise<void>;
+  onDownload?: () => void | Promise<void>;
 }): React.JSX.Element {
   const badge = fileBadgeForMedia(item);
   const iconName = fileIconNameForMedia(item);
@@ -47,6 +56,43 @@ export function FileAttachmentTile({
       : isDark
         ? APP_COLORS.dark.text.primary
         : APP_COLORS.light.brand.primary;
+  const downloadColor = isOutgoing
+    ? PALETTE.white
+    : isDark
+      ? APP_COLORS.dark.text.primary
+      : APP_COLORS.light.text.primary;
+  const ui = useUiPromptOptional();
+
+  const confirmAndDownload = React.useCallback(async () => {
+    if (!onDownload) return;
+    try {
+      const title = Platform.OS === 'web' ? 'Download attachment?' : 'Save to Phone?';
+      const msg =
+        Platform.OS === 'web'
+          ? `Download "${name}" to your device?`
+          : `Save "${name}" to your device?`;
+      const ok = ui?.confirm
+        ? await ui.confirm(title, msg, {
+            confirmText: Platform.OS === 'web' ? 'Download' : 'Save',
+            cancelText: 'Cancel',
+            dontShowAgain:
+              Platform.OS === 'web'
+                ? {
+                    storageKey: DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_KEY,
+                    label: DOWNLOAD_ATTACHMENT_DONT_SHOW_AGAIN_LABEL,
+                  }
+                : {
+                    storageKey: SAVE_TO_PHONE_DONT_SHOW_AGAIN_KEY,
+                    label: SAVE_TO_PHONE_DONT_SHOW_AGAIN_LABEL,
+                  },
+          })
+        : true;
+      if (!ok) return;
+      await onDownload();
+    } catch {
+      await onDownload();
+    }
+  }, [name, onDownload, ui]);
 
   return (
     <Pressable
@@ -85,17 +131,35 @@ export function FileAttachmentTile({
         </View>
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text
-          style={[
-            styles.name,
-            isOutgoing ? styles.nameOutgoing : null,
-            !isOutgoing && isDark ? styles.nameDark : null,
-          ]}
-          numberOfLines={2}
-          ellipsizeMode="tail"
-        >
-          {name}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text
+            style={[
+              styles.name,
+              isOutgoing ? styles.nameOutgoing : null,
+              !isOutgoing && isDark ? styles.nameDark : null,
+            ]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {name}
+          </Text>
+          {onDownload ? (
+            <Pressable
+              onPress={(e: unknown) => {
+                // Web: avoid triggering the parent tile's onPress (open) when tapping download.
+                if (Platform.OS === 'web')
+                  (e as { stopPropagation?: () => void })?.stopPropagation?.();
+                void confirmAndDownload();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Download ${name}`}
+              hitSlop={10}
+              style={({ pressed }) => [styles.downloadBtn, pressed ? { opacity: 0.85 } : null]}
+            >
+              <MaterialCommunityIcons name={'download' as never} size={20} color={downloadColor} />
+            </Pressable>
+          ) : null}
+        </View>
         <Text
           style={[
             styles.meta,
@@ -121,7 +185,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 2,
+    paddingHorizontal: 10,
     paddingVertical: 2,
     borderRadius: 12,
     // Avoid thin borders on Android: hairlines can render as a harsh "black line".
@@ -134,6 +198,7 @@ const styles = StyleSheet.create({
   wrapOutgoing: {
     backgroundColor: withAlpha(PALETTE.white, 0.14),
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
   iconWrap: {
     // Give the font-icon some breathing room so it doesn't clip on Android.
     width: 42,
@@ -162,6 +227,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
     lineHeight: 20,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   nameDark: { color: APP_COLORS.dark.text.primary },
   nameOutgoing: { color: PALETTE.white },
@@ -173,4 +241,5 @@ const styles = StyleSheet.create({
   },
   metaDark: { color: APP_COLORS.dark.text.secondary },
   metaOutgoing: { color: withAlpha(PALETTE.white, 0.85) },
+  downloadBtn: { paddingHorizontal: 4, paddingVertical: 4 },
 });

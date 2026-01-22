@@ -6,6 +6,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { MediaViewerState } from '../components/MediaViewerModal';
 import { API_URL } from '../config/env';
 import { CDN_URL } from '../config/env';
+import {
+  type AudioQueueItem,
+  audioTitleFromFileName,
+  isAudioContentType,
+  makeAudioKey,
+  sortAudioQueue,
+} from '../features/chat/audioPlaybackQueue';
+import { useChatAudioPlayback } from '../features/chat/useChatAudioPlayback';
 import { useGlobalAboutOncePerVersion } from '../features/globalAbout/useGlobalAboutOncePerVersion';
 import { GuestGlobalBottomBar } from '../features/guest/components/GuestGlobalBottomBar';
 import { GuestGlobalHeaderRow } from '../features/guest/components/GuestGlobalHeaderRow';
@@ -202,6 +210,55 @@ export default function GuestGlobalScreen({
     }),
   });
 
+  // ---- Guest inline audio playback (same UI as signed-in chat) ----
+  const guestAudioQueue = React.useMemo(() => {
+    const out: AudioQueueItem[] = [];
+    for (const msg of messages) {
+      const list = msg.mediaList ? msg.mediaList : msg.media ? [msg.media] : [];
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        if (!isAudioContentType(m?.contentType)) continue;
+        const key = makeAudioKey(msg.id, m.path, i);
+        out.push({
+          key,
+          createdAt: Number(msg.createdAt) || 0,
+          idx: i,
+          title: audioTitleFromFileName(m.fileName, 'Audio'),
+          resolveUri: async () => {
+            const url = await resolvePathUrl(String(m.path || ''));
+            if (!url) throw new Error('Missing media URL');
+            return url;
+          },
+        });
+      }
+    }
+    return sortAudioQueue(out);
+  }, [messages, resolvePathUrl]);
+
+  const guestAudioPlayback = useChatAudioPlayback({ queue: guestAudioQueue });
+  const guestAudioPlaybackForRender = React.useMemo(
+    () => ({
+      ...guestAudioPlayback,
+      getKey: (msgId: string, idx: number, media: { path: string }) =>
+        makeAudioKey(msgId, media.path, idx),
+      onPress: async (key: string) => {
+        try {
+          await guestAudioPlayback.toggle(key);
+        } catch (e: unknown) {
+          const msg =
+            e instanceof Error
+              ? e.message || 'Could not play audio'
+              : typeof e === 'string'
+                ? e
+                : 'Could not play audio';
+          showAlert('Audio', msg);
+          console.warn('guest audio playback failed', e);
+        }
+      },
+    }),
+    [guestAudioPlayback, showAlert],
+  );
+
   const reactionNameBySub = React.useMemo(() => {
     return reactionInfo.subs.reduce((acc: Record<string, string>, sub) => {
       const name = reactionInfo.namesBySub[sub];
@@ -349,6 +406,7 @@ export default function GuestGlobalScreen({
           resolvePathUrl={resolvePathUrl}
           openReactionInfo={openReactionInfo}
           openViewer={openViewer}
+          audioPlayback={guestAudioPlaybackForRender}
         />
 
         {/* Bottom bar CTA (like the chat input row), so messages never render behind it */}

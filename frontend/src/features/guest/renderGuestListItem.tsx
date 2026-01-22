@@ -20,6 +20,7 @@ export function renderGuestListItem(args: {
   resolvePathUrl: (path: string) => Promise<string | null>;
   openReactionInfo: (emoji: string, subs: string[], namesBySub?: Record<string, string>) => void;
   openViewer: (mediaList: MediaItem[], startIdx: number) => void;
+  audioPlayback?: React.ComponentProps<typeof GuestMessageRow>['audioPlayback'];
 }): React.JSX.Element {
   const {
     item,
@@ -33,6 +34,7 @@ export function renderGuestListItem(args: {
     resolvePathUrl,
     openReactionInfo,
     openViewer,
+    audioPlayback,
   } = args;
 
   const AVATAR_SIZE = 44;
@@ -59,6 +61,7 @@ export function renderGuestListItem(args: {
       resolvePathUrl={resolvePathUrl}
       onOpenReactionInfo={openReactionInfo}
       onOpenViewer={openViewer}
+      audioPlayback={audioPlayback}
       avatarSize={AVATAR_SIZE}
       avatarGutter={avatarGutter}
       avatarSeed={senderKey}

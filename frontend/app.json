@@ -79,7 +79,8 @@
         {
           "icon": "./assets/icons/notification-icon.png"
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "owner": "eperry2688"
   }

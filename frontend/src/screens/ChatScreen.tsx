@@ -17,6 +17,13 @@ import {
   pendingMediaFromImagePickerAssets,
   pendingMediaFromInAppCameraCapture,
 } from '../features/chat/attachments';
+import {
+  type AudioQueueItem,
+  audioTitleFromFileName,
+  isAudioContentType,
+  makeAudioKey,
+  sortAudioQueue,
+} from '../features/chat/audioPlaybackQueue';
 import { buildChatScreenMainProps } from '../features/chat/buildChatScreenMainProps';
 import { buildChatScreenOverlaysProps } from '../features/chat/buildChatScreenOverlaysProps';
 import type { ResolvedChatBg } from '../features/chat/components/ChatBackgroundLayer';
@@ -25,6 +32,7 @@ import { ChatScreenOverlays } from '../features/chat/components/ChatScreenOverla
 import { TypingIndicator } from '../features/chat/components/TypingIndicator';
 import { isVisibleMemberRow, toMemberRow } from '../features/chat/memberRows';
 import {
+  normalizeChatMediaList,
   normalizeDmMediaItems,
   normalizeGroupMediaItems,
   normalizeReactions,
@@ -55,6 +63,7 @@ import { useChannelSettingsPanelActions } from '../features/chat/useChannelSetti
 import { useChatAdminOps } from '../features/chat/useChatAdminOps';
 import { useChatAttachmentPickers } from '../features/chat/useChatAttachmentPickers';
 import { useChatAttachments } from '../features/chat/useChatAttachments';
+import { useChatAudioPlayback } from '../features/chat/useChatAudioPlayback';
 import { useChatAutoDecrypt } from '../features/chat/useChatAutoDecrypt';
 import { useChatCdnMediaPrefetch } from '../features/chat/useChatCdnMediaPrefetch';
 import { useChatChannelUiState } from '../features/chat/useChatChannelUiState';
@@ -498,7 +507,7 @@ export default function ChatScreen({
     showToast('Allow Photos permission to save.', 'error');
   }
   function onViewerSaveSuccess() {
-    showToast('Saved to your device.', 'success');
+    showToast('Media saved', 'success');
   }
   function onViewerSaveError(msg: string) {
     const m = String(msg || '');
@@ -991,6 +1000,121 @@ export default function ChatScreen({
     decryptGroupFileToCacheUri,
   });
 
+  // ---- Inline audio playback (Signal-style) ----
+  const audioQueue = React.useMemo(() => {
+    const items: AudioQueueItem[] = [];
+
+    for (const msg of messages) {
+      const isStillEncrypted = (!!msg.encrypted || !!msg.groupEncrypted) && !msg.decryptedText;
+      if (isStillEncrypted) continue;
+
+      // Match renderer logic: plaintext chats can store attachments in a JSON envelope in rawText/text.
+      const env =
+        !msg.encrypted && !msg.groupEncrypted && !isDm
+          ? parseChatEnvelope(msg.rawText ?? msg.text)
+          : null;
+      const envMediaList = env ? normalizeChatMediaList(env.media) : [];
+      const list =
+        env && envMediaList.length
+          ? envMediaList
+          : msg.mediaList
+            ? msg.mediaList
+            : msg.media
+              ? [msg.media]
+              : [];
+      if (!list.length) continue;
+
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        if (!isAudioContentType(m?.contentType)) continue;
+
+        const key = makeAudioKey(msg.id, m.path, i);
+        const title = audioTitleFromFileName(m.fileName, 'Audio');
+
+        if (isDm) {
+          items.push({
+            key,
+            createdAt: Number(msg.createdAt) || 0,
+            idx: i,
+            title,
+            resolveUri: async () => {
+              const env = parseDmMediaEnvelope(String(msg.decryptedText || ''));
+              const arr = normalizeDmMediaItems(env);
+              const it = arr[i];
+              if (!it) throw new Error('Missing audio attachment');
+              return await decryptDmFileToCacheUri(msg, it);
+            },
+          });
+          continue;
+        }
+
+        if (isGroup) {
+          items.push({
+            key,
+            createdAt: Number(msg.createdAt) || 0,
+            idx: i,
+            title,
+            resolveUri: async () => {
+              const env = parseGroupMediaEnvelope(String(msg.decryptedText || ''));
+              const arr = normalizeGroupMediaItems(env);
+              const it = arr[i];
+              if (!it) throw new Error('Missing audio attachment');
+              return await decryptGroupFileToCacheUri(msg, it);
+            },
+          });
+          continue;
+        }
+
+        items.push({
+          key,
+          createdAt: Number(msg.createdAt) || 0,
+          idx: i,
+          title,
+          resolveUri: async () => {
+            const url = mediaUrlByPath[String(m.path || '')];
+            if (!url) throw new Error('Missing media URL');
+            return url;
+          },
+        });
+      }
+    }
+
+    return sortAudioQueue(items);
+  }, [
+    decryptDmFileToCacheUri,
+    decryptGroupFileToCacheUri,
+    isDm,
+    isGroup,
+    mediaUrlByPath,
+    messages,
+  ]);
+
+  const audioPlayback = useChatAudioPlayback({ queue: audioQueue });
+  const audioPlaybackForRender = React.useMemo(
+    () => ({
+      ...audioPlayback,
+      getAudioKey: (msg: ChatMessage, idx: number, media: { path: string }) =>
+        makeAudioKey(msg.id, media.path, idx),
+      getAudioTitle: (media: { fileName?: string }) =>
+        audioTitleFromFileName(media.fileName, 'Audio'),
+      onPressAudio: async (args: { key: string }) => {
+        try {
+          await audioPlayback.toggle(args.key);
+        } catch (e: unknown) {
+          const msg =
+            e instanceof Error
+              ? e.message || 'Could not play audio'
+              : typeof e === 'string'
+                ? e
+                : 'Could not play audio';
+          showAlert('Audio', msg);
+          console.warn('audio playback failed', e);
+        }
+      },
+    }),
+    [audioPlayback, showAlert],
+  );
+
   const markMySeen = React.useCallback(
     (messageCreatedAt: number, readAt: number) => {
       setMySeenAtByCreatedAt((prev) => ({
@@ -1404,6 +1528,7 @@ export default function ChatScreen({
         normalizeUser,
         nowSec,
         formatRemaining,
+        showToast,
         mediaUrlByPath,
         dmThumbUriByPath,
         imageAspectByPath,
@@ -1426,6 +1551,7 @@ export default function ChatScreen({
         openDmMediaViewer,
         openGroupMediaViewer,
         requestOpenLink,
+        audioPlayback: audioPlaybackForRender,
         onPressMessage,
         openMessageActions,
         latestOutgoingMessageId,
@@ -1463,12 +1589,14 @@ export default function ChatScreen({
       openMessageActions,
       openReactionInfo,
       openViewer,
+      audioPlaybackForRender,
       peerSeenAtByCreatedAt,
       pendingMedia,
       requestOpenLink,
       retryFailedMessage,
       sendReaction,
       setInlineEditDraft,
+      showToast,
       avatarProfileBySub,
       avatarUrlByPath,
       visibleMessages,

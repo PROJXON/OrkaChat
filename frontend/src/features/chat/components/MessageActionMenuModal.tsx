@@ -76,7 +76,12 @@ type Props = {
   uiConfirm: (
     title: string,
     message: string,
-    opts: { confirmText: string; cancelText: string; destructive?: boolean },
+    opts: {
+      confirmText: string;
+      cancelText: string;
+      destructive?: boolean;
+      dontShowAgain?: { storageKey: string; label?: string };
+    },
   ) => Promise<boolean>;
   showAlert: (title: string, body: string) => void;
 

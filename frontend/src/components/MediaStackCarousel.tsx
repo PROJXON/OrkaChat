@@ -1,1 +1,1 @@
-export * from './media/MediaStackCarousel';
+export { MediaStackCarousel } from './media/MediaStackCarousel';

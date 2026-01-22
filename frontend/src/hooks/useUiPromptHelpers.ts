@@ -7,7 +7,12 @@ export function useUiPromptHelpers(): {
   uiConfirm: (
     title: string,
     message: string,
-    options?: { confirmText?: string; cancelText?: string; destructive?: boolean },
+    options?: {
+      confirmText?: string;
+      cancelText?: string;
+      destructive?: boolean;
+      dontShowAgain?: { storageKey: string; label?: string };
+    },
   ) => Promise<boolean>;
   uiChoice3: UiPromptApi['choice3'];
   showAlert: (title: string, message: string) => void;

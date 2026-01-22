@@ -1,12 +1,14 @@
 // Shared upload/attachment helpers and limits for chat.
 
 import { toByteArray } from 'base64-js';
+import { Platform } from 'react-native';
 
 import type { MediaKind } from '../../types/media';
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
 export const MAX_VIDEO_BYTES = 75 * 1024 * 1024; // 75MB
 export const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25MB (GIFs/documents)
+export const MAX_AUDIO_BYTES = 75 * 1024 * 1024; // 75MB (audio attachments)
 
 export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
 
@@ -43,8 +45,30 @@ export function getAttachmentHardLimitBytes(kind: MediaKind): number {
   return kind === 'image' ? MAX_IMAGE_BYTES : kind === 'video' ? MAX_VIDEO_BYTES : MAX_FILE_BYTES;
 }
 
-export function assertWithinAttachmentHardLimit(kind: MediaKind, sizeBytes: number): void {
-  const limit = getAttachmentHardLimitBytes(kind);
+function isAudioContentType(contentType?: string): boolean {
+  const ct = String(contentType || '')
+    .trim()
+    .toLowerCase()
+    .split(';')[0]
+    .trim();
+  return !!ct && ct.startsWith('audio/');
+}
+
+export function getAttachmentHardLimitBytesForContentType(
+  kind: MediaKind,
+  contentType?: string,
+): number {
+  if (kind !== 'image' && kind !== 'video' && isAudioContentType(contentType))
+    return MAX_AUDIO_BYTES;
+  return getAttachmentHardLimitBytes(kind);
+}
+
+export function assertWithinAttachmentHardLimit(
+  kind: MediaKind,
+  sizeBytes: number,
+  contentType?: string,
+): void {
+  const limit = getAttachmentHardLimitBytesForContentType(kind, contentType);
   if (Number.isFinite(sizeBytes) && sizeBytes > limit) {
     throw new Error(
       `File too large (${formatBytes(sizeBytes)}). Limit for ${kind} is ${formatBytes(limit)}.`,
@@ -134,6 +158,111 @@ export async function createWebpThumbnailBytes(args: {
   if (kind !== 'image' && kind !== 'video') return null;
 
   try {
+    // Web: expo-video-thumbnails is not available. For videos, extract a frame via <video> + <canvas>.
+    if (Platform.OS === 'web' && kind === 'video') {
+      const doc: any = (globalThis as any)?.document;
+      if (!doc || typeof doc.createElement !== 'function') return null;
+
+      const video: any = doc.createElement('video');
+      const canvas: any = doc.createElement('canvas');
+      const ctx: any = canvas?.getContext?.('2d');
+      if (!video || !canvas || !ctx) return null;
+
+      // Try to avoid autoplay restrictions; we only need a decoded frame.
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      // Blob/object URLs are same-origin; for completeness allow anonymous.
+      video.crossOrigin = 'anonymous';
+
+      const cleanup = () => {
+        try {
+          video.pause?.();
+        } catch {
+          // ignore
+        }
+        try {
+          video.src = '';
+          video.load?.();
+        } catch {
+          // ignore
+        }
+      };
+
+      const bytes = await new Promise<Uint8Array | null>((resolve) => {
+        let done = false;
+        const finish = (v: Uint8Array | null) => {
+          if (done) return;
+          done = true;
+          cleanup();
+          resolve(v);
+        };
+
+        const timeout = setTimeout(() => finish(null), 5000);
+        const clear = () => {
+          try {
+            clearTimeout(timeout);
+          } catch {
+            // ignore
+          }
+        };
+
+        const capture = async () => {
+          try {
+            // Ensure we have dimensions.
+            const vw = Number(video.videoWidth || 0);
+            const vh = Number(video.videoHeight || 0);
+            if (!(vw > 0) || !(vh > 0)) return finish(null);
+
+            const scale = THUMB_MAX_DIM / Math.max(vw, vh);
+            const tw = Math.max(1, Math.floor(vw * Math.min(1, scale)));
+            const th = Math.max(1, Math.floor(vh * Math.min(1, scale)));
+            canvas.width = tw;
+            canvas.height = th;
+            ctx.drawImage(video, 0, 0, tw, th);
+
+            canvas.toBlob(
+              async (blob: any) => {
+                try {
+                  if (!blob || typeof blob.arrayBuffer !== 'function') return finish(null);
+                  const ab = await blob.arrayBuffer();
+                  return finish(new Uint8Array(ab));
+                } catch {
+                  return finish(null);
+                }
+              },
+              'image/webp',
+              THUMB_JPEG_QUALITY,
+            );
+          } catch {
+            finish(null);
+          }
+        };
+
+        video.onerror = () => {
+          clear();
+          finish(null);
+        };
+
+        // `loadeddata` means the first frame is available.
+        video.onloadeddata = () => {
+          clear();
+          void capture();
+        };
+
+        try {
+          video.src = uri;
+          // Some browsers require an explicit load() call.
+          video.load?.();
+        } catch {
+          clear();
+          finish(null);
+        }
+      });
+
+      return bytes;
+    }
+
     // Dynamic require keeps this module lightweight for non-upload call sites,
     // and avoids eager native module init on platforms that don't support it.
     const ImageManipulator = require('expo-image-manipulator') as ExpoImageManipulatorLike;

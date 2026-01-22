@@ -123,6 +123,9 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 0,
+    // When the caret expands message/channel options, keep a small inset so chips/buttons
+    // (Members/Name/Leave/etc) don't feel flush to the screen edge.
+    paddingBottom: 4,
     // Keep DM settings on a single horizontal line (no stacking).
     flexWrap: 'nowrap',
   },
@@ -144,6 +147,8 @@ export const styles = StyleSheet.create({
     alignSelf: 'stretch',
     flexDirection: 'column',
     marginTop: 0,
+    // When expanded, keep a little breathing room below the panel content.
+    paddingBottom: 4,
   },
   channelAdminRow: {
     flexDirection: 'row',
@@ -166,6 +171,18 @@ export const styles = StyleSheet.create({
     height: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  dmSettingsCaretBtnCollapsed: {
+    // Visually tuck the caret down so it sits flush to the bottom edge when collapsed.
+    justifyContent: 'flex-end',
+  },
+  dmSettingsCaretIconCollapsed: {
+    // MaterialIcons glyphs have a bit of built-in vertical whitespace; counteract it when collapsed.
+    marginBottom: -4,
+  },
+  dmSettingsCaretRowCollapsed: {
+    // In collapsed state, tighten the vertical spacing above the caret a touch.
+    marginTop: -4,
   },
   miniToggleTrack: {
     width: 28,
@@ -1455,6 +1472,14 @@ export const styles = StyleSheet.create({
     backgroundColor: PALETTE.slate900,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: withAlpha(PALETTE.white, 0.12),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  // In light mode, use a light surface + dark text (dark-mode styles already look good).
+  toastLight: {
+    backgroundColor: APP_COLORS.light.bg.app,
+    borderColor: APP_COLORS.light.border.subtle,
   },
   toastDark: {
     backgroundColor: APP_COLORS.dark.bg.header,
@@ -1472,7 +1497,11 @@ export const styles = StyleSheet.create({
     color: APP_COLORS.dark.text.primary,
     fontWeight: '800',
     fontSize: 13,
-    textAlign: 'center',
+    textAlign: 'left',
+    flexShrink: 1,
+  },
+  toastTextLight: {
+    color: APP_COLORS.light.text.primary,
   },
 });
 

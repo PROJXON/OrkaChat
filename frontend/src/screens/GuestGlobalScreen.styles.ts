@@ -124,7 +124,8 @@ export const styles = StyleSheet.create({
   bottomBar: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: APP_COLORS.light.border.subtle,
-    backgroundColor: APP_COLORS.light.bg.surface2,
+    // Match signed-in ChatScreen composer bar.
+    backgroundColor: APP_COLORS.light.bg.header,
   },
   bottomBarInner: {
     paddingHorizontal: 12,

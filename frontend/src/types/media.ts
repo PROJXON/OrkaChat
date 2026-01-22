@@ -8,4 +8,9 @@ export type MediaItem = {
   thumbContentType?: string;
   fileName?: string;
   size?: number;
+  /**
+   * Duration of the media in milliseconds (primarily used for audio playback UI).
+   * Optional for backward compatibility.
+   */
+  durationMs?: number;
 };

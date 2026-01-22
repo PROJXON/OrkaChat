@@ -27,10 +27,20 @@ export function ChatHeaderStatusRow({
     <View style={styles.headerSubRow}>
       <View style={{ flex: 1 }} />
       {/* Keep this row visually tight to the bottom of the header (no extra top offset). */}
-      <View style={[styles.welcomeStatusRow, { marginTop: 0 }]}>
+      <View
+        style={[
+          styles.welcomeStatusRow,
+          { marginTop: 0 },
+          !caretExpanded ? styles.dmSettingsCaretRowCollapsed : null,
+        ]}
+      >
         {showCaret ? (
           <Pressable
-            style={({ pressed }) => [styles.dmSettingsCaretBtn, pressed ? { opacity: 0.65 } : null]}
+            style={({ pressed }) => [
+              styles.dmSettingsCaretBtn,
+              !caretExpanded ? styles.dmSettingsCaretBtnCollapsed : null,
+              pressed ? { opacity: 0.65 } : null,
+            ]}
             onPress={onPressCaret}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
@@ -39,6 +49,7 @@ export function ChatHeaderStatusRow({
             <MaterialIcons
               name={caretExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
               size={18}
+              style={!caretExpanded ? styles.dmSettingsCaretIconCollapsed : null}
               color={isDark ? APP_COLORS.dark.text.secondary : APP_COLORS.light.text.secondary}
             />
           </Pressable>

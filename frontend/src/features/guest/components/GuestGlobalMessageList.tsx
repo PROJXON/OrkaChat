@@ -39,6 +39,7 @@ export function GuestGlobalMessageList({
   resolvePathUrl,
   openReactionInfo,
   openViewer,
+  audioPlayback,
 }: {
   apiUrl: string;
   isDark: boolean;
@@ -67,6 +68,7 @@ export function GuestGlobalMessageList({
   resolvePathUrl: (path: string) => Promise<string | null>;
   openReactionInfo: (emoji: string, subs: string[], namesBySub?: Record<string, string>) => void;
   openViewer: (mediaList: MediaItem[], startIdx: number) => void;
+  audioPlayback?: React.ComponentProps<typeof renderGuestListItem>['audioPlayback'];
 }): React.JSX.Element {
   const isWeb = Platform.OS === 'web';
   const isEmpty = messages.length === 0;
@@ -206,6 +208,7 @@ export function GuestGlobalMessageList({
               resolvePathUrl,
               openReactionInfo,
               openViewer,
+              audioPlayback,
             })
           }
         />

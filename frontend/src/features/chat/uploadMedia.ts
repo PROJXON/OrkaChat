@@ -5,6 +5,7 @@ import { getRandomBytes } from 'expo-crypto';
 
 import type { MediaItem, MediaKind } from '../../types/media';
 import { aesGcmEncryptBytes, deriveChatKeyBytesV1 } from '../../utils/crypto';
+import { tryGetAudioDurationMs } from './audioDuration';
 import type { DmMediaEnvelopeV1, GroupMediaEnvelopeV1 } from './types';
 import { assertWithinAttachmentHardLimit, createWebpThumbnailBytes, readUriBytes } from './uploads';
 
@@ -14,6 +15,7 @@ export type PendingUploadMedia = {
   contentType?: string;
   fileName?: string;
   size?: number;
+  durationMs?: number;
 };
 
 export async function uploadChannelMediaPlain(args: {
@@ -22,11 +24,16 @@ export async function uploadChannelMediaPlain(args: {
 }): Promise<MediaItem> {
   const { media, activeConversationId } = args;
 
+  const durationMs =
+    typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+      ? Math.max(0, Math.floor(media.durationMs))
+      : await tryGetAudioDurationMs({ uri: media.uri, contentType: media.contentType });
+
   const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize);
+  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize, media.contentType);
 
   const bytes = await readUriBytes(media.uri);
-  assertWithinAttachmentHardLimit(media.kind, bytes.byteLength);
+  assertWithinAttachmentHardLimit(media.kind, bytes.byteLength, media.contentType);
 
   const safeName =
     (media.fileName || `${media.kind}-${Date.now()}`).replace(/[^\w.\-() ]+/g, '_').slice(0, 120) ||
@@ -80,6 +87,7 @@ export async function uploadChannelMediaPlain(args: {
     ...(uploadedThumbContentType ? { thumbContentType: uploadedThumbContentType } : {}),
     fileName: media.fileName,
     size: media.size,
+    ...(durationMs ? { durationMs } : {}),
   };
 }
 
@@ -101,11 +109,16 @@ export async function uploadDmMediaEncrypted(args: {
   } = args;
 
   const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize);
+  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize, media.contentType);
+
+  const durationMs =
+    typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+      ? Math.max(0, Math.floor(media.durationMs))
+      : await tryGetAudioDurationMs({ uri: media.uri, contentType: media.contentType });
 
   // 1) Read original bytes (avoid Blob.arrayBuffer on Android)
   const plainBytes = await readUriBytes(media.uri);
-  assertWithinAttachmentHardLimit(media.kind, plainBytes.byteLength);
+  assertWithinAttachmentHardLimit(media.kind, plainBytes.byteLength, media.contentType);
 
   // 2) Generate per-attachment key and encrypt bytes
   const fileKey = new Uint8Array(getRandomBytes(32));
@@ -157,6 +170,7 @@ export async function uploadDmMediaEncrypted(args: {
       contentType: media.contentType,
       fileName: media.fileName,
       size: media.size,
+      ...(durationMs ? { durationMs } : {}),
       path,
       iv: bytesToHex(fileIv),
       ...(thumbPath ? { thumbPath } : {}),
@@ -180,10 +194,15 @@ export async function uploadGroupMediaEncrypted(args: {
   const { media, conversationKey, messageKeyBytes, inputText, captionOverride } = args;
 
   const declaredSize = typeof media.size === 'number' ? media.size : undefined;
-  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize);
+  if (declaredSize) assertWithinAttachmentHardLimit(media.kind, declaredSize, media.contentType);
+
+  const durationMs =
+    typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+      ? Math.max(0, Math.floor(media.durationMs))
+      : await tryGetAudioDurationMs({ uri: media.uri, contentType: media.contentType });
 
   const plainBytes = await readUriBytes(media.uri);
-  assertWithinAttachmentHardLimit(media.kind, plainBytes.byteLength);
+  assertWithinAttachmentHardLimit(media.kind, plainBytes.byteLength, media.contentType);
 
   const fileKey = new Uint8Array(getRandomBytes(32));
   const fileIv = new Uint8Array(getRandomBytes(12));
@@ -231,6 +250,7 @@ export async function uploadGroupMediaEncrypted(args: {
       contentType: media.contentType,
       fileName: media.fileName,
       size: media.size,
+      ...(durationMs ? { durationMs } : {}),
       path,
       iv: bytesToHex(fileIv),
       ...(thumbPath ? { thumbPath } : {}),
