@@ -72,6 +72,7 @@ export default function App(): React.JSX.Element {
   const [booting, setBooting] = React.useState<boolean>(true);
   const [iconFontsReady, setIconFontsReady] = React.useState<boolean>(false);
   const [rootMode, setRootMode] = React.useState<'guest' | 'app'>('guest');
+  const [signedInRehydrateReady, setSignedInRehydrateReady] = React.useState<boolean>(false);
   const [authModalOpen, setAuthModalOpen] = React.useState<boolean>(false);
   const [rootLayoutDone, setRootLayoutDone] = React.useState<boolean>(false);
   const { isDark, ready: themeReady } = useStoredTheme({
@@ -122,7 +123,10 @@ export default function App(): React.JSX.Element {
       try {
         const sess = await fetchAuthSession().catch(() => ({ tokens: undefined }));
         const hasToken = !!sess?.tokens?.idToken?.toString();
-        if (mounted) setRootMode(hasToken ? 'app' : 'guest');
+        if (mounted) {
+          setSignedInRehydrateReady(false);
+          setRootMode(hasToken ? 'app' : 'guest');
+        }
       } finally {
         if (mounted) setBooting(false);
       }
@@ -202,6 +206,7 @@ export default function App(): React.JSX.Element {
   // theme persistence handled by useStoredTheme
 
   const { amplifyTheme, authComponents } = useAmplifyAuthenticatorConfig(isDark);
+  const showRootSpinnerOverlay = booting || (rootMode === 'app' && !signedInRehydrateReady);
 
   return (
     <AppSafeAreaProvider>
@@ -213,44 +218,66 @@ export default function App(): React.JSX.Element {
       >
         <UiPromptProvider isDark={isDark}>
           <Authenticator.Provider>
-            {booting ? (
-              <View
-                style={{
-                  flex: 1,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: appColors.appBackground,
-                }}
-              >
-                <ActivityIndicator size="large" color={appColors.appForeground} />
-              </View>
-            ) : rootMode === 'guest' ? (
-              <>
-                <GuestGlobalScreen onSignIn={() => setAuthModalOpen(true)} />
+            <View style={{ flex: 1, backgroundColor: appColors.appBackground }}>
+              {booting ? (
+                // Keep the signed-in/guest trees unmounted until auth check completes.
+                // The root overlay spinner (below) provides UI feedback.
+                <View style={{ flex: 1 }} />
+              ) : rootMode === 'guest' ? (
+                <>
+                  <GuestGlobalScreen onSignIn={() => setAuthModalOpen(true)} />
 
-                <AuthModal
-                  open={authModalOpen}
-                  onClose={() => setAuthModalOpen(false)}
-                  isDark={isDark}
-                  amplifyTheme={amplifyTheme}
-                  authComponents={authComponents}
-                  onAuthed={() => {
-                    setAuthModalOpen(false);
-                    setRootMode('app');
+                  <AuthModal
+                    open={authModalOpen}
+                    onClose={() => setAuthModalOpen(false)}
+                    isDark={isDark}
+                    amplifyTheme={amplifyTheme}
+                    authComponents={authComponents}
+                    onAuthed={() => {
+                      setAuthModalOpen(false);
+                      setSignedInRehydrateReady(false);
+                      setRootMode('app');
+                    }}
+                  />
+                </>
+              ) : (
+                <ThemeProvider theme={amplifyTheme} colorMode={isDark ? 'dark' : 'light'}>
+                  <Authenticator
+                    loginMechanisms={['email']}
+                    signUpAttributes={['preferred_username']}
+                    components={authComponents}
+                  >
+                    <MainAppContent
+                      onSignedOut={() => {
+                        setSignedInRehydrateReady(false);
+                        setRootMode('guest');
+                      }}
+                      onRehydrateReady={setSignedInRehydrateReady}
+                    />
+                  </Authenticator>
+                </ThemeProvider>
+              )}
+
+              {/* Single spinner instance for Stage 1 + Stage 2 (no animation reset). */}
+              {showRootSpinnerOverlay ? (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: appColors.appBackground,
+                    zIndex: 999,
                   }}
-                />
-              </>
-            ) : (
-              <ThemeProvider theme={amplifyTheme} colorMode={isDark ? 'dark' : 'light'}>
-                <Authenticator
-                  loginMechanisms={['email']}
-                  signUpAttributes={['preferred_username']}
-                  components={authComponents}
+                  pointerEvents="auto"
                 >
-                  <MainAppContent onSignedOut={() => setRootMode('guest')} />
-                </Authenticator>
-              </ThemeProvider>
-            )}
+                  <ActivityIndicator size="large" color={appColors.appForeground} />
+                </View>
+              ) : null}
+            </View>
           </Authenticator.Provider>
         </UiPromptProvider>
 

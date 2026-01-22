@@ -528,6 +528,7 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         uiConfirm={uiConfirm}
         showAlert={camera.showAlert}
         close={messageActionMenu.closeMenu}
+        copyToClipboard={copyToClipboard}
         sendReaction={messageOps.sendReaction}
         openReactionPicker={messageOps.openReactionPicker}
         setCipherText={messageOps.setCipherText}

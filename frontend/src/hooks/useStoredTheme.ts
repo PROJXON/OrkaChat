@@ -44,32 +44,55 @@ export function useStoredTheme({
   ready: boolean;
   reload: () => Promise<void>;
 } {
-  const [theme, setTheme] = React.useState<StoredTheme>(defaultTheme);
-  const [ready, setReady] = React.useState<boolean>(false);
+  // Keep `theme` and `ready` in a single state update so we never briefly become "ready"
+  // while still showing the default theme (causes a visible light/dark flash on cold start).
+  const initialSharedTheme = sharedTheme === 'dark' || sharedTheme === 'light' ? sharedTheme : null;
+  const [state, setState] = React.useState<{ theme: StoredTheme; ready: boolean }>({
+    // If another instance already loaded theme from storage, start with it immediately
+    // to avoid a brief light-mode flash when mounting additional screens/providers.
+    theme: initialSharedTheme ?? defaultTheme,
+    // If we already have a shared theme, we can consider ourselves ready for rendering purposes.
+    ready: !!initialSharedTheme,
+  });
+
+  const theme = state.theme;
+  const ready = state.ready;
+
+  const setTheme: React.Dispatch<React.SetStateAction<StoredTheme>> = React.useCallback((next) => {
+    setState((prev) => {
+      const nextTheme =
+        typeof next === 'function' ? (next as (t: StoredTheme) => StoredTheme)(prev.theme) : next;
+      if (nextTheme !== 'dark' && nextTheme !== 'light') return prev;
+      if (prev.theme === nextTheme) return prev;
+      return { ...prev, theme: nextTheme };
+    });
+  }, []);
 
   const reload = React.useCallback(async () => {
     try {
       // Prefer in-memory shared theme if available (avoids AsyncStorage roundtrip).
-      if (sharedTheme === 'dark' || sharedTheme === 'light') {
-        setTheme(sharedTheme);
+      const shared = sharedTheme;
+      if (shared === 'dark' || shared === 'light') {
+        setState({ theme: shared, ready: true });
         return;
       }
       const stored = await AsyncStorage.getItem(storageKey);
       if (stored === 'dark' || stored === 'light') {
-        setTheme(stored);
+        setState({ theme: stored, ready: true });
         broadcastTheme(stored);
       }
     } catch {
       // ignore
     } finally {
-      setReady(true);
+      // If we didn't load a stored theme, we're still "ready" (we'll keep defaultTheme).
+      setState((prev) => (prev.ready ? prev : { ...prev, ready: true }));
     }
   }, [storageKey]);
 
   // Keep all hook instances in sync.
   React.useEffect(() => {
     const onShared = (t: StoredTheme) => {
-      setTheme((prev) => (prev === t ? prev : t));
+      setState((prev) => (prev.theme === t ? prev : { ...prev, theme: t }));
     };
     listeners.add(onShared);
     return () => {
@@ -85,6 +108,9 @@ export function useStoredTheme({
 
   // Persist changes.
   React.useEffect(() => {
+    // CRITICAL: don't persist the defaultTheme before we've had a chance to load the stored value.
+    // Otherwise, every cold start/refresh overwrites the user's saved theme.
+    if (!ready) return;
     (async () => {
       try {
         await AsyncStorage.setItem(storageKey, theme);
@@ -94,7 +120,7 @@ export function useStoredTheme({
     })();
     // Also publish immediately so global providers (and other screens) update.
     broadcastTheme(theme);
-  }, [storageKey, theme]);
+  }, [ready, storageKey, theme]);
 
   return { theme, setTheme, isDark: theme === 'dark', ready, reload };
 }

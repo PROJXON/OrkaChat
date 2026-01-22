@@ -86,6 +86,7 @@ type Props = {
   showAlert: (title: string, body: string) => void;
 
   close: () => void;
+  copyToClipboard: (text: string) => Promise<void>;
   sendReaction: (msg: ChatMessage, emoji: string) => void;
   openReactionPicker: (msg: ChatMessage) => void;
 
@@ -128,6 +129,7 @@ export function MessageActionMenuModal({
   uiConfirm,
   showAlert,
   close,
+  copyToClipboard,
   sendReaction,
   openReactionPicker,
   setCipherText,
@@ -141,6 +143,49 @@ export function MessageActionMenuModal({
   sendDeleteForEveryone,
   openReportForMessage,
 }: Props) {
+  const copyText = React.useMemo(() => {
+    const t = target;
+    if (!t) return null;
+    if (t.deletedAt) return null;
+    // If it's encrypted and not decrypted yet, there's nothing meaningful to copy.
+    if ((t.encrypted || t.groupEncrypted) && !t.decryptedText) return null;
+
+    let caption = '';
+
+    if (t.encrypted || t.groupEncrypted) {
+      const plain = String(t.decryptedText || '');
+      const dmEnv = parseDmMediaEnvelope(plain);
+      const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
+      const gEnv = parseGroupMediaEnvelope(plain);
+      const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
+      if (dmItems.length || gItems.length) {
+        caption = String((dmEnv?.caption ?? gEnv?.caption) || '');
+      } else {
+        // Text-only encrypted message: allow copy.
+        caption = plain;
+      }
+    } else {
+      const raw = String(t.rawText ?? t.text ?? '');
+      const env = !isDm ? parseChatEnvelope(raw) : null;
+      const envList = env ? normalizeChatMediaList(env.media) : [];
+      if (envList.length) {
+        // Media envelope caption lives ONLY in env.text.
+        caption = String(env?.text || '');
+      } else {
+        caption = raw;
+      }
+    }
+
+    const trimmed = caption.trim();
+    if (!trimmed) {
+      // For media messages, no caption => no Copy option.
+      // For text messages, empty => no Copy option.
+      return null;
+    }
+    // For media messages with caption, copy just the caption. For text messages, copy the text.
+    return trimmed;
+  }, [isDm, target]);
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.actionMenuOverlay}>
@@ -231,10 +276,14 @@ export function MessageActionMenuModal({
                 const isOutgoing = isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
                 const bubbleStyle = isOutgoing
                   ? styles.messageBubbleOutgoing
-                  : styles.messageBubbleIncoming;
+                  : isDark
+                    ? styles.messageBubbleIncomingDark
+                    : styles.messageBubbleIncoming;
                 const textStyle = isOutgoing
                   ? styles.messageTextOutgoing
-                  : styles.messageTextIncoming;
+                  : isDark
+                    ? styles.messageTextIncomingDark
+                    : styles.messageTextIncoming;
                 if (t.deletedAt) {
                   return (
                     <View style={[styles.messageBubble, bubbleStyle]}>
@@ -548,6 +597,25 @@ export function MessageActionMenuModal({
               >
                 <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
                   Reply
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {copyText ? (
+              <Pressable
+                onPress={() => {
+                  void copyToClipboard(copyText);
+                  close();
+                }}
+                style={({ pressed }) => [
+                  styles.actionMenuRow,
+                  pressed ? styles.actionMenuRowPressed : null,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Copy message"
+              >
+                <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                  Copy
                 </Text>
               </Pressable>
             ) : null}

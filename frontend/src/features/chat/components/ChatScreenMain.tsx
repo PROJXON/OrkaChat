@@ -240,6 +240,26 @@ export function ChatScreenMain({
       // Keeping KAV enabled on Android can create double-adjust gaps depending on IME settings.
       enabled={Platform.OS === 'ios'}
     >
+      {/* Stage 3 loader: center relative to the full screen (same as root spinners),
+          not just the message-list area below the header. */}
+      {showListLoadingOverlay ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+          }}
+        >
+          <ActivityIndicator size="large" color={appColors.appForeground} />
+        </View>
+      ) : null}
+
       <View style={[styles.header, isDark ? styles.headerDark : null]}>
         <View style={isWideChatLayout ? styles.chatContentColumn : null}>
           {header.headerTop ? <View style={styles.headerTopSlot}>{header.headerTop}</View> : null}
@@ -339,23 +359,6 @@ export function ChatScreenMain({
         {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
             Center the *content* via FlatList.contentContainerStyle instead. */}
         <View style={styles.chatBodyInner}>
-          {showListLoadingOverlay ? (
-            <View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                top: 0,
-                bottom: 0,
-                left: 0,
-                right: 0,
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 5,
-              }}
-            >
-              <ActivityIndicator size="large" color={appColors.appForeground} />
-            </View>
-          ) : null}
           <ChatMessageList
             styles={styles}
             isDark={isDark}
