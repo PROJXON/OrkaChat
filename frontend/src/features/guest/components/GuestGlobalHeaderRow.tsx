@@ -39,15 +39,15 @@ export function GuestGlobalHeaderRow({
             pressed ? { opacity: 0.9 } : null,
           ]}
           accessibilityRole="button"
-          accessibilityLabel="Browse channels"
+          accessibilityLabel="Find channels"
         >
           <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]} numberOfLines={1}>
             {activeChannelTitle}
           </Text>
           <Feather
-            name="chevron-down"
-            size={16}
-            color={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
+            name="search"
+            size={18}
+            color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
           />
         </Pressable>
         <View style={styles.headerRight}>
