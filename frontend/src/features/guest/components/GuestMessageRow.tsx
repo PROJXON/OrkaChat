@@ -252,7 +252,7 @@ export function GuestMessageRow({
       </Text>
     </View>
   ) : (
-    <View style={[styles.msgRow]}>
+    <View style={[styles.msgRow, reactionEntriesVisible.length ? { paddingBottom: 12 } : null]}>
       {showAvatar ? (
         <View style={[styles.avatarGutter, { width: avatarSize, marginTop: AVATAR_TOP_OFFSET }]}>
           <AvatarBubble
@@ -680,11 +680,15 @@ const styles = StyleSheet.create({
     right: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    // Ensure chips float above adjacent rows/messages.
+    zIndex: 10,
+    elevation: 10,
   },
   guestReactionChip: {
     borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    // Keep emoji/text size the same, but tighten the chip chrome.
+    paddingHorizontal: 2,
+    paddingVertical: 2,
     backgroundColor: APP_COLORS.light.bg.app,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: APP_COLORS.light.border.subtle,

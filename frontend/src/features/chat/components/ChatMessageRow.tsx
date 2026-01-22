@@ -243,6 +243,9 @@ export function ChatMessageRow(props: {
           styles.messageRow,
           isOutgoing ? styles.messageRowOutgoing : styles.messageRowIncoming,
           selectionActive ? { paddingLeft: 34 } : null,
+          // Reaction chips are positioned slightly below the bubble.
+          // Add bottom padding so the next message doesn't visually overlap them.
+          reactionEntriesVisible.length ? { paddingBottom: 12 } : null,
         ]}
       >
         {selectionActive ? (
