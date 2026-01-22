@@ -319,6 +319,7 @@ export const MainAppContent = ({
   const isDmMode = conversationId.startsWith('dm#') || conversationId.startsWith('gdm#');
   const isChannelMode = !isDmMode;
   const { channelRestoreDone, lastChannelConversationIdRef } = useLastChannelConversation({
+    userSub: myUserSub,
     conversationId,
     setConversationId,
   });
@@ -330,7 +331,10 @@ export const MainAppContent = ({
     serverConversations,
     unreadDmMap,
   });
-  const { lastDmConversationIdRef } = useLastDmConversation({ conversationId });
+  const { dmRestoreDone, lastDmConversationIdRef } = useLastDmConversation({
+    userSub: myUserSub,
+    conversationId,
+  });
 
   const rehydrateReady = channelRestoreDone && conversationRestoreDone;
   React.useEffect(() => {
@@ -494,7 +498,7 @@ export const MainAppContent = ({
   const activeChannelConversationId = React.useMemo(() => {
     if (!isDmMode) return conversationId || 'global';
     return lastChannelConversationIdRef.current || 'global';
-  }, [isDmMode, conversationId, lastChannelConversationIdRef]);
+  }, [channelRestoreDone, isDmMode, conversationId, lastChannelConversationIdRef]);
 
   const activeChannelLabel = React.useMemo(() => {
     if (activeChannelConversationId === 'global') return 'Global';
@@ -546,7 +550,7 @@ export const MainAppContent = ({
     const fromChats = chatsList.find((c) => c.conversationId === cid);
     const t = String(fromChats?.peer || unreadDmMap[cid]?.user || '').trim();
     return t || 'DM';
-  }, [chatsList, isDmMode, lastDmConversationIdRef, peer, unreadDmMap]);
+  }, [chatsList, dmRestoreDone, isDmMode, lastDmConversationIdRef, peer, unreadDmMap]);
 
   const { goToConversation } = useConversationNavigation({
     serverConversations,
