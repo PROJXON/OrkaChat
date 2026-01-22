@@ -667,6 +667,7 @@ export const MainAppContent = ({
         setMenuOpen={setMenuOpen}
         onSetTheme={setTheme}
         activeChannelConversationId={activeChannelConversationId}
+        isDmMode={isDmMode}
         setGlobalAboutOpen={setGlobalAboutOpen}
         setChannelAboutRequestEpoch={setChannelAboutRequestEpoch}
         setChatsOpen={setChatsOpen}

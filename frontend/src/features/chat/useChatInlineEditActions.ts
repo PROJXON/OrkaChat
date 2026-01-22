@@ -508,16 +508,22 @@ export function useChatInlineEditActions(opts: {
             ? {
                 ...m,
                 rawText: outgoingText,
-                encrypted: needsDmEncryption ? parseEncrypted(outgoingText) ?? undefined : m.encrypted,
+                encrypted: needsDmEncryption
+                  ? (parseEncrypted(outgoingText) ?? undefined)
+                  : m.encrypted,
                 groupEncrypted: needsGroupEncryption
-                  ? parseGroupEncrypted(outgoingText) ?? undefined
+                  ? (parseGroupEncrypted(outgoingText) ?? undefined)
                   : m.groupEncrypted,
                 decryptedText:
-                  needsDmEncryption || needsGroupEncryption ? optimisticDecryptedText : m.decryptedText,
+                  needsDmEncryption || needsGroupEncryption
+                    ? optimisticDecryptedText
+                    : m.decryptedText,
                 groupKeyHex: needsGroupEncryption ? optimisticGroupKeyHex : m.groupKeyHex,
-                decryptFailed: needsDmEncryption || needsGroupEncryption ? undefined : m.decryptFailed,
+                decryptFailed:
+                  needsDmEncryption || needsGroupEncryption ? undefined : m.decryptFailed,
                 media: needsDmEncryption || needsGroupEncryption ? optimisticMedia : m.media,
-                mediaList: needsDmEncryption || needsGroupEncryption ? optimisticMediaList : m.mediaList,
+                mediaList:
+                  needsDmEncryption || needsGroupEncryption ? optimisticMediaList : m.mediaList,
                 // Always show the edited caption in the UI (even for envelopes).
                 text: nextCaption,
                 editedAt: now,

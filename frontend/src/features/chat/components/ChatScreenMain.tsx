@@ -271,7 +271,13 @@ export function ChatScreenMain({
         </View>
       ) : null}
 
-      <View style={[styles.header, isDark ? styles.headerDark : null]}>
+      <View
+        style={[
+          styles.header,
+          isDark ? styles.headerDark : null,
+          !(header.isEncryptedChat || header.isChannel) ? styles.headerNoSubRow : null,
+        ]}
+      >
         <View style={isWideChatLayout ? styles.chatContentColumn : null}>
           {header.headerTop ? <View style={styles.headerTopSlot}>{header.headerTop}</View> : null}
           <ChatHeaderTitleRow

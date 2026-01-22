@@ -19,6 +19,7 @@ export function MainAppMenuAndAboutOverlays({
   onSetTheme,
 
   activeChannelConversationId,
+  isDmMode,
   setGlobalAboutOpen,
   setChannelAboutRequestEpoch,
   setChatsOpen,
@@ -76,6 +77,7 @@ export function MainAppMenuAndAboutOverlays({
   onSetTheme: (theme: 'light' | 'dark') => void;
 
   activeChannelConversationId: string | null | undefined;
+  isDmMode: boolean;
   setGlobalAboutOpen: (v: boolean) => void;
   setChannelAboutRequestEpoch: React.Dispatch<React.SetStateAction<number>>;
   setChatsOpen: (v: boolean) => void;
@@ -115,6 +117,154 @@ export function MainAppMenuAndAboutOverlays({
   globalAboutOpen: boolean;
   dismissGlobalAbout: () => void | Promise<void>;
 }): React.JSX.Element {
+  const items = React.useMemo(() => {
+    const base: Array<{ key: string; label: string; onPress: () => void | Promise<void> }> = [];
+
+    if (!isDmMode) {
+      base.push({
+        key: 'about',
+        label: 'About',
+        onPress: () => {
+          setMenuOpen(false);
+          // About is tied to the Channels-side conversation (Global or a channel).
+          const cid = String(activeChannelConversationId || '').trim() || 'global';
+          if (cid === 'global') {
+            setGlobalAboutOpen(true);
+            return;
+          }
+          if (cid.startsWith('ch#')) {
+            setChannelAboutRequestEpoch((v) => v + 1);
+            return;
+          }
+        },
+      });
+    }
+
+    base.push(
+      {
+        key: 'chats',
+        label: 'Chats',
+        onPress: () => {
+          setMenuOpen(false);
+          setChatsOpen(true);
+        },
+      },
+      {
+        key: 'channels',
+        label: 'Channels',
+        onPress: () => {
+          setMenuOpen(false);
+          setMyChannelsError(null);
+          setCreateChannelError(null);
+          setCreateChannelOpen(false);
+          setCreateChannelName('');
+          setCreateChannelPassword('');
+          setCreateChannelIsPublic(true);
+          setChannelSearchOpen(false);
+          setChannelsError(null);
+          setChannelJoinError(null);
+          setChannelsQuery('');
+          setChannelsOpen(true);
+        },
+      },
+      {
+        key: 'avatar',
+        label: 'Avatar',
+        onPress: () => {
+          setMenuOpen(false);
+          setAvatarError(null);
+          setAvatarOpen(true);
+        },
+      },
+      {
+        key: 'background',
+        label: 'Background',
+        onPress: () => {
+          setMenuOpen(false);
+          setBackgroundError(null);
+          setBackgroundOpen(true);
+        },
+      },
+      {
+        key: 'recovery',
+        label: 'Recovery',
+        onPress: async () => {
+          setMenuOpen(false);
+          setRecoveryOpen(true);
+          // After a Metro refresh, Amplify may take a moment to rehydrate tokens.
+          // Refresh recovery state so the modal shows "Change" vs "Set up" correctly.
+          const token = await getIdTokenWithRetry({ maxAttempts: 10, delayMs: 200 });
+          if (token) {
+            const exists = await checkRecoveryBlobExists(token);
+            if (exists !== null) applyRecoveryBlobExists(exists);
+          }
+        },
+      },
+      {
+        key: 'blocked',
+        label: 'Blocklist',
+        onPress: () => {
+          setMenuOpen(false);
+          setBlocklistOpen(true);
+        },
+      },
+      {
+        key: 'deleteAccount',
+        label: 'Delete account',
+        onPress: async () => {
+          setMenuOpen(false);
+          await deleteMyAccount();
+        },
+      },
+      {
+        key: 'signout',
+        label: 'Sign out',
+        onPress: async () => {
+          setMenuOpen(false);
+          try {
+            await unregisterDmPushNotifications();
+            await Promise.resolve(signOut());
+          } finally {
+            onSignedOut?.();
+          }
+        },
+      },
+    );
+
+    return base;
+  }, [
+    activeChannelConversationId,
+    applyRecoveryBlobExists,
+    checkRecoveryBlobExists,
+    deleteMyAccount,
+    getIdTokenWithRetry,
+    isDmMode,
+    onSignedOut,
+    setAvatarError,
+    setAvatarOpen,
+    setBackgroundError,
+    setBackgroundOpen,
+    setBlocklistOpen,
+    setChannelAboutRequestEpoch,
+    setChannelJoinError,
+    setChannelSearchOpen,
+    setChannelsError,
+    setChannelsOpen,
+    setChannelsQuery,
+    setChatsOpen,
+    setCreateChannelError,
+    setCreateChannelIsPublic,
+    setCreateChannelName,
+    setCreateChannelOpen,
+    setCreateChannelPassword,
+    setGlobalAboutOpen,
+    setMenuOpen,
+    setMyChannelsError,
+    setRecoveryOpen,
+    signOut,
+    unregisterDmPushNotifications,
+  ]);
+
   return (
     <>
       <HeaderMenuModal
@@ -125,114 +275,7 @@ export function MainAppMenuAndAboutOverlays({
         cardWidth={160}
         anchor={isWideUi ? menuAnchor : null}
         headerRight={<ThemeToggleRow isDark={isDark} onSetTheme={onSetTheme} styles={styles} />}
-        items={[
-          {
-            key: 'about',
-            label: 'About',
-            onPress: () => {
-              setMenuOpen(false);
-              // About is tied to the Channels-side conversation (Global or a channel),
-              // even if the user is currently looking at a DM.
-              const cid = String(activeChannelConversationId || '').trim() || 'global';
-              if (cid === 'global') {
-                setGlobalAboutOpen(true);
-                return;
-              }
-              if (cid.startsWith('ch#')) {
-                setChannelAboutRequestEpoch((v) => v + 1);
-                return;
-              }
-            },
-          },
-          {
-            key: 'chats',
-            label: 'Chats',
-            onPress: () => {
-              setMenuOpen(false);
-              setChatsOpen(true);
-            },
-          },
-          {
-            key: 'channels',
-            label: 'Channels',
-            onPress: () => {
-              setMenuOpen(false);
-              setMyChannelsError(null);
-              setCreateChannelError(null);
-              setCreateChannelOpen(false);
-              setCreateChannelName('');
-              setCreateChannelPassword('');
-              setCreateChannelIsPublic(true);
-              setChannelSearchOpen(false);
-              setChannelsError(null);
-              setChannelJoinError(null);
-              setChannelsQuery('');
-              setChannelsOpen(true);
-            },
-          },
-          {
-            key: 'avatar',
-            label: 'Avatar',
-            onPress: () => {
-              setMenuOpen(false);
-              setAvatarError(null);
-              setAvatarOpen(true);
-            },
-          },
-          {
-            key: 'background',
-            label: 'Background',
-            onPress: () => {
-              setMenuOpen(false);
-              setBackgroundError(null);
-              setBackgroundOpen(true);
-            },
-          },
-          {
-            key: 'recovery',
-            label: 'Recovery',
-            onPress: async () => {
-              setMenuOpen(false);
-              setRecoveryOpen(true);
-              // After a Metro refresh, Amplify may take a moment to rehydrate tokens.
-              // Refresh recovery state so the modal shows "Change" vs "Set up" correctly.
-              const token = await getIdTokenWithRetry({ maxAttempts: 10, delayMs: 200 });
-              if (token) {
-                const exists = await checkRecoveryBlobExists(token);
-                if (exists !== null) applyRecoveryBlobExists(exists);
-              }
-            },
-          },
-          {
-            key: 'blocked',
-            label: 'Blocklist',
-            onPress: () => {
-              setMenuOpen(false);
-              setBlocklistOpen(true);
-            },
-          },
-          {
-            key: 'deleteAccount',
-            label: 'Delete account',
-            onPress: async () => {
-              setMenuOpen(false);
-              await deleteMyAccount();
-            },
-          },
-          {
-            key: 'signout',
-            label: 'Sign out',
-            onPress: async () => {
-              setMenuOpen(false);
-              try {
-                await unregisterDmPushNotifications();
-                await Promise.resolve(signOut());
-              } finally {
-                onSignedOut?.();
-              }
-            },
-          },
-        ]}
+        items={items}
       />
 
       <Modal
