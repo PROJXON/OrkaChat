@@ -1371,9 +1371,43 @@ const ConfirmResetPasswordWithBackToSignIn = ({
   isDark: boolean;
 }): React.JSX.Element => {
   const { toSignIn } = useAuthenticator();
+  const { disableFormSubmit, fieldsWithHandlers, fieldValidationErrors, handleFormSubmit } =
+    useWebAuthFieldValues({
+      componentName: 'ConfirmResetPassword',
+      fields: Array.isArray(props.fields) ? props.fields : [],
+      handleBlur: props.handleBlur,
+      handleChange: props.handleChange,
+      handleSubmit: props.handleSubmit,
+      validationErrors: props.validationErrors,
+    });
+
+  const fieldsSubmitEnhanced = React.useMemo(() => {
+    const arr = Array.isArray(fieldsWithHandlers) ? fieldsWithHandlers : [];
+    return arr.map((f) => {
+      const rec: AmplifyFieldLike =
+        typeof f === 'object' && f != null ? (f as AmplifyFieldLike) : {};
+      const type = String(rec.type ?? '');
+      const name = String(rec.name ?? '');
+      // Only wire submit on the confirm password field.
+      if (type !== 'password') return rec;
+      if (!name.toLowerCase().includes('confirm')) return rec;
+      return {
+        ...rec,
+        returnKeyType: 'go',
+        onSubmitEditing: () => {
+          if (!disableFormSubmit) handleFormSubmit();
+        },
+      } as AmplifyFieldLike;
+    });
+  }, [disableFormSubmit, fieldsWithHandlers, handleFormSubmit]);
+
   return (
     <View>
-      <Authenticator.ConfirmResetPassword {...props} />
+      <Authenticator.ConfirmResetPassword
+        {...props}
+        fields={fieldsSubmitEnhanced}
+        validationErrors={fieldValidationErrors}
+      />
       <AmplifyButton
         onPress={() => toSignIn()}
         variant="link"
