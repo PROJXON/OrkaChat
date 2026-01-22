@@ -7,6 +7,7 @@ import type {
 } from 'react-native';
 import type { StyleProp, TextInput, ViewStyle } from 'react-native';
 import {
+  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   LayoutAnimation,
@@ -18,6 +19,7 @@ import { useWindowDimensions } from 'react-native';
 
 import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProfiles';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { getAppThemeColors } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
 import { getNativeEventNumber } from '../../../utils/nativeEvent';
 import type { PendingMediaItem } from '../attachments';
@@ -159,6 +161,7 @@ export function ChatScreenMain({
   composer,
 }: ChatScreenMainProps): React.JSX.Element {
   const { height: windowHeight } = useWindowDimensions();
+  const appColors = getAppThemeColors(isDark);
   const [androidKeyboardVisible, setAndroidKeyboardVisible] = React.useState(false);
   const [androidKeyboardHeight, setAndroidKeyboardHeight] = React.useState<number>(0);
   const heightBeforeKeyboardRef = React.useRef<number>(windowHeight);
@@ -219,6 +222,12 @@ export function ChatScreenMain({
     // Small buffer so we're never 1px under the IME chrome.
     return remaining > 0 ? remaining + 8 : 0;
   }, [androidKeyboardHeight, androidKeyboardVisible, androidWindowHeightDelta]);
+
+  // Avoid a brief "blank list" flash on first mount (web pinned list uses opacity: 0 until ready).
+  // Also show a spinner while the initial history load is in-flight and we have nothing to render yet.
+  const showListLoadingOverlay =
+    (Platform.OS === 'web' && !list.webPinned.ready) ||
+    (list.visibleMessagesCount === 0 && !!list.API_URL && list.historyLoading);
 
   return (
     <KeyboardAvoidingView
@@ -330,6 +339,23 @@ export function ChatScreenMain({
         {/* Keep the scroll container full-width so the web scrollbar stays at the window edge.
             Center the *content* via FlatList.contentContainerStyle instead. */}
         <View style={styles.chatBodyInner}>
+          {showListLoadingOverlay ? (
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 5,
+              }}
+            >
+              <ActivityIndicator size="large" color={appColors.appForeground} />
+            </View>
+          ) : null}
           <ChatMessageList
             styles={styles}
             isDark={isDark}

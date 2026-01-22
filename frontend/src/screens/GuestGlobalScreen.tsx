@@ -1,11 +1,10 @@
 import React from 'react';
 import type { Pressable } from 'react-native';
-import { Platform, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Platform, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MediaViewerState } from '../components/MediaViewerModal';
-import { API_URL } from '../config/env';
-import { CDN_URL } from '../config/env';
+import { API_URL, CDN_URL } from '../config/env';
 import {
   type AudioQueueItem,
   audioTitleFromFileName,
@@ -38,6 +37,7 @@ import { useViewportWidth } from '../hooks/useViewportWidth';
 import { useWebPinnedList } from '../hooks/useWebPinnedList';
 import { useWebSafeInvertedListData } from '../hooks/useWebSafeInvertedListData';
 import { useWebWheelRefresh } from '../hooks/useWebWheelRefresh';
+import { getAppThemeColors } from '../theme/colors';
 import { markChannelAboutSeen } from '../utils/channelAboutSeen';
 import { GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
 import { openExternalFile } from '../utils/openExternalFile';
@@ -56,6 +56,7 @@ export default function GuestGlobalScreen({
   });
   const { theme: _theme, setTheme, isDark } = useStoredTheme({});
   const onSetTheme = React.useCallback((next: 'light' | 'dark') => setTheme(next), [setTheme]);
+  const appColors = getAppThemeColors(isDark);
 
   // --- Guest onboarding (Option A + C) ---
   // Global About is code-defined + versioned. Show once per version; About menu reopens it.
@@ -299,6 +300,38 @@ export default function GuestGlobalScreen({
       setChannelAboutOpen(true);
     },
   });
+
+  // Prevent a brief "blank list" flash between loading finishing and the list painting.
+  // - On web, also wait for the pinned list to be ready (otherwise list opacity is 0).
+  const [initialEmptyGraceOver, setInitialEmptyGraceOver] = React.useState<boolean>(false);
+  React.useEffect(() => {
+    setInitialEmptyGraceOver(false);
+    if (error) return;
+    if (loading) return;
+    if (messages.length > 0) return;
+    const t = setTimeout(() => setInitialEmptyGraceOver(true), 450);
+    return () => clearTimeout(t);
+  }, [activeConversationId, error, loading, messages.length]);
+
+  const webListNotReady = Platform.OS === 'web' && !webPinned.ready;
+  const showInitialLoader =
+    !error && (loading || webListNotReady || (messages.length === 0 && !initialEmptyGraceOver));
+
+  // Make guest feel like a single continuous boot: show a full-screen centered spinner
+  // until the first message batch is actually ready to paint.
+  if (showInitialLoader) {
+    return (
+      <SafeAreaView
+        style={[styles.container, isDark && styles.containerDark]}
+        // Web: ignore safe-area left/right insets (they can be misreported as ~42px and flip with rotation).
+        edges={Platform.OS === 'web' ? [] : ['left', 'right']}
+      >
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={appColors.appForeground} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     // App.tsx already applies the top safe area. Avoid double top inset here (dead space).

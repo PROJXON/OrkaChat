@@ -214,8 +214,15 @@ export default function App(): React.JSX.Element {
         <UiPromptProvider isDark={isDark}>
           <Authenticator.Provider>
             {booting ? (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator />
+              <View
+                style={{
+                  flex: 1,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: appColors.appBackground,
+                }}
+              >
+                <ActivityIndicator size="large" color={appColors.appForeground} />
               </View>
             ) : rootMode === 'guest' ? (
               <>
