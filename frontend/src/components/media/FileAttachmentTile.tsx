@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
+import type { GestureResponderEvent } from 'react-native';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useUiPromptOptional } from '../../providers/UiPromptProvider';
@@ -35,12 +36,14 @@ export function FileAttachmentTile({
   isDark,
   isOutgoing,
   onPress,
+  onLongPress,
   onDownload,
 }: {
   item: MediaItem;
   isDark: boolean;
   isOutgoing: boolean;
   onPress: () => void | Promise<void>;
+  onLongPress?: (e: GestureResponderEvent) => void;
   onDownload?: () => void | Promise<void>;
 }): React.JSX.Element {
   const badge = fileBadgeForMedia(item);
@@ -97,6 +100,7 @@ export function FileAttachmentTile({
   return (
     <Pressable
       onPress={() => void onPress()}
+      onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityLabel={`Open ${name}`}
       style={({ pressed }) => [

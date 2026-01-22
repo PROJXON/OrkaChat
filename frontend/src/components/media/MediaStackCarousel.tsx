@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
+import type { GestureResponderEvent } from 'react-native';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useUiPromptOptional } from '../../providers/UiPromptProvider';
@@ -77,6 +78,7 @@ export function MediaStackCarousel({
   loadingDotsColor,
   onImageAspect,
   onOpen,
+  onLongPress,
   imageResizeMode = 'contain',
 }: {
   messageId: string;
@@ -130,6 +132,11 @@ export function MediaStackCarousel({
   onImageAspect?: (keyPath: string, aspect: number) => void;
   onOpen: (idx: number, media: MediaItem) => void;
   /**
+   * Optional long-press handler for the active page (used by chat to open message actions).
+   * Should not interfere with horizontal swiping.
+   */
+  onLongPress?: (e: GestureResponderEvent) => void;
+  /**
    * Resize mode for image thumbnails. Chat usually wants `cover` to avoid letterboxing bars.
    */
   imageResizeMode?: 'contain' | 'cover';
@@ -158,6 +165,7 @@ export function MediaStackCarousel({
   const [localAspectByKey, setLocalAspectByKey] = React.useState<Record<string, number>>({});
   const containerAspect = pageW > 0 && pageH > 0 ? pageW / pageH : 1;
   const ui = useUiPromptOptional();
+  const swallowNextOpenRef = React.useRef<boolean>(false);
 
   const snapToNearest = React.useCallback(
     (x: number) => {
@@ -441,7 +449,13 @@ export function MediaStackCarousel({
             loadingTextColor ??
             (isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary);
           const loadingDots = loadingDotsColor ?? loadingText;
-          const onPress = () => onOpen(realIndex, mediaList[realIndex]);
+          const onPress = () => {
+            if (swallowNextOpenRef.current) {
+              swallowNextOpenRef.current = false;
+              return;
+            }
+            onOpen(realIndex, mediaList[realIndex]);
+          };
           const isNarrow = pageW <= 320;
 
           const isAudio = ct.startsWith('audio/');
@@ -515,9 +529,24 @@ export function MediaStackCarousel({
             <Pressable
               key={`page:${messageId}:${thumbKey}:${idx2}`}
               onPress={onPress}
+              onLongPress={(e) => {
+                if (!onLongPress) return;
+                swallowNextOpenRef.current = true;
+                onLongPress(e);
+              }}
               style={{ width: pageW, height: pageH }}
               accessibilityRole="button"
               accessibilityLabel="Open Attachment"
+              {...(Platform.OS === 'web'
+                ? ({
+                    onContextMenu: (e: unknown) => {
+                      if (!onLongPress) return;
+                      const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
+                      ev.preventDefault?.();
+                      ev.stopPropagation?.();
+                    },
+                  } as const)
+                : {})}
             >
               {thumbUri && (looksImage || looksVideo) ? (
                 looksImage ? (
