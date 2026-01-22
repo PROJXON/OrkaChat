@@ -145,9 +145,10 @@ export function FileAttachmentTile({
           </Text>
           {onDownload ? (
             <Pressable
-              onPress={(e: any) => {
+              onPress={(e: unknown) => {
                 // Web: avoid triggering the parent tile's onPress (open) when tapping download.
-                if (Platform.OS === 'web') e?.stopPropagation?.();
+                if (Platform.OS === 'web')
+                  (e as { stopPropagation?: () => void })?.stopPropagation?.();
                 void confirmAndDownload();
               }}
               accessibilityRole="button"

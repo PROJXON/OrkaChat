@@ -6,6 +6,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { MediaViewerState } from '../components/MediaViewerModal';
 import { API_URL } from '../config/env';
 import { CDN_URL } from '../config/env';
+import {
+  type AudioQueueItem,
+  audioTitleFromFileName,
+  isAudioContentType,
+  makeAudioKey,
+  sortAudioQueue,
+} from '../features/chat/audioPlaybackQueue';
 import { useChatAudioPlayback } from '../features/chat/useChatAudioPlayback';
 import { useGlobalAboutOncePerVersion } from '../features/globalAbout/useGlobalAboutOncePerVersion';
 import { GuestGlobalBottomBar } from '../features/guest/components/GuestGlobalBottomBar';
@@ -205,29 +212,18 @@ export default function GuestGlobalScreen({
 
   // ---- Guest inline audio playback (same UI as signed-in chat) ----
   const guestAudioQueue = React.useMemo(() => {
-    const out: Array<{
-      key: string;
-      createdAt: number;
-      idx: number;
-      title: string;
-      resolveUri: () => Promise<string>;
-    }> = [];
+    const out: AudioQueueItem[] = [];
     for (const msg of messages) {
       const list = msg.mediaList ? msg.mediaList : msg.media ? [msg.media] : [];
       for (let i = 0; i < list.length; i++) {
         const m = list[i];
-        const ct = String(m?.contentType || '')
-          .trim()
-          .toLowerCase()
-          .split(';')[0]
-          .trim();
-        if (!ct.startsWith('audio/')) continue;
-        const key = `${String(msg.id)}:${String(m.path || '')}:${i}`;
+        if (!isAudioContentType(m?.contentType)) continue;
+        const key = makeAudioKey(msg.id, m.path, i);
         out.push({
           key,
           createdAt: Number(msg.createdAt) || 0,
           idx: i,
-          title: String(m.fileName || '').trim() || 'Audio',
+          title: audioTitleFromFileName(m.fileName, 'Audio'),
           resolveUri: async () => {
             const url = await resolvePathUrl(String(m.path || ''));
             if (!url) throw new Error('Missing media URL');
@@ -236,8 +232,7 @@ export default function GuestGlobalScreen({
         });
       }
     }
-    out.sort((a, b) => a.createdAt - b.createdAt || a.idx - b.idx || a.key.localeCompare(b.key));
-    return out;
+    return sortAudioQueue(out);
   }, [messages, resolvePathUrl]);
 
   const guestAudioPlayback = useChatAudioPlayback({ queue: guestAudioQueue });
@@ -245,7 +240,7 @@ export default function GuestGlobalScreen({
     () => ({
       ...guestAudioPlayback,
       getKey: (msgId: string, idx: number, media: { path: string }) =>
-        `${String(msgId)}:${String(media.path || '')}:${idx}`,
+        makeAudioKey(msgId, media.path, idx),
       onPress: async (key: string) => {
         try {
           await guestAudioPlayback.toggle(key);

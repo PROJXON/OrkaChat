@@ -17,6 +17,13 @@ import {
   pendingMediaFromImagePickerAssets,
   pendingMediaFromInAppCameraCapture,
 } from '../features/chat/attachments';
+import {
+  type AudioQueueItem,
+  audioTitleFromFileName,
+  isAudioContentType,
+  makeAudioKey,
+  sortAudioQueue,
+} from '../features/chat/audioPlaybackQueue';
 import { buildChatScreenMainProps } from '../features/chat/buildChatScreenMainProps';
 import { buildChatScreenOverlaysProps } from '../features/chat/buildChatScreenOverlaysProps';
 import type { ResolvedChatBg } from '../features/chat/components/ChatBackgroundLayer';
@@ -995,13 +1002,7 @@ export default function ChatScreen({
 
   // ---- Inline audio playback (Signal-style) ----
   const audioQueue = React.useMemo(() => {
-    const items: Array<{
-      key: string;
-      createdAt: number;
-      idx: number;
-      title: string;
-      resolveUri: () => Promise<string>;
-    }> = [];
+    const items: AudioQueueItem[] = [];
 
     for (const msg of messages) {
       const isStillEncrypted = (!!msg.encrypted || !!msg.groupEncrypted) && !msg.decryptedText;
@@ -1025,15 +1026,10 @@ export default function ChatScreen({
 
       for (let i = 0; i < list.length; i++) {
         const m = list[i];
-        const ct = String(m?.contentType || '')
-          .trim()
-          .toLowerCase()
-          .split(';')[0]
-          .trim();
-        if (!ct.startsWith('audio/')) continue;
+        if (!isAudioContentType(m?.contentType)) continue;
 
-        const key = `${String(msg.id)}:${String(m.path || '')}:${i}`;
-        const title = String(m.fileName || '').trim() || 'Audio';
+        const key = makeAudioKey(msg.id, m.path, i);
+        const title = audioTitleFromFileName(m.fileName, 'Audio');
 
         if (isDm) {
           items.push({
@@ -1083,9 +1079,7 @@ export default function ChatScreen({
       }
     }
 
-    // Always use chronological order for "autoplay next", regardless of list inversion on native.
-    items.sort((a, b) => a.createdAt - b.createdAt || a.idx - b.idx || a.key.localeCompare(b.key));
-    return items;
+    return sortAudioQueue(items);
   }, [
     decryptDmFileToCacheUri,
     decryptGroupFileToCacheUri,
@@ -1100,9 +1094,9 @@ export default function ChatScreen({
     () => ({
       ...audioPlayback,
       getAudioKey: (msg: ChatMessage, idx: number, media: { path: string }) =>
-        `${String(msg.id)}:${String(media.path || '')}:${idx}`,
+        makeAudioKey(msg.id, media.path, idx),
       getAudioTitle: (media: { fileName?: string }) =>
-        String(media.fileName || '').trim() || 'Audio',
+        audioTitleFromFileName(media.fileName, 'Audio'),
       onPressAudio: async (args: { key: string }) => {
         try {
           await audioPlayback.toggle(args.key);

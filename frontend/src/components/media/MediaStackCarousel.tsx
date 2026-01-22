@@ -245,8 +245,18 @@ export function MediaStackCarousel({
   // Use a *passive* DOM listener to avoid Chrome's non-passive wheel warnings.
   React.useEffect(() => {
     if (Platform.OS !== 'web') return;
-    let node: any = null;
-    const handler = (e: any) => {
+    type WheelLikeEvent = { deltaX?: unknown; deltaY?: unknown };
+    type WheelNode = {
+      addEventListener?: (
+        type: string,
+        listener: (e: WheelLikeEvent) => void,
+        options?: { passive?: boolean },
+      ) => void;
+      removeEventListener?: (type: string, listener: (e: WheelLikeEvent) => void) => void;
+    };
+
+    let node: WheelNode | null = null;
+    const handler = (e: WheelLikeEvent) => {
       try {
         const dxRaw = e?.deltaX ?? 0;
         const dyRaw = e?.deltaY ?? 0;
@@ -268,11 +278,15 @@ export function MediaStackCarousel({
     const attach = () => {
       if (cancelled) return;
       try {
-        const scrollObj: any = scrollRef.current;
+        const scrollObj = scrollRef.current as unknown as {
+          getScrollableNode?: () => unknown;
+          getInnerViewNode?: () => unknown;
+          getNode?: () => unknown;
+        } | null;
         node =
-          scrollObj?.getScrollableNode?.() ??
-          scrollObj?.getInnerViewNode?.() ??
-          scrollObj?.getNode?.() ??
+          (scrollObj?.getScrollableNode?.() as WheelNode | null) ??
+          (scrollObj?.getInnerViewNode?.() as WheelNode | null) ??
+          (scrollObj?.getNode?.() as WheelNode | null) ??
           null;
         if (!node || typeof node.addEventListener !== 'function') {
           setTimeout(attach, 0);
@@ -609,9 +623,7 @@ export function MediaStackCarousel({
                     const name = String(m2.fileName || '').trim() || label;
                     const downloadUrl = String(uriByPath[String(m2.path)] || '').trim();
                     const size =
-                      typeof (m2 as any).size === 'number' && Number.isFinite((m2 as any).size)
-                        ? ((m2 as any).size as number)
-                        : undefined;
+                      typeof m2.size === 'number' && Number.isFinite(m2.size) ? m2.size : undefined;
                     const brandColor = fileBrandColorForMedia(m2);
                     const iconColor = brandColor
                       ? brandColor
@@ -620,10 +632,11 @@ export function MediaStackCarousel({
                         : APP_COLORS.light.text.primary;
                     const maxContentW = Math.min(420, Math.max(0, pageW - 24));
 
-                    const runDownload = (e?: any) =>
+                    const runDownload = (e?: unknown) =>
                       void (async () => {
                         // Web: avoid triggering the page's onPress (open) when tapping download.
-                        if (Platform.OS === 'web') e?.stopPropagation?.();
+                        if (Platform.OS === 'web')
+                          (e as { stopPropagation?: () => void })?.stopPropagation?.();
                         try {
                           const title =
                             Platform.OS === 'web' ? 'Download Attachment?' : 'Save to Phone?';
