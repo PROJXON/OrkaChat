@@ -66,7 +66,7 @@ export function FileAttachmentTile({
   const confirmAndDownload = React.useCallback(async () => {
     if (!onDownload) return;
     try {
-      const title = Platform.OS === 'web' ? 'Download attachment?' : 'Save to phone?';
+      const title = Platform.OS === 'web' ? 'Download attachment?' : 'Save to Phone?';
       const msg =
         Platform.OS === 'web'
           ? `Download "${name}" to your device?`

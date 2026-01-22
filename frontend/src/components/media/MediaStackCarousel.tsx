@@ -626,7 +626,7 @@ export function MediaStackCarousel({
                         if (Platform.OS === 'web') e?.stopPropagation?.();
                         try {
                           const title =
-                            Platform.OS === 'web' ? 'Download attachment?' : 'Save to phone?';
+                            Platform.OS === 'web' ? 'Download Attachment?' : 'Save to Phone?';
                           const msg =
                             Platform.OS === 'web'
                               ? `Download "${name}" to your device?`
@@ -658,11 +658,11 @@ export function MediaStackCarousel({
                           onSuccess:
                             Platform.OS === 'web'
                               ? undefined
-                              : () => onToast?.('Media saved', 'success'),
+                              : () => onToast?.('Media Saved', 'success'),
                           onError:
                             Platform.OS === 'web'
                               ? undefined
-                              : (m) => onToast?.(String(m || 'Download failed'), 'error'),
+                              : (m) => onToast?.(String(m || 'Download Failed'), 'error'),
                         });
                       })();
 
