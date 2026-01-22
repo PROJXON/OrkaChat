@@ -155,9 +155,11 @@ type ChatScreenMainProps = {
     active: boolean;
     count: number;
     canCopy: boolean;
+    canDeleteForEveryone: boolean;
     onCancel: () => void;
     onCopy: () => void;
     onDelete: () => void;
+    onDeleteForEveryone: () => void;
   };
 };
 
@@ -468,6 +470,29 @@ export function ChatScreenMain({
                         }}
                       >
                         Copy
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
+                  {selection.canDeleteForEveryone ? (
+                    <Pressable
+                      onPress={selection.onDeleteForEveryone}
+                      style={({ pressed }) => [
+                        { height: 44, justifyContent: 'center', paddingHorizontal: 10 },
+                        pressed ? { opacity: 0.85 } : null,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Delete selected messages for everyone"
+                    >
+                      <Text
+                        style={{
+                          color: isDark
+                            ? APP_COLORS.dark.text.primary
+                            : APP_COLORS.light.text.primary,
+                          fontWeight: '900',
+                        }}
+                      >
+                        Delete for everyone
                       </Text>
                     </Pressable>
                   ) : null}
