@@ -7,6 +7,7 @@ type HeaderProps = MainProps['header'];
 type BodyProps = MainProps['body'];
 type ListProps = MainProps['list'];
 type ComposerProps = MainProps['composer'];
+type SelectionProps = MainProps['selection'];
 
 export function buildChatScreenMainProps(deps: {
   styles: MainProps['styles'];
@@ -103,6 +104,13 @@ export function buildChatScreenMainProps(deps: {
   sendTyping: ComposerProps['sendTyping'];
   sendMessage: ComposerProps['sendMessage'];
   handlePickMedia: ComposerProps['handlePickMedia'];
+
+  selectionActive: SelectionProps['active'];
+  selectionCount: SelectionProps['count'];
+  selectionCanCopy: SelectionProps['canCopy'];
+  selectionOnCancel: SelectionProps['onCancel'];
+  selectionOnCopy: SelectionProps['onCopy'];
+  selectionOnDelete: SelectionProps['onDelete'];
 }): MainProps {
   return {
     styles: deps.styles,
@@ -200,6 +208,14 @@ export function buildChatScreenMainProps(deps: {
       sendTyping: deps.sendTyping,
       sendMessage: deps.sendMessage,
       handlePickMedia: deps.handlePickMedia,
+    },
+    selection: {
+      active: deps.selectionActive,
+      count: deps.selectionCount,
+      canCopy: deps.selectionCanCopy,
+      onCancel: deps.selectionOnCancel,
+      onCopy: deps.selectionOnCopy,
+      onDelete: deps.selectionOnDelete,
     },
   };
 }

@@ -21,6 +21,7 @@ import {
   fileBrandColorForMedia,
   fileIconNameForMedia,
 } from '../../../utils/mediaKinds';
+import { getCopyableMessageText } from '../getCopyableMessageText';
 import {
   normalizeChatMediaList,
   normalizeDmMediaItems,
@@ -83,10 +84,24 @@ type Props = {
       dontShowAgain?: { storageKey: string; label?: string };
     },
   ) => Promise<boolean>;
+  uiChoice3: (
+    title: string,
+    message: string,
+    opts: {
+      primaryText: string;
+      secondaryText: string;
+      tertiaryText: string;
+      primaryVariant?: 'default' | 'primary' | 'danger';
+      secondaryVariant?: 'default' | 'primary' | 'danger';
+      tertiaryVariant?: 'default' | 'primary' | 'danger';
+    },
+  ) => Promise<'primary' | 'secondary' | 'tertiary'>;
   showAlert: (title: string, body: string) => void;
 
   close: () => void;
   copyToClipboard: (text: string) => Promise<void>;
+  selectionActive: boolean;
+  onSelectMessage?: (msg: ChatMessage) => void;
   sendReaction: (msg: ChatMessage, emoji: string) => void;
   openReactionPicker: (msg: ChatMessage) => void;
 
@@ -127,9 +142,12 @@ export function MessageActionMenuModal({
   blockedSubsSet,
   onBlockUserSub,
   uiConfirm,
+  uiChoice3,
   showAlert,
   close,
   copyToClipboard,
+  selectionActive,
+  onSelectMessage,
   sendReaction,
   openReactionPicker,
   setCipherText,
@@ -144,46 +162,7 @@ export function MessageActionMenuModal({
   openReportForMessage,
 }: Props) {
   const copyText = React.useMemo(() => {
-    const t = target;
-    if (!t) return null;
-    if (t.deletedAt) return null;
-    // If it's encrypted and not decrypted yet, there's nothing meaningful to copy.
-    if ((t.encrypted || t.groupEncrypted) && !t.decryptedText) return null;
-
-    let caption = '';
-
-    if (t.encrypted || t.groupEncrypted) {
-      const plain = String(t.decryptedText || '');
-      const dmEnv = parseDmMediaEnvelope(plain);
-      const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
-      const gEnv = parseGroupMediaEnvelope(plain);
-      const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
-      if (dmItems.length || gItems.length) {
-        caption = String((dmEnv?.caption ?? gEnv?.caption) || '');
-      } else {
-        // Text-only encrypted message: allow copy.
-        caption = plain;
-      }
-    } else {
-      const raw = String(t.rawText ?? t.text ?? '');
-      const env = !isDm ? parseChatEnvelope(raw) : null;
-      const envList = env ? normalizeChatMediaList(env.media) : [];
-      if (envList.length) {
-        // Media envelope caption lives ONLY in env.text.
-        caption = String(env?.text || '');
-      } else {
-        caption = raw;
-      }
-    }
-
-    const trimmed = caption.trim();
-    if (!trimmed) {
-      // For media messages, no caption => no Copy option.
-      // For text messages, empty => no Copy option.
-      return null;
-    }
-    // For media messages with caption, copy just the caption. For text messages, copy the text.
-    return trimmed;
+    return target ? getCopyableMessageText({ msg: target, isDm }) : null;
   }, [isDm, target]);
 
   return (
@@ -601,6 +580,28 @@ export function MessageActionMenuModal({
               </Pressable>
             ) : null}
 
+            {target &&
+            !target.deletedAt &&
+            !selectionActive &&
+            typeof onSelectMessage === 'function' ? (
+              <Pressable
+                onPress={() => {
+                  onSelectMessage(target);
+                  close();
+                }}
+                style={({ pressed }) => [
+                  styles.actionMenuRow,
+                  pressed ? styles.actionMenuRowPressed : null,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Select message"
+              >
+                <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                  Select
+                </Text>
+              </Pressable>
+            ) : null}
+
             {copyText ? (
               <Pressable
                 onPress={() => {
@@ -629,6 +630,7 @@ export function MessageActionMenuModal({
                 !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
               const isPlainOutgoing =
                 !t.encrypted &&
+                !t.groupEncrypted &&
                 (isOutgoingByUserSub
                   ? true
                   : normalizeUser(t.userLower ?? t.user ?? 'anon') === normalizeUser(displayName));
@@ -640,6 +642,11 @@ export function MessageActionMenuModal({
                   if (!t.decryptedText) return false;
                   const dmEnv = parseDmMediaEnvelope(String(t.decryptedText));
                   return !!(dmEnv && normalizeDmMediaItems(dmEnv).length);
+                }
+                if (t.groupEncrypted) {
+                  if (!t.decryptedText) return false;
+                  const gEnv = parseGroupMediaEnvelope(String(t.decryptedText));
+                  return !!(gEnv && normalizeGroupMediaItems(gEnv).length);
                 }
                 if (isDm) return false;
                 const env = parseChatEnvelope(String(t.rawText ?? t.text ?? ''));
@@ -729,6 +736,68 @@ export function MessageActionMenuModal({
 
             {(() => {
               const t = target;
+              if (!t || t.deletedAt) return null;
+              // Determine whether "delete for everyone" would be allowed.
+              const isOutgoingByUserSub =
+                !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
+              const isEncryptedOutgoing =
+                !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
+              const isPlainOutgoing =
+                !t.encrypted &&
+                (isOutgoingByUserSub
+                  ? true
+                  : normalizeUser(t.userLower ?? t.user ?? 'anon') === normalizeUser(displayName));
+              const canDeleteForEveryone =
+                isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
+
+              return (
+                <Pressable
+                  onPress={() => {
+                    void (async () => {
+                      const choice = await uiChoice3('Delete Message?', '', {
+                        primaryText: 'Delete for Me',
+                        secondaryText: 'Delete for Everyone',
+                        tertiaryText: 'Cancel',
+                        primaryVariant: 'danger',
+                        secondaryVariant: 'danger',
+                        tertiaryVariant: 'default',
+                      });
+
+                      if (choice === 'tertiary') return;
+                      close();
+
+                      if (choice === 'primary') {
+                        await Promise.resolve(deleteForMe(t));
+                        return;
+                      }
+
+                      // secondary
+                      if (!canDeleteForEveryone) {
+                        showAlert(
+                          'Cannot delete for everyone',
+                          'Only your own messages can be deleted for everyone.',
+                        );
+                        return;
+                      }
+                      await Promise.resolve(sendDeleteForEveryone());
+                    })();
+                  }}
+                  style={({ pressed }) => [
+                    styles.actionMenuRow,
+                    pressed ? styles.actionMenuRowPressed : null,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete"
+                >
+                  <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
+                    Delete…
+                  </Text>
+                </Pressable>
+              );
+            })()}
+
+            {(() => {
+              const t = target;
               const sub = t?.userSub ? String(t.userSub) : '';
               const label = t?.user ? String(t.user) : '';
               const isMe = !!myUserId && !!sub && String(sub) === String(myUserId);
@@ -759,55 +828,6 @@ export function MessageActionMenuModal({
                 >
                   <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
                     Block user
-                  </Text>
-                </Pressable>
-              );
-            })()}
-
-            <Pressable
-              onPress={() => {
-                if (!target) return;
-                void Promise.resolve(deleteForMe(target));
-                close();
-              }}
-              style={({ pressed }) => [
-                styles.actionMenuRow,
-                pressed ? styles.actionMenuRowPressed : null,
-              ]}
-            >
-              <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
-                Delete for me
-              </Text>
-            </Pressable>
-
-            {(() => {
-              const t = target;
-              if (!t) return null;
-              const isOutgoingByUserSub =
-                !!myUserId && !!t.userSub && String(t.userSub) === String(myUserId);
-              const isEncryptedOutgoing =
-                !!t.encrypted && !!myPublicKey && t.encrypted.senderPublicKey === myPublicKey;
-              const isPlainOutgoing =
-                !t.encrypted &&
-                (isOutgoingByUserSub
-                  ? true
-                  : normalizeUser(t.userLower ?? t.user ?? 'anon') === normalizeUser(displayName));
-              const canDeleteForEveryone =
-                isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
-              if (!canDeleteForEveryone) return null;
-              return (
-                <Pressable
-                  onPress={() => {
-                    void Promise.resolve(sendDeleteForEveryone());
-                    close();
-                  }}
-                  style={({ pressed }) => [
-                    styles.actionMenuRow,
-                    pressed ? styles.actionMenuRowPressed : null,
-                  ]}
-                >
-                  <Text style={[styles.actionMenuText, isDark ? styles.actionMenuTextDark : null]}>
-                    Delete for everyone
                   </Text>
                 </Pressable>
               );

@@ -85,6 +85,10 @@ export function ChatMessageRow(props: {
   requestOpenLink: (url: string) => void;
   onPressMessage: (m: ChatMessage) => void;
   onLongPressMessage: (e: GestureResponderEvent) => void;
+  // Multi-select
+  selectionActive: boolean;
+  isSelected: boolean;
+  onToggleSelected: () => void;
   latestOutgoingMessageId: string | null;
   retryFailedMessage: (m: ChatMessage) => void;
 
@@ -137,6 +141,9 @@ export function ChatMessageRow(props: {
     requestOpenLink,
     onPressMessage,
     onLongPressMessage,
+    selectionActive,
+    isSelected,
+    onToggleSelected,
     latestOutgoingMessageId,
     retryFailedMessage,
     renderMediaCarousel,
@@ -165,10 +172,18 @@ export function ChatMessageRow(props: {
           swallowNextPressRef.current = false;
           return;
         }
+        if (selectionActive) {
+          onToggleSelected();
+          return;
+        }
         if (inlineEditTargetId && item.id === inlineEditTargetId) return;
         onPressMessage(item);
       }}
       onLongPress={(e) => {
+        if (selectionActive) {
+          onToggleSelected();
+          return;
+        }
         if (isDeleted) return;
         if (Platform.OS === 'web') {
           // Critical: consume the imminent release event (touchend/pointerup) so mobile browsers
@@ -227,8 +242,73 @@ export function ChatMessageRow(props: {
         style={[
           styles.messageRow,
           isOutgoing ? styles.messageRowOutgoing : styles.messageRowIncoming,
+          selectionActive ? { paddingLeft: 34 } : null,
         ]}
       >
+        {selectionActive ? (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 34,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Pressable
+              onPress={onToggleSelected}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={isSelected ? 'Deselect message' : 'Select message'}
+              style={({ pressed }) => [
+                {
+                  width: 22,
+                  height: 22,
+                  borderRadius: 11,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 2,
+                  borderColor: isSelected
+                    ? isDark
+                      ? APP_COLORS.dark.text.primary
+                      : APP_COLORS.light.text.primary
+                    : isDark
+                      ? APP_COLORS.dark.border.subtle
+                      : APP_COLORS.light.border.subtle,
+                  backgroundColor: isSelected
+                    ? isDark
+                      ? APP_COLORS.dark.text.primary
+                      : APP_COLORS.light.text.primary
+                    : 'transparent',
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              {isSelected ? (
+                <Text
+                  style={{
+                    color: isDark ? PALETTE.black : PALETTE.white,
+                    fontWeight: '900',
+                    // Android: prevent extra font padding pushing the glyph down.
+                    includeFontPadding: false,
+                    // Keep glyph metrics centered within the 22px circle.
+                    lineHeight: 22,
+                    // Nudge up slightly to compensate for glyph baseline.
+                    marginTop: Platform.OS === 'android' ? -1 : 0,
+                    textAlign: 'center',
+                    textAlignVertical: 'center',
+                  }}
+                >
+                  ✓
+                </Text>
+              ) : null}
+            </Pressable>
+          </View>
+        ) : null}
+
         {!isOutgoing && showAvatarForIncoming ? (
           <View style={[styles.avatarGutter, { width: AVATAR_SIZE, marginTop: AVATAR_TOP_OFFSET }]}>
             <AvatarBubble
