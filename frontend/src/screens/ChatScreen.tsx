@@ -500,7 +500,7 @@ export default function ChatScreen({
     showToast('Allow Photos permission to save.', 'error');
   }
   function onViewerSaveSuccess() {
-    showToast('Saved to your device.', 'success');
+    showToast('Media saved', 'success');
   }
   function onViewerSaveError(msg: string) {
     const m = String(msg || '');
@@ -1534,6 +1534,7 @@ export default function ChatScreen({
         normalizeUser,
         nowSec,
         formatRemaining,
+        showToast,
         mediaUrlByPath,
         dmThumbUriByPath,
         imageAspectByPath,
@@ -1601,6 +1602,7 @@ export default function ChatScreen({
       retryFailedMessage,
       sendReaction,
       setInlineEditDraft,
+      showToast,
       avatarProfileBySub,
       avatarUrlByPath,
       visibleMessages,

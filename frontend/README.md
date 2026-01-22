@@ -12,6 +12,7 @@ npm start
 ```
 
 Useful scripts:
+
 - **web**: `npm run web`
 - **android**: `npm run android`
 - **ios** (macOS): `npm run ios`
@@ -21,6 +22,7 @@ Useful scripts:
 ## Runtime configuration (API / WS / AI / CDN)
 
 URLs are sourced from:
+
 - `app.json` → `expo.extra`:
   - `API_URL`
   - `WS_URL`
@@ -31,15 +33,18 @@ URLs are sourced from:
 ## AI streaming (SSE)
 
 The app supports **streamed AI responses** for:
+
 - **AI summary** (`/ai/summary`)
 - **AI helper** (`/ai/helper`)
 
 How it works:
+
 - If the server responds with `Content-Type: text/event-stream`, the UI progressively updates using SSE parsing.
 - On **native** (iOS/Android), streaming uses `expo/fetch` (standard `fetch` often doesn’t expose a readable stream on React Native).
 - On **web**, standard `fetch` is used.
 
 Backend note:
+
 - Streaming requires wiring the backend handler behind a **streaming-capable integration** (see `backend/README.md` and `backend/aws/src/handlers/README.md`).
 - If your main `API_URL` is an API Gateway HTTP API (buffered), set `AI_API_URL` to the streaming base URL.
 
@@ -56,6 +61,7 @@ The app also guesses common MIME types from filename (PDF, Office docs, archives
 ## Local UI caches (AsyncStorage)
 
 To reduce “flash of unknown” and speed up cold starts, the app caches some UI-hydration state in **AsyncStorage**, including:
+
 - Display name (device hint)
 - Avatar settings (per signed-in user)
 - Channel name labels for fast header hydration
@@ -64,6 +70,7 @@ To reduce “flash of unknown” and speed up cold starts, the app caches some U
 ## Testing (Jest)
 
 Jest is configured with `jest-expo`:
+
 - Config: `jest.config.js`
 - Setup: `jest.setup.ts`
 

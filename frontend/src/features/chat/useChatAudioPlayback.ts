@@ -19,6 +19,11 @@ export type ChatAudioPlayback = {
   durationMs: number | null;
   toggle: (key: string) => Promise<void>;
   seek: (ms: number) => Promise<void>;
+  /**
+   * Seek a specific clip. If it's not current, it will be loaded/selected first.
+   * This prevents scrubbing one clip from moving another clip's slider.
+   */
+  seekFor: (key: string, ms: number) => Promise<void>;
 };
 
 function safeNowMs(): number {
@@ -52,6 +57,13 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
     playerRef.current = null;
     if (p) {
       try {
+        // IMPORTANT: On some Android devices/emulators, `remove()` alone may not stop
+        // audio immediately. Always pause first to enforce one-at-a-time playback.
+        try {
+          p.pause();
+        } catch {
+          // ignore
+        }
         p.remove();
       } catch {
         // ignore
@@ -87,8 +99,8 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
     }).catch(() => {});
   }, []);
 
-  const playKey = React.useCallback(
-    async (key: string) => {
+  const loadKey = React.useCallback(
+    async (key: string, opts: { autoplay: boolean }) => {
       try {
         const it = queue.find((q) => q.key === key);
         if (!it) return;
@@ -103,7 +115,7 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
         const uri = String(await it.resolveUri()).trim();
         if (!uri) throw new Error('Missing audio URL');
 
-        if (typeof __DEV__ !== 'undefined' && __DEV__) console.log('audio play', { key, uri });
+        // Keep logging minimal; this flow is high-frequency during normal usage.
 
         // Recreate a fresh player per track for reliability across platforms (esp. web).
         disposePlayerOnly();
@@ -126,7 +138,8 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
             if (!endedKey) return;
             const idx = queue.findIndex((q) => q.key === endedKey);
             const next = idx >= 0 ? queue[idx + 1] : null;
-            if (next) void playKey(next.key);
+            // Avoid capturing `playKey` inside this callback to keep hook deps simple.
+            if (next) void loadKey(next.key, { autoplay: true });
           }
         };
 
@@ -134,13 +147,34 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
         const sub = (p as any).addListener?.('playbackStatusUpdate', onStatus);
         playerSubRef.current = sub || null;
 
-        // Attempt playback. On web this can silently fail (CORS, blocked playback, bad URL).
-        // We'll warn if we don't become "playing" shortly after.
-        p.play();
+        if (opts.autoplay) {
+          // Attempt playback. On web this can silently fail (CORS, blocked playback, bad URL).
+          // We'll warn if we don't become "playing" shortly after.
+          p.play();
+        } else {
+          // Keep paused; user may be scrubbing before pressing play.
+          try {
+            p.pause();
+          } catch {
+            // ignore
+          }
+          // If we don't press play, some platforms won't emit status updates immediately.
+          // Clear "loading" quickly so other sliders stay interactive, and best-effort read duration.
+          setTimeout(() => {
+            if (currentKeyRef.current !== key) return;
+            setLoadingKey((prev) => (prev === key ? null : prev));
+            try {
+              const d = Number((playerRef.current as any)?.duration || 0);
+              if (Number.isFinite(d) && d > 0) setDurationMs(Math.floor(d * 1000));
+            } catch {
+              // ignore
+            }
+          }, 350);
+        }
         setTimeout(() => {
           if (currentKeyRef.current !== key) return;
           if (!playerRef.current) return;
-          if (!playerRef.current.playing) {
+          if (opts.autoplay && !playerRef.current.playing) {
             console.warn(
               'Audio did not start playing. This is often caused by an invalid URL, blocked playback, or CORS.',
               { uri },
@@ -156,6 +190,13 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
       }
     },
     [disposePlayerOnly, queue],
+  );
+
+  const playKey = React.useCallback(
+    async (key: string) => {
+      await loadKey(key, { autoplay: true });
+    },
+    [loadKey],
   );
 
   const toggle = React.useCallback(
@@ -196,6 +237,25 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
     [currentKey],
   );
 
+  const seekFor = React.useCallback(
+    async (key: string, ms: number) => {
+      const target = Math.max(0, Math.floor(Number(ms) || 0));
+      if (!key) return;
+      if (currentKeyRef.current !== key || !playerRef.current) {
+        await loadKey(key, { autoplay: false });
+      }
+      try {
+        const p = playerRef.current;
+        if (!p) return;
+        await p.seekTo(target / 1000);
+        setPositionMs(target);
+      } catch {
+        // ignore
+      }
+    },
+    [loadKey],
+  );
+
   return {
     currentKey,
     loadingKey,
@@ -204,5 +264,6 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
     durationMs,
     toggle,
     seek,
+    seekFor,
   };
 }

@@ -13,6 +13,12 @@ export function UiPromptModal({
   setUiPrompt: React.Dispatch<React.SetStateAction<UiPrompt | null>>;
   isDark: boolean;
 }): React.JSX.Element {
+  const [dontShowAgain, setDontShowAgain] = React.useState<boolean>(false);
+  React.useEffect(() => {
+    // Reset checkbox whenever the prompt changes (or closes).
+    setDontShowAgain(false);
+  }, [uiPrompt?.kind, uiPrompt?.title, uiPrompt?.message]);
+
   // IMPORTANT (esp. web):
   // Keep this modal *unmounted* when closed.
   //
@@ -33,7 +39,7 @@ export function UiPromptModal({
         setUiPrompt(null);
         // Best-effort "cancel" behavior.
         try {
-          if (p.kind === 'confirm') p.resolve(false);
+          if (p.kind === 'confirm') p.resolve({ confirmed: false, dontShowAgain: false });
           else if (p.kind === 'choice3') p.resolve('secondary');
           else p.resolve();
         } catch {
@@ -149,53 +155,80 @@ export function UiPromptModal({
               </Pressable>
             </View>
           ) : (
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={[
-                  styles.modalButton,
-                  uiPrompt.kind === 'alert' ? styles.modalButtonPrimary : null,
-                  uiPrompt.destructive ? styles.modalButtonDanger : null,
-                  isDark ? styles.modalButtonDark : null,
-                  isDark && uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
-                  isDark && uiPrompt.destructive ? styles.modalButtonDangerDark : null,
-                ]}
-                onPress={() => {
-                  setUiPrompt(null);
-                  if (uiPrompt.kind === 'confirm') {
-                    uiPrompt.resolve(true);
-                  } else {
-                    uiPrompt.resolve();
-                  }
-                }}
-              >
-                <Text
-                  style={[
-                    styles.modalButtonText,
-                    uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryText : null,
-                    uiPrompt.destructive ? styles.modalButtonDangerText : null,
-                    isDark ? styles.modalButtonTextDark : null,
-                  ]}
-                >
-                  {uiPrompt.confirmText || 'OK'}
-                </Text>
-              </Pressable>
-              {uiPrompt.kind === 'confirm' ? (
+            <>
+              {uiPrompt.kind === 'confirm' && uiPrompt.dontShowAgain?.label ? (
+                <View style={styles.checkboxRow}>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={uiPrompt.dontShowAgain.label}
+                    accessibilityState={{ checked: dontShowAgain }}
+                    onPress={() => setDontShowAgain((v) => !v)}
+                    style={({ pressed }) => [styles.checkboxBtn, pressed ? { opacity: 0.9 } : null]}
+                  >
+                    <View
+                      style={[
+                        styles.checkboxBox,
+                        isDark ? styles.checkboxBoxDark : null,
+                        dontShowAgain ? styles.checkboxBoxChecked : null,
+                      ]}
+                    >
+                      {dontShowAgain ? <Text style={styles.checkboxCheck}>✓</Text> : null}
+                    </View>
+                    <Text style={[styles.checkboxLabel, isDark ? styles.checkboxLabelDark : null]}>
+                      {uiPrompt.dontShowAgain.label}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <View style={styles.modalButtons}>
                 <Pressable
-                  style={[styles.modalButton, isDark ? styles.modalButtonDark : null]}
+                  style={[
+                    styles.modalButton,
+                    uiPrompt.kind === 'alert' ? styles.modalButtonPrimary : null,
+                    uiPrompt.destructive ? styles.modalButtonDanger : null,
+                    isDark ? styles.modalButtonDark : null,
+                    isDark && uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryDark : null,
+                    isDark && uiPrompt.destructive ? styles.modalButtonDangerDark : null,
+                  ]}
                   onPress={() => {
-                    const resolve = uiPrompt.resolve;
                     setUiPrompt(null);
-                    resolve(false);
+                    if (uiPrompt.kind === 'confirm') {
+                      uiPrompt.resolve({ confirmed: true, dontShowAgain });
+                    } else {
+                      uiPrompt.resolve();
+                    }
                   }}
                 >
                   <Text
-                    style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                    style={[
+                      styles.modalButtonText,
+                      uiPrompt.kind === 'alert' ? styles.modalButtonPrimaryText : null,
+                      uiPrompt.destructive ? styles.modalButtonDangerText : null,
+                      isDark ? styles.modalButtonTextDark : null,
+                    ]}
                   >
-                    {uiPrompt.cancelText || 'Cancel'}
+                    {uiPrompt.confirmText || 'OK'}
                   </Text>
                 </Pressable>
-              ) : null}
-            </View>
+                {uiPrompt.kind === 'confirm' ? (
+                  <Pressable
+                    style={[styles.modalButton, isDark ? styles.modalButtonDark : null]}
+                    onPress={() => {
+                      const resolve = uiPrompt.resolve;
+                      setUiPrompt(null);
+                      resolve({ confirmed: false, dontShowAgain: false });
+                    }}
+                  >
+                    <Text
+                      style={[styles.modalButtonText, isDark ? styles.modalButtonTextDark : null]}
+                    >
+                      {uiPrompt.cancelText || 'Cancel'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </>
           )}
         </View>
       </View>
@@ -242,6 +275,29 @@ const styles = StyleSheet.create({
   modalHelperTextDark: {
     color: APP_COLORS.dark.text.secondary,
   },
+  checkboxRow: { alignSelf: 'stretch', marginTop: 2, marginBottom: 8 },
+  checkboxBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  checkboxBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: APP_COLORS.light.border.subtle,
+    backgroundColor: APP_COLORS.light.bg.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxBoxDark: {
+    borderColor: APP_COLORS.dark.border.default,
+    backgroundColor: withAlpha(PALETTE.white, 0.06),
+  },
+  checkboxBoxChecked: {
+    backgroundColor: APP_COLORS.light.brand.primary,
+    borderColor: APP_COLORS.light.brand.primary,
+  },
+  checkboxCheck: { color: PALETTE.white, fontWeight: '900', fontSize: 12, marginTop: -1 },
+  checkboxLabel: { color: APP_COLORS.light.text.secondary, fontWeight: '700' },
+  checkboxLabelDark: { color: APP_COLORS.dark.text.secondary },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

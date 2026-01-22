@@ -16,7 +16,8 @@ export type UiPrompt =
       confirmText?: string;
       cancelText?: string;
       destructive?: boolean;
-      resolve: (value: boolean) => void;
+      dontShowAgain?: { label: string };
+      resolve: (value: { confirmed: boolean; dontShowAgain: boolean }) => void;
     }
   | {
       kind: 'choice3';

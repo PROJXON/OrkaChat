@@ -74,6 +74,7 @@ export type DmMediaEnvelopeV1 = {
     contentType?: string;
     fileName?: string;
     size?: number;
+    durationMs?: number;
     path: string; // encrypted blob
     iv: string; // hex
     thumbPath?: string; // encrypted thumb blob

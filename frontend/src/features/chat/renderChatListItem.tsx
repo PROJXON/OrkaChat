@@ -16,6 +16,7 @@ import {
   isPreviewableMedia,
   isVideoLike as isVideoLikeMedia,
 } from '../../utils/mediaKinds';
+import { saveMediaUrlToDevice } from '../../utils/saveMediaToDevice';
 import { getChatSenderKey } from '../../utils/senderKeys';
 import type { PendingMediaItem } from './attachments';
 import { ChatMessageRow } from './components/ChatMessageRow';
@@ -24,6 +25,11 @@ import type { ChatMessage } from './types';
 import type { ChatAudioPlayback } from './useChatAudioPlayback';
 
 type Anchor = { x: number; y: number };
+
+function toastErr(showToast: (m: string, kind?: 'success' | 'error') => void, msg: string) {
+  const m = String(msg || '').trim();
+  showToast(m.length > 120 ? `${m.slice(0, 120)}…` : m, 'error');
+}
 
 export function renderChatListItem(args: {
   styles: ChatScreenStyles;
@@ -53,6 +59,7 @@ export function renderChatListItem(args: {
 
   nowSec: number;
   formatRemaining: (seconds: number) => string;
+  showToast: (message: string, kind?: 'success' | 'error') => void;
 
   mediaUrlByPath: Record<string, string>;
   dmThumbUriByPath: Record<string, string>;
@@ -118,6 +125,7 @@ export function renderChatListItem(args: {
     normalizeUser,
     nowSec,
     formatRemaining,
+    showToast,
     mediaUrlByPath,
     dmThumbUriByPath,
     imageAspectByPath,
@@ -219,15 +227,17 @@ export function renderChatListItem(args: {
       : item.media
         ? [item.media]
         : [];
-  const media = mediaList.length ? mediaList[0] : null;
-  const mediaLooksImage = !!media && isImageLikeMedia(media);
-  const mediaLooksVideo = !!media && isVideoLikeMedia(media);
   const previewableWithOriginalIdx = mediaList
     .map((m, idx) => ({ m, idx }))
     .filter(({ m }) => isPreviewableMedia(m));
   const fileLikeWithOriginalIdx = mediaList
     .map((m, idx) => ({ m, idx }))
     .filter(({ m }) => !isPreviewableMedia(m));
+  const primaryPreviewable = previewableWithOriginalIdx.length
+    ? previewableWithOriginalIdx[0].m
+    : null;
+  const mediaLooksImage = !!primaryPreviewable && isImageLikeMedia(primaryPreviewable);
+  const mediaLooksVideo = !!primaryPreviewable && isVideoLikeMedia(primaryPreviewable);
   const hasAnyPreviewableMedia = previewableWithOriginalIdx.length > 0;
   // IMPORTANT: if the message is still encrypted (not decrypted yet),
   // always render it as a normal encrypted-text bubble so media placeholders
@@ -237,7 +247,9 @@ export function renderChatListItem(args: {
   // File-only messages render as normal bubbles with attachment tiles.
   const hasMedia = hasAnyPreviewableMedia && !isStillEncrypted;
   const thumbKeyPath =
-    mediaLooksImage || mediaLooksVideo ? media?.thumbPath || media?.path : undefined;
+    mediaLooksImage || mediaLooksVideo
+      ? primaryPreviewable?.thumbPath || primaryPreviewable?.path
+      : undefined;
   const thumbAspect =
     thumbKeyPath && imageAspectByPath[thumbKeyPath] ? imageAspectByPath[thumbKeyPath] : undefined;
 
@@ -281,17 +293,46 @@ export function renderChatListItem(args: {
   };
 
   const renderMediaCarousel =
-    previewableWithOriginalIdx.length && hasMedia && !isDeleted ? (
+    mediaList.length && hasMedia && !isDeleted ? (
       <MediaStackCarousel
         messageId={item.id}
-        mediaList={previewableWithOriginalIdx.map((x) => x.m)}
+        mediaList={mediaList}
         width={capped.w}
         height={capped.h}
         isDark={isDark}
+        onToast={showToast}
+        edgeMaskColor={
+          isOutgoing
+            ? isDark
+              ? PALETTE.slate900
+              : PALETTE.paper210
+            : isDark
+              ? APP_COLORS.dark.bg.header
+              : PALETTE.paper210
+        }
+        audioSlide={
+          audioPlayback
+            ? {
+                isOutgoing,
+                currentKey: audioPlayback.currentKey,
+                loadingKey: audioPlayback.loadingKey,
+                isPlaying: audioPlayback.isPlaying,
+                positionMs: audioPlayback.positionMs,
+                durationMs: audioPlayback.durationMs,
+                getKey: (idx, media) => audioPlayback.getAudioKey(item, idx, media),
+                getTitle: (media) => audioPlayback.getAudioTitle(media),
+                onToggle: (key, idx, media) =>
+                  audioPlayback.onPressAudio({ msg: item, idx, key, media }),
+                onSeek: (key, ms) => audioPlayback.seekFor(key, ms),
+              }
+            : undefined
+        }
         cornerRadius={0}
         loop
         // Avoid letterboxing seams/bars in chat thumbnails (esp. outgoing on mobile).
         imageResizeMode="cover"
+        containOnAspectMismatch
+        aspectByPath={imageAspectByPath}
         uriByPath={isEncryptedChat ? EMPTY_URI_BY_PATH : mediaUrlByPath}
         thumbUriByPath={isEncryptedChat ? dmThumbUriByPath : undefined}
         onImageAspect={(keyPath, aspect) => {
@@ -321,8 +362,22 @@ export function renderChatListItem(args: {
               ? APP_COLORS.dark.text.secondary
               : APP_COLORS.light.text.secondary
         }
-        onOpen={(idx) => {
-          const originalIdx = previewableWithOriginalIdx[idx]?.idx ?? 0;
+        onOpen={(idx, tapped) => {
+          const originalIdx = Math.max(0, Math.min(mediaList.length - 1, idx));
+          const ct = String(tapped?.contentType || '')
+            .trim()
+            .toLowerCase()
+            .split(';')[0]
+            .trim();
+          if (ct.startsWith('audio/') && audioPlayback) {
+            void audioPlayback.onPressAudio({
+              msg: item,
+              idx: originalIdx,
+              key: audioPlayback.getAudioKey(item, originalIdx, tapped),
+              media: tapped,
+            });
+            return;
+          }
           if (isDm) void openDmMediaViewer(item, originalIdx);
           else if (isGroup) void openGroupMediaViewer(item, originalIdx);
           else openViewer(mediaList, originalIdx);
@@ -330,10 +385,12 @@ export function renderChatListItem(args: {
       />
     ) : null;
 
-  // IMPORTANT: even when a message contains previewable media (image/video),
-  // we still want to show file-like attachments (PDF/audio/etc) below it.
+  // If the message contains previewable media, keep all attachments in the carousel
+  // (files/audio show as "chips" pages there). Only show attachment tiles for file-only messages.
   const attachmentsToRender =
-    isDeleted || isStillEncrypted ? [] : fileLikeWithOriginalIdx.map(({ m, idx }) => ({ m, idx }));
+    isDeleted || isStillEncrypted || hasMedia
+      ? []
+      : fileLikeWithOriginalIdx.map(({ m, idx }) => ({ m, idx }));
 
   const renderAttachments =
     attachmentsToRender.length && !isDeleted && !isStillEncrypted ? (
@@ -347,31 +404,41 @@ export function renderChatListItem(args: {
               key={`audio:${item.id}:${String(m2.path || '')}:${idx2}:${renderIdx}`}
               isDark={isDark}
               isOutgoing={isOutgoing}
-              state={{
-                key: audioPlayback.getAudioKey(item, idx2, m2),
-                title: audioPlayback.getAudioTitle(m2),
-                subtitle: undefined,
-                isPlaying:
-                  audioPlayback.currentKey === audioPlayback.getAudioKey(item, idx2, m2) &&
-                  audioPlayback.isPlaying,
-                isLoading: audioPlayback.loadingKey === audioPlayback.getAudioKey(item, idx2, m2),
-                positionMs:
-                  audioPlayback.currentKey === audioPlayback.getAudioKey(item, idx2, m2)
-                    ? audioPlayback.positionMs
-                    : 0,
-                durationMs:
-                  audioPlayback.currentKey === audioPlayback.getAudioKey(item, idx2, m2)
-                    ? audioPlayback.durationMs
-                    : null,
-                onToggle: () =>
-                  audioPlayback.onPressAudio({
-                    msg: item,
-                    idx: idx2,
-                    key: audioPlayback.getAudioKey(item, idx2, m2),
-                    media: m2,
-                  }),
-                onSeek: (nextMs) => audioPlayback.seek(nextMs),
-              }}
+              onDownload={
+                !isEncryptedChat && mediaUrlByPath[String(m2.path)]
+                  ? () =>
+                      saveMediaUrlToDevice({
+                        url: String(mediaUrlByPath[String(m2.path)] || ''),
+                        kind: 'file',
+                        fileName: m2.fileName,
+                        onSuccess: () => showToast('Media saved', 'success'),
+                        onError: (m) => toastErr(showToast, m),
+                      })
+                  : undefined
+              }
+              state={(() => {
+                const k = audioPlayback.getAudioKey(item, idx2, m2);
+                return {
+                  key: k,
+                  title: audioPlayback.getAudioTitle(m2),
+                  subtitle: undefined,
+                  isPlaying: audioPlayback.currentKey === k && audioPlayback.isPlaying,
+                  isLoading: audioPlayback.loadingKey === k,
+                  positionMs: audioPlayback.currentKey === k ? audioPlayback.positionMs : 0,
+                  durationMs:
+                    audioPlayback.currentKey === k
+                      ? (audioPlayback.durationMs ?? m2.durationMs ?? null)
+                      : (m2.durationMs ?? null),
+                  onToggle: () =>
+                    audioPlayback.onPressAudio({
+                      msg: item,
+                      idx: idx2,
+                      key: k,
+                      media: m2,
+                    }),
+                  onSeek: (nextMs: number) => audioPlayback.seekFor(k, nextMs),
+                };
+              })()}
             />
           ) : (
             <FileAttachmentTile
@@ -380,6 +447,18 @@ export function renderChatListItem(args: {
               isDark={isDark}
               isOutgoing={isOutgoing}
               onPress={() => openFileAtOriginalIdx(idx2)}
+              onDownload={
+                !isEncryptedChat && mediaUrlByPath[String(m2.path)]
+                  ? () =>
+                      saveMediaUrlToDevice({
+                        url: String(mediaUrlByPath[String(m2.path)] || ''),
+                        kind: 'file',
+                        fileName: m2.fileName,
+                        onSuccess: () => showToast('Media saved', 'success'),
+                        onError: (m) => toastErr(showToast, m),
+                      })
+                  : undefined
+              }
             />
           ),
         )}

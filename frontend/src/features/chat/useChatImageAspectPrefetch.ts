@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Image } from 'react-native';
 
-import { isImageLike } from '../../utils/mediaKinds';
+import { isImageLike, isVideoLike } from '../../utils/mediaKinds';
 import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
 import type { ChatMessage } from './types';
 
@@ -34,8 +34,14 @@ export function useChatImageAspectPrefetch(opts: {
             : [];
       for (const media of list) {
         if (!media?.path) continue;
-        if (!isImageLike(media)) continue;
-        const keyPath = media.thumbPath || media.path;
+        // Prefetch aspect for both image thumbs and video thumbs.
+        // For videos, only use the thumbnail path (the video itself can't be sized via Image.getSize).
+        const keyPath = isImageLike(media)
+          ? media.thumbPath || media.path
+          : isVideoLike(media)
+            ? media.thumbPath || ''
+            : '';
+        if (!keyPath) continue;
         const url = mediaUrlByPath[keyPath];
         if (!url) continue;
         if (imageAspectByPath[keyPath]) continue;

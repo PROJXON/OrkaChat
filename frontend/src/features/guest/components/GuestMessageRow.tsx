@@ -11,6 +11,7 @@ import type { MediaItem } from '../../../types/media';
 import { isPreviewableMedia } from '../../../utils/mediaKinds';
 import { calcCappedMediaSize } from '../../../utils/mediaSizing';
 import { resolveMediaUrlWithFallback } from '../../../utils/resolveMediaUrl';
+import { saveMediaUrlToDevice } from '../../../utils/saveMediaToDevice';
 import { formatGuestTimestamp } from '../parsers';
 import type { GuestMessage } from '../types';
 
@@ -45,6 +46,7 @@ export function GuestMessageRow({
     durationMs: number | null;
     toggle: (key: string) => Promise<void>;
     seek: (ms: number) => Promise<void>;
+    seekFor: (key: string, ms: number) => Promise<void>;
     getKey: (msgId: string, idx: number, media: MediaItem) => string;
     onPress: (key: string) => void | Promise<void>;
   };
@@ -67,21 +69,22 @@ export function GuestMessageRow({
   const [usedFullUrl, setUsedFullUrl] = React.useState<boolean>(false);
   const [thumbAspect, setThumbAspect] = React.useState<number | null>(null);
   const [thumbUriByPath, setThumbUriByPath] = React.useState<Record<string, string>>({});
+  const [aspectByPath, setAspectByPath] = React.useState<Record<string, number>>({});
 
   const mediaList = React.useMemo(
     () => item.mediaList ?? (item.media ? [item.media] : []),
     [item.mediaList, item.media],
   );
-  const primaryMedia = mediaList.length ? mediaList[0] : null;
   const previewableWithIdx = React.useMemo(
     () => mediaList.map((m, idx) => ({ m, idx })).filter(({ m }) => isPreviewableMedia(m)),
     [mediaList],
   );
+  const primaryPreviewable = previewableWithIdx.length ? previewableWithIdx[0].m : null;
   const fileLikeWithIdx = React.useMemo(
     () => mediaList.map((m, idx) => ({ m, idx })).filter(({ m }) => !isPreviewableMedia(m)),
     [mediaList],
   );
-  const extraCount = Math.max(0, previewableWithIdx.length - 1);
+  const extraCount = Math.max(0, mediaList.length - 1);
 
   // For multi-media previews, resolve thumb URLs for each page so the carousel can render immediately.
   React.useEffect(() => {
@@ -112,19 +115,19 @@ export function GuestMessageRow({
     if (isSystem) return;
     let cancelled = false;
     (async () => {
-      const preferredPath = primaryMedia?.thumbPath || primaryMedia?.path;
+      const preferredPath = primaryPreviewable?.thumbPath || primaryPreviewable?.path;
       if (!preferredPath) return;
       const u = await resolveMediaUrlWithFallback(
         resolvePathUrl,
         preferredPath,
-        primaryMedia?.path,
+        primaryPreviewable?.path,
       );
       if (!cancelled) setThumbUrl(u);
     })();
     return () => {
       cancelled = true;
     };
-  }, [isSystem, primaryMedia?.path, primaryMedia?.thumbPath, resolvePathUrl]);
+  }, [isSystem, primaryPreviewable?.path, primaryPreviewable?.thumbPath, resolvePathUrl]);
 
   React.useEffect(() => {
     if (isSystem) return;
@@ -146,7 +149,43 @@ export function GuestMessageRow({
     };
   }, [isSystem, thumbUrl]);
 
-  const hasMedia = !!primaryMedia?.path;
+  // For web guest, reliably compute per-page aspect ratios for all previewable media so the carousel
+  // can choose contain vs cover even when onLoad events don't expose intrinsic dimensions.
+  React.useEffect(() => {
+    if (isSystem) return;
+    if (!previewableWithIdx.length) return;
+    if (mediaList.length <= 1) return;
+    let cancelled = false;
+    const inFlight = new Set<string>();
+
+    previewableWithIdx.forEach(({ m }) => {
+      const keyPath = String(m?.thumbPath || m?.path || '').trim();
+      if (!keyPath) return;
+      const url = thumbUriByPath[keyPath];
+      if (!url) return;
+      if (aspectByPath[keyPath]) return;
+      if (inFlight.has(keyPath)) return;
+      inFlight.add(keyPath);
+      Image.getSize(
+        url,
+        (w, h) => {
+          if (cancelled) return;
+          const aspect = w > 0 && h > 0 ? w / h : 0;
+          if (!(aspect > 0) || !Number.isFinite(aspect)) return;
+          setAspectByPath((prev) => (prev[keyPath] ? prev : { ...prev, [keyPath]: aspect }));
+        },
+        () => {
+          // ignore
+        },
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [aspectByPath, isSystem, mediaList.length, previewableWithIdx, thumbUriByPath]);
+
+  const hasMedia = previewableWithIdx.length > 0;
   const ts = formatGuestTimestamp(item.createdAt);
   const metaLine = `${item.user}${ts ? ` · ${ts}` : ''}`;
   const isEdited = typeof item.editedAt === 'number' && Number.isFinite(item.editedAt);
@@ -163,7 +202,7 @@ export function GuestMessageRow({
     // - S3 returns 403 because guest read policy isn't deployed yet
     // Try the full object as a fallback (especially useful if only the thumb is missing).
     if (usedFullUrl) return;
-    const fullPath = primaryMedia?.path;
+    const fullPath = primaryPreviewable?.path;
     if (!fullPath) return;
     const u = await resolveMediaUrlWithFallback(resolvePathUrl, fullPath, null);
     if (u) {
@@ -173,19 +212,22 @@ export function GuestMessageRow({
     }
     // If we couldn't resolve anything, drop the preview so we fall back to a file chip.
     setThumbUrl(null);
-  }, [primaryMedia?.path, resolvePathUrl, usedFullUrl]);
+  }, [primaryPreviewable?.path, resolvePathUrl, usedFullUrl]);
 
-  // Match ChatScreen-ish thumbnail sizing: capped max size, preserve aspect ratio, no crop.
+  // Match ChatScreen sizing exactly (same caps/mins/rounding).
+  const CHAT_MEDIA_MAX_HEIGHT = 240; // dp
+  const CHAT_MEDIA_MAX_HEIGHT_PORTRAIT = 360; // dp
+  const CHAT_MEDIA_MAX_WIDTH_FRACTION = 0.86;
+  const aspect = typeof thumbAspect === 'number' && Number.isFinite(thumbAspect) ? thumbAspect : 1;
   const capped = calcCappedMediaSize({
-    aspect: typeof thumbAspect === 'number' ? thumbAspect : 1,
+    aspect,
     availableWidth: viewportWidth - Math.max(0, avatarGutter),
-    maxWidthFraction: 0.86,
-    maxHeight: 240,
+    maxWidthFraction: CHAT_MEDIA_MAX_WIDTH_FRACTION,
+    maxHeight: aspect > 0 && aspect < 0.95 ? CHAT_MEDIA_MAX_HEIGHT_PORTRAIT : CHAT_MEDIA_MAX_HEIGHT,
     minMaxWidth: 220,
-    minAspect: 0.1,
-    minHInitial: 80,
-    minWWhenCapped: 160,
-    rounding: 'round',
+    minW: 140,
+    minH: 120,
+    rounding: 'floor',
   });
 
   // Use a pixel max width for text bubbles too (more reliable than % on web, and accounts for avatar gutter).
@@ -276,17 +318,56 @@ export function GuestMessageRow({
               ) : null}
             </View>
 
-            {previewableWithIdx.length > 1 ? (
+            {previewableWithIdx.length > 0 && mediaList.length > 1 ? (
               <MediaStackCarousel
                 messageId={item.id}
-                mediaList={previewableWithIdx.map((x) => x.m)}
+                mediaList={mediaList}
                 width={capped.w}
                 height={capped.h}
                 isDark={isDark}
+                edgeMaskColor={isDark ? APP_COLORS.dark.bg.header : PALETTE.paper210}
+                aspectByPath={aspectByPath}
+                audioSlide={
+                  audioPlayback
+                    ? {
+                        isOutgoing: false,
+                        currentKey: audioPlayback.currentKey,
+                        loadingKey: audioPlayback.loadingKey,
+                        isPlaying: audioPlayback.isPlaying,
+                        positionMs: audioPlayback.positionMs,
+                        durationMs: audioPlayback.durationMs,
+                        getKey: (idx, media) => audioPlayback.getKey(item.id, idx, media),
+                        getTitle: (media) => String(media.fileName || '').trim() || 'Audio',
+                        onToggle: (key) => audioPlayback.onPress(key),
+                        onSeek: (key, ms) => audioPlayback.seekFor(key, ms),
+                      }
+                    : undefined
+                }
                 cornerRadius={0}
+                loop
+                // Match signed-in chat carousel behavior/styling.
+                imageResizeMode="cover"
+                containOnAspectMismatch
                 uriByPath={thumbUriByPath}
-                onOpen={(idx) => {
-                  const originalIdx = previewableWithIdx[idx]?.idx ?? 0;
+                thumbUriByPath={thumbUriByPath}
+                loadingTextColor={
+                  isDark ? APP_COLORS.dark.text.secondary : APP_COLORS.light.text.secondary
+                }
+                loadingDotsColor={
+                  isDark ? APP_COLORS.dark.text.secondary : APP_COLORS.light.text.secondary
+                }
+                onOpen={(idx, tapped) => {
+                  const originalIdx = Math.max(0, Math.min(mediaList.length - 1, idx));
+                  const ct = String(tapped?.contentType || '')
+                    .trim()
+                    .toLowerCase()
+                    .split(';')[0]
+                    .trim();
+                  if (ct.startsWith('audio/') && audioPlayback) {
+                    const key = audioPlayback.getKey(item.id, originalIdx, tapped);
+                    void audioPlayback.onPress(key);
+                    return;
+                  }
                   onOpenViewer(mediaList, originalIdx);
                 }}
               />
@@ -295,7 +376,7 @@ export function GuestMessageRow({
                 <Pressable
                   onPress={() => {
                     const originalIdx = previewableWithIdx[0]?.idx ?? 0;
-                    if (primaryMedia) onOpenViewer(mediaList, originalIdx);
+                    if (primaryPreviewable) onOpenViewer(mediaList, originalIdx);
                   }}
                   style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
                   accessibilityRole="button"
@@ -342,14 +423,15 @@ export function GuestMessageRow({
             )}
           </View>
 
-          {/* File-like attachments (including audio) render as tiles below previewable media. */}
-          {fileLikeWithIdx.length ? (
+          {/* Only render file/audio tiles for file-only messages. Mixed media keeps files in the carousel. */}
+          {!previewableWithIdx.length && fileLikeWithIdx.length ? (
             <View style={{ marginTop: 8, gap: 8 }}>
               {fileLikeWithIdx.map(({ m, idx }, renderIdx) => {
                 const ct = String(m?.contentType || '')
                   .trim()
                   .toLowerCase();
                 const isAudio = ct.startsWith('audio/');
+                const downloadUrl = String(thumbUriByPath[String(m?.path || '')] || '').trim();
                 const key = audioPlayback?.getKey(item.id, idx, m) ?? `${item.id}:${m.path}:${idx}`;
                 if (isAudio && audioPlayback) {
                   return (
@@ -357,6 +439,16 @@ export function GuestMessageRow({
                       key={`guest-audio:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
                       isDark={isDark}
                       isOutgoing={false}
+                      onDownload={
+                        downloadUrl
+                          ? () =>
+                              saveMediaUrlToDevice({
+                                url: downloadUrl,
+                                kind: 'file',
+                                fileName: m.fileName,
+                              })
+                          : undefined
+                      }
                       state={{
                         key,
                         title: String(m.fileName || '').trim() || 'Audio',
@@ -365,9 +457,11 @@ export function GuestMessageRow({
                         isLoading: audioPlayback.loadingKey === key,
                         positionMs: audioPlayback.currentKey === key ? audioPlayback.positionMs : 0,
                         durationMs:
-                          audioPlayback.currentKey === key ? audioPlayback.durationMs : null,
+                          audioPlayback.currentKey === key
+                            ? (audioPlayback.durationMs ?? m.durationMs ?? null)
+                            : (m.durationMs ?? null),
                         onToggle: () => void audioPlayback.onPress(key),
-                        onSeek: (nextMs) => void audioPlayback.seek(nextMs),
+                        onSeek: (nextMs) => void audioPlayback.seekFor(key, nextMs),
                       }}
                     />
                   );
@@ -379,6 +473,16 @@ export function GuestMessageRow({
                     isDark={isDark}
                     isOutgoing={false}
                     onPress={() => onOpenViewer(mediaList, idx)}
+                    onDownload={
+                      downloadUrl
+                        ? () =>
+                            saveMediaUrlToDevice({
+                              url: downloadUrl,
+                              kind: 'file',
+                              fileName: m.fileName,
+                            })
+                        : undefined
+                    }
                   />
                 );
               })}
@@ -446,6 +550,57 @@ export function GuestMessageRow({
                 ) : null}
               </View>
             ) : null}
+
+            {/* File-only attachments (including audio) render as tiles inside the bubble. */}
+            {fileLikeWithIdx.length ? (
+              <View style={{ marginTop: 8, gap: 8 }}>
+                {fileLikeWithIdx.map(({ m, idx }, renderIdx) => {
+                  const ct = String(m?.contentType || '')
+                    .trim()
+                    .toLowerCase()
+                    .split(';')[0]
+                    .trim();
+                  const isAudio = ct.startsWith('audio/');
+                  const key =
+                    audioPlayback?.getKey(item.id, idx, m) ?? `${item.id}:${String(m.path)}:${idx}`;
+
+                  if (isAudio && audioPlayback) {
+                    return (
+                      <AudioAttachmentTile
+                        key={`guest-audio:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
+                        isDark={isDark}
+                        isOutgoing={false}
+                        state={{
+                          key,
+                          title: String(m.fileName || '').trim() || 'Audio',
+                          subtitle: undefined,
+                          isPlaying: audioPlayback.currentKey === key && audioPlayback.isPlaying,
+                          isLoading: audioPlayback.loadingKey === key,
+                          positionMs:
+                            audioPlayback.currentKey === key ? audioPlayback.positionMs : 0,
+                          durationMs:
+                            audioPlayback.currentKey === key
+                              ? (audioPlayback.durationMs ?? m.durationMs ?? null)
+                              : (m.durationMs ?? null),
+                          onToggle: () => void audioPlayback.onPress(key),
+                          onSeek: (nextMs) => void audioPlayback.seekFor(key, nextMs),
+                        }}
+                      />
+                    );
+                  }
+
+                  return (
+                    <FileAttachmentTile
+                      key={`guest-file:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
+                      item={m}
+                      isDark={isDark}
+                      isOutgoing={false}
+                      onPress={() => onOpenViewer(mediaList, idx)}
+                    />
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
 
           {reactionEntriesVisible.length ? (
@@ -507,16 +662,17 @@ const styles = StyleSheet.create({
     // Slightly wider bubbles; also keep responsive on web.
     maxWidth: '96%',
     flexShrink: 1,
-    borderRadius: 14,
+    borderRadius: 16,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: APP_COLORS.light.bg.surface2,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: APP_COLORS.light.border.subtle,
+    paddingVertical: 6,
+    // Match signed-in chat bubble styling.
+    backgroundColor: PALETTE.paper210,
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
   bubbleDark: {
     backgroundColor: APP_COLORS.dark.bg.header,
-    borderColor: APP_COLORS.dark.border.default,
+    borderColor: 'transparent',
   },
   guestReactionOverlay: {
     position: 'absolute',
@@ -553,9 +709,9 @@ const styles = StyleSheet.create({
   },
   guestMetaLine: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     color: APP_COLORS.light.text.secondary,
-    marginBottom: 4,
+    marginBottom: 1,
     flexWrap: 'wrap',
   },
   guestMetaLineDark: {

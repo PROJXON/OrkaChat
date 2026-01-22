@@ -1472,6 +1472,14 @@ export const styles = StyleSheet.create({
     backgroundColor: PALETTE.slate900,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: withAlpha(PALETTE.white, 0.12),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  // In light mode, use a light surface + dark text (dark-mode styles already look good).
+  toastLight: {
+    backgroundColor: APP_COLORS.light.bg.app,
+    borderColor: APP_COLORS.light.border.subtle,
   },
   toastDark: {
     backgroundColor: APP_COLORS.dark.bg.header,
@@ -1489,7 +1497,11 @@ export const styles = StyleSheet.create({
     color: APP_COLORS.dark.text.primary,
     fontWeight: '800',
     fontSize: 13,
-    textAlign: 'center',
+    textAlign: 'left',
+    flexShrink: 1,
+  },
+  toastTextLight: {
+    color: APP_COLORS.light.text.primary,
   },
 });
 

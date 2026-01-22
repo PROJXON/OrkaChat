@@ -47,6 +47,10 @@ export function normalizeGuestMediaList(raw: GuestChatEnvelope['media']): MediaI
         typeof rec.size === 'number' && Number.isFinite(rec.size)
           ? (rec.size as number)
           : undefined,
+      durationMs:
+        typeof rec.durationMs === 'number' && Number.isFinite(rec.durationMs)
+          ? Math.max(0, Math.floor(rec.durationMs as number))
+          : undefined,
     });
   }
   return out;
