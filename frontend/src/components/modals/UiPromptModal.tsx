@@ -177,7 +177,9 @@ export function UiPromptModal({
                       ]}
                     >
                       {dontShowAgain ? (
-                        <Text style={[styles.checkboxCheck, isDark ? styles.checkboxCheckDark : null]}>
+                        <Text
+                          style={[styles.checkboxCheck, isDark ? styles.checkboxCheckDark : null]}
+                        >
                           ✓
                         </Text>
                       ) : null}
