@@ -45,7 +45,7 @@
       "permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./public/favicon-32.png"
     },
     "extra": {
       "WS_URL": "wss://a6ersp1gab.execute-api.us-east-2.amazonaws.com/production",
