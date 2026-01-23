@@ -15,7 +15,7 @@
 
       <section class="card">
         <h1>Privacy Policy</h1>
-        <p class="muted">Last updated: 2026-01-03</p>
+        <p class="muted">Last updated: 2026-01-23</p>
 
         <p>
           We collect only the data needed to provide chat, media
@@ -27,6 +27,10 @@
           <li><strong>Account data</strong>: username/display name and identifiers from authentication (Cognito).</li>
           <li><strong>Chat content</strong>: messages you send and metadata (timestamps, conversation ids).</li>
           <li><strong>Media</strong>: images/videos/files you upload as message attachments and avatar images.</li>
+          <li>
+            <strong>Audio</strong>: voice clips you record and audio files you upload as message attachments (plus related
+            metadata like timestamps and filenames).
+          </li>
           <li><strong>Push tokens</strong>: device push token for direct message notifications.</li>
         </ul>
 
@@ -37,10 +41,26 @@
           <li>Provide direct message notifications (push tokens).</li>
         </ul>
 
+        <h2>Microphone access</h2>
+        <p>
+          We request microphone access only when you choose to record a voice clip. You can deny microphone permission,
+          and you can change permissions later in your device settings.
+        </p>
+
+        <h2>Search</h2>
+        <p>
+          When you use in-app search (for example, searching for channels), we send your search query to our servers to
+          return results.
+        </p>
+
         <h2>AI features</h2>
         <p>
-          If you use the AI helper features, message history and optional attachment thumbnails may be sent to an AI
-          provider to generate responses. Use of this feature is optional.
+          If you use the AI helper features, we may send message history and optional attachment thumbnails (images and
+          video thumbnails) to <strong>OpenAI</strong> to generate responses or summaries. Use of this feature is optional
+          and only occurs when you choose to use the AI features.
+        </p>
+        <p>
+          <strong>Note:</strong> audio attachments and voice clips are not sent to the AI provider by these features.
         </p>
 
         <h2>Sharing</h2>
