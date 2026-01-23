@@ -104,6 +104,8 @@ export function buildChatScreenMainProps(deps: {
   sendTyping: ComposerProps['sendTyping'];
   sendMessage: ComposerProps['sendMessage'];
   handlePickMedia: ComposerProps['handlePickMedia'];
+  showAlert: ComposerProps['showAlert'];
+  stopAudioPlayback: ComposerProps['stopAudioPlayback'];
 
   selectionActive: SelectionProps['active'];
   selectionCount: SelectionProps['count'];
@@ -210,6 +212,8 @@ export function buildChatScreenMainProps(deps: {
       sendTyping: deps.sendTyping,
       sendMessage: deps.sendMessage,
       handlePickMedia: deps.handlePickMedia,
+      showAlert: deps.showAlert,
+      stopAudioPlayback: deps.stopAudioPlayback,
     },
     selection: {
       active: deps.selectionActive,

@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
@@ -9,6 +10,7 @@ import type { MediaItem } from '../../../types/media';
 import type { PendingMediaItem } from '../attachments';
 import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import type { ChatMessage } from '../types';
+import { VoiceClipMicButton } from './VoiceClipMicButton';
 
 type ReplyTarget = null | {
   id: string;
@@ -20,6 +22,14 @@ type ReplyTarget = null | {
   mediaCount?: number;
   mediaThumbUri?: string | null;
 };
+
+function formatMmSs(ms: number | null | undefined): string {
+  const v = typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 ? ms : 0;
+  const totalSec = Math.floor(v / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
 export function ChatComposer(props: {
   styles: ChatScreenStyles;
@@ -75,6 +85,10 @@ export function ChatComposer(props: {
 
   // Media picker
   handlePickMedia: () => void;
+
+  // Alerts + playback coordination (voice recording)
+  showAlert: (title: string, message: string) => void;
+  stopAudioPlayback: () => void | Promise<void>;
 }): React.JSX.Element {
   const {
     styles,
@@ -111,7 +125,34 @@ export function ChatComposer(props: {
     sendTyping,
     sendMessage,
     handlePickMedia,
+    showAlert,
+    stopAudioPlayback,
   } = props;
+
+  const [voiceRecUi, setVoiceRecUi] = React.useState<{ isRecording: boolean; elapsedMs: number }>({
+    isRecording: false,
+    elapsedMs: 0,
+  });
+  const [voiceRecBlinkOn, setVoiceRecBlinkOn] = React.useState(true);
+  React.useEffect(() => {
+    if (!voiceRecUi.isRecording) {
+      setVoiceRecBlinkOn(true);
+      return;
+    }
+    const id = setInterval(() => setVoiceRecBlinkOn((v) => !v), 450);
+    return () => clearInterval(id);
+  }, [voiceRecUi.isRecording]);
+
+  const pickVisuallyDisabled =
+    isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active');
+  const pickDisabled = pickVisuallyDisabled || voiceRecUi.isRecording;
+
+  const onClipReady = React.useCallback(
+    (clip: PendingMediaItem) => {
+      setPendingMedia([clip]);
+    },
+    [setPendingMedia],
+  );
 
   return (
     <>
@@ -136,7 +177,17 @@ export function ChatComposer(props: {
               style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
             >
               {pendingMedia.length === 1
-                ? `Attached: ${pendingMedia[0].displayName || pendingMedia[0].fileName || pendingMedia[0].kind} (tap to remove)`
+                ? (() => {
+                    const it = pendingMedia[0];
+                    const label = it.displayName || it.fileName || it.kind;
+                    const dur =
+                      typeof it.durationMs === 'number' &&
+                      Number.isFinite(it.durationMs) &&
+                      it.durationMs > 0
+                        ? ` (${formatMmSs(it.durationMs)})`
+                        : '';
+                    return `Attached: ${label}${dur} (tap to remove)`;
+                  })()
                 : `Attached: ${pendingMedia.length} items (tap to remove)`}
             </Text>
           </Pressable>
@@ -309,18 +360,43 @@ export function ChatComposer(props: {
             style={[
               styles.pickBtn,
               isDark ? styles.pickBtnDark : null,
-              isUploading || inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
-                ? isDark
-                  ? styles.btnDisabledDark
-                  : styles.btnDisabled
-                : null,
+              // While recording, widen the button for icon+timer, but don't add left padding
+              // (users perceive it as "mysterious space" before the mic).
+              voiceRecUi.isRecording ? { width: 72, paddingLeft: 0, paddingRight: 8 } : null,
+              pickVisuallyDisabled ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
             ]}
             onPress={handlePickMedia}
-            disabled={
-              isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
-            }
+            disabled={pickDisabled}
           >
-            <Text style={[styles.pickTxt, isDark ? styles.pickTxtDark : null]}>＋</Text>
+            {voiceRecUi.isRecording ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 0,
+                }}
+              >
+                <MaterialIcons
+                  name="keyboard-voice"
+                  size={24}
+                  color={PALETTE.dangerRed}
+                  // Make the flash feel "bold": strong on-state, very faint off-state.
+                  style={{ opacity: voiceRecBlinkOn ? 1 : 0.5 }}
+                />
+                <Text
+                  style={[
+                    styles.pickTxt,
+                    isDark ? styles.pickTxtDark : null,
+                    { fontSize: 13, lineHeight: 13, fontWeight: '900' },
+                  ]}
+                >
+                  {formatMmSs(voiceRecUi.elapsedMs)}
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.pickTxt, isDark ? styles.pickTxtDark : null]}>＋</Text>
+            )}
           </Pressable>
 
           <TextInput
@@ -354,6 +430,18 @@ export function ChatComposer(props: {
             }}
             onSubmitEditing={sendMessage}
             returnKeyType="send"
+          />
+
+          <VoiceClipMicButton
+            styles={styles}
+            isDark={isDark}
+            disabled={
+              isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
+            }
+            showAlert={showAlert}
+            stopAudioPlayback={stopAudioPlayback}
+            onClipReady={onClipReady}
+            onRecordingUiState={setVoiceRecUi}
           />
 
           <Pressable

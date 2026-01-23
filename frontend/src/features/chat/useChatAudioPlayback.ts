@@ -17,6 +17,11 @@ export type ChatAudioPlayback = {
   isPlaying: boolean;
   positionMs: number;
   durationMs: number | null;
+  /**
+   * Immediately stop playback and unload any currently loaded clip.
+   * Intended for flows like voice recording where audio output must cease.
+   */
+  stopAll: () => Promise<void>;
   toggle: (key: string) => Promise<void>;
   seek: (ms: number) => Promise<void>;
   /**
@@ -262,6 +267,7 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
     isPlaying,
     positionMs,
     durationMs,
+    stopAll: stopAndUnload,
     toggle,
     seek,
     seekFor,

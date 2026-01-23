@@ -1932,6 +1932,8 @@ export default function ChatScreen({
     sendTyping,
     sendMessage,
     handlePickMedia,
+    showAlert,
+    stopAudioPlayback: () => void audioPlayback.stopAll(),
     selectionActive,
     selectionCount: selectedMessageIds.length,
     selectionCanCopy: !!selectedCopyText,
