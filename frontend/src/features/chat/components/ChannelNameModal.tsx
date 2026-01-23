@@ -75,6 +75,8 @@ export function ChannelNameModal({
             onChangeText={onChangeDraft}
             placeholder="Channel name"
             maxLength={21}
+            returnKeyType="done"
+            onSubmitEditing={() => void Promise.resolve(onSave())}
             style={{
               width: '100%',
               height: 48,

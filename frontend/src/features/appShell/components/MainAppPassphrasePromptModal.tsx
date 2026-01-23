@@ -1,5 +1,6 @@
 import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 import React from 'react';
+import type { TextInput } from 'react-native';
 import { Image, Modal, Platform, Pressable, Text, View } from 'react-native';
 
 import type { AppStyles } from '../../../../App.styles';
@@ -71,6 +72,22 @@ export function MainAppPassphrasePromptModal({
   const submitDisabled =
     processing || !passphraseInput.trim() || (requiresConfirm && !passphraseConfirmInput.trim());
 
+  const confirmRef = React.useRef<TextInput | null>(null);
+  const handlePassphraseSubmit = React.useCallback(() => {
+    if (processing) return;
+    if (requiresConfirm) {
+      confirmRef.current?.focus?.();
+      return;
+    }
+    if (!passphraseInput.trim()) return;
+    onSubmit();
+  }, [onSubmit, passphraseInput, processing, requiresConfirm]);
+
+  const handleConfirmSubmit = React.useCallback(() => {
+    if (submitDisabled) return;
+    onSubmit();
+  }, [onSubmit, submitDisabled]);
+
   const helperText =
     mode === 'setup'
       ? 'Make sure you remember your passphrase for future device recovery - we do not store it.'
@@ -121,6 +138,9 @@ export function MainAppPassphrasePromptModal({
           placeholder="Enter Passphrase"
           autoFocus
           editable={!processing}
+          returnKeyType={requiresConfirm ? 'next' : 'done'}
+          blurOnSubmit={!requiresConfirm}
+          onSubmitEditing={handlePassphraseSubmit}
         />
         <Pressable
           style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}
@@ -148,6 +168,9 @@ export function MainAppPassphrasePromptModal({
           <View style={styles.passphraseFieldWrapper}>
             <AppTextInput
               isDark={isDark}
+              ref={(r) => {
+                confirmRef.current = r;
+              }}
               style={[
                 styles.modalInput,
                 styles.passphraseInput,
@@ -164,6 +187,8 @@ export function MainAppPassphrasePromptModal({
               }}
               placeholder="Confirm Passphrase"
               editable={!processing}
+              returnKeyType="done"
+              onSubmitEditing={handleConfirmSubmit}
             />
             <Pressable
               style={[styles.passphraseEyeBtn, processing && { opacity: 0.5 }]}

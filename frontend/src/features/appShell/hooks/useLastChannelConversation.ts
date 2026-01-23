@@ -2,11 +2,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as React from 'react';
 import { Platform } from 'react-native';
 
+function getDeviceStorageKey(): string {
+  // Device-scoped fallback so we can restore immediately even before user attrs rehydrate.
+  // (Also used by guest mode in a separate screen with separate keys.)
+  return 'ui:lastChannelConversationId';
+}
+
+function getUserStorageKey(userSub: string | null | undefined): string | null {
+  const u = typeof userSub === 'string' ? userSub.trim() : '';
+  if (!u) return null;
+  return `ui:lastChannelConversationId:${u}`;
+}
+
 function readCachedLastChannelConversationIdSync(): string {
   // Web-only: localStorage is synchronous; use it to avoid flashing "Global" in the header pill.
   if (Platform.OS !== 'web') return 'global';
   try {
-    const raw = globalThis?.localStorage?.getItem?.('ui:lastChannelConversationId');
+    const raw = globalThis?.localStorage?.getItem?.(getDeviceStorageKey());
     const v = typeof raw === 'string' ? raw.trim() : '';
     if (v === 'global' || v.startsWith('ch#')) return v;
   } catch {
@@ -16,9 +28,11 @@ function readCachedLastChannelConversationIdSync(): string {
 }
 
 export function useLastChannelConversation({
+  userSub,
   conversationId,
   setConversationId,
 }: {
+  userSub?: string | null;
   conversationId: string;
   setConversationId: React.Dispatch<React.SetStateAction<string>>;
 }): {
@@ -33,9 +47,16 @@ export function useLastChannelConversation({
   // Restore last visited channel on boot (Global or ch#...).
   React.useEffect(() => {
     let mounted = true;
+    setChannelRestoreDone(false);
+    // IMPORTANT: clear immediately so we don't show a previous user's pinned channel
+    // while async storage loads for the new user (especially when currently in DM mode).
+    lastChannelConversationIdRef.current = 'global';
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem('ui:lastChannelConversationId');
+        const userKey = getUserStorageKey(userSub);
+        const raw =
+          (userKey ? await AsyncStorage.getItem(userKey) : null) ||
+          (await AsyncStorage.getItem(getDeviceStorageKey()));
         const v = typeof raw === 'string' ? raw.trim() : '';
         if (!mounted) return;
         if (v === 'global' || v.startsWith('ch#')) {
@@ -43,7 +64,7 @@ export function useLastChannelConversation({
           // Web-only: ensure the raw localStorage key exists for true first-paint sync hydration on next refresh.
           if (Platform.OS === 'web') {
             try {
-              globalThis?.localStorage?.setItem?.('ui:lastChannelConversationId', v);
+              globalThis?.localStorage?.setItem?.(getDeviceStorageKey(), v);
             } catch {
               // ignore
             }
@@ -62,7 +83,7 @@ export function useLastChannelConversation({
     return () => {
       mounted = false;
     };
-  }, [setConversationId]);
+  }, [setConversationId, userSub]);
 
   // Persist last visited channel (not DMs).
   React.useEffect(() => {
@@ -73,10 +94,16 @@ export function useLastChannelConversation({
       lastChannelConversationIdRef.current = v;
       (async () => {
         try {
-          await AsyncStorage.setItem('ui:lastChannelConversationId', v);
+          await AsyncStorage.setItem(getDeviceStorageKey(), v);
+        } catch {
+          // ignore
+        }
+        try {
+          const userKey = getUserStorageKey(userSub);
+          if (userKey) await AsyncStorage.setItem(userKey, v);
           if (Platform.OS === 'web') {
             try {
-              globalThis?.localStorage?.setItem?.('ui:lastChannelConversationId', v);
+              globalThis?.localStorage?.setItem?.(getDeviceStorageKey(), v);
             } catch {
               // ignore
             }
@@ -86,7 +113,7 @@ export function useLastChannelConversation({
         }
       })();
     }
-  }, [channelRestoreDone, conversationId]);
+  }, [channelRestoreDone, conversationId, userSub]);
 
   return { channelRestoreDone, lastChannelConversationIdRef };
 }

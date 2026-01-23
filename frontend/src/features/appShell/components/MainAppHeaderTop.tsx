@@ -240,6 +240,8 @@ export function MainAppHeaderTop({
               placeholder="Enter Names"
               baseStyle={styles.searchInput}
               darkStyle={styles.searchInputDark}
+              returnKeyType="go"
+              onSubmitEditing={() => void Promise.resolve(onStartDm())}
             />
             <Pressable
               onPress={() => void Promise.resolve(onStartDm())}

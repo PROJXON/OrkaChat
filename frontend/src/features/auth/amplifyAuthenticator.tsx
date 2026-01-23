@@ -60,6 +60,186 @@ function injectCaretColors(fields: unknown, caret: CaretColors): AmplifyFieldLik
   });
 }
 
+function getWebAuthPasswordFocusStyle(isDark: boolean): ViewStyle {
+  // Match `AppTextInput` web focus style so auth forms feel consistent.
+  return {
+    outlineStyle: 'solid',
+    outlineWidth: 0,
+    outlineColor: 'transparent',
+    boxShadow: `inset 0px 0px 0px ${isDark ? 2 : 1}px ${isDark ? PALETTE.white : PALETTE.black}`,
+  } as const;
+}
+
+function WebPasswordField({
+  isDark,
+  label,
+  placeholder,
+  value,
+  disabled,
+  hasError,
+  caret,
+  showPassword,
+  setShowPassword,
+  webMarginBottom,
+  onChangeText,
+  onSubmitEditing,
+  onBlur,
+  onFocus,
+  focused,
+  setFocused,
+}: {
+  isDark: boolean;
+  label?: string;
+  placeholder?: string;
+  value: string;
+  disabled: boolean;
+  hasError: boolean;
+  caret: CaretColors;
+  showPassword: boolean;
+  setShowPassword: React.Dispatch<React.SetStateAction<boolean>>;
+  webMarginBottom?: number;
+  onChangeText?: (t: string) => void;
+  onSubmitEditing?: () => void;
+  onBlur?: (event: unknown) => void;
+  onFocus?: (event: unknown) => void;
+  focused: boolean;
+  setFocused: (v: boolean) => void;
+}): React.JSX.Element {
+  const borderColor = hasError
+    ? isDark
+      ? APP_COLORS.dark.status.errorText
+      : APP_COLORS.light.status.errorText
+    : isDark
+      ? APP_COLORS.dark.border.default
+      : APP_COLORS.light.border.subtle;
+
+  return (
+    <View
+      style={{
+        width: '100%',
+        alignSelf: 'stretch',
+        // Match Amplify's typical vertical rhythm between fields.
+        // Use bottom margin so we don't inflate the gap *above* the password field.
+        marginBottom:
+          Platform.OS === 'web'
+            ? typeof webMarginBottom === 'number' && Number.isFinite(webMarginBottom)
+              ? webMarginBottom
+              : 10
+            : 0,
+      }}
+    >
+      {label ? (
+        <Text
+          style={{
+            color: isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.body,
+            fontWeight: '700',
+            marginBottom: 6,
+          }}
+        >
+          {label}
+        </Text>
+      ) : null}
+
+      <View
+        style={[
+          {
+            width: '100%',
+            alignSelf: 'stretch',
+            flexDirection: 'row',
+            alignItems: 'center',
+            height: Platform.OS === 'web' ? 48 : undefined,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor,
+            backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
+          },
+          focused ? getWebAuthPasswordFocusStyle(isDark) : null,
+          disabled ? ({ opacity: 0.55 } as const) : null,
+        ]}
+      >
+        <TextInput
+          value={value}
+          onChangeText={(t) => onChangeText?.(t)}
+          placeholder={placeholder}
+          placeholderTextColor={isDark ? PALETTE.slate400 : PALETTE.slate350}
+          selectionColor={caret.selectionColor}
+          cursorColor={caret.cursorColor}
+          secureTextEntry={!showPassword}
+          editable={!disabled}
+          autoCapitalize="none"
+          autoCorrect={false}
+          blurOnSubmit={false}
+          // RN-web: Enter often blurs instead of submitting. Intercept and route to submit.
+          {...(Platform.OS === 'web'
+            ? ({
+                onKeyPress: (e: unknown) => {
+                  const ev = e as {
+                    nativeEvent?: { key?: string };
+                    preventDefault?: () => void;
+                    stopPropagation?: () => void;
+                  };
+                  const key = String(ev?.nativeEvent?.key ?? '');
+                  if (key === 'Enter') {
+                    ev.preventDefault?.();
+                    ev.stopPropagation?.();
+                    onSubmitEditing?.();
+                  }
+                },
+              } as const)
+            : null)}
+          onSubmitEditing={() => onSubmitEditing?.()}
+          style={{
+            flexGrow: 1,
+            flexShrink: 1,
+            minWidth: 0,
+            paddingVertical: Platform.OS === 'web' ? 0 : 12,
+            paddingHorizontal: 12,
+            color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+            fontSize: Platform.OS === 'web' ? 16 : 16,
+            lineHeight: Platform.OS === 'web' ? 20 : undefined,
+            height: Platform.OS === 'web' ? 48 : undefined,
+            textAlignVertical: Platform.OS === 'web' ? ('center' as const) : undefined,
+            // RN-web: suppress default focus outline; the wrapper draws the focus ring.
+            // `outlineStyle: 'none'` is not in RN TextStyle typings.
+            ...(Platform.OS === 'web'
+              ? ({
+                  outlineStyle: 'solid',
+                  outlineWidth: 0,
+                  outlineColor: 'transparent',
+                } as const)
+              : null),
+          }}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          disabled={disabled}
+          onPress={() => setShowPassword((v) => !v)}
+          style={({ pressed }) => [
+            { paddingHorizontal: 12, paddingVertical: 8, opacity: pressed ? 0.8 : 1 },
+            disabled ? { opacity: 0.5 } : null,
+          ]}
+        >
+          <Image
+            source={showPassword ? icons.visibilityOn : icons.visibilityOff}
+            resizeMode="contain"
+            tintColor={isDark ? APP_COLORS.dark.text.body : APP_COLORS.light.text.muted}
+            style={{ width: 18, height: 18 }}
+          />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 // iOS workaround: multiple secureTextEntry inputs can glitch unless we insert a hidden TextInput
 // after each secure input.
 const HIDDEN_INPUT_PROPS = {
@@ -88,11 +268,25 @@ const LinkedConfirmResetPasswordFormFields = ({
   caret: CaretColors;
 }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const [focusedPasswordFieldName, setFocusedPasswordFieldName] = React.useState<string>('');
   const webFullWidth =
     Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
   const webFieldFullWidthObj =
     Platform.OS === 'web'
       ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const)
+      : null;
+  const webAuthFieldStyleObj =
+    Platform.OS === 'web'
+      ? ({
+          ...(fieldStyle || {}),
+          ...(webFieldFullWidthObj || {}),
+          height: 48,
+          fontSize: 16,
+          lineHeight: 20,
+          // On web, keep height stable and let the wrapper center the text.
+          paddingVertical: 0,
+          paddingHorizontal: 12,
+        } as const)
       : null;
 
   const validationRec =
@@ -141,24 +335,66 @@ const LinkedConfirmResetPasswordFormFields = ({
 
     return (
       <React.Fragment key={name}>
-        <FieldComp
-          {...(field as React.ComponentProps<typeof TextField>)}
-          {...(valueProp || {})}
-          disabled={isPending}
-          error={hasError}
-          // On web, Amplify's TextField doesn't always merge style arrays for the underlying <input>.
-          // Provide a single merged object to ensure full-width inputs.
-          fieldStyle={
-            Platform.OS === 'web'
-              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
-              : fieldStyle
-          }
-          style={[fieldContainerStyle, webFullWidth]}
-          selectionColor={caret.selectionColor}
-          cursorColor={caret.cursorColor}
-          secureTextEntry={isPassword ? !showPassword : undefined}
-          endAccessory={endAccessory}
-        />
+        {Platform.OS === 'web' && isPassword ? (
+          <View style={[fieldContainerStyle, webFullWidth]}>
+            <WebPasswordField
+              isDark={isDark}
+              label={typeof rec.label === 'string' ? rec.label : 'Password'}
+              placeholder={
+                typeof (field as any)?.placeholder === 'string'
+                  ? (field as any).placeholder
+                  : 'Enter your Password'
+              }
+              value={String((valueProp as any)?.value ?? '')}
+              disabled={!!isPending}
+              hasError={!!hasError}
+              caret={caret}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              webMarginBottom={
+                String(name || '')
+                  .toLowerCase()
+                  .includes('confirm')
+                  ? 6
+                  : 10
+              }
+              onSubmitEditing={() => (field as any)?.onSubmitEditing?.()}
+              onChangeText={(t) => (field as any)?.onChangeText?.(t)}
+              onFocus={(e) => {
+                setFocusedPasswordFieldName(name);
+                (field as any)?.onFocus?.(e);
+              }}
+              onBlur={(e) => {
+                if (focusedPasswordFieldName === name) setFocusedPasswordFieldName('');
+                (field as any)?.onBlur?.(e);
+              }}
+              focused={focusedPasswordFieldName === name}
+              setFocused={(v) => {
+                if (v) setFocusedPasswordFieldName(name);
+                else if (focusedPasswordFieldName === name) setFocusedPasswordFieldName('');
+              }}
+            />
+          </View>
+        ) : (
+          <FieldComp
+            {...(field as React.ComponentProps<typeof TextField>)}
+            {...(valueProp || {})}
+            disabled={isPending}
+            error={hasError}
+            // On web, Amplify's TextField doesn't always merge style arrays for the underlying <input>.
+            // Provide a single merged object to ensure full-width inputs.
+            fieldStyle={
+              Platform.OS === 'web'
+                ? (webAuthFieldStyleObj as unknown as Record<string, unknown>)
+                : fieldStyle
+            }
+            style={[fieldContainerStyle, webFullWidth]}
+            selectionColor={caret.selectionColor}
+            cursorColor={caret.cursorColor}
+            secureTextEntry={isPassword ? !showPassword : undefined}
+            endAccessory={endAccessory}
+          />
+        )}
         {Platform.OS === 'ios' && isPassword ? <TextInput {...HIDDEN_INPUT_PROPS} /> : null}
         {errors?.length ? (
           <View style={fieldErrorsContainer}>
@@ -189,12 +425,25 @@ const LinkedSignUpFormFields = ({
   validationErrors,
 }: AmplifyFormFieldsPropBag & { isDark: boolean; caret: CaretColors }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const [focusedPasswordFieldName, setFocusedPasswordFieldName] = React.useState<string>('');
   const MAX_USERNAME_LEN = 21;
   const webFullWidth =
     Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
   const webFieldFullWidthObj =
     Platform.OS === 'web'
       ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const)
+      : null;
+  const webAuthFieldStyleObj =
+    Platform.OS === 'web'
+      ? ({
+          ...(fieldStyle || {}),
+          ...(webFieldFullWidthObj || {}),
+          height: 48,
+          fontSize: 16,
+          lineHeight: 20,
+          paddingVertical: 0,
+          paddingHorizontal: 12,
+        } as const)
       : null;
 
   const validationRec =
@@ -240,28 +489,76 @@ const LinkedSignUpFormFields = ({
 
     return (
       <React.Fragment key={name}>
-        <FieldComp
-          {...(field as React.ComponentProps<typeof TextField>)}
-          {...(valueProp || {})}
-          {...(name === 'preferred_username'
-            ? {
-                // Prevent ultra-long usernames; backend enforces too.
-                maxLength: MAX_USERNAME_LEN,
+        {Platform.OS === 'web' && isPassword ? (
+          <View style={[fieldContainerStyle, webFullWidth]}>
+            <WebPasswordField
+              isDark={isDark}
+              label={typeof rec.label === 'string' ? rec.label : 'Password'}
+              placeholder={
+                typeof (field as any)?.placeholder === 'string'
+                  ? (field as any).placeholder
+                  : 'Enter your Password'
               }
-            : null)}
-          disabled={isPending}
-          error={hasError}
-          fieldStyle={
-            Platform.OS === 'web'
-              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
-              : fieldStyle
-          }
-          style={[fieldContainerStyle, webFullWidth]}
-          selectionColor={caret.selectionColor}
-          cursorColor={caret.cursorColor}
-          secureTextEntry={isPassword ? !showPassword : undefined}
-          endAccessory={endAccessory}
-        />
+              value={String((valueProp as any)?.value ?? '')}
+              disabled={!!isPending}
+              hasError={!!hasError}
+              caret={caret}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              webMarginBottom={
+                String(name || '')
+                  .toLowerCase()
+                  .includes('confirm')
+                  ? 6
+                  : 10
+              }
+              onSubmitEditing={() => (field as any)?.onSubmitEditing?.()}
+              onChangeText={(t) => (field as any)?.onChangeText?.(t)}
+              onFocus={(e) => {
+                setFocusedPasswordFieldName(name);
+                (field as any)?.onFocus?.(e);
+              }}
+              onBlur={(e) => {
+                if (focusedPasswordFieldName === name) setFocusedPasswordFieldName('');
+                (field as any)?.onBlur?.(e);
+              }}
+              focused={focusedPasswordFieldName === name}
+              setFocused={(v) => {
+                if (v) setFocusedPasswordFieldName(name);
+                else if (focusedPasswordFieldName === name) setFocusedPasswordFieldName('');
+              }}
+            />
+          </View>
+        ) : (
+          <FieldComp
+            {...(field as React.ComponentProps<typeof TextField>)}
+            {...(valueProp || {})}
+            {...(name === 'preferred_username'
+              ? {
+                  // Prevent ultra-long usernames; backend enforces too.
+                  maxLength: MAX_USERNAME_LEN,
+                }
+              : null)}
+            disabled={isPending}
+            error={hasError}
+            fieldStyle={
+              Platform.OS === 'web'
+                ? (webAuthFieldStyleObj as unknown as Record<string, unknown>)
+                : fieldStyle
+            }
+            style={[
+              fieldContainerStyle,
+              webFullWidth,
+              Platform.OS === 'web' && name === 'preferred_username'
+                ? ({ marginTop: -4 } as const)
+                : null,
+            ]}
+            selectionColor={caret.selectionColor}
+            cursorColor={caret.cursorColor}
+            secureTextEntry={isPassword ? !showPassword : undefined}
+            endAccessory={endAccessory}
+          />
+        )}
         {Platform.OS === 'ios' && isPassword ? <TextInput {...HIDDEN_INPUT_PROPS} /> : null}
         {errors?.length ? (
           <View style={fieldErrorsContainer}>
@@ -292,11 +589,24 @@ const LinkedSignInFormFields = ({
   validationErrors,
 }: AmplifyFormFieldsPropBag & { isDark: boolean; caret: CaretColors }): React.JSX.Element => {
   const [showPassword, setShowPassword] = React.useState(false);
+  const [focusedPasswordFieldName, setFocusedPasswordFieldName] = React.useState<string>('');
   const webFullWidth =
     Platform.OS === 'web' ? ({ width: '100%', alignSelf: 'stretch' } as const) : null;
   const webFieldFullWidthObj =
     Platform.OS === 'web'
       ? ({ width: '100%', alignSelf: 'stretch', flexGrow: 1, flexShrink: 1, minWidth: 0 } as const)
+      : null;
+  const webAuthFieldStyleObj =
+    Platform.OS === 'web'
+      ? ({
+          ...(fieldStyle || {}),
+          ...(webFieldFullWidthObj || {}),
+          height: 48,
+          fontSize: 16,
+          lineHeight: 20,
+          paddingVertical: 0,
+          paddingHorizontal: 12,
+        } as const)
       : null;
 
   const validationRec =
@@ -343,22 +653,58 @@ const LinkedSignInFormFields = ({
 
     return (
       <React.Fragment key={name}>
-        <FieldComp
-          {...(field as React.ComponentProps<typeof TextField>)}
-          {...(valueProp || {})}
-          disabled={isPending}
-          error={hasError}
-          fieldStyle={
-            Platform.OS === 'web'
-              ? { ...(fieldStyle || {}), ...(webFieldFullWidthObj || {}) }
-              : fieldStyle
-          }
-          style={[fieldContainerStyle, webFullWidth]}
-          selectionColor={caret.selectionColor}
-          cursorColor={caret.cursorColor}
-          secureTextEntry={isPassword ? !showPassword : undefined}
-          endAccessory={endAccessory}
-        />
+        {Platform.OS === 'web' && isPassword ? (
+          <View style={[fieldContainerStyle, webFullWidth]}>
+            <WebPasswordField
+              isDark={isDark}
+              label={typeof rec.label === 'string' ? rec.label : 'Password'}
+              placeholder={
+                typeof (field as any)?.placeholder === 'string'
+                  ? (field as any).placeholder
+                  : 'Enter your Password'
+              }
+              value={String((valueProp as any)?.value ?? '')}
+              disabled={!!isPending}
+              hasError={!!hasError}
+              caret={caret}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              webMarginBottom={10}
+              onSubmitEditing={() => (field as any)?.onSubmitEditing?.()}
+              onChangeText={(t) => (field as any)?.onChangeText?.(t)}
+              onFocus={(e) => {
+                setFocusedPasswordFieldName(name);
+                (field as any)?.onFocus?.(e);
+              }}
+              onBlur={(e) => {
+                if (focusedPasswordFieldName === name) setFocusedPasswordFieldName('');
+                (field as any)?.onBlur?.(e);
+              }}
+              focused={focusedPasswordFieldName === name}
+              setFocused={(v) => {
+                if (v) setFocusedPasswordFieldName(name);
+                else if (focusedPasswordFieldName === name) setFocusedPasswordFieldName('');
+              }}
+            />
+          </View>
+        ) : (
+          <FieldComp
+            {...(field as React.ComponentProps<typeof TextField>)}
+            {...(valueProp || {})}
+            disabled={isPending}
+            error={hasError}
+            fieldStyle={
+              Platform.OS === 'web'
+                ? (webAuthFieldStyleObj as unknown as Record<string, unknown>)
+                : fieldStyle
+            }
+            style={[fieldContainerStyle, webFullWidth]}
+            selectionColor={caret.selectionColor}
+            cursorColor={caret.cursorColor}
+            secureTextEntry={isPassword ? !showPassword : undefined}
+            endAccessory={endAccessory}
+          />
+        )}
         {Platform.OS === 'ios' && isPassword ? <TextInput {...HIDDEN_INPUT_PROPS} /> : null}
         {errors?.length ? (
           <View style={fieldErrorsContainer}>
@@ -539,7 +885,9 @@ const WebAuthContent = ({
 
   return (
     <>
-      <Header style={{ marginVertical: 10, paddingHorizontal: HPAD }}>{headerText}</Header>
+      <View style={{ marginTop: 14, marginBottom: 10, paddingHorizontal: HPAD }}>
+        <Header style={{}}>{headerText}</Header>
+      </View>
       {body ? (
         typeof body === 'string' ? (
           <Text
@@ -584,7 +932,7 @@ const WebAuthContent = ({
       ) : null}
 
       {primary ? (
-        <View style={{ paddingHorizontal: HPAD }}>
+        <View style={{ paddingHorizontal: HPAD, marginTop: 12 }}>
           <AmplifyButton {...primary} variant="primary" style={{ width: '100%' }} />
         </View>
       ) : null}
@@ -666,6 +1014,22 @@ const CustomSignIn = ({
       validationErrors,
     });
 
+  const fieldsSubmitEnhanced = React.useMemo(() => {
+    return (Array.isArray(fieldsWithHandlers) ? fieldsWithHandlers : []).map((f) => {
+      const rec: AmplifyFieldLike =
+        typeof f === 'object' && f != null ? (f as AmplifyFieldLike) : {};
+      const type = String(rec.type ?? '');
+      if (type !== 'password') return rec;
+      return {
+        ...rec,
+        returnKeyType: 'go',
+        onSubmitEditing: () => {
+          if (!disableFormSubmit) handleFormSubmit();
+        },
+      } as AmplifyFieldLike;
+    });
+  }, [disableFormSubmit, fieldsWithHandlers, handleFormSubmit]);
+
   const body =
     Platform.OS === 'web' && socialProviders && typeof toFederatedSignIn === 'function' ? (
       <FederatedProviderButtons
@@ -698,14 +1062,14 @@ const CustomSignIn = ({
     toSignUp,
   ]);
 
-  return Platform.OS === 'web' ? (
+  const content = (
     <WebAuthContent
       {...rest}
       isDark={isDark}
       body={body}
       buttons={buttons}
       error={rest?.error}
-      fields={fieldsWithHandlers}
+      fields={fieldsSubmitEnhanced}
       Footer={Footer}
       FormFields={FormFields}
       Header={Header}
@@ -713,12 +1077,26 @@ const CustomSignIn = ({
       isPending={isPending}
       validationErrors={fieldValidationErrors}
     />
+  );
+
+  return Platform.OS === 'web' ? (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!disableFormSubmit) handleFormSubmit();
+      }}
+      style={{ width: '100%' }}
+    >
+      {/* Ensure Enter submits even without a native <button type="submit"> */}
+      <button type="submit" tabIndex={-1} aria-hidden="true" style={{ display: 'none' }} />
+      {content}
+    </form>
   ) : (
     // Native: pass through the full Authenticator-provided props.
     // If we omit Header/Footer/FormFields here, Amplify's DefaultContent will crash.
     <Authenticator.SignIn
       {...rest}
-      fields={fields}
+      fields={fieldsSubmitEnhanced}
       handleBlur={handleBlur}
       handleChange={handleChange}
       handleSubmit={handleSubmit}
@@ -728,7 +1106,7 @@ const CustomSignIn = ({
       toFederatedSignIn={toFederatedSignIn}
       toForgotPassword={toForgotPassword}
       toSignUp={toSignUp}
-      validationErrors={validationErrors}
+      validationErrors={fieldValidationErrors}
       Footer={Footer}
       Header={Header}
       FormFields={FormFields}
@@ -778,6 +1156,25 @@ const CustomForgotPassword = ({
       validationErrors,
     });
 
+  const fieldsSubmitEnhanced = React.useMemo(() => {
+    const arr = Array.isArray(fieldsWithHandlers) ? fieldsWithHandlers : [];
+    if (!arr.length) return arr;
+    const last = arr[arr.length - 1];
+    const name = String((last as any)?.name ?? '');
+    return arr.map((f) => {
+      const rec: AmplifyFieldLike =
+        typeof f === 'object' && f != null ? (f as AmplifyFieldLike) : {};
+      if (!name || String(rec.name ?? '') !== name) return rec;
+      return {
+        ...rec,
+        returnKeyType: 'go',
+        onSubmitEditing: () => {
+          if (!disableFormSubmit) handleFormSubmit();
+        },
+      } as AmplifyFieldLike;
+    });
+  }, [disableFormSubmit, fieldsWithHandlers, handleFormSubmit]);
+
   const buttons = React.useMemo(
     () => ({
       primary: {
@@ -790,13 +1187,13 @@ const CustomForgotPassword = ({
     [disableFormSubmit, handleFormSubmit, primaryButtonText, secondaryButtonText, toSignIn],
   );
 
-  return Platform.OS === 'web' ? (
+  const content = (
     <WebAuthContent
       {...rest}
       isDark={isDark}
       buttons={buttons}
       error={rest?.error}
-      fields={fieldsWithHandlers}
+      fields={fieldsSubmitEnhanced}
       Footer={Footer}
       FormFields={FormFields}
       Header={Header}
@@ -804,17 +1201,31 @@ const CustomForgotPassword = ({
       isPending={isPending}
       validationErrors={fieldValidationErrors}
     />
+  );
+
+  return Platform.OS === 'web' ? (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!disableFormSubmit) handleFormSubmit();
+      }}
+      style={{ width: '100%' }}
+    >
+      {/* Ensure Enter submits even without a native <button type="submit"> */}
+      <button type="submit" tabIndex={-1} aria-hidden="true" style={{ display: 'none' }} />
+      {content}
+    </form>
   ) : (
     // Native: pass through the full Authenticator-provided props (incl. Header/Footer/FormFields).
     <Authenticator.ForgotPassword
       {...rest}
-      fields={fields}
+      fields={fieldsSubmitEnhanced}
       handleBlur={handleBlur}
       handleChange={handleChange}
       handleSubmit={handleSubmit}
       isPending={isPending}
       toSignIn={toSignIn}
-      validationErrors={validationErrors}
+      validationErrors={fieldValidationErrors}
       Footer={Footer}
       Header={Header}
       FormFields={FormFields}
@@ -901,6 +1312,8 @@ const CustomSignUp = ({
       }}
       style={{ width: '100%' }}
     >
+      {/* Ensure Enter submits even without a native <button type="submit"> */}
+      <button type="submit" tabIndex={-1} aria-hidden="true" style={{ display: 'none' }} />
       <WebAuthContent
         body={body}
         buttons={buttons}
@@ -958,9 +1371,43 @@ const ConfirmResetPasswordWithBackToSignIn = ({
   isDark: boolean;
 }): React.JSX.Element => {
   const { toSignIn } = useAuthenticator();
+  const { disableFormSubmit, fieldsWithHandlers, fieldValidationErrors, handleFormSubmit } =
+    useWebAuthFieldValues({
+      componentName: 'ConfirmResetPassword',
+      fields: Array.isArray(props.fields) ? props.fields : [],
+      handleBlur: props.handleBlur,
+      handleChange: props.handleChange,
+      handleSubmit: props.handleSubmit,
+      validationErrors: props.validationErrors,
+    });
+
+  const fieldsSubmitEnhanced = React.useMemo(() => {
+    const arr = Array.isArray(fieldsWithHandlers) ? fieldsWithHandlers : [];
+    return arr.map((f) => {
+      const rec: AmplifyFieldLike =
+        typeof f === 'object' && f != null ? (f as AmplifyFieldLike) : {};
+      const type = String(rec.type ?? '');
+      const name = String(rec.name ?? '');
+      // Only wire submit on the confirm password field.
+      if (type !== 'password') return rec;
+      if (!name.toLowerCase().includes('confirm')) return rec;
+      return {
+        ...rec,
+        returnKeyType: 'go',
+        onSubmitEditing: () => {
+          if (!disableFormSubmit) handleFormSubmit();
+        },
+      } as AmplifyFieldLike;
+    });
+  }, [disableFormSubmit, fieldsWithHandlers, handleFormSubmit]);
+
   return (
     <View>
-      <Authenticator.ConfirmResetPassword {...props} />
+      <Authenticator.ConfirmResetPassword
+        {...props}
+        fields={fieldsSubmitEnhanced}
+        validationErrors={fieldValidationErrors}
+      />
       <AmplifyButton
         onPress={() => toSignIn()}
         variant="link"
@@ -972,22 +1419,6 @@ const ConfirmResetPasswordWithBackToSignIn = ({
     </View>
   );
 };
-
-const WebForm = ({ children }: { children: React.ReactNode }): React.JSX.Element =>
-  Platform.OS === 'web' ? (
-    // Web warning fix: browsers expect password inputs inside a <form>.
-    // We prevent default submit behavior to avoid full-page reloads.
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-      }}
-      style={{ width: '100%' }}
-    >
-      {children}
-    </form>
-  ) : (
-    <>{children}</>
-  );
 
 export function useAmplifyAuthenticatorConfig(isDark: boolean): {
   amplifyTheme: React.ComponentProps<typeof ThemeProvider>['theme'];
@@ -1125,6 +1556,7 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
             borderColor: isDark ? APP_COLORS.dark.border.default : APP_COLORS.light.border.subtle,
             // Off-gray fill in light mode (avoid stark white inputs).
             backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
+            ...(Platform.OS === 'web' ? ({ height: 48 } as const) : null),
             // Let the actual input fill the container so the browser focus ring
             // matches the rounded shape (no "square inside the bubble").
             paddingHorizontal: 0,
@@ -1132,9 +1564,17 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
           },
           field: {
             color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
-            paddingVertical: 12,
+            paddingVertical: Platform.OS === 'web' ? 0 : 12,
             paddingHorizontal: 12,
             borderRadius: 12,
+            ...(Platform.OS === 'web'
+              ? ({
+                  height: 48,
+                  fontSize: 16,
+                  lineHeight: 20,
+                  textAlignVertical: 'center' as const,
+                } as const)
+              : null),
             ...(Platform.OS === 'web'
               ? ({
                   width: '100%',
@@ -1191,14 +1631,12 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
           typeof Authenticator.SignIn
         >;
         return (
-          <WebForm>
-            <CustomSignIn
-              isDark={isDark}
-              {...p}
-              fields={injectCaretColors(p.fields, caretProps)}
-              FormFields={signInFormFields}
-            />
-          </WebForm>
+          <CustomSignIn
+            isDark={isDark}
+            {...p}
+            fields={injectCaretColors(p.fields, caretProps)}
+            FormFields={signInFormFields}
+          />
         );
       },
       SignUp: (props: unknown) => {
@@ -1219,51 +1657,43 @@ export function useAmplifyAuthenticatorConfig(isDark: boolean): {
           typeof Authenticator.ForgotPassword
         >;
         return (
-          <WebForm>
-            <CustomForgotPassword
-              isDark={isDark}
-              {...p}
-              fields={injectCaretColors(p.fields, caretProps)}
-            />
-          </WebForm>
+          <CustomForgotPassword
+            isDark={isDark}
+            {...p}
+            fields={injectCaretColors(p.fields, caretProps)}
+          />
         );
       },
       ConfirmResetPassword: (props: unknown) => {
         const p =
           typeof props === 'object' && props != null ? (props as Record<string, unknown>) : {};
         return (
-          <WebForm>
-            <ConfirmResetPasswordWithBackToSignIn
-              {...(p as React.ComponentProps<typeof Authenticator.ConfirmResetPassword>)}
-              isDark={isDark}
-              fields={injectCaretColors(p.fields, caretProps)}
-              FormFields={confirmResetFormFields}
-            />
-          </WebForm>
+          <ConfirmResetPasswordWithBackToSignIn
+            {...(p as React.ComponentProps<typeof Authenticator.ConfirmResetPassword>)}
+            isDark={isDark}
+            fields={injectCaretColors(p.fields, caretProps)}
+            FormFields={confirmResetFormFields}
+          />
         );
       },
       ConfirmSignUp: (props: unknown) => {
         const p =
           typeof props === 'object' && props != null ? (props as Record<string, unknown>) : {};
         return (
-          <WebForm>
-            <Authenticator.ConfirmSignUp
-              {...(p as React.ComponentProps<typeof Authenticator.ConfirmSignUp>)}
-              fields={injectCaretColors(p.fields, caretProps)}
-            />
-          </WebForm>
+          <Authenticator.ConfirmSignUp
+            {...(p as React.ComponentProps<typeof Authenticator.ConfirmSignUp>)}
+            fields={injectCaretColors(p.fields, caretProps)}
+          />
         );
       },
       ConfirmSignIn: (props: unknown) => {
         const p =
           typeof props === 'object' && props != null ? (props as Record<string, unknown>) : {};
         return (
-          <WebForm>
-            <Authenticator.ConfirmSignIn
-              {...(p as React.ComponentProps<typeof Authenticator.ConfirmSignIn>)}
-              fields={injectCaretColors(p.fields, caretProps)}
-            />
-          </WebForm>
+          <Authenticator.ConfirmSignIn
+            {...(p as React.ComponentProps<typeof Authenticator.ConfirmSignIn>)}
+            fields={injectCaretColors(p.fields, caretProps)}
+          />
         );
       },
     }),

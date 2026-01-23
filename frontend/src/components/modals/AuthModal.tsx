@@ -201,26 +201,26 @@ export function AuthModal({
                 : null,
             ]}
           >
-            <View style={[styles.authModalTopRow, isDark && styles.authModalTopRowDark]}>
-              <View style={{ width: 44 }} />
-              <Text style={[styles.authModalTitle, isDark && styles.authModalTitleDark]}>
-                Sign in
-              </Text>
-              <Pressable
-                onPress={onClose}
-                style={({ pressed }) => [
-                  styles.authModalCloseCircle,
-                  isDark && styles.authModalCloseCircleDark,
-                  pressed && { opacity: 0.85 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Close sign in"
-              >
-                <Text style={[styles.authModalCloseX, isDark && styles.authModalCloseXDark]}>
-                  ×
-                </Text>
-              </Pressable>
-            </View>
+            {/* Close button aligned with Authenticator header row (removes dead top space). */}
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [
+                styles.authModalCloseCircle,
+                isDark && styles.authModalCloseCircleDark,
+                {
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  zIndex: 10,
+                  marginTop: 0,
+                },
+                pressed && { opacity: 0.85 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            >
+              <Text style={[styles.authModalCloseX, isDark && styles.authModalCloseXDark]}>×</Text>
+            </Pressable>
 
             <ThemeProvider theme={amplifyTheme} colorMode={isDark ? 'dark' : 'light'}>
               <ScrollView

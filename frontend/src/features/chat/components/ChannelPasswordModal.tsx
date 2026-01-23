@@ -1,5 +1,6 @@
+import { icons } from '@aws-amplify/ui-react-native/dist/assets';
 import React from 'react';
-import { Modal, Platform, Pressable, Text, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppTextInput } from '../../../components/AppTextInput';
 import {
@@ -7,7 +8,7 @@ import {
   useKeyboardOverlap,
 } from '../../../hooks/useKeyboardOverlap';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
-import { APP_COLORS } from '../../../theme/colors';
+import { APP_COLORS, PALETTE } from '../../../theme/colors';
 
 type Props = {
   visible: boolean;
@@ -31,6 +32,10 @@ export function ChannelPasswordModal({
   onCancel,
 }: Props) {
   const kb = useKeyboardOverlap({ enabled: visible });
+  const [passwordVisible, setPasswordVisible] = React.useState<boolean>(false);
+  React.useEffect(() => {
+    if (!visible) setPasswordVisible(false);
+  }, [visible]);
   const [sheetHeight, setSheetHeight] = React.useState<number>(0);
   const bottomPad = React.useMemo(
     () =>
@@ -67,29 +72,51 @@ export function ChannelPasswordModal({
           }}
         >
           <Text style={[styles.summaryTitle, isDark ? styles.summaryTitleDark : null]}>
-            Channel Password
+            Set Channel Password
           </Text>
-          <AppTextInput
-            isDark={isDark}
-            value={draft}
-            onChangeText={onChangeDraft}
-            placeholder="Password"
-            secureTextEntry
-            style={{
-              width: '100%',
-              height: 48,
-              paddingHorizontal: 12,
-              borderWidth: 1,
-              borderRadius: 10,
-              marginTop: 10,
-              backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
-              borderColor: isDark ? APP_COLORS.dark.border.default : APP_COLORS.light.border.subtle,
-              color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
-              fontSize: 16,
-            }}
-            editable
-            autoFocus
-          />
+          <View style={{ width: '100%', marginTop: 10 }}>
+            <AppTextInput
+              isDark={isDark}
+              value={draft}
+              onChangeText={onChangeDraft}
+              placeholder="Password"
+              secureTextEntry={!passwordVisible}
+              returnKeyType="done"
+              onSubmitEditing={() => void Promise.resolve(onSave())}
+              style={{
+                width: '100%',
+                height: 48,
+                paddingHorizontal: 12,
+                paddingRight: 44, // space for the eye button
+                borderWidth: 1,
+                borderRadius: 10,
+                backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.surface2,
+                borderColor: isDark
+                  ? APP_COLORS.dark.border.default
+                  : APP_COLORS.light.border.subtle,
+                color: isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary,
+                fontSize: 16,
+              }}
+              editable
+              autoFocus
+            />
+            <Pressable
+              style={({ pressed }) => [
+                s.eyeBtn,
+                busy ? { opacity: 0.45 } : pressed ? { opacity: 0.85 } : null,
+              ]}
+              onPress={() => setPasswordVisible((v) => !v)}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+            >
+              <Image
+                source={passwordVisible ? icons.visibilityOn : icons.visibilityOff}
+                tintColor={isDark ? PALETTE.slate400 : PALETTE.slate450}
+                style={{ width: 18, height: 18 }}
+              />
+            </Pressable>
+          </View>
           <View style={styles.summaryButtons}>
             <Pressable
               style={[
@@ -123,3 +150,15 @@ export function ChannelPasswordModal({
     </Modal>
   );
 }
+
+const s = StyleSheet.create({
+  eyeBtn: {
+    position: 'absolute',
+    right: 10,
+    top: 0,
+    height: 48,
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

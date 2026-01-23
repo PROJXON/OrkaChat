@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
+import type { GestureResponderEvent } from 'react-native';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useUiPromptOptional } from '../../providers/UiPromptProvider';
@@ -77,6 +78,7 @@ export function MediaStackCarousel({
   loadingDotsColor,
   onImageAspect,
   onOpen,
+  onLongPress,
   imageResizeMode = 'contain',
 }: {
   messageId: string;
@@ -130,6 +132,11 @@ export function MediaStackCarousel({
   onImageAspect?: (keyPath: string, aspect: number) => void;
   onOpen: (idx: number, media: MediaItem) => void;
   /**
+   * Optional long-press handler for the active page (used by chat to open message actions).
+   * Should not interfere with horizontal swiping.
+   */
+  onLongPress?: (e: GestureResponderEvent) => void;
+  /**
    * Resize mode for image thumbnails. Chat usually wants `cover` to avoid letterboxing bars.
    */
   imageResizeMode?: 'contain' | 'cover';
@@ -158,6 +165,7 @@ export function MediaStackCarousel({
   const [localAspectByKey, setLocalAspectByKey] = React.useState<Record<string, number>>({});
   const containerAspect = pageW > 0 && pageH > 0 ? pageW / pageH : 1;
   const ui = useUiPromptOptional();
+  const swallowNextOpenRef = React.useRef<boolean>(false);
 
   const snapToNearest = React.useCallback(
     (x: number) => {
@@ -441,7 +449,13 @@ export function MediaStackCarousel({
             loadingTextColor ??
             (isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary);
           const loadingDots = loadingDotsColor ?? loadingText;
-          const onPress = () => onOpen(realIndex, mediaList[realIndex]);
+          const onPress = () => {
+            if (swallowNextOpenRef.current) {
+              swallowNextOpenRef.current = false;
+              return;
+            }
+            onOpen(realIndex, mediaList[realIndex]);
+          };
           const isNarrow = pageW <= 320;
 
           const isAudio = ct.startsWith('audio/');
@@ -455,59 +469,81 @@ export function MediaStackCarousel({
             const positionMs = audioSlide.currentKey === key ? audioSlide.positionMs : 0;
             const isPlaying = audioSlide.currentKey === key && audioSlide.isPlaying;
             const isLoading = audioSlide.loadingKey === key;
-            const maxContentW = Math.min(420, Math.max(0, pageW - 24));
+            // Ensure there's always a meaningful swipe zone outside the audio tile.
+            // (If the tile consumes most of the slide, users accidentally start swipes on the slider and paging "sticks".)
+            const sideGutter = pageW <= 360 ? 18 : 26;
+            const maxContentW = Math.min(420, Math.max(0, pageW - sideGutter * 2 - 24));
             const tileIsOutgoing = false; // Carousel slides are neutral surfaces; keep controls high-contrast.
             const downloadUrl = String(uriByPath[String(original.path)] || '').trim();
             const isNarrow = pageW <= 320;
             return (
-              <View
+              <Pressable
                 key={`page:${messageId}:${thumbKey}:${idx2}`}
-                style={{
-                  width: pageW,
-                  height: pageH,
-                  justifyContent: 'center',
-                  alignItems: 'center',
+                onLongPress={(e) => {
+                  if (!onLongPress) return;
+                  onLongPress(e);
                 }}
+                style={{ width: pageW, height: pageH }}
                 accessibilityRole="summary"
+                {...(Platform.OS === 'web'
+                  ? ({
+                      onContextMenu: (e: unknown) => {
+                        if (!onLongPress) return;
+                        const ev = e as {
+                          preventDefault?: () => void;
+                          stopPropagation?: () => void;
+                        };
+                        ev.preventDefault?.();
+                        ev.stopPropagation?.();
+                      },
+                    } as const)
+                  : {})}
               >
-                <View style={{ width: '100%', maxWidth: maxContentW, paddingHorizontal: 12 }}>
-                  <AudioAttachmentTile
-                    isDark={isDark}
-                    isOutgoing={tileIsOutgoing}
-                    minWidth={0}
-                    layout={isNarrow ? 'narrow' : 'default'}
-                    onDownload={
-                      downloadUrl
-                        ? () =>
-                            saveMediaUrlToDevice({
-                              url: downloadUrl,
-                              kind: 'file',
-                              fileName: original.fileName,
-                              onSuccess:
-                                Platform.OS === 'web'
-                                  ? undefined
-                                  : () => onToast?.('Media saved', 'success'),
-                              onError:
-                                Platform.OS === 'web'
-                                  ? undefined
-                                  : (m) => onToast?.(String(m || 'Download failed'), 'error'),
-                            })
-                        : undefined
-                    }
-                    state={{
-                      key,
-                      title: audioSlide.getTitle(original),
-                      subtitle: undefined,
-                      isPlaying,
-                      isLoading,
-                      positionMs,
-                      durationMs,
-                      onToggle: () => audioSlide.onToggle(key, realIndex, original),
-                      onSeek: (nextMs) => audioSlide.onSeek(key, nextMs),
-                    }}
-                  />
+                {/* Dedicated swipe gutters on left/right; swipes starting here should page reliably. */}
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: sideGutter, height: '100%' }} />
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: '100%', maxWidth: maxContentW, paddingHorizontal: 12 }}>
+                      <AudioAttachmentTile
+                        isDark={isDark}
+                        isOutgoing={tileIsOutgoing}
+                        minWidth={0}
+                        layout={isNarrow ? 'narrow' : 'default'}
+                        onDownload={
+                          downloadUrl
+                            ? () =>
+                                saveMediaUrlToDevice({
+                                  url: downloadUrl,
+                                  kind: 'file',
+                                  fileName: original.fileName,
+                                  onSuccess:
+                                    Platform.OS === 'web'
+                                      ? undefined
+                                      : () => onToast?.('Media saved', 'success'),
+                                  onError:
+                                    Platform.OS === 'web'
+                                      ? undefined
+                                      : (m) => onToast?.(String(m || 'Download failed'), 'error'),
+                                })
+                            : undefined
+                        }
+                        state={{
+                          key,
+                          title: audioSlide.getTitle(original),
+                          subtitle: undefined,
+                          isPlaying,
+                          isLoading,
+                          positionMs,
+                          durationMs,
+                          onToggle: () => audioSlide.onToggle(key, realIndex, original),
+                          onSeek: (nextMs) => audioSlide.onSeek(key, nextMs),
+                        }}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ width: sideGutter, height: '100%' }} />
                 </View>
-              </View>
+              </Pressable>
             );
           }
 
@@ -515,9 +551,24 @@ export function MediaStackCarousel({
             <Pressable
               key={`page:${messageId}:${thumbKey}:${idx2}`}
               onPress={onPress}
+              onLongPress={(e) => {
+                if (!onLongPress) return;
+                swallowNextOpenRef.current = true;
+                onLongPress(e);
+              }}
               style={{ width: pageW, height: pageH }}
               accessibilityRole="button"
               accessibilityLabel="Open Attachment"
+              {...(Platform.OS === 'web'
+                ? ({
+                    onContextMenu: (e: unknown) => {
+                      if (!onLongPress) return;
+                      const ev = e as { preventDefault?: () => void; stopPropagation?: () => void };
+                      ev.preventDefault?.();
+                      ev.stopPropagation?.();
+                    },
+                  } as const)
+                : {})}
             >
               {thumbUri && (looksImage || looksVideo) ? (
                 looksImage ? (

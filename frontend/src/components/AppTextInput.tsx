@@ -92,6 +92,9 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(funct
     style,
     onFocus,
     onBlur,
+    onKeyPress,
+    onSubmitEditing,
+    multiline,
     ...props
   },
   ref,
@@ -134,6 +137,29 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(funct
         focused ? focusStyle : null,
         style,
       ]}
+      multiline={multiline}
+      onSubmitEditing={onSubmitEditing}
+      // RN-web: Enter can blur instead of submitting. Intercept and route to submit.
+      {...(Platform.OS === 'web' && typeof onSubmitEditing === 'function' && !multiline
+        ? ({
+            onKeyPress: (e: unknown) => {
+              onKeyPress?.(e as any);
+              const ev = e as {
+                nativeEvent?: { key?: string; shiftKey?: boolean };
+                preventDefault?: () => void;
+                stopPropagation?: () => void;
+              };
+              const key = String(ev?.nativeEvent?.key ?? '');
+              const shift = !!ev?.nativeEvent?.shiftKey;
+              if (key === 'Enter' && !shift) {
+                ev.preventDefault?.();
+                ev.stopPropagation?.();
+                // Most callers don't use the event object; keep it simple.
+                (onSubmitEditing as unknown as () => void)?.();
+              }
+            },
+          } as const)
+        : ({ onKeyPress } as const))}
       {...props}
     />
   );

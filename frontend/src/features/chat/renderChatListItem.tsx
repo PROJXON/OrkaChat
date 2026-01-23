@@ -294,6 +294,20 @@ export function renderChatListItem(args: {
 
   // NOTE: This file is a render helper, not a React component, so we MUST NOT use hooks here.
 
+  const handleOpenMessageActionsFromEvent = (e: unknown) => {
+    if (!e || typeof e !== 'object') {
+      openMessageActions(item, { x: 0, y: 0 });
+      return;
+    }
+    const ne = (e as Record<string, unknown>).nativeEvent;
+    const neRec = ne && typeof ne === 'object' ? (ne as Record<string, unknown>) : {};
+    const xRaw = Platform.OS === 'web' ? (neRec.clientX ?? neRec.pageX ?? 0) : (neRec.pageX ?? 0);
+    const yRaw = Platform.OS === 'web' ? (neRec.clientY ?? neRec.pageY ?? 0) : (neRec.pageY ?? 0);
+    const x = Number(xRaw) || 0;
+    const y = Number(yRaw) || 0;
+    openMessageActions(item, { x, y });
+  };
+
   const openFileAtOriginalIdx = (originalIdx: number) => {
     if (isDm) return void openDmMediaViewer(item, originalIdx);
     if (isGroup) return void openGroupMediaViewer(item, originalIdx);
@@ -390,6 +404,7 @@ export function renderChatListItem(args: {
           else if (isGroup) void openGroupMediaViewer(item, originalIdx);
           else openViewer(mediaList, originalIdx);
         }}
+        onLongPress={(e) => handleOpenMessageActionsFromEvent(e)}
       />
     ) : null;
 
@@ -455,6 +470,7 @@ export function renderChatListItem(args: {
               isDark={isDark}
               isOutgoing={isOutgoing}
               onPress={() => openFileAtOriginalIdx(idx2)}
+              onLongPress={(e) => handleOpenMessageActionsFromEvent(e)}
               onDownload={
                 !isEncryptedChat && mediaUrlByPath[String(m2.path)]
                   ? () =>
@@ -525,21 +541,7 @@ export function renderChatListItem(args: {
       openGroupMediaViewer={openGroupMediaViewer}
       requestOpenLink={requestOpenLink}
       onPressMessage={onPressMessage}
-      onLongPressMessage={(e: unknown) => {
-        if (!e || typeof e !== 'object') {
-          openMessageActions(item, { x: 0, y: 0 });
-          return;
-        }
-        const ne = (e as Record<string, unknown>).nativeEvent;
-        const neRec = ne && typeof ne === 'object' ? (ne as Record<string, unknown>) : {};
-        const xRaw =
-          Platform.OS === 'web' ? (neRec.clientX ?? neRec.pageX ?? 0) : (neRec.pageX ?? 0);
-        const yRaw =
-          Platform.OS === 'web' ? (neRec.clientY ?? neRec.pageY ?? 0) : (neRec.pageY ?? 0);
-        const x = Number(xRaw) || 0;
-        const y = Number(yRaw) || 0;
-        openMessageActions(item, { x, y });
-      }}
+      onLongPressMessage={(e: unknown) => handleOpenMessageActionsFromEvent(e)}
       selectionActive={selectionActive}
       isSelected={selectedIdSet.has(String(item.id))}
       onToggleSelected={() => toggleSelectedMessageId(String(item.id))}

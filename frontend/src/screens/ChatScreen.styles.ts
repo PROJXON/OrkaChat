@@ -1248,6 +1248,9 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 0,
+    // Ensure reaction chips render above adjacent rows/messages.
+    zIndex: 10,
+    elevation: 10,
   },
   // Always anchor reaction chips to the right edge (incoming + outgoing),
   // so they line up consistently with the sender-side layout.
@@ -1274,8 +1277,9 @@ export const styles = StyleSheet.create({
   },
   reactionMiniChip: {
     borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    // Keep emoji/text size the same, but tighten the chip chrome.
+    paddingHorizontal: 2,
+    paddingVertical: 2,
     backgroundColor: APP_COLORS.light.bg.surface2,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: APP_COLORS.light.border.subtle,

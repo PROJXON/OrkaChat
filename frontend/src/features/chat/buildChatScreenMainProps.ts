@@ -108,9 +108,11 @@ export function buildChatScreenMainProps(deps: {
   selectionActive: SelectionProps['active'];
   selectionCount: SelectionProps['count'];
   selectionCanCopy: SelectionProps['canCopy'];
+  selectionCanDeleteForEveryone: SelectionProps['canDeleteForEveryone'];
   selectionOnCancel: SelectionProps['onCancel'];
   selectionOnCopy: SelectionProps['onCopy'];
   selectionOnDelete: SelectionProps['onDelete'];
+  selectionOnDeleteForEveryone: SelectionProps['onDeleteForEveryone'];
 }): MainProps {
   return {
     styles: deps.styles,
@@ -213,9 +215,11 @@ export function buildChatScreenMainProps(deps: {
       active: deps.selectionActive,
       count: deps.selectionCount,
       canCopy: deps.selectionCanCopy,
+      canDeleteForEveryone: deps.selectionCanDeleteForEveryone,
       onCancel: deps.selectionOnCancel,
       onCopy: deps.selectionOnCopy,
       onDelete: deps.selectionOnDelete,
+      onDeleteForEveryone: deps.selectionOnDeleteForEveryone,
     },
   };
 }

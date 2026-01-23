@@ -613,6 +613,30 @@ export default function ChatScreen({
   );
   const isEncryptedChat = isDm || isGroup;
 
+  // If we restore into a conversation we can no longer access (banned/kicked/unauthorized),
+  // default back to Global without prompting.
+  // - For live kicks, WS already emits {type:'kicked'} which routes through onKickedFromConversation.
+  // - For boot-time restore, the HTTP history fetch often provides the first clear 401/403 signal.
+  const lastAccessDeniedConvRef = React.useRef<string>('');
+  React.useEffect(() => {
+    const cid = String(activeConversationId || '').trim() || 'global';
+    if (!(cid.startsWith('ch#') || cid.startsWith('gdm#'))) return;
+    const msg = String(error || '').trim();
+    if (!msg) return;
+    const m = msg.toLowerCase();
+    const looksLikeDenied =
+      (m.includes('history fetch failed') && (m.includes('(403)') || m.includes('(401)'))) ||
+      (/\bhistory fetch failed\b/.test(m) && (/\b403\b/.test(m) || /\b401\b/.test(m)));
+    if (!looksLikeDenied) return;
+    if (lastAccessDeniedConvRef.current === cid) return;
+    lastAccessDeniedConvRef.current = cid;
+    try {
+      onKickedFromConversationRef.current?.(cid);
+    } catch {
+      // ignore
+    }
+  }, [activeConversationId, error]);
+
   const groupMembersCountLabel = React.useMemo(() => {
     if (!isGroup) return '-';
     // Until roster hydrates, avoid flashing "0" (group always has at least 1 member once loaded).
@@ -1575,7 +1599,7 @@ export default function ChatScreen({
     if (!selectedMessages.length) return;
     const ok = await uiConfirm(
       'Delete Selected Messages?',
-      'This will only delete the messages for you.',
+      'This will only delete the messages for you',
       {
         confirmText: 'Delete',
         cancelText: 'Cancel',
@@ -1595,6 +1619,93 @@ export default function ChatScreen({
     }
     exitSelectionMode();
   }, [deleteForMe, exitSelectionMode, selectedMessages, selectionActive, uiConfirm]);
+
+  const selectionCanDeleteForEveryone = React.useMemo(() => {
+    if (!selectionActive) return false;
+    if (!selectedMessages.length) return false;
+    return selectedMessages.every((m) => {
+      if (!m || m.deletedAt) return false;
+      const isOutgoingByUserSub =
+        !!myUserId && !!m.userSub && String(m.userSub) === String(myUserId);
+      const isEncryptedOutgoing =
+        !!m.encrypted && !!myPublicKey && m.encrypted.senderPublicKey === myPublicKey;
+      const isPlainOutgoing =
+        !m.encrypted &&
+        (isOutgoingByUserSub
+          ? true
+          : normalizeUser(m.userLower ?? m.user ?? 'anon') === normalizeUser(displayName));
+      return isOutgoingByUserSub || isEncryptedOutgoing || isPlainOutgoing;
+    });
+  }, [displayName, myPublicKey, myUserId, selectedMessages, selectionActive]);
+
+  const deleteSelectedMessagesForEveryone = React.useCallback(async () => {
+    if (!selectionActive) return;
+    if (!selectedMessages.length) return;
+    if (!selectionCanDeleteForEveryone) return;
+
+    const ok = await uiConfirm(
+      'Delete Selected Messages?',
+      'This will delete the messages for everyone',
+      {
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        destructive: true,
+      },
+    );
+    if (!ok) return;
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      setError('Not connected');
+      return;
+    }
+
+    const now = Date.now();
+    const idsToDelete = new Set(selectedMessages.map((m) => String(m.id)));
+
+    // Optimistic local update (single pass).
+    setMessages((prev) =>
+      prev.map((m) =>
+        idsToDelete.has(String(m.id))
+          ? {
+              ...m,
+              deletedAt: now,
+              rawText: '',
+              text: '',
+              encrypted: undefined,
+              decryptedText: undefined,
+            }
+          : m,
+      ),
+    );
+
+    // Best-effort server deletes (ignore per-message failures).
+    for (const m of selectedMessages) {
+      try {
+        if (m.deletedAt) continue;
+        wsRef.current.send(
+          JSON.stringify({
+            action: 'delete',
+            conversationId: activeConversationId,
+            messageCreatedAt: m.createdAt,
+            createdAt: Date.now(),
+          }),
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    exitSelectionMode();
+  }, [
+    activeConversationId,
+    exitSelectionMode,
+    selectedMessages,
+    selectionActive,
+    selectionCanDeleteForEveryone,
+    setError,
+    setMessages,
+    uiConfirm,
+  ]);
   const sendDelete = messageOps.sendDeleteForEveryone;
   const sendReaction = messageOps.sendReaction;
   const openReactionPicker = messageOps.openReactionPicker;
@@ -1824,9 +1935,11 @@ export default function ChatScreen({
     selectionActive,
     selectionCount: selectedMessageIds.length,
     selectionCanCopy: !!selectedCopyText,
+    selectionCanDeleteForEveryone,
     selectionOnCancel: exitSelectionMode,
     selectionOnCopy: () => void copySelectedMessages(),
     selectionOnDelete: () => void deleteSelectedMessagesForMe(),
+    selectionOnDeleteForEveryone: () => void deleteSelectedMessagesForEveryone(),
   });
 
   const overlaysProps = buildChatScreenOverlaysProps({

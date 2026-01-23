@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 import type { Pressable } from 'react-native';
 import { ActivityIndicator, Platform, useWindowDimensions, View } from 'react-native';
@@ -43,6 +44,36 @@ import { GLOBAL_ABOUT_VERSION } from '../utils/globalAbout';
 import { openExternalFile } from '../utils/openExternalFile';
 import { guestReactionInfoModalStyles, styles } from './GuestGlobalScreen.styles';
 
+const GUEST_LAST_CHANNEL_CONVERSATION_ID_KEY = 'ui:guest:lastChannelConversationId';
+const GUEST_LAST_CHANNEL_TITLE_KEY = 'ui:guest:lastChannelTitle';
+
+function isValidGuestChannelConversationId(v: string): boolean {
+  const s = String(v || '').trim();
+  if (!s) return false;
+  if (s === 'global') return true;
+  return s.startsWith('ch#');
+}
+
+function readCachedGuestLastChannelSync(): { conversationId: string; title: string } {
+  // Web-only: localStorage is synchronous; use it to avoid flashing Global on refresh.
+  if (Platform.OS !== 'web') return { conversationId: 'global', title: 'Global' };
+  try {
+    const rawId = globalThis?.localStorage?.getItem?.(GUEST_LAST_CHANNEL_CONVERSATION_ID_KEY);
+    const rawTitle = globalThis?.localStorage?.getItem?.(GUEST_LAST_CHANNEL_TITLE_KEY);
+    const conversationId = typeof rawId === 'string' ? rawId.trim() : '';
+    const title = typeof rawTitle === 'string' ? rawTitle.trim() : '';
+    if (isValidGuestChannelConversationId(conversationId)) {
+      return {
+        conversationId,
+        title: title || (conversationId === 'global' ? 'Global' : 'Channel'),
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return { conversationId: 'global', title: 'Global' };
+}
+
 export default function GuestGlobalScreen({
   onSignIn,
 }: {
@@ -69,8 +100,14 @@ export default function GuestGlobalScreen({
 
   // (Global About auto-popup + persist dismiss handled by shared hook)
 
-  const [activeConversationId, setActiveConversationId] = React.useState<string>('global');
-  const [activeChannelTitle, setActiveChannelTitle] = React.useState<string>('Global');
+  const cachedGuestNav = React.useMemo(() => readCachedGuestLastChannelSync(), []);
+  const [activeConversationId, setActiveConversationId] = React.useState<string>(
+    () => cachedGuestNav.conversationId,
+  );
+  const [activeChannelTitle, setActiveChannelTitle] = React.useState<string>(
+    () => cachedGuestNav.title,
+  );
+  const [guestNavRestoreDone, setGuestNavRestoreDone] = React.useState<boolean>(false);
   const [channelPickerOpen, setChannelPickerOpen] = React.useState<boolean>(false);
   const [channelQuery, setChannelQuery] = React.useState<string>('');
   const {
@@ -86,6 +123,37 @@ export default function GuestGlobalScreen({
   });
   const { showAlert } = useUiPromptHelpers();
 
+  // Restore guest last channel (device-scoped) so guests reopen where they left off.
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [rawId, rawTitle] = await Promise.all([
+          AsyncStorage.getItem(GUEST_LAST_CHANNEL_CONVERSATION_ID_KEY),
+          AsyncStorage.getItem(GUEST_LAST_CHANNEL_TITLE_KEY),
+        ]);
+        if (!mounted) return;
+        const v = typeof rawId === 'string' ? rawId.trim() : '';
+        const t = typeof rawTitle === 'string' ? rawTitle.trim() : '';
+        if (!isValidGuestChannelConversationId(v)) return;
+        setActiveConversationId(v);
+        // Best-effort: set title immediately; we'll overwrite from channelMeta when it loads.
+        setActiveChannelTitle((prev) => {
+          if (v === 'global') return 'Global';
+          const next = t || prev;
+          return next && next !== 'Global' ? next : 'Channel';
+        });
+      } catch {
+        // ignore
+      } finally {
+        if (mounted) setGuestNavRestoreDone(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // Web-only: since we render a non-inverted list (and reverse data), explicitly start at the bottom.
 
   const {
@@ -100,6 +168,74 @@ export default function GuestGlobalScreen({
     loadOlderHistory,
     fetchNow,
   } = useGuestChannelHistory({ activeConversationId, pollIntervalMs: 60_000 });
+
+  // If the restored channel is now locked/private, silently fall back to Global.
+  const lastGuestLockFallbackRef = React.useRef<string>('');
+  React.useEffect(() => {
+    const cid = String(activeConversationId || '').trim();
+    if (!cid.startsWith('ch#')) return;
+    const msg = String(error || '').toLowerCase();
+    if (!msg) return;
+    const looksLikeForbidden =
+      /\(403\)/.test(msg) ||
+      /\b403\b/.test(msg) ||
+      msg.includes('forbidden') ||
+      msg.includes('not authorized');
+    const looksLikeUnauthorized =
+      /\(401\)/.test(msg) || /\b401\b/.test(msg) || msg.includes('unauthorized');
+    if (!(looksLikeForbidden || looksLikeUnauthorized)) return;
+    if (lastGuestLockFallbackRef.current === cid) return;
+    lastGuestLockFallbackRef.current = cid;
+    setActiveConversationId('global');
+    setActiveChannelTitle('Global');
+  }, [activeConversationId, error]);
+
+  // Keep title in sync with the channel meta (important for restored channels).
+  React.useEffect(() => {
+    const cid = String(activeConversationId || '').trim();
+    if (cid === 'global') {
+      setActiveChannelTitle('Global');
+      return;
+    }
+    if (!cid.startsWith('ch#')) return;
+    const metaName =
+      activeChannelMeta && typeof activeChannelMeta.name === 'string'
+        ? String(activeChannelMeta.name).trim()
+        : '';
+    if (metaName) setActiveChannelTitle(metaName);
+  }, [activeChannelMeta, activeConversationId]);
+
+  // Persist guest last channel (best-effort; device-scoped only).
+  React.useEffect(() => {
+    if (!guestNavRestoreDone) return;
+    const cid = String(activeConversationId || '').trim();
+    if (!isValidGuestChannelConversationId(cid)) return;
+    const title =
+      cid === 'global'
+        ? 'Global'
+        : String(
+            (activeChannelMeta && typeof activeChannelMeta.name === 'string'
+              ? activeChannelMeta.name
+              : activeChannelTitle) || 'Channel',
+          ).trim() || 'Channel';
+
+    (async () => {
+      try {
+        await AsyncStorage.setItem(GUEST_LAST_CHANNEL_CONVERSATION_ID_KEY, cid);
+        await AsyncStorage.setItem(GUEST_LAST_CHANNEL_TITLE_KEY, title);
+      } catch {
+        // ignore
+      }
+      if (Platform.OS === 'web') {
+        try {
+          globalThis?.localStorage?.setItem?.(GUEST_LAST_CHANNEL_CONVERSATION_ID_KEY, cid);
+          globalThis?.localStorage?.setItem?.(GUEST_LAST_CHANNEL_TITLE_KEY, title);
+        } catch {
+          // ignore
+        }
+      }
+    })();
+  }, [activeChannelMeta, activeChannelTitle, activeConversationId, guestNavRestoreDone]);
   const cdn = useCdnUrlCache(CDN_URL);
   const { resolvePathUrl } = useResolveCdnPathUrl(cdn);
   // How quickly we’ll re-check guest profile avatars for updates (tradeoff: freshness vs API calls).
