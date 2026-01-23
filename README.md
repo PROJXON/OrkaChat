@@ -32,6 +32,7 @@ Legacy redirects:
 - **In‑app camera capture** for attaching media
 - **Encrypted media in DMs / group DMs (E2EE media)**
 - **File attachments + native file viewer** (PDF, Office docs, archives, audio, etc.)
+- **Voice clips** + **inline audio player**
 
 ### Safety & Moderation
 - **Block users**

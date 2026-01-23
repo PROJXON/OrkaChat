@@ -3,7 +3,12 @@ import * as React from 'react';
 import type { EncryptedChatPayloadV1 } from '../../types/crypto';
 import type { ReactionMap } from '../../types/reactions';
 import { buildFallbackChatMessageFromWsEventData, handleChatWsMessage } from './handleWsMessage';
-import type { ChatMessage, DmMediaEnvelope, EncryptedGroupPayloadV1, GroupMediaEnvelope } from './types';
+import type {
+  ChatMessage,
+  DmMediaEnvelope,
+  EncryptedGroupPayloadV1,
+  GroupMediaEnvelope,
+} from './types';
 
 export function useChatWsMessageHandler(opts: {
   activeConversationIdRef: React.MutableRefObject<string>;

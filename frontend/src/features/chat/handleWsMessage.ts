@@ -6,7 +6,12 @@ import { applyGroupMembershipSystemEventToMe } from './applyMembershipToMe';
 import { buildIncomingChatMessageFromWsPayload } from './buildIncomingMessage';
 import { buildSystemChatMessageFromPayload } from './buildSystemMessage';
 import { isMembershipSystemKind } from './membershipKinds';
-import type { ChatMessage, DmMediaEnvelope, EncryptedGroupPayloadV1, GroupMediaEnvelope } from './types';
+import type {
+  ChatMessage,
+  DmMediaEnvelope,
+  EncryptedGroupPayloadV1,
+  GroupMediaEnvelope,
+} from './types';
 
 type Ref<T> = { current: T };
 type SetState<T> = (updater: (prev: T) => T) => void;
