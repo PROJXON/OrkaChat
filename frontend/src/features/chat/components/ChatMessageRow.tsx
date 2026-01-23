@@ -164,7 +164,11 @@ export function ChatMessageRow(props: {
       : undefined;
   const replyToLabel = (() => {
     const sub = item.replyToUserSub ? String(item.replyToUserSub) : '';
-    if (sub && myUserId && String(myUserId) === sub) return 'You';
+    const replyingToMe =
+      !!sub && !!myUserId && String(myUserId) === sub
+        ? true
+        : !!replyOrigin?.userSub && !!myUserId && String(myUserId) === String(replyOrigin.userSub);
+    if (replyingToMe) return isOutgoing ? 'yourself' : 'You';
     const fromOrigin = replyOrigin?.user ? String(replyOrigin.user) : '';
     if (fromOrigin) return fromOrigin;
     if (sub) {

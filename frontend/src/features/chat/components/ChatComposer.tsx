@@ -38,6 +38,7 @@ function formatMmSs(ms: number | null | undefined): string {
 export function ChatComposer(props: {
   styles: ChatScreenStyles;
   isDark: boolean;
+  myUserId: string | null;
   isDm: boolean;
   isGroup: boolean;
   isEncryptedChat: boolean;
@@ -97,6 +98,7 @@ export function ChatComposer(props: {
   const {
     styles,
     isDark,
+    myUserId,
     isDm,
     isGroup,
     isEncryptedChat,
@@ -135,15 +137,21 @@ export function ChatComposer(props: {
 
   const replyToLabel = React.useMemo(() => {
     if (!replyTarget) return '';
+    const sub = typeof replyTarget.userSub === 'string' ? replyTarget.userSub.trim() : '';
+    const origin = messages.find((m) => m && m.id === replyTarget.id);
+    const originSub = origin?.userSub ? String(origin.userSub) : '';
+    const replyingToMe =
+      !!myUserId && (!!sub || !!originSub)
+        ? String(myUserId) === sub || String(myUserId) === originSub
+        : false;
+    if (replyingToMe) return 'yourself';
     const direct = typeof replyTarget.user === 'string' ? replyTarget.user.trim() : '';
     if (direct) return direct;
-    const origin = messages.find((m) => m && m.id === replyTarget.id);
     const fromOrigin = typeof origin?.user === 'string' ? origin.user.trim() : '';
     if (fromOrigin) return fromOrigin;
-    const sub = typeof replyTarget.userSub === 'string' ? replyTarget.userSub.trim() : '';
     if (sub) return `User ${sub.slice(0, 6)}`;
     return 'Unknown user';
-  }, [messages, replyTarget]);
+  }, [messages, myUserId, replyTarget]);
 
   const replyFileMeta = React.useMemo(() => {
     if (!replyTarget) return null;
