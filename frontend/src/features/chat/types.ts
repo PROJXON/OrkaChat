@@ -49,12 +49,17 @@ export type ChatMessage = {
   editedAt?: number; // epoch ms
   deletedAt?: number; // epoch ms
   deletedBySub?: string;
-  // Channels (plaintext) metadata
+  // Reply metadata (channels: plaintext payload; DMs/GDMs: extracted from decrypted envelope)
   mentions?: string[];
   replyToCreatedAt?: number;
   replyToMessageId?: string;
   replyToUserSub?: string;
   replyToPreview?: string;
+  // Optional extra metadata to render better reply previews (especially in encrypted chats)
+  replyToMediaKind?: MediaKind;
+  replyToMediaCount?: number;
+  replyToMediaContentType?: string;
+  replyToMediaFileName?: string;
   reactions?: ReactionMap;
   // Backward-compat: historically we supported only a single attachment per message.
   // New messages can include multiple attachments; use `mediaList` when present.
@@ -69,6 +74,15 @@ export type DmMediaEnvelopeV1 = {
   type: 'dm_media_v1';
   v: 1;
   caption?: string;
+  // Optional reply metadata (encrypted in DM text)
+  replyToCreatedAt?: number;
+  replyToMessageId?: string;
+  replyToUserSub?: string;
+  replyToPreview?: string;
+  replyToMediaKind?: MediaKind;
+  replyToMediaCount?: number;
+  replyToMediaContentType?: string;
+  replyToMediaFileName?: string;
   media: {
     kind: MediaKind;
     contentType?: string;
@@ -91,6 +105,15 @@ export type DmMediaEnvelopeV2 = {
   type: 'dm_media_v2';
   v: 2;
   caption?: string;
+  // Optional reply metadata (encrypted in DM text)
+  replyToCreatedAt?: number;
+  replyToMessageId?: string;
+  replyToUserSub?: string;
+  replyToPreview?: string;
+  replyToMediaKind?: MediaKind;
+  replyToMediaCount?: number;
+  replyToMediaContentType?: string;
+  replyToMediaFileName?: string;
   // Each item wraps its own per-attachment file key (Signal-style).
   items: Array<{
     media: DmMediaEnvelopeV1['media'];
@@ -107,6 +130,15 @@ export type GroupMediaEnvelopeV1 = {
   type: 'gdm_media_v1';
   v: 1;
   caption?: string;
+  // Optional reply metadata (encrypted in group text)
+  replyToCreatedAt?: number;
+  replyToMessageId?: string;
+  replyToUserSub?: string;
+  replyToPreview?: string;
+  replyToMediaKind?: MediaKind;
+  replyToMediaCount?: number;
+  replyToMediaContentType?: string;
+  replyToMediaFileName?: string;
   media: DmMediaEnvelopeV1['media'];
   wrap: DmMediaEnvelopeV1['wrap']; // aesGcmEncryptBytes(messageKey, fileKey)
 };
@@ -115,7 +147,30 @@ export type GroupMediaEnvelopeV2 = {
   type: 'gdm_media_v2';
   v: 2;
   caption?: string;
+  // Optional reply metadata (encrypted in group text)
+  replyToCreatedAt?: number;
+  replyToMessageId?: string;
+  replyToUserSub?: string;
+  replyToPreview?: string;
+  replyToMediaKind?: MediaKind;
+  replyToMediaCount?: number;
+  replyToMediaContentType?: string;
+  replyToMediaFileName?: string;
   items: Array<{ media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] }>;
+};
+
+export type EncryptedTextEnvelopeV1 = {
+  type: 'enc_text_v1';
+  v: 1;
+  text: string;
+  replyToCreatedAt?: number;
+  replyToMessageId?: string;
+  replyToUserSub?: string;
+  replyToPreview?: string;
+  replyToMediaKind?: MediaKind;
+  replyToMediaCount?: number;
+  replyToMediaContentType?: string;
+  replyToMediaFileName?: string;
 };
 
 export type GroupMediaEnvelope = GroupMediaEnvelopeV1 | GroupMediaEnvelopeV2;

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { StyleProp, TextStyle } from 'react-native';
+import type { GestureResponderEvent, StyleProp, TextStyle } from 'react-native';
 import { Linking, Platform, Text } from 'react-native';
 
 import { useUiPromptOptional } from '../providers/UiPromptProvider';
@@ -243,6 +243,7 @@ export function RichText({
   mentionStyle,
   linkStyle,
   onOpenUrl,
+  onLongPressLink,
   numberOfLines,
   ellipsizeMode,
 }: {
@@ -254,6 +255,7 @@ export function RichText({
   mentionStyle?: StyleProp<TextStyle>;
   linkStyle?: StyleProp<TextStyle>;
   onOpenUrl?: (url: string) => void | Promise<void>;
+  onLongPressLink?: (e: GestureResponderEvent, url: string) => void;
   numberOfLines?: number;
   ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip';
 }): React.JSX.Element {
@@ -331,6 +333,9 @@ export function RichText({
                 if (typeof onOpenUrl === 'function')
                   void Promise.resolve(onOpenUrl(seg.url)).catch(() => {});
                 else void confirmAndOpenUrl(seg.url);
+              }}
+              onLongPress={(e) => {
+                if (typeof onLongPressLink === 'function') onLongPressLink(e, seg.url);
               }}
               accessibilityRole="link"
               accessibilityLabel={`Open link ${seg.url}`}

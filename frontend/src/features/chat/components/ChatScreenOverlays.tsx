@@ -177,6 +177,7 @@ export type ChatScreenOverlaysProps = {
   normalizeUser: (v: unknown) => string;
   mediaUrlByPath: Record<string, string>;
   dmThumbUriByPath: Record<string, string>;
+  messageListData: ChatMessage[];
   quickReactions: string[];
   blockedSubsSet: Set<string>;
   onBlockUserSub?: (blockedSub: string, label?: string) => void | Promise<void>;
@@ -321,6 +322,7 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
     normalizeUser,
     mediaUrlByPath,
     dmThumbUriByPath,
+    messageListData,
     quickReactions,
     blockedSubsSet,
     onBlockUserSub,
@@ -531,6 +533,8 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         mediaUrlByPath={mediaUrlByPath}
         dmThumbUriByPath={dmThumbUriByPath}
         quickReactions={quickReactions}
+        nameBySub={nameBySub}
+        messageListData={messageListData}
         blockedSubsSet={blockedSubsSet}
         onBlockUserSub={onBlockUserSub}
         uiConfirm={uiConfirm}

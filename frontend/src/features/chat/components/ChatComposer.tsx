@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
@@ -7,6 +8,7 @@ import { AnimatedDots } from '../../../components/AnimatedDots';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
+import { fileBrandColorForMedia, fileIconNameForMedia } from '../../../utils/mediaKinds';
 import type { PendingMediaItem } from '../attachments';
 import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import type { ChatMessage } from '../types';
@@ -21,6 +23,8 @@ type ReplyTarget = null | {
   mediaKind?: 'image' | 'video' | 'file';
   mediaCount?: number;
   mediaThumbUri?: string | null;
+  mediaContentType?: string;
+  mediaFileName?: string;
 };
 
 function formatMmSs(ms: number | null | undefined): string {
@@ -34,6 +38,7 @@ function formatMmSs(ms: number | null | undefined): string {
 export function ChatComposer(props: {
   styles: ChatScreenStyles;
   isDark: boolean;
+  myUserId: string | null;
   isDm: boolean;
   isGroup: boolean;
   isEncryptedChat: boolean;
@@ -93,6 +98,7 @@ export function ChatComposer(props: {
   const {
     styles,
     isDark,
+    myUserId,
     isDm,
     isGroup,
     isEncryptedChat,
@@ -128,6 +134,47 @@ export function ChatComposer(props: {
     showAlert,
     stopAudioPlayback,
   } = props;
+
+  const replyToLabel = React.useMemo(() => {
+    if (!replyTarget) return '';
+    const sub = typeof replyTarget.userSub === 'string' ? replyTarget.userSub.trim() : '';
+    const origin = messages.find((m) => m && m.id === replyTarget.id);
+    const originSub = origin?.userSub ? String(origin.userSub) : '';
+    const replyingToMe =
+      !!myUserId && (!!sub || !!originSub)
+        ? String(myUserId) === sub || String(myUserId) === originSub
+        : false;
+    if (replyingToMe) return 'yourself';
+    const direct = typeof replyTarget.user === 'string' ? replyTarget.user.trim() : '';
+    if (direct) return direct;
+    const fromOrigin = typeof origin?.user === 'string' ? origin.user.trim() : '';
+    if (fromOrigin) return fromOrigin;
+    if (sub) return `User ${sub.slice(0, 6)}`;
+    return 'Unknown user';
+  }, [messages, myUserId, replyTarget]);
+
+  const replyFileMeta = React.useMemo(() => {
+    if (!replyTarget) return null;
+    if (replyTarget.mediaKind !== 'file') return null;
+    return {
+      kind: 'file' as const,
+      contentType: replyTarget.mediaContentType,
+      fileName: replyTarget.mediaFileName,
+    };
+  }, [replyTarget]);
+  const replyFileIcon = replyFileMeta ? fileIconNameForMedia(replyFileMeta) : null;
+  const replyFileIconColor =
+    (replyFileMeta ? fileBrandColorForMedia(replyFileMeta) : null) ||
+    (isDark ? PALETTE.white : APP_COLORS.light.brand.primary);
+
+  const MIN_INPUT_HEIGHT = 44;
+  const MAX_INPUT_HEIGHT = 140;
+  const [inputHeight, setInputHeight] = React.useState<number>(MIN_INPUT_HEIGHT);
+
+  React.useEffect(() => {
+    // Reset back to 1-row height when the composer is remounted/reset.
+    setInputHeight(MIN_INPUT_HEIGHT);
+  }, [inputEpoch]);
 
   const [voiceRecUi, setVoiceRecUi] = React.useState<{ isRecording: boolean; elapsedMs: number }>({
     isRecording: false,
@@ -233,13 +280,17 @@ export function ChatComposer(props: {
                   <Image source={{ uri: replyTarget.mediaThumbUri }} style={styles.replyThumb} />
                 ) : (
                   <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
-                    <Text style={styles.replyThumbPlaceholderText}>
-                      {replyTarget.mediaKind === 'image'
-                        ? 'Photo'
-                        : replyTarget.mediaKind === 'video'
-                          ? 'Video'
-                          : 'File'}
-                    </Text>
+                    {replyTarget.mediaKind === 'file' ? (
+                      <MaterialCommunityIcons
+                        name={(replyFileIcon || 'file-outline') as never}
+                        size={24}
+                        color={replyFileIconColor}
+                      />
+                    ) : (
+                      <Text style={styles.replyThumbPlaceholderText}>
+                        {replyTarget.mediaKind === 'image' ? 'Photo' : 'Video'}
+                      </Text>
+                    )}
                   </View>
                 )}
                 {(replyTarget.mediaCount || 0) > 1 ? (
@@ -256,7 +307,7 @@ export function ChatComposer(props: {
                 style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
                 numberOfLines={2}
               >
-                {`Replying to ${replyTarget.user || 'user'}: ${replyTarget.preview || ''}`}
+                {`Replying to ${replyToLabel}: ${replyTarget.preview || ''}`}
               </Text>
             </View>
             <Pressable
@@ -354,6 +405,8 @@ export function ChatComposer(props: {
             isWideChatLayout ? styles.chatContentColumn : null,
             // Ensure the content never hugs the screen edges (safe area + consistent gutter).
             composerHorizontalInsetsStyle,
+            // When the input grows, keep controls visually anchored to the bottom.
+            { alignItems: 'flex-end' },
           ]}
         >
           <Pressable
@@ -404,7 +457,11 @@ export function ChatComposer(props: {
               textInputRef.current = r;
             }}
             key={`chat-input-${inputEpoch}`}
-            style={[styles.input, isDark ? styles.inputDark : null]}
+            style={[
+              styles.input,
+              isDark ? styles.inputDark : null,
+              { height: inputHeight, maxHeight: MAX_INPUT_HEIGHT },
+            ]}
             // Keep the composer baseline stable across devices (prevents occasional clipping).
             allowFontScaling={false}
             underlineColorAndroid="transparent"
@@ -422,14 +479,42 @@ export function ChatComposer(props: {
             cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             value={input}
             onChangeText={onChangeInput}
+            multiline
+            blurOnSubmit={false}
+            scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
+            onContentSizeChange={(e) => {
+              const hRaw = e?.nativeEvent?.contentSize?.height;
+              const h =
+                typeof hRaw === 'number' && Number.isFinite(hRaw) ? hRaw : Number(hRaw) || 0;
+              if (!h) return;
+              const next = Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, Math.ceil(h)));
+              setInputHeight((prev) => (prev === next ? prev : next));
+            }}
             editable={
               !inlineEditTargetId && !isUploading && !(isGroup && groupMeta?.meStatus !== 'active')
             }
             onBlur={() => {
               if (isTypingRef.current) sendTyping(false);
             }}
-            onSubmitEditing={sendMessage}
-            returnKeyType="send"
+            {...(Platform.OS === 'web'
+              ? ({
+                  onKeyPress: (e: unknown) => {
+                    const ev = e as {
+                      nativeEvent?: { key?: string; shiftKey?: boolean };
+                      preventDefault?: () => void;
+                      stopPropagation?: () => void;
+                    };
+                    const key = String(ev?.nativeEvent?.key ?? '');
+                    const shift = !!ev?.nativeEvent?.shiftKey;
+                    // Web UX: Enter sends, Shift+Enter inserts a newline.
+                    if (key === 'Enter' && !shift) {
+                      ev.preventDefault?.();
+                      ev.stopPropagation?.();
+                      sendMessage();
+                    }
+                  },
+                } as const)
+              : null)}
           />
 
           <VoiceClipMicButton

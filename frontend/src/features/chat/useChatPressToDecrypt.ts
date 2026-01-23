@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import type { MediaItem } from '../../types/media';
+import { parseEncryptedTextEnvelope } from './parsers';
 import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
 
 function getErrorMessage(err: unknown): string {
@@ -70,6 +71,7 @@ export function useChatPressToDecrypt(opts: {
         const readAt = Math.floor(Date.now() / 1000);
         const groupDec = msg.groupEncrypted ? decryptGroupForDisplay(msg) : null;
         const plaintext = groupDec ? String(groupDec.plaintext || '') : decryptForDisplay(msg);
+        const encEnv = parseEncryptedTextEnvelope(String(plaintext || ''));
 
         const dmEnv = isDm && !groupDec ? parseDmMediaEnvelope(plaintext) : null;
         const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
@@ -98,7 +100,35 @@ export function useChatPressToDecrypt(opts: {
                   ...m,
                   decryptedText: plaintext,
                   groupKeyHex: groupDec ? String(groupDec.messageKeyHex || '') : m.groupKeyHex,
-                  text: dmEnv ? (dmEnv.caption ?? '') : gEnv ? (gEnv.caption ?? '') : plaintext,
+                  text: encEnv
+                    ? String(encEnv.text || '')
+                    : dmEnv
+                      ? (dmEnv.caption ?? '')
+                      : gEnv
+                        ? (gEnv.caption ?? '')
+                        : plaintext,
+                  replyToCreatedAt:
+                    encEnv?.replyToCreatedAt ?? dmEnv?.replyToCreatedAt ?? gEnv?.replyToCreatedAt,
+                  replyToMessageId:
+                    encEnv?.replyToMessageId ?? dmEnv?.replyToMessageId ?? gEnv?.replyToMessageId,
+                  replyToUserSub:
+                    encEnv?.replyToUserSub ?? dmEnv?.replyToUserSub ?? gEnv?.replyToUserSub,
+                  replyToPreview:
+                    encEnv?.replyToPreview ?? dmEnv?.replyToPreview ?? gEnv?.replyToPreview,
+                  replyToMediaKind:
+                    encEnv?.replyToMediaKind ?? dmEnv?.replyToMediaKind ?? gEnv?.replyToMediaKind,
+                  replyToMediaCount:
+                    encEnv?.replyToMediaCount ??
+                    dmEnv?.replyToMediaCount ??
+                    gEnv?.replyToMediaCount,
+                  replyToMediaContentType:
+                    encEnv?.replyToMediaContentType ??
+                    dmEnv?.replyToMediaContentType ??
+                    gEnv?.replyToMediaContentType,
+                  replyToMediaFileName:
+                    encEnv?.replyToMediaFileName ??
+                    dmEnv?.replyToMediaFileName ??
+                    gEnv?.replyToMediaFileName,
                   media: mediaList.length ? mediaList[0] : m.media,
                   mediaList: mediaList.length ? mediaList : undefined,
                   expiresAt:

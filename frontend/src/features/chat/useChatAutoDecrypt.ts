@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import type { MediaItem } from '../../types/media';
+import { parseEncryptedTextEnvelope } from './parsers';
 import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
 
 type DmMediaItem = { media: DmMediaEnvelopeV1['media'] };
@@ -68,6 +69,7 @@ export function useChatAutoDecrypt(opts: {
         const groupDec = m.groupEncrypted ? decryptGroupForDisplay(m) : null;
         const plaintext = groupDec ? groupDec.plaintext : decryptForDisplay(m);
         changed = true;
+        const encEnv = parseEncryptedTextEnvelope(String(plaintext || ''));
         const dmEnv = isDm ? parseDmMediaEnvelope(plaintext) : null;
         const gEnv = isGroup ? parseGroupMediaEnvelope(plaintext) : null;
         const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
@@ -90,7 +92,31 @@ export function useChatAutoDecrypt(opts: {
             ...m,
             decryptedText: plaintext,
             groupKeyHex: groupDec ? groupDec.messageKeyHex : m.groupKeyHex,
-            text: dmEnv ? (dmEnv.caption ?? '') : gEnv ? (gEnv.caption ?? '') : plaintext,
+            text: encEnv
+              ? String(encEnv.text || '')
+              : dmEnv
+                ? (dmEnv.caption ?? '')
+                : gEnv
+                  ? (gEnv.caption ?? '')
+                  : plaintext,
+            replyToCreatedAt:
+              encEnv?.replyToCreatedAt ?? dmEnv?.replyToCreatedAt ?? gEnv?.replyToCreatedAt,
+            replyToMessageId:
+              encEnv?.replyToMessageId ?? dmEnv?.replyToMessageId ?? gEnv?.replyToMessageId,
+            replyToUserSub: encEnv?.replyToUserSub ?? dmEnv?.replyToUserSub ?? gEnv?.replyToUserSub,
+            replyToPreview: encEnv?.replyToPreview ?? dmEnv?.replyToPreview ?? gEnv?.replyToPreview,
+            replyToMediaKind:
+              encEnv?.replyToMediaKind ?? dmEnv?.replyToMediaKind ?? gEnv?.replyToMediaKind,
+            replyToMediaCount:
+              encEnv?.replyToMediaCount ?? dmEnv?.replyToMediaCount ?? gEnv?.replyToMediaCount,
+            replyToMediaContentType:
+              encEnv?.replyToMediaContentType ??
+              dmEnv?.replyToMediaContentType ??
+              gEnv?.replyToMediaContentType,
+            replyToMediaFileName:
+              encEnv?.replyToMediaFileName ??
+              dmEnv?.replyToMediaFileName ??
+              gEnv?.replyToMediaFileName,
             media: mediaList.length ? mediaList[0] : m.media,
             mediaList: mediaList.length ? mediaList : undefined,
             expiresAt,
@@ -101,7 +127,31 @@ export function useChatAutoDecrypt(opts: {
           ...m,
           decryptedText: plaintext,
           groupKeyHex: groupDec ? groupDec.messageKeyHex : m.groupKeyHex,
-          text: dmEnv ? (dmEnv.caption ?? '') : gEnv ? (gEnv.caption ?? '') : plaintext,
+          text: encEnv
+            ? String(encEnv.text || '')
+            : dmEnv
+              ? (dmEnv.caption ?? '')
+              : gEnv
+                ? (gEnv.caption ?? '')
+                : plaintext,
+          replyToCreatedAt:
+            encEnv?.replyToCreatedAt ?? dmEnv?.replyToCreatedAt ?? gEnv?.replyToCreatedAt,
+          replyToMessageId:
+            encEnv?.replyToMessageId ?? dmEnv?.replyToMessageId ?? gEnv?.replyToMessageId,
+          replyToUserSub: encEnv?.replyToUserSub ?? dmEnv?.replyToUserSub ?? gEnv?.replyToUserSub,
+          replyToPreview: encEnv?.replyToPreview ?? dmEnv?.replyToPreview ?? gEnv?.replyToPreview,
+          replyToMediaKind:
+            encEnv?.replyToMediaKind ?? dmEnv?.replyToMediaKind ?? gEnv?.replyToMediaKind,
+          replyToMediaCount:
+            encEnv?.replyToMediaCount ?? dmEnv?.replyToMediaCount ?? gEnv?.replyToMediaCount,
+          replyToMediaContentType:
+            encEnv?.replyToMediaContentType ??
+            dmEnv?.replyToMediaContentType ??
+            gEnv?.replyToMediaContentType,
+          replyToMediaFileName:
+            encEnv?.replyToMediaFileName ??
+            dmEnv?.replyToMediaFileName ??
+            gEnv?.replyToMediaFileName,
           media: mediaList.length ? mediaList[0] : m.media,
           mediaList: mediaList.length ? mediaList : undefined,
         };

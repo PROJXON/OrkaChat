@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import type { GestureResponderEvent } from 'react-native';
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
@@ -9,9 +10,20 @@ import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProf
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
-import { getPreviewKind } from '../../../utils/mediaKinds';
+import {
+  fileBrandColorForMedia,
+  fileIconNameForMedia,
+  getPreviewKind,
+} from '../../../utils/mediaKinds';
 import type { PendingMediaItem } from '../attachments';
-import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
+import {
+  normalizeChatMediaList,
+  normalizeDmMediaItems,
+  normalizeGroupMediaItems,
+  parseChatEnvelope,
+  parseDmMediaEnvelope,
+  parseGroupMediaEnvelope,
+} from '../parsers';
 import type { ChatMessage } from '../types';
 
 // NOTE:
@@ -133,11 +145,11 @@ export function ChatMessageRow(props: {
     hasMedia,
     mediaList: _mediaList,
     mediaUrlByPath,
-    dmThumbUriByPath: _dmThumbUriByPath,
+    dmThumbUriByPath,
     capped,
     openViewer,
-    openDmMediaViewer: _openDmMediaViewer,
-    openGroupMediaViewer: _openGroupMediaViewer,
+    openDmMediaViewer,
+    openGroupMediaViewer,
     requestOpenLink,
     onPressMessage,
     onLongPressMessage,
@@ -157,6 +169,30 @@ export function ChatMessageRow(props: {
 
   const prof = item.userSub ? avatarProfileBySub[String(item.userSub)] : undefined;
 
+  const replyOrigin =
+    !isDeleted && item.replyToMessageId
+      ? visibleMessages.find((m) => m && m.id === item.replyToMessageId)
+      : undefined;
+  const replyToLabel = (() => {
+    const sub = item.replyToUserSub ? String(item.replyToUserSub) : '';
+    const replyingToMe =
+      !!sub && !!myUserId && String(myUserId) === sub
+        ? true
+        : !!replyOrigin?.userSub && !!myUserId && String(myUserId) === String(replyOrigin.userSub);
+    if (replyingToMe) return isOutgoing ? 'yourself' : 'You';
+    const fromOrigin = replyOrigin?.user ? String(replyOrigin.user) : '';
+    if (fromOrigin) return fromOrigin;
+    if (sub) {
+      const fromProfiles = avatarProfileBySub[sub]?.displayName
+        ? String(avatarProfileBySub[sub]?.displayName)
+        : '';
+      if (fromProfiles) return fromProfiles;
+      const fromNames = nameBySub[sub] ? String(nameBySub[sub]) : '';
+      if (fromNames) return fromNames;
+    }
+    return 'Unknown user';
+  })();
+
   const AVATAR_SIZE = 34;
   const AVATAR_TOP_OFFSET = 0;
 
@@ -164,6 +200,24 @@ export function ChatMessageRow(props: {
   // trigger native selection/callouts and/or a synthetic click. Consume the next release.
   const webConsumeNextReleaseRef = React.useRef(false);
   const swallowNextPressRef = React.useRef(false);
+
+  const handleLongPressMessage = React.useCallback(
+    (e: GestureResponderEvent) => {
+      if (selectionActive) {
+        onToggleSelected();
+        return;
+      }
+      if (isDeleted) return;
+      if (Platform.OS === 'web') {
+        // Critical: consume the imminent release event (touchend/pointerup) so mobile browsers
+        // don't finalize a selection/callout right as the actions menu appears.
+        webConsumeNextReleaseRef.current = true;
+        swallowNextPressRef.current = true;
+      }
+      onLongPressMessage(e);
+    },
+    [isDeleted, onLongPressMessage, onToggleSelected, selectionActive],
+  );
 
   return (
     <Pressable
@@ -179,20 +233,7 @@ export function ChatMessageRow(props: {
         if (inlineEditTargetId && item.id === inlineEditTargetId) return;
         onPressMessage(item);
       }}
-      onLongPress={(e) => {
-        if (selectionActive) {
-          onToggleSelected();
-          return;
-        }
-        if (isDeleted) return;
-        if (Platform.OS === 'web') {
-          // Critical: consume the imminent release event (touchend/pointerup) so mobile browsers
-          // don't finalize a selection/callout right as the actions menu appears.
-          webConsumeNextReleaseRef.current = true;
-          swallowNextPressRef.current = true;
-        }
-        onLongPressMessage(e);
-      }}
+      onLongPress={handleLongPressMessage}
       // Prevent the browser’s native context menu / selection behavior from fighting
       // with our custom long-press message actions on mobile web.
       {...(Platform.OS === 'web'
@@ -377,25 +418,124 @@ export function ChatMessageRow(props: {
 
                   {!isDeleted && item.replyToMessageId && item.replyToPreview
                     ? (() => {
-                        const origin = visibleMessages.find(
-                          (m) => m && m.id === item.replyToMessageId,
-                        );
+                        const origin = replyOrigin;
                         let thumbUri: string | null = null;
                         let count = 0;
                         let kind: 'image' | 'video' | 'file' = 'file';
+                        let firstItem: MediaItem | null = null;
                         try {
                           if (origin && !origin.deletedAt) {
-                            const env =
-                              !origin.encrypted && !origin.groupEncrypted && !isDm
-                                ? parseChatEnvelope(origin.rawText ?? origin.text)
-                                : null;
-                            const list = env ? normalizeChatMediaList(env.media) : [];
+                            const list = (() => {
+                              if (origin.encrypted && origin.decryptedText) {
+                                const dmEnv = parseDmMediaEnvelope(
+                                  String(origin.decryptedText || ''),
+                                );
+                                const items = normalizeDmMediaItems(dmEnv);
+                                return items.map(
+                                  ({ media }) =>
+                                    ({
+                                      path: String(media.path || ''),
+                                      thumbPath:
+                                        typeof media.thumbPath === 'string'
+                                          ? String(media.thumbPath)
+                                          : undefined,
+                                      kind:
+                                        media.kind === 'video'
+                                          ? 'video'
+                                          : media.kind === 'image'
+                                            ? 'image'
+                                            : 'file',
+                                      contentType:
+                                        typeof media.contentType === 'string'
+                                          ? String(media.contentType)
+                                          : undefined,
+                                      thumbContentType:
+                                        typeof media.thumbContentType === 'string'
+                                          ? String(media.thumbContentType)
+                                          : undefined,
+                                      fileName:
+                                        typeof media.fileName === 'string'
+                                          ? String(media.fileName)
+                                          : undefined,
+                                      size:
+                                        typeof media.size === 'number' &&
+                                        Number.isFinite(media.size)
+                                          ? media.size
+                                          : undefined,
+                                      durationMs:
+                                        typeof media.durationMs === 'number' &&
+                                        Number.isFinite(media.durationMs)
+                                          ? Math.max(0, Math.floor(media.durationMs))
+                                          : undefined,
+                                    }) as MediaItem,
+                                );
+                              }
+                              if (origin.groupEncrypted && origin.decryptedText) {
+                                const gEnv = parseGroupMediaEnvelope(
+                                  String(origin.decryptedText || ''),
+                                );
+                                const items = normalizeGroupMediaItems(gEnv);
+                                return items.map(
+                                  ({ media }) =>
+                                    ({
+                                      path: String(media.path || ''),
+                                      thumbPath:
+                                        typeof media.thumbPath === 'string'
+                                          ? String(media.thumbPath)
+                                          : undefined,
+                                      kind:
+                                        media.kind === 'video'
+                                          ? 'video'
+                                          : media.kind === 'image'
+                                            ? 'image'
+                                            : 'file',
+                                      contentType:
+                                        typeof media.contentType === 'string'
+                                          ? String(media.contentType)
+                                          : undefined,
+                                      thumbContentType:
+                                        typeof media.thumbContentType === 'string'
+                                          ? String(media.thumbContentType)
+                                          : undefined,
+                                      fileName:
+                                        typeof media.fileName === 'string'
+                                          ? String(media.fileName)
+                                          : undefined,
+                                      size:
+                                        typeof media.size === 'number' &&
+                                        Number.isFinite(media.size)
+                                          ? media.size
+                                          : undefined,
+                                      durationMs:
+                                        typeof media.durationMs === 'number' &&
+                                        Number.isFinite(media.durationMs)
+                                          ? Math.max(0, Math.floor(media.durationMs))
+                                          : undefined,
+                                    }) as MediaItem,
+                                );
+                              }
+                              const env =
+                                !origin.encrypted && !origin.groupEncrypted && !isDm
+                                  ? parseChatEnvelope(origin.rawText ?? origin.text)
+                                  : null;
+                              return env ? normalizeChatMediaList(env.media) : [];
+                            })();
                             if (list.length) {
                               count = list.length;
                               const first = list[0];
+                              firstItem = first;
                               kind = getPreviewKind(first);
                               const key = String(first.thumbPath || first.path);
-                              thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+                              thumbUri =
+                                kind !== 'file'
+                                  ? origin.encrypted || origin.groupEncrypted
+                                    ? first.thumbPath && dmThumbUriByPath[String(first.thumbPath)]
+                                      ? dmThumbUriByPath[String(first.thumbPath)]
+                                      : null
+                                    : mediaUrlByPath[key]
+                                      ? mediaUrlByPath[key]
+                                      : null
+                                  : null;
                             }
                           }
                         } catch {
@@ -403,6 +543,8 @@ export function ChatMessageRow(props: {
                         }
                         const openOriginMedia = () => {
                           if (!origin) return;
+                          if (origin.encrypted) return void openDmMediaViewer(origin, 0);
+                          if (origin.groupEncrypted) return void openGroupMediaViewer(origin, 0);
                           const env =
                             !origin.encrypted && !origin.groupEncrypted && !isDm
                               ? parseChatEnvelope(origin.rawText ?? origin.text)
@@ -436,13 +578,29 @@ export function ChatMessageRow(props: {
                                   <Image source={{ uri: thumbUri }} style={styles.replyThumb} />
                                 ) : (
                                   <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
-                                    <Text style={styles.replyThumbPlaceholderText}>
-                                      {kind === 'image'
-                                        ? 'Photo'
-                                        : kind === 'video'
-                                          ? 'Video'
-                                          : 'File'}
-                                    </Text>
+                                    {kind === 'file' ? (
+                                      <MaterialCommunityIcons
+                                        name={
+                                          ((firstItem ? fileIconNameForMedia(firstItem) : null) ||
+                                            'file-outline') as never
+                                        }
+                                        size={24}
+                                        color={
+                                          isOutgoing
+                                            ? withAlpha(PALETTE.white, 0.92)
+                                            : (firstItem
+                                                ? fileBrandColorForMedia(firstItem)
+                                                : null) ||
+                                              (isDark
+                                                ? APP_COLORS.dark.text.primary
+                                                : APP_COLORS.light.brand.primary)
+                                        }
+                                      />
+                                    ) : (
+                                      <Text style={styles.replyThumbPlaceholderText}>
+                                        {kind === 'image' ? 'Photo' : 'Video'}
+                                      </Text>
+                                    )}
                                   </View>
                                 )}
                                 {count > 1 ? (
@@ -465,16 +623,7 @@ export function ChatMessageRow(props: {
                               ]}
                               numberOfLines={1}
                             >
-                              {`Replying to ${
-                                item.replyToUserSub
-                                  ? String(item.replyToUserSub) === String(myUserId)
-                                    ? 'You'
-                                    : avatarProfileBySub[String(item.replyToUserSub)]
-                                        ?.displayName ||
-                                      nameBySub[String(item.replyToUserSub)] ||
-                                      'user'
-                                  : 'user'
-                              }`}
+                              {`Replying to ${replyToLabel}`}
                             </Text>
                             <Text
                               style={[
@@ -661,6 +810,7 @@ export function ChatMessageRow(props: {
                           ]}
                           mentionStyle={styles.mentionText}
                           onOpenUrl={requestOpenLink}
+                          onLongPressLink={handleLongPressMessage}
                         />
                       ) : null}
                       {isEdited || props.seenLabel ? (
@@ -782,20 +932,224 @@ export function ChatMessageRow(props: {
               </Text>
             ) : null}
 
-            {!isDeleted && item.replyToMessageId && item.replyToPreview ? (
-              <Text
-                style={[
-                  styles.replySnippetText,
-                  isOutgoing
-                    ? styles.replySnippetTextOutgoing
-                    : isDark
-                      ? styles.replySnippetTextIncomingDark
-                      : styles.replySnippetTextIncoming,
-                ]}
-              >
-                {String(item.replyToPreview || '').trim()}
-              </Text>
-            ) : null}
+            {!isDeleted && item.replyToMessageId && item.replyToPreview
+              ? (() => {
+                  const origin = replyOrigin;
+                  let thumbUri: string | null = null;
+                  let count = 0;
+                  let kind: 'image' | 'video' | 'file' = 'file';
+                  let firstItem: MediaItem | null = null;
+                  try {
+                    if (origin && !origin.deletedAt) {
+                      const list = (() => {
+                        if (origin.encrypted && origin.decryptedText) {
+                          const dmEnv = parseDmMediaEnvelope(String(origin.decryptedText || ''));
+                          const items = normalizeDmMediaItems(dmEnv);
+                          return items.map(
+                            ({ media }) =>
+                              ({
+                                path: String(media.path || ''),
+                                thumbPath:
+                                  typeof media.thumbPath === 'string'
+                                    ? String(media.thumbPath)
+                                    : undefined,
+                                kind:
+                                  media.kind === 'video'
+                                    ? 'video'
+                                    : media.kind === 'image'
+                                      ? 'image'
+                                      : 'file',
+                                contentType:
+                                  typeof media.contentType === 'string'
+                                    ? String(media.contentType)
+                                    : undefined,
+                                thumbContentType:
+                                  typeof media.thumbContentType === 'string'
+                                    ? String(media.thumbContentType)
+                                    : undefined,
+                                fileName:
+                                  typeof media.fileName === 'string'
+                                    ? String(media.fileName)
+                                    : undefined,
+                                size:
+                                  typeof media.size === 'number' && Number.isFinite(media.size)
+                                    ? media.size
+                                    : undefined,
+                                durationMs:
+                                  typeof media.durationMs === 'number' &&
+                                  Number.isFinite(media.durationMs)
+                                    ? Math.max(0, Math.floor(media.durationMs))
+                                    : undefined,
+                              }) as MediaItem,
+                          );
+                        }
+                        if (origin.groupEncrypted && origin.decryptedText) {
+                          const gEnv = parseGroupMediaEnvelope(String(origin.decryptedText || ''));
+                          const items = normalizeGroupMediaItems(gEnv);
+                          return items.map(
+                            ({ media }) =>
+                              ({
+                                path: String(media.path || ''),
+                                thumbPath:
+                                  typeof media.thumbPath === 'string'
+                                    ? String(media.thumbPath)
+                                    : undefined,
+                                kind:
+                                  media.kind === 'video'
+                                    ? 'video'
+                                    : media.kind === 'image'
+                                      ? 'image'
+                                      : 'file',
+                                contentType:
+                                  typeof media.contentType === 'string'
+                                    ? String(media.contentType)
+                                    : undefined,
+                                thumbContentType:
+                                  typeof media.thumbContentType === 'string'
+                                    ? String(media.thumbContentType)
+                                    : undefined,
+                                fileName:
+                                  typeof media.fileName === 'string'
+                                    ? String(media.fileName)
+                                    : undefined,
+                                size:
+                                  typeof media.size === 'number' && Number.isFinite(media.size)
+                                    ? media.size
+                                    : undefined,
+                                durationMs:
+                                  typeof media.durationMs === 'number' &&
+                                  Number.isFinite(media.durationMs)
+                                    ? Math.max(0, Math.floor(media.durationMs))
+                                    : undefined,
+                              }) as MediaItem,
+                          );
+                        }
+                        const env =
+                          !origin.encrypted && !origin.groupEncrypted && !isDm
+                            ? parseChatEnvelope(origin.rawText ?? origin.text)
+                            : null;
+                        return env ? normalizeChatMediaList(env.media) : [];
+                      })();
+                      if (list.length) {
+                        count = list.length;
+                        const first = list[0];
+                        firstItem = first;
+                        kind = getPreviewKind(first);
+                        const key = String(first.thumbPath || first.path);
+                        thumbUri =
+                          kind !== 'file'
+                            ? origin.encrypted || origin.groupEncrypted
+                              ? first.thumbPath && dmThumbUriByPath[String(first.thumbPath)]
+                                ? dmThumbUriByPath[String(first.thumbPath)]
+                                : null
+                              : mediaUrlByPath[key]
+                                ? mediaUrlByPath[key]
+                                : null
+                            : null;
+                      }
+                    }
+                  } catch {
+                    // ignore
+                  }
+                  const openOriginMedia = () => {
+                    if (!origin) return;
+                    if (origin.encrypted) return void openDmMediaViewer(origin, 0);
+                    if (origin.groupEncrypted) return void openGroupMediaViewer(origin, 0);
+                    const env =
+                      !origin.encrypted && !origin.groupEncrypted && !isDm
+                        ? parseChatEnvelope(origin.rawText ?? origin.text)
+                        : null;
+                    const list = env ? normalizeChatMediaList(env.media) : [];
+                    if (!list.length) return;
+                    openViewer(list, 0);
+                  };
+                  return (
+                    <View
+                      style={[
+                        styles.replySnippet,
+                        isOutgoing
+                          ? styles.replySnippetOutgoing
+                          : isDark
+                            ? styles.replySnippetIncomingDark
+                            : styles.replySnippetIncoming,
+                      ]}
+                    >
+                      {count ? (
+                        <Pressable
+                          onPress={openOriginMedia}
+                          style={({ pressed }) => [
+                            styles.replyThumbWrap,
+                            pressed ? { opacity: 0.9 } : null,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel="Open replied media"
+                        >
+                          {thumbUri ? (
+                            <Image source={{ uri: thumbUri }} style={styles.replyThumb} />
+                          ) : (
+                            <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
+                              {kind === 'file' ? (
+                                <MaterialCommunityIcons
+                                  name={
+                                    ((firstItem ? fileIconNameForMedia(firstItem) : null) ||
+                                      'file-outline') as never
+                                  }
+                                  size={24}
+                                  color={
+                                    isOutgoing
+                                      ? withAlpha(PALETTE.white, 0.92)
+                                      : (firstItem ? fileBrandColorForMedia(firstItem) : null) ||
+                                        (isDark
+                                          ? APP_COLORS.dark.text.primary
+                                          : APP_COLORS.light.brand.primary)
+                                  }
+                                />
+                              ) : (
+                                <Text style={styles.replyThumbPlaceholderText}>
+                                  {kind === 'image' ? 'Photo' : 'Video'}
+                                </Text>
+                              )}
+                            </View>
+                          )}
+                          {count > 1 ? (
+                            <View style={styles.replyThumbCountBadge}>
+                              <Text style={styles.replyThumbCountText}>{`+${count - 1}`}</Text>
+                            </View>
+                          ) : null}
+                        </Pressable>
+                      ) : null}
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.replySnippetLabel,
+                            isOutgoing
+                              ? styles.replySnippetLabelOutgoing
+                              : isDark
+                                ? styles.replySnippetLabelIncomingDark
+                                : styles.replySnippetLabelIncoming,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {`Replying to ${replyToLabel}`}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.replySnippetText,
+                            isOutgoing
+                              ? styles.replySnippetTextOutgoing
+                              : isDark
+                                ? styles.replySnippetTextIncomingDark
+                                : styles.replySnippetTextIncoming,
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {String(item.replyToPreview || '').trim()}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })()
+              : null}
 
             {(() => {
               const isInlineEditing =
@@ -925,6 +1279,7 @@ export function ChatMessageRow(props: {
                       ]}
                       mentionStyle={styles.mentionText}
                       onOpenUrl={requestOpenLink}
+                      onLongPressLink={handleLongPressMessage}
                     />
                   )}
 

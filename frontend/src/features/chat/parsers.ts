@@ -5,6 +5,7 @@ import type {
   DmMediaEnvelope,
   DmMediaEnvelopeV1,
   DmMediaEnvelopeV2,
+  EncryptedTextEnvelopeV1,
   GroupMediaEnvelope,
   GroupMediaEnvelopeV1,
   GroupMediaEnvelopeV2,
@@ -18,6 +19,20 @@ export const parseChatEnvelope = (raw: string): ChatEnvelope | null => {
     const rec = obj as Record<string, unknown>;
     if (rec.type !== 'chat') return null;
     return rec as ChatEnvelope;
+  } catch {
+    return null;
+  }
+};
+
+export const parseEncryptedTextEnvelope = (raw: string): EncryptedTextEnvelopeV1 | null => {
+  if (!raw) return null;
+  try {
+    const obj: unknown = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object') return null;
+    const rec = obj as Record<string, unknown>;
+    if (rec.type !== 'enc_text_v1' || rec.v !== 1) return null;
+    if (typeof rec.text !== 'string') return null;
+    return rec as EncryptedTextEnvelopeV1;
   } catch {
     return null;
   }

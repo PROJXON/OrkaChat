@@ -8,6 +8,7 @@ import {
   normalizeGroupMediaItems,
   parseChatEnvelope,
   parseDmMediaEnvelope,
+  parseEncryptedTextEnvelope,
   parseGroupMediaEnvelope,
 } from './parsers';
 import type { ChatMessage } from './types';
@@ -91,10 +92,27 @@ export function useChatReplyActions(opts: {
       } catch {
         // ignore
       }
+      // Files (PDF/DOC/etc) can't render in <Image>. Force no thumb so UI uses placeholders.
+      if (mediaKind === 'file') mediaThumbUri = null;
 
       if (target.encrypted || target.groupEncrypted) {
         // For encrypted messages, only allow reply preview if we already decrypted.
-        preview = String(target.decryptedText || encryptedPlaceholder);
+        // decryptedText can be a media envelope JSON or a text envelope JSON; extract the human text.
+        const plain = String(target.decryptedText || '');
+        const encEnv = parseEncryptedTextEnvelope(plain);
+        const dmEnv: DmMediaEnvelope | null = target.encrypted ? parseDmMediaEnvelope(plain) : null;
+        const gEnv: GroupMediaEnvelope | null = target.groupEncrypted
+          ? parseGroupMediaEnvelope(plain)
+          : null;
+        // If it's a media envelope, NEVER use the raw JSON as preview; prefer caption and
+        // otherwise allow our attachment-label fallback below to populate preview.
+        if (dmEnv || gEnv) {
+          preview = String((dmEnv?.caption ?? gEnv?.caption) || '');
+        } else if (encEnv && typeof encEnv.text === 'string') {
+          preview = String(encEnv.text || '');
+        } else {
+          preview = plain || encryptedPlaceholder;
+        }
       } else {
         const raw = String(target.rawText ?? target.text ?? '');
         const env: ChatEnvelope | null = !isDm ? parseChatEnvelope(raw) : null;
@@ -120,6 +138,8 @@ export function useChatReplyActions(opts: {
         mediaKind,
         mediaCount,
         mediaThumbUri: typeof mediaThumbUri === 'string' ? mediaThumbUri : null,
+        mediaContentType: mediaContentType ? String(mediaContentType) : undefined,
+        mediaFileName: mediaFileName ? String(mediaFileName) : undefined,
       });
       closeMessageActions();
       try {

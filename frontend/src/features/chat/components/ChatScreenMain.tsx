@@ -547,6 +547,7 @@ export function ChatScreenMain({
             <ChatComposer
               styles={styles}
               isDark={isDark}
+              myUserId={header.myUserId}
               isDm={composer.isDm}
               isGroup={composer.isGroup}
               isEncryptedChat={composer.isEncryptedChat}
