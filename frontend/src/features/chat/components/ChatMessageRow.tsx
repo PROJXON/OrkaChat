@@ -165,6 +165,24 @@ export function ChatMessageRow(props: {
   const webConsumeNextReleaseRef = React.useRef(false);
   const swallowNextPressRef = React.useRef(false);
 
+  const handleLongPressMessage = React.useCallback(
+    (e: GestureResponderEvent) => {
+      if (selectionActive) {
+        onToggleSelected();
+        return;
+      }
+      if (isDeleted) return;
+      if (Platform.OS === 'web') {
+        // Critical: consume the imminent release event (touchend/pointerup) so mobile browsers
+        // don't finalize a selection/callout right as the actions menu appears.
+        webConsumeNextReleaseRef.current = true;
+        swallowNextPressRef.current = true;
+      }
+      onLongPressMessage(e);
+    },
+    [isDeleted, onLongPressMessage, onToggleSelected, selectionActive],
+  );
+
   return (
     <Pressable
       onPress={() => {
@@ -179,20 +197,7 @@ export function ChatMessageRow(props: {
         if (inlineEditTargetId && item.id === inlineEditTargetId) return;
         onPressMessage(item);
       }}
-      onLongPress={(e) => {
-        if (selectionActive) {
-          onToggleSelected();
-          return;
-        }
-        if (isDeleted) return;
-        if (Platform.OS === 'web') {
-          // Critical: consume the imminent release event (touchend/pointerup) so mobile browsers
-          // don't finalize a selection/callout right as the actions menu appears.
-          webConsumeNextReleaseRef.current = true;
-          swallowNextPressRef.current = true;
-        }
-        onLongPressMessage(e);
-      }}
+      onLongPress={handleLongPressMessage}
       // Prevent the browser’s native context menu / selection behavior from fighting
       // with our custom long-press message actions on mobile web.
       {...(Platform.OS === 'web'
@@ -661,6 +666,7 @@ export function ChatMessageRow(props: {
                           ]}
                           mentionStyle={styles.mentionText}
                           onOpenUrl={requestOpenLink}
+                          onLongPressLink={handleLongPressMessage}
                         />
                       ) : null}
                       {isEdited || props.seenLabel ? (
@@ -925,6 +931,7 @@ export function ChatMessageRow(props: {
                       ]}
                       mentionStyle={styles.mentionText}
                       onOpenUrl={requestOpenLink}
+                      onLongPressLink={handleLongPressMessage}
                     />
                   )}
 

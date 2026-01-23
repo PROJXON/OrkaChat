@@ -129,6 +129,15 @@ export function ChatComposer(props: {
     stopAudioPlayback,
   } = props;
 
+  const MIN_INPUT_HEIGHT = 44;
+  const MAX_INPUT_HEIGHT = 140;
+  const [inputHeight, setInputHeight] = React.useState<number>(MIN_INPUT_HEIGHT);
+
+  React.useEffect(() => {
+    // Reset back to 1-row height when the composer is remounted/reset.
+    setInputHeight(MIN_INPUT_HEIGHT);
+  }, [inputEpoch]);
+
   const [voiceRecUi, setVoiceRecUi] = React.useState<{ isRecording: boolean; elapsedMs: number }>({
     isRecording: false,
     elapsedMs: 0,
@@ -354,6 +363,8 @@ export function ChatComposer(props: {
             isWideChatLayout ? styles.chatContentColumn : null,
             // Ensure the content never hugs the screen edges (safe area + consistent gutter).
             composerHorizontalInsetsStyle,
+            // When the input grows, keep controls visually anchored to the bottom.
+            { alignItems: 'flex-end' },
           ]}
         >
           <Pressable
@@ -404,7 +415,11 @@ export function ChatComposer(props: {
               textInputRef.current = r;
             }}
             key={`chat-input-${inputEpoch}`}
-            style={[styles.input, isDark ? styles.inputDark : null]}
+            style={[
+              styles.input,
+              isDark ? styles.inputDark : null,
+              { height: inputHeight, maxHeight: MAX_INPUT_HEIGHT },
+            ]}
             // Keep the composer baseline stable across devices (prevents occasional clipping).
             allowFontScaling={false}
             underlineColorAndroid="transparent"
@@ -422,14 +437,41 @@ export function ChatComposer(props: {
             cursorColor={isDark ? APP_COLORS.dark.text.primary : APP_COLORS.light.text.primary}
             value={input}
             onChangeText={onChangeInput}
+            multiline
+            blurOnSubmit={false}
+            scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
+            onContentSizeChange={(e) => {
+              const hRaw = e?.nativeEvent?.contentSize?.height;
+              const h = typeof hRaw === 'number' && Number.isFinite(hRaw) ? hRaw : Number(hRaw) || 0;
+              if (!h) return;
+              const next = Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, Math.ceil(h)));
+              setInputHeight((prev) => (prev === next ? prev : next));
+            }}
             editable={
               !inlineEditTargetId && !isUploading && !(isGroup && groupMeta?.meStatus !== 'active')
             }
             onBlur={() => {
               if (isTypingRef.current) sendTyping(false);
             }}
-            onSubmitEditing={sendMessage}
-            returnKeyType="send"
+            {...(Platform.OS === 'web'
+              ? ({
+                  onKeyPress: (e: unknown) => {
+                    const ev = e as {
+                      nativeEvent?: { key?: string; shiftKey?: boolean };
+                      preventDefault?: () => void;
+                      stopPropagation?: () => void;
+                    };
+                    const key = String(ev?.nativeEvent?.key ?? '');
+                    const shift = !!ev?.nativeEvent?.shiftKey;
+                    // Web UX: Enter sends, Shift+Enter inserts a newline.
+                    if (key === 'Enter' && !shift) {
+                      ev.preventDefault?.();
+                      ev.stopPropagation?.();
+                      sendMessage();
+                    }
+                  },
+                } as const)
+              : null)}
           />
 
           <VoiceClipMicButton

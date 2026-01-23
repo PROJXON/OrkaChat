@@ -798,16 +798,15 @@ export const styles = StyleSheet.create({
     flex: 1,
     flexBasis: 0,
     minWidth: 0,
-    height: 44,
-    // Explicit text metrics + vertical alignment to prevent clipping on iOS/Android.
+    minHeight: 44,
+    // Explicit text metrics + padding for stable cross-platform layout (single + multi-line).
     fontSize: 15,
-    // Use a lineHeight matching the control height for stable vertical centering.
-    lineHeight: 44,
+    lineHeight: 20,
     paddingHorizontal: 12,
-    paddingVertical: 0,
+    paddingVertical: 10,
     ...(Platform.OS === 'android'
       ? ({
-          textAlignVertical: 'center',
+          textAlignVertical: 'top',
           includeFontPadding: false,
         } as const)
       : {}),
