@@ -8,6 +8,19 @@ export type BlockedUser = {
   blockedAt?: number;
 };
 
+function parseApiErrorMessage(raw: string): string {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  try {
+    const parsed: unknown = JSON.parse(t);
+    const rec = typeof parsed === 'object' && parsed != null ? (parsed as Record<string, unknown>) : null;
+    const msg = rec && typeof rec.message === 'string' ? String(rec.message).trim() : '';
+    return msg || t;
+  } catch {
+    return t;
+  }
+}
+
 export function useBlocklistData({
   apiUrl,
   fetchAuthSession,
@@ -125,7 +138,12 @@ export function useBlocklistData({
       }
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        setBlockError(text ? `Failed to block (${res.status})` : `Failed to block (${res.status})`);
+        const msg = parseApiErrorMessage(text);
+        if (res.status === 400 && msg.toLowerCase().includes('cannot block yourself')) {
+          setBlockError("You can't block yourself");
+          return;
+        }
+        setBlockError(msg || `Failed to block (${res.status})`);
         return;
       }
       setBlockUsername('');
@@ -154,10 +172,14 @@ export function useBlocklistData({
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
+        const msg = parseApiErrorMessage(text);
         const who = label ? `"${label}"` : 'user';
+        if (res.status === 400 && msg.toLowerCase().includes('cannot block yourself')) {
+          throw new Error("You can't block yourself");
+        }
         throw new Error(
-          text?.trim()
-            ? `Failed to block ${who}: ${text.trim()}`
+          msg?.trim()
+            ? `Failed to block ${who}: ${msg.trim()}`
             : `Failed to block ${who} (${res.status})`,
         );
       }

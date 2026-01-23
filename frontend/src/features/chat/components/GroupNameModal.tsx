@@ -77,6 +77,8 @@ export function GroupNameModal({
             onChangeText={onChangeDraft}
             placeholder="Group name"
             maxLength={20}
+            returnKeyType="done"
+            onSubmitEditing={() => void Promise.resolve(onSave())}
             // Use a fully explicit style here (avoid theme/style collisions in Android modals).
             style={{
               width: '100%',

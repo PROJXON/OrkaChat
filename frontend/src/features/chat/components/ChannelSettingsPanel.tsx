@@ -191,7 +191,7 @@ function WideChannelSettingsPanel({
   }, [hasPasswordControl, memberPasswordProtected, wideLayout]);
 
   const visibilityControl = (
-    <View style={styles.dmSettingGroup}>
+    <View style={[styles.dmSettingGroup, { flexShrink: 0 }]}>
       {meIsAdmin ? (
         <>
           <Text
@@ -199,6 +199,7 @@ function WideChannelSettingsPanel({
               styles.decryptLabel,
               isDark ? styles.decryptLabelDark : null,
               styles.dmSettingLabel,
+              { flexShrink: 0 },
             ]}
             numberOfLines={1}
           >
@@ -231,6 +232,7 @@ function WideChannelSettingsPanel({
               isDark ? styles.decryptLabelDark : null,
               styles.dmSettingLabel,
               { fontWeight: '900' },
+              { flexShrink: 0 },
             ]}
             numberOfLines={1}
           >
@@ -243,6 +245,7 @@ function WideChannelSettingsPanel({
             styles.decryptLabel,
             isDark ? styles.decryptLabelDark : null,
             styles.dmSettingLabel,
+            { flexShrink: 0 },
           ]}
           numberOfLines={1}
         >

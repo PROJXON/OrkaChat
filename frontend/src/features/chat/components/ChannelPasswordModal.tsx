@@ -81,6 +81,8 @@ export function ChannelPasswordModal({
               onChangeText={onChangeDraft}
               placeholder="Password"
               secureTextEntry={!passwordVisible}
+              returnKeyType="done"
+              onSubmitEditing={() => void Promise.resolve(onSave())}
               style={{
                 width: '100%',
                 height: 48,

@@ -105,6 +105,8 @@ export function MainAppBlocklistModal({
               autoCorrect={false}
               baseStyle={styles.blocksInput}
               darkStyle={styles.blocksInputDark}
+              returnKeyType="done"
+              onSubmitEditing={() => void Promise.resolve(addBlockByUsername())}
             />
             <Pressable
               onPress={() => void Promise.resolve(addBlockByUsername())}
