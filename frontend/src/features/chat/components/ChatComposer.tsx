@@ -8,10 +8,10 @@ import { AnimatedDots } from '../../../components/AnimatedDots';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
+import { fileBrandColorForMedia, fileIconNameForMedia } from '../../../utils/mediaKinds';
 import type { PendingMediaItem } from '../attachments';
 import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import type { ChatMessage } from '../types';
-import { fileBrandColorForMedia, fileIconNameForMedia } from '../../../utils/mediaKinds';
 import { VoiceClipMicButton } from './VoiceClipMicButton';
 
 type ReplyTarget = null | {
@@ -484,7 +484,8 @@ export function ChatComposer(props: {
             scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
             onContentSizeChange={(e) => {
               const hRaw = e?.nativeEvent?.contentSize?.height;
-              const h = typeof hRaw === 'number' && Number.isFinite(hRaw) ? hRaw : Number(hRaw) || 0;
+              const h =
+                typeof hRaw === 'number' && Number.isFinite(hRaw) ? hRaw : Number(hRaw) || 0;
               if (!h) return;
               const next = Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, Math.ceil(h)));
               setInputHeight((prev) => (prev === next ? prev : next));

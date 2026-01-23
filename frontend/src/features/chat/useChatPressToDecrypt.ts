@@ -1,8 +1,8 @@
 import * as React from 'react';
 
 import type { MediaItem } from '../../types/media';
-import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
 import { parseEncryptedTextEnvelope } from './parsers';
+import type { ChatMessage, DmMediaEnvelope, DmMediaEnvelopeV1, GroupMediaEnvelope } from './types';
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
@@ -118,7 +118,9 @@ export function useChatPressToDecrypt(opts: {
                   replyToMediaKind:
                     encEnv?.replyToMediaKind ?? dmEnv?.replyToMediaKind ?? gEnv?.replyToMediaKind,
                   replyToMediaCount:
-                    encEnv?.replyToMediaCount ?? dmEnv?.replyToMediaCount ?? gEnv?.replyToMediaCount,
+                    encEnv?.replyToMediaCount ??
+                    dmEnv?.replyToMediaCount ??
+                    gEnv?.replyToMediaCount,
                   replyToMediaContentType:
                     encEnv?.replyToMediaContentType ??
                     dmEnv?.replyToMediaContentType ??

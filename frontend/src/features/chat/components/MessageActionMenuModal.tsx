@@ -359,9 +359,13 @@ export function MessageActionMenuModal({
 
                 if (!hasMedia) {
                   const showReply =
-                    !t.deletedAt && !!t.replyToMessageId && String(t.replyToPreview || '').trim().length > 0;
+                    !t.deletedAt &&
+                    !!t.replyToMessageId &&
+                    String(t.replyToPreview || '').trim().length > 0;
                   const replyKind =
-                    t.replyToMediaKind === 'image' || t.replyToMediaKind === 'video' || t.replyToMediaKind === 'file'
+                    t.replyToMediaKind === 'image' ||
+                    t.replyToMediaKind === 'video' ||
+                    t.replyToMediaKind === 'file'
                       ? t.replyToMediaKind
                       : null;
                   const replyCount =
@@ -422,10 +426,10 @@ export function MessageActionMenuModal({
                                       isOutgoing
                                         ? withAlpha(PALETTE.white, 0.92)
                                         : fileBrandColorForMedia({
-                                              kind: 'file',
-                                              contentType: t.replyToMediaContentType,
-                                              fileName: t.replyToMediaFileName,
-                                            }) ||
+                                            kind: 'file',
+                                            contentType: t.replyToMediaContentType,
+                                            fileName: t.replyToMediaFileName,
+                                          }) ||
                                           (isDark
                                             ? styles.replySnippetLabelIncomingDark?.color
                                             : styles.replySnippetLabelIncoming?.color)
@@ -441,7 +445,9 @@ export function MessageActionMenuModal({
                               )}
                               {replyCount > 1 ? (
                                 <View style={styles.replyThumbCountBadge}>
-                                  <Text style={styles.replyThumbCountText}>{`+${replyCount - 1}`}</Text>
+                                  <Text
+                                    style={styles.replyThumbCountText}
+                                  >{`+${replyCount - 1}`}</Text>
                                 </View>
                               ) : null}
                             </View>

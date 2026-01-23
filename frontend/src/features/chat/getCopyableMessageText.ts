@@ -35,15 +35,15 @@ export function getCopyableMessageText(args: { msg: ChatMessage; isDm: boolean }
     if (encEnv) {
       text = String(encEnv.text || '');
     } else {
-    const dmEnv = parseDmMediaEnvelope(plain);
-    const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
-    const gEnv = parseGroupMediaEnvelope(plain);
-    const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
-    if (dmItems.length || gItems.length) {
-      text = String((dmEnv?.caption ?? gEnv?.caption) || '');
-    } else {
-      text = plain;
-    }
+      const dmEnv = parseDmMediaEnvelope(plain);
+      const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
+      const gEnv = parseGroupMediaEnvelope(plain);
+      const gItems = gEnv ? normalizeGroupMediaItems(gEnv) : [];
+      if (dmItems.length || gItems.length) {
+        text = String((dmEnv?.caption ?? gEnv?.caption) || '');
+      } else {
+        text = plain;
+      }
     }
   } else {
     // Plain chats: channel/global can have a JSON envelope for media attachments.

@@ -1,5 +1,5 @@
-import React from 'react';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import React from 'react';
 import type { GestureResponderEvent } from 'react-native';
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
@@ -10,7 +10,11 @@ import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProf
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
-import { fileBrandColorForMedia, fileIconNameForMedia, getPreviewKind } from '../../../utils/mediaKinds';
+import {
+  fileBrandColorForMedia,
+  fileIconNameForMedia,
+  getPreviewKind,
+} from '../../../utils/mediaKinds';
 import type { PendingMediaItem } from '../attachments';
 import {
   normalizeChatMediaList,
@@ -423,69 +427,91 @@ export function ChatMessageRow(props: {
                           if (origin && !origin.deletedAt) {
                             const list = (() => {
                               if (origin.encrypted && origin.decryptedText) {
-                                const dmEnv = parseDmMediaEnvelope(String(origin.decryptedText || ''));
+                                const dmEnv = parseDmMediaEnvelope(
+                                  String(origin.decryptedText || ''),
+                                );
                                 const items = normalizeDmMediaItems(dmEnv);
-                                return items.map(({ media }) =>
-                                  ({
-                                    path: String(media.path || ''),
-                                    thumbPath:
-                                      typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
-                                    kind:
-                                      media.kind === 'video'
-                                        ? 'video'
-                                        : media.kind === 'image'
-                                          ? 'image'
-                                          : 'file',
-                                    contentType:
-                                      typeof media.contentType === 'string' ? String(media.contentType) : undefined,
-                                    thumbContentType:
-                                      typeof media.thumbContentType === 'string'
-                                        ? String(media.thumbContentType)
-                                        : undefined,
-                                    fileName:
-                                      typeof media.fileName === 'string' ? String(media.fileName) : undefined,
-                                    size:
-                                      typeof media.size === 'number' && Number.isFinite(media.size)
-                                        ? media.size
-                                        : undefined,
-                                    durationMs:
-                                      typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
-                                        ? Math.max(0, Math.floor(media.durationMs))
-                                        : undefined,
-                                  }) as MediaItem,
+                                return items.map(
+                                  ({ media }) =>
+                                    ({
+                                      path: String(media.path || ''),
+                                      thumbPath:
+                                        typeof media.thumbPath === 'string'
+                                          ? String(media.thumbPath)
+                                          : undefined,
+                                      kind:
+                                        media.kind === 'video'
+                                          ? 'video'
+                                          : media.kind === 'image'
+                                            ? 'image'
+                                            : 'file',
+                                      contentType:
+                                        typeof media.contentType === 'string'
+                                          ? String(media.contentType)
+                                          : undefined,
+                                      thumbContentType:
+                                        typeof media.thumbContentType === 'string'
+                                          ? String(media.thumbContentType)
+                                          : undefined,
+                                      fileName:
+                                        typeof media.fileName === 'string'
+                                          ? String(media.fileName)
+                                          : undefined,
+                                      size:
+                                        typeof media.size === 'number' &&
+                                        Number.isFinite(media.size)
+                                          ? media.size
+                                          : undefined,
+                                      durationMs:
+                                        typeof media.durationMs === 'number' &&
+                                        Number.isFinite(media.durationMs)
+                                          ? Math.max(0, Math.floor(media.durationMs))
+                                          : undefined,
+                                    }) as MediaItem,
                                 );
                               }
                               if (origin.groupEncrypted && origin.decryptedText) {
-                                const gEnv = parseGroupMediaEnvelope(String(origin.decryptedText || ''));
+                                const gEnv = parseGroupMediaEnvelope(
+                                  String(origin.decryptedText || ''),
+                                );
                                 const items = normalizeGroupMediaItems(gEnv);
-                                return items.map(({ media }) =>
-                                  ({
-                                    path: String(media.path || ''),
-                                    thumbPath:
-                                      typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
-                                    kind:
-                                      media.kind === 'video'
-                                        ? 'video'
-                                        : media.kind === 'image'
-                                          ? 'image'
-                                          : 'file',
-                                    contentType:
-                                      typeof media.contentType === 'string' ? String(media.contentType) : undefined,
-                                    thumbContentType:
-                                      typeof media.thumbContentType === 'string'
-                                        ? String(media.thumbContentType)
-                                        : undefined,
-                                    fileName:
-                                      typeof media.fileName === 'string' ? String(media.fileName) : undefined,
-                                    size:
-                                      typeof media.size === 'number' && Number.isFinite(media.size)
-                                        ? media.size
-                                        : undefined,
-                                    durationMs:
-                                      typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
-                                        ? Math.max(0, Math.floor(media.durationMs))
-                                        : undefined,
-                                  }) as MediaItem,
+                                return items.map(
+                                  ({ media }) =>
+                                    ({
+                                      path: String(media.path || ''),
+                                      thumbPath:
+                                        typeof media.thumbPath === 'string'
+                                          ? String(media.thumbPath)
+                                          : undefined,
+                                      kind:
+                                        media.kind === 'video'
+                                          ? 'video'
+                                          : media.kind === 'image'
+                                            ? 'image'
+                                            : 'file',
+                                      contentType:
+                                        typeof media.contentType === 'string'
+                                          ? String(media.contentType)
+                                          : undefined,
+                                      thumbContentType:
+                                        typeof media.thumbContentType === 'string'
+                                          ? String(media.thumbContentType)
+                                          : undefined,
+                                      fileName:
+                                        typeof media.fileName === 'string'
+                                          ? String(media.fileName)
+                                          : undefined,
+                                      size:
+                                        typeof media.size === 'number' &&
+                                        Number.isFinite(media.size)
+                                          ? media.size
+                                          : undefined,
+                                      durationMs:
+                                        typeof media.durationMs === 'number' &&
+                                        Number.isFinite(media.durationMs)
+                                          ? Math.max(0, Math.floor(media.durationMs))
+                                          : undefined,
+                                    }) as MediaItem,
                                 );
                               }
                               const env =
@@ -503,7 +529,7 @@ export function ChatMessageRow(props: {
                               thumbUri =
                                 kind !== 'file'
                                   ? origin.encrypted || origin.groupEncrypted
-                                    ? (first.thumbPath && dmThumbUriByPath[String(first.thumbPath)])
+                                    ? first.thumbPath && dmThumbUriByPath[String(first.thumbPath)]
                                       ? dmThumbUriByPath[String(first.thumbPath)]
                                       : null
                                     : mediaUrlByPath[key]
@@ -562,7 +588,9 @@ export function ChatMessageRow(props: {
                                         color={
                                           isOutgoing
                                             ? withAlpha(PALETTE.white, 0.92)
-                                            : (firstItem ? fileBrandColorForMedia(firstItem) : null) ||
+                                            : (firstItem
+                                                ? fileBrandColorForMedia(firstItem)
+                                                : null) ||
                                               (isDark
                                                 ? APP_COLORS.dark.text.primary
                                                 : APP_COLORS.light.brand.primary)
@@ -595,9 +623,7 @@ export function ChatMessageRow(props: {
                               ]}
                               numberOfLines={1}
                             >
-                              {`Replying to ${
-                                replyToLabel
-                              }`}
+                              {`Replying to ${replyToLabel}`}
                             </Text>
                             <Text
                               style={[
@@ -919,65 +945,83 @@ export function ChatMessageRow(props: {
                         if (origin.encrypted && origin.decryptedText) {
                           const dmEnv = parseDmMediaEnvelope(String(origin.decryptedText || ''));
                           const items = normalizeDmMediaItems(dmEnv);
-                          return items.map(({ media }) =>
-                            ({
-                              path: String(media.path || ''),
-                              thumbPath: typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
-                              kind:
-                                media.kind === 'video'
-                                  ? 'video'
-                                  : media.kind === 'image'
-                                    ? 'image'
-                                    : 'file',
-                              contentType:
-                                typeof media.contentType === 'string' ? String(media.contentType) : undefined,
-                              thumbContentType:
-                                typeof media.thumbContentType === 'string'
-                                  ? String(media.thumbContentType)
-                                  : undefined,
-                              fileName:
-                                typeof media.fileName === 'string' ? String(media.fileName) : undefined,
-                              size:
-                                typeof media.size === 'number' && Number.isFinite(media.size)
-                                  ? media.size
-                                  : undefined,
-                              durationMs:
-                                typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
-                                  ? Math.max(0, Math.floor(media.durationMs))
-                                  : undefined,
-                            }) as MediaItem,
+                          return items.map(
+                            ({ media }) =>
+                              ({
+                                path: String(media.path || ''),
+                                thumbPath:
+                                  typeof media.thumbPath === 'string'
+                                    ? String(media.thumbPath)
+                                    : undefined,
+                                kind:
+                                  media.kind === 'video'
+                                    ? 'video'
+                                    : media.kind === 'image'
+                                      ? 'image'
+                                      : 'file',
+                                contentType:
+                                  typeof media.contentType === 'string'
+                                    ? String(media.contentType)
+                                    : undefined,
+                                thumbContentType:
+                                  typeof media.thumbContentType === 'string'
+                                    ? String(media.thumbContentType)
+                                    : undefined,
+                                fileName:
+                                  typeof media.fileName === 'string'
+                                    ? String(media.fileName)
+                                    : undefined,
+                                size:
+                                  typeof media.size === 'number' && Number.isFinite(media.size)
+                                    ? media.size
+                                    : undefined,
+                                durationMs:
+                                  typeof media.durationMs === 'number' &&
+                                  Number.isFinite(media.durationMs)
+                                    ? Math.max(0, Math.floor(media.durationMs))
+                                    : undefined,
+                              }) as MediaItem,
                           );
                         }
                         if (origin.groupEncrypted && origin.decryptedText) {
                           const gEnv = parseGroupMediaEnvelope(String(origin.decryptedText || ''));
                           const items = normalizeGroupMediaItems(gEnv);
-                          return items.map(({ media }) =>
-                            ({
-                              path: String(media.path || ''),
-                              thumbPath: typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
-                              kind:
-                                media.kind === 'video'
-                                  ? 'video'
-                                  : media.kind === 'image'
-                                    ? 'image'
-                                    : 'file',
-                              contentType:
-                                typeof media.contentType === 'string' ? String(media.contentType) : undefined,
-                              thumbContentType:
-                                typeof media.thumbContentType === 'string'
-                                  ? String(media.thumbContentType)
-                                  : undefined,
-                              fileName:
-                                typeof media.fileName === 'string' ? String(media.fileName) : undefined,
-                              size:
-                                typeof media.size === 'number' && Number.isFinite(media.size)
-                                  ? media.size
-                                  : undefined,
-                              durationMs:
-                                typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
-                                  ? Math.max(0, Math.floor(media.durationMs))
-                                  : undefined,
-                            }) as MediaItem,
+                          return items.map(
+                            ({ media }) =>
+                              ({
+                                path: String(media.path || ''),
+                                thumbPath:
+                                  typeof media.thumbPath === 'string'
+                                    ? String(media.thumbPath)
+                                    : undefined,
+                                kind:
+                                  media.kind === 'video'
+                                    ? 'video'
+                                    : media.kind === 'image'
+                                      ? 'image'
+                                      : 'file',
+                                contentType:
+                                  typeof media.contentType === 'string'
+                                    ? String(media.contentType)
+                                    : undefined,
+                                thumbContentType:
+                                  typeof media.thumbContentType === 'string'
+                                    ? String(media.thumbContentType)
+                                    : undefined,
+                                fileName:
+                                  typeof media.fileName === 'string'
+                                    ? String(media.fileName)
+                                    : undefined,
+                                size:
+                                  typeof media.size === 'number' && Number.isFinite(media.size)
+                                    ? media.size
+                                    : undefined,
+                                durationMs:
+                                  typeof media.durationMs === 'number' &&
+                                  Number.isFinite(media.durationMs)
+                                    ? Math.max(0, Math.floor(media.durationMs))
+                                    : undefined,
+                              }) as MediaItem,
                           );
                         }
                         const env =
@@ -995,7 +1039,7 @@ export function ChatMessageRow(props: {
                         thumbUri =
                           kind !== 'file'
                             ? origin.encrypted || origin.groupEncrypted
-                              ? (first.thumbPath && dmThumbUriByPath[String(first.thumbPath)])
+                              ? first.thumbPath && dmThumbUriByPath[String(first.thumbPath)]
                                 ? dmThumbUriByPath[String(first.thumbPath)]
                                 : null
                               : mediaUrlByPath[key]
