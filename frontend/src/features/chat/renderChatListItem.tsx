@@ -20,8 +20,15 @@ import { saveMediaUrlToDevice } from '../../utils/saveMediaToDevice';
 import { getChatSenderKey } from '../../utils/senderKeys';
 import type { PendingMediaItem } from './attachments';
 import { ChatMessageRow } from './components/ChatMessageRow';
-import { normalizeChatMediaList, parseChatEnvelope } from './parsers';
-import type { ChatMessage } from './types';
+import {
+  normalizeChatMediaList,
+  normalizeDmMediaItems,
+  normalizeGroupMediaItems,
+  parseChatEnvelope,
+  parseDmMediaEnvelope,
+  parseGroupMediaEnvelope,
+} from './parsers';
+import type { ChatMessage, DmMediaEnvelopeV1 } from './types';
 import type { ChatAudioPlayback } from './useChatAudioPlayback';
 
 type Anchor = { x: number; y: number };
@@ -87,6 +94,16 @@ export function renderChatListItem(args: {
   openDmMediaViewer: (m: ChatMessage, startIdx: number) => void | Promise<void>;
   openGroupMediaViewer: (m: ChatMessage, startIdx: number) => void | Promise<void>;
   requestOpenLink: (url: string) => void;
+
+  // Encrypted attachments: resolve decrypted file URIs for download/export.
+  decryptDmFileToCacheUri: (
+    msg: ChatMessage,
+    it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] },
+  ) => Promise<string>;
+  decryptGroupFileToCacheUri: (
+    msg: ChatMessage,
+    it: { media: DmMediaEnvelopeV1['media']; wrap: DmMediaEnvelopeV1['wrap'] },
+  ) => Promise<string>;
 
   audioPlayback?: ChatAudioPlayback & {
     getAudioKey: (msg: ChatMessage, idx: number, media: MediaItem) => string;
@@ -216,6 +233,10 @@ export function renderChatListItem(args: {
   const displayText = isDeleted ? 'This message has been deleted' : captionText;
   const isEdited =
     !isDeleted && typeof item.editedAt === 'number' && Number.isFinite(item.editedAt);
+  // IMPORTANT: if the message is still encrypted (not decrypted yet),
+  // always render it as a normal encrypted-text bubble so media placeholders
+  // don't appear larger than encrypted text placeholders.
+  const isStillEncrypted = (!!item.encrypted || !!item.groupEncrypted) && !item.decryptedText;
 
   const reactionEntries = item.reactions
     ? Object.entries(item.reactions)
@@ -228,13 +249,60 @@ export function renderChatListItem(args: {
         .sort((a, b) => b.count - a.count)
     : [];
 
+  const decryptedMediaList: MediaItem[] = (() => {
+    if (!item.decryptedText) return [];
+    if (isDm) {
+      const env = parseDmMediaEnvelope(String(item.decryptedText || ''));
+      const items = normalizeDmMediaItems(env);
+      if (!items.length) return [];
+      return items.map(({ media }) => ({
+        path: String(media.path || ''),
+        thumbPath: typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
+        kind: media.kind === 'video' ? 'video' : media.kind === 'image' ? 'image' : 'file',
+        contentType: typeof media.contentType === 'string' ? String(media.contentType) : undefined,
+        thumbContentType:
+          typeof media.thumbContentType === 'string' ? String(media.thumbContentType) : undefined,
+        fileName: typeof media.fileName === 'string' ? String(media.fileName) : undefined,
+        size:
+          typeof media.size === 'number' && Number.isFinite(media.size) ? media.size : undefined,
+        durationMs:
+          typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+            ? Math.max(0, Math.floor(media.durationMs))
+            : undefined,
+      }));
+    }
+    if (isGroup) {
+      const env = parseGroupMediaEnvelope(String(item.decryptedText || ''));
+      const items = normalizeGroupMediaItems(env);
+      if (!items.length) return [];
+      return items.map(({ media }) => ({
+        path: String(media.path || ''),
+        thumbPath: typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
+        kind: media.kind === 'video' ? 'video' : media.kind === 'image' ? 'image' : 'file',
+        contentType: typeof media.contentType === 'string' ? String(media.contentType) : undefined,
+        thumbContentType:
+          typeof media.thumbContentType === 'string' ? String(media.thumbContentType) : undefined,
+        fileName: typeof media.fileName === 'string' ? String(media.fileName) : undefined,
+        size:
+          typeof media.size === 'number' && Number.isFinite(media.size) ? media.size : undefined,
+        durationMs:
+          typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+            ? Math.max(0, Math.floor(media.durationMs))
+            : undefined,
+      }));
+    }
+    return [];
+  })();
+
   const mediaList: MediaItem[] = mediaEnvelope
     ? envMediaList
-    : item.mediaList
-      ? item.mediaList
-      : item.media
-        ? [item.media]
-        : [];
+    : !isStillEncrypted && (isDm || isGroup) && decryptedMediaList.length
+      ? decryptedMediaList
+      : item.mediaList
+        ? item.mediaList
+        : item.media
+          ? [item.media]
+          : [];
   const previewableWithOriginalIdx = mediaList
     .map((m, idx) => ({ m, idx }))
     .filter(({ m }) => isPreviewableMedia(m));
@@ -247,10 +315,6 @@ export function renderChatListItem(args: {
   const mediaLooksImage = !!primaryPreviewable && isImageLikeMedia(primaryPreviewable);
   const mediaLooksVideo = !!primaryPreviewable && isVideoLikeMedia(primaryPreviewable);
   const hasAnyPreviewableMedia = previewableWithOriginalIdx.length > 0;
-  // IMPORTANT: if the message is still encrypted (not decrypted yet),
-  // always render it as a normal encrypted-text bubble so media placeholders
-  // don't appear larger than encrypted text placeholders.
-  const isStillEncrypted = (!!item.encrypted || !!item.groupEncrypted) && !item.decryptedText;
   // Only images/videos should render in the large "media card" UI.
   // File-only messages render as normal bubbles with attachment tiles.
   const hasMedia = hasAnyPreviewableMedia && !isStillEncrypted;
@@ -314,6 +378,27 @@ export function renderChatListItem(args: {
     return void openViewer(mediaList, originalIdx);
   };
 
+  const resolveEncryptedFileUriByIdx = async (originalIdx: number): Promise<string | null> => {
+    if (!isEncryptedChat) return null;
+    if (!item.decryptedText) return null;
+    const idx = Math.max(0, Math.floor(originalIdx || 0));
+    if (isDm) {
+      const env = parseDmMediaEnvelope(String(item.decryptedText || ''));
+      const arr = normalizeDmMediaItems(env);
+      const it = arr[idx];
+      if (!it) return null;
+      return await args.decryptDmFileToCacheUri(item, it);
+    }
+    if (isGroup) {
+      const env = parseGroupMediaEnvelope(String(item.decryptedText || ''));
+      const arr = normalizeGroupMediaItems(env);
+      const it = arr[idx];
+      if (!it) return null;
+      return await args.decryptGroupFileToCacheUri(item, it);
+    }
+    return null;
+  };
+
   const renderMediaCarousel =
     mediaList.length && hasMedia && !isDeleted ? (
       <MediaStackCarousel
@@ -346,6 +431,9 @@ export function renderChatListItem(args: {
                 onToggle: (key, idx, media) =>
                   audioPlayback.onPressAudio({ msg: item, idx, key, media }),
                 onSeek: (key, ms) => audioPlayback.seekFor(key, ms),
+                getDownloadUrl: isEncryptedChat
+                  ? async (idx, _media) => await resolveEncryptedFileUriByIdx(idx)
+                  : undefined,
               }
             : undefined
         }
@@ -437,7 +525,23 @@ export function renderChatListItem(args: {
                         onSuccess: () => showToast('Media saved', 'success'),
                         onError: (m) => toastErr(showToast, m),
                       })
-                  : undefined
+                  : isEncryptedChat
+                    ? async () => {
+                        try {
+                          const uri = await resolveEncryptedFileUriByIdx(idx2);
+                          if (!uri) return;
+                          await saveMediaUrlToDevice({
+                            url: uri,
+                            kind: 'file',
+                            fileName: m2.fileName,
+                            onSuccess: () => showToast('Media saved', 'success'),
+                            onError: (m) => toastErr(showToast, m),
+                          });
+                        } catch (e: unknown) {
+                          toastErr(showToast, e instanceof Error ? e.message : 'Download failed');
+                        }
+                      }
+                    : undefined
               }
               state={(() => {
                 const k = audioPlayback.getAudioKey(item, idx2, m2);
@@ -481,7 +585,23 @@ export function renderChatListItem(args: {
                         onSuccess: () => showToast('Media saved', 'success'),
                         onError: (m) => toastErr(showToast, m),
                       })
-                  : undefined
+                  : isEncryptedChat
+                    ? async () => {
+                        try {
+                          const uri = await resolveEncryptedFileUriByIdx(idx2);
+                          if (!uri) return;
+                          await saveMediaUrlToDevice({
+                            url: uri,
+                            kind: 'file',
+                            fileName: m2.fileName,
+                            onSuccess: () => showToast('Media saved', 'success'),
+                            onError: (m) => toastErr(showToast, m),
+                          });
+                        } catch (e: unknown) {
+                          toastErr(showToast, e instanceof Error ? e.message : 'Download failed');
+                        }
+                      }
+                    : undefined
               }
             />
           ),

@@ -350,8 +350,36 @@ export default function GuestGlobalScreen({
   // ---- Guest inline audio playback (same UI as signed-in chat) ----
   const guestAudioQueue = React.useMemo(() => {
     const out: AudioQueueItem[] = [];
-    for (const msg of messages) {
+    const msgsChrono = [...messages].sort(
+      (a, b) => (Number(a?.createdAt) || 0) - (Number(b?.createdAt) || 0),
+    );
+    let runSeq = 0;
+    let prevSenderKey: string | null = null;
+    let prevMsgHadAudio = false;
+
+    for (const msg of msgsChrono) {
       const list = msg.mediaList ? msg.mediaList : msg.media ? [msg.media] : [];
+      const audioIdxs: number[] = [];
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        if (isAudioContentType(m?.contentType)) audioIdxs.push(i);
+      }
+      if (!audioIdxs.length) {
+        prevMsgHadAudio = false;
+        prevSenderKey = null;
+        continue;
+      }
+
+      const senderKey = msg.userSub
+        ? `sub:${String(msg.userSub)}`
+        : msg.user
+          ? `user:${String(msg.user).toLowerCase().trim()}`
+          : 'anon';
+      if (!(prevMsgHadAudio && prevSenderKey === senderKey)) runSeq += 1;
+      const runKey = `${senderKey}:${runSeq}`;
+      prevSenderKey = senderKey;
+      prevMsgHadAudio = true;
+
       for (let i = 0; i < list.length; i++) {
         const m = list[i];
         if (!isAudioContentType(m?.contentType)) continue;
@@ -361,6 +389,7 @@ export default function GuestGlobalScreen({
           createdAt: Number(msg.createdAt) || 0,
           idx: i,
           title: audioTitleFromFileName(m.fileName, 'Audio'),
+          runKey,
           resolveUri: async () => {
             const url = await resolvePathUrl(String(m.path || ''));
             if (!url) throw new Error('Missing media URL');

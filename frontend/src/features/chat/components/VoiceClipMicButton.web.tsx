@@ -140,7 +140,7 @@ export const VoiceClipMicButton = React.memo(function VoiceClipMicButton({
     }
 
     const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('webm') ? 'webm' : 'audio';
-    const fileName = `voice-${Date.now()}.${ext}`;
+    const fileName = `Voice Clip.${ext}`;
 
     onClipReady({
       uri: url,

@@ -87,6 +87,7 @@ export function useChatEncryptedMediaViewer(opts: {
       const it = items[idx];
       if (!it) return;
       const previewKind = previewKindForEncryptedMedia(it.media);
+      // Web: keep a handle so we can close blank tab on failure.
       try {
         // Intentionally await so we fail fast if decrypt is impossible.
         const uri = await decryptGroupFileToCacheUri(msg, it);
@@ -144,6 +145,7 @@ export function useChatEncryptedMediaViewer(opts: {
       const it = items[idx];
       if (!it) return;
       const previewKind = previewKindForEncryptedMedia(it.media);
+      // Web: keep a handle so we can close blank tab on failure.
       try {
         // Start viewer in DM mode; additional pages will decrypt lazily.
         const uri = await decryptDmFileToCacheUri(msg, it);

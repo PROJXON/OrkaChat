@@ -28,8 +28,10 @@ export const VoiceClipMicButton = React.memo(function VoiceClipMicButton({
   onClipReady: (clip: PendingMediaItem) => void;
   onRecordingUiState?: (v: { isRecording: boolean; elapsedMs: number }) => void;
 }): React.JSX.Element {
-  // Best-effort "voice note" preset; bitrate specifics vary by platform.
-  const recorder = useAudioRecorder(RecordingPresets.LOW_QUALITY);
+  // IMPORTANT:
+  // `LOW_QUALITY` often records AMR in a 3GP container on Android, which many browsers can't decode.
+  // Use a browser-friendly AAC-in-MP4/M4A style preset so voice clips are playable on web too.
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const [isRecording, setIsRecording] = React.useState(false);
   const [elapsedMs, setElapsedMs] = React.useState(0);
@@ -119,11 +121,19 @@ export const VoiceClipMicButton = React.memo(function VoiceClipMicButton({
       return;
     }
 
-    const fileName = `voice-${Date.now()}.m4a`;
+    const extMatch = uri.match(/\.([a-z0-9]{1,6})(?:\?|$)/i);
+    const ext = (extMatch?.[1] || 'm4a').toLowerCase();
+    const contentType =
+      ext === '3gp' || ext === '3gpp'
+        ? 'audio/3gpp'
+        : ext === 'mp4' || ext === 'm4a' || ext === 'aac'
+          ? 'audio/mp4'
+          : 'audio/mp4';
+    const fileName = `Voice Clip.${ext}`;
     onClipReady({
       uri,
       kind: 'file',
-      contentType: 'audio/mp4',
+      contentType,
       fileName,
       displayName: 'Voice clip',
       durationMs,
