@@ -103,6 +103,11 @@ export function MediaStackCarousel({
     getTitle: (media: MediaItem) => string;
     onToggle: (key: string, idx: number, media: MediaItem) => void | Promise<void>;
     onSeek: (key: string, ms: number) => void | Promise<void>;
+    /**
+     * Optional download resolver (used for encrypted chats where there is no direct CDN URL).
+     * Should return a usable URL/URI (blob:/file:/content:/https).
+     */
+    getDownloadUrl?: (idx: number, media: MediaItem) => Promise<string | null> | string | null;
   };
   /**
    * If true, pages whose media aspect differs significantly from the carousel's container aspect
@@ -510,10 +515,18 @@ export function MediaStackCarousel({
                         minWidth={0}
                         layout={isNarrow ? 'narrow' : 'default'}
                         onDownload={
-                          downloadUrl
-                            ? () =>
-                                saveMediaUrlToDevice({
-                                  url: downloadUrl,
+                          downloadUrl || audioSlide.getDownloadUrl
+                            ? async () => {
+                                const url =
+                                  downloadUrl ||
+                                  String(
+                                    (await Promise.resolve(
+                                      audioSlide.getDownloadUrl?.(realIndex, original),
+                                    )) || '',
+                                  ).trim();
+                                if (!url) return;
+                                await saveMediaUrlToDevice({
+                                  url,
                                   kind: 'file',
                                   fileName: original.fileName,
                                   onSuccess:
@@ -524,7 +537,8 @@ export function MediaStackCarousel({
                                     Platform.OS === 'web'
                                       ? undefined
                                       : (m) => onToast?.(String(m || 'Download failed'), 'error'),
-                                })
+                                });
+                              }
                             : undefined
                         }
                         state={{

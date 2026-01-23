@@ -58,6 +58,11 @@ Attachments can be opened with the OS viewer/share sheet using `src/utils/openEx
 
 The app also guesses common MIME types from filename (PDF, Office docs, archives, audio/video/images, etc.) to improve viewer selection.
 
+## Voice clips + inline audio playback
+
+- Voice clip recording is implemented by `src/features/chat/components/VoiceClipMicButton.tsx` (native) and `VoiceClipMicButton.web.tsx` (web).
+- Inline audio playback is handled by `src/features/chat/useChatAudioPlayback.ts` so clips can be played in-place.
+
 ## Local UI caches (AsyncStorage)
 
 To reduce “flash of unknown” and speed up cold starts, the app caches some UI-hydration state in **AsyncStorage**, including:

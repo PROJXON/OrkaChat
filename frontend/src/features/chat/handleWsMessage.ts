@@ -6,7 +6,12 @@ import { applyGroupMembershipSystemEventToMe } from './applyMembershipToMe';
 import { buildIncomingChatMessageFromWsPayload } from './buildIncomingMessage';
 import { buildSystemChatMessageFromPayload } from './buildSystemMessage';
 import { isMembershipSystemKind } from './membershipKinds';
-import type { ChatMessage, EncryptedGroupPayloadV1 } from './types';
+import type {
+  ChatMessage,
+  DmMediaEnvelope,
+  EncryptedGroupPayloadV1,
+  GroupMediaEnvelope,
+} from './types';
 
 type Ref<T> = { current: T };
 type SetState<T> = (updater: (prev: T) => T) => void;
@@ -44,6 +49,12 @@ export function handleChatWsMessage(opts: {
   sendTimeoutRef: Ref<Record<string, ReturnType<typeof setTimeout> | undefined>>;
   parseEncrypted: (rawText: string) => EncryptedChatPayloadV1 | null;
   parseGroupEncrypted: (rawText: string) => EncryptedGroupPayloadV1 | null;
+  // Optional: if provided, we can update edited encrypted messages immediately
+  // without waiting for user interaction / a later decrypt pass.
+  decryptForDisplay?: (m: ChatMessage) => string;
+  decryptGroupForDisplay?: (m: ChatMessage) => { plaintext: string; messageKeyHex: string } | null;
+  parseDmMediaEnvelope?: (plaintext: string) => DmMediaEnvelope | null;
+  parseGroupMediaEnvelope?: (plaintext: string) => GroupMediaEnvelope | null;
   normalizeUser: (v: unknown) => string;
   normalizeReactions: (v: unknown) => ReactionMap | undefined;
 }): void {
@@ -339,24 +350,67 @@ export function handleChatWsMessage(opts: {
           const encrypted = opts.parseEncrypted(newRaw);
           const groupEncrypted = opts.parseGroupEncrypted(newRaw);
           const isEncrypted = !!encrypted || !!groupEncrypted;
-          // Important: for encrypted messages, don't wipe decrypted UI state if we already have it
-          // (e.g. the sender optimistically updates decryptedText on edit).
-          const nextText = isEncrypted
-            ? m.decryptedText
-              ? m.text
-              : opts.encryptedPlaceholder
-            : extractChatTextFromText(newRaw);
-          return {
+          const nextBase: ChatMessage = {
             ...m,
             rawText: newRaw,
             encrypted: encrypted ?? undefined,
             groupEncrypted: groupEncrypted ?? undefined,
-            // Only reset groupKey/decryptedText when we *don't* have plaintext to preserve.
-            groupKeyHex: isEncrypted && !m.decryptedText ? undefined : m.groupKeyHex,
-            text: nextText,
-            decryptedText: isEncrypted ? m.decryptedText : undefined,
-            decryptFailed: isEncrypted ? m.decryptFailed : false,
             editedAt,
+          };
+
+          if (!isEncrypted) {
+            return { ...nextBase, text: extractChatTextFromText(newRaw), decryptedText: undefined };
+          }
+
+          // If we have decryptors, try to re-decrypt immediately so the edited content updates
+          // without requiring a tap/rerender. If decrypt fails (keys not ready), fall back to placeholder.
+          let plaintext: string | null = null;
+          let groupKeyHex: string | undefined = undefined;
+          try {
+            if (groupEncrypted && typeof opts.decryptGroupForDisplay === 'function') {
+              const dec = opts.decryptGroupForDisplay(nextBase);
+              if (dec && typeof dec.plaintext === 'string') {
+                plaintext = dec.plaintext;
+                groupKeyHex = dec.messageKeyHex;
+              }
+            } else if (encrypted && typeof opts.decryptForDisplay === 'function') {
+              plaintext = opts.decryptForDisplay(nextBase);
+            }
+          } catch {
+            plaintext = null;
+            groupKeyHex = undefined;
+          }
+
+          if (plaintext && typeof plaintext === 'string') {
+            const isDm = String(opts.activeConversationId || '').startsWith('dm#');
+            const isGroup = String(opts.activeConversationId || '').startsWith('gdm#');
+            let caption: string | null = null;
+            try {
+              if (isDm && typeof opts.parseDmMediaEnvelope === 'function') {
+                const env = opts.parseDmMediaEnvelope(plaintext);
+                if (env && typeof env.caption === 'string') caption = env.caption;
+              } else if (isGroup && typeof opts.parseGroupMediaEnvelope === 'function') {
+                const env = opts.parseGroupMediaEnvelope(plaintext);
+                if (env && typeof env.caption === 'string') caption = env.caption;
+              }
+            } catch {
+              caption = null;
+            }
+            return {
+              ...nextBase,
+              decryptedText: plaintext,
+              groupKeyHex,
+              text: caption != null ? caption : plaintext,
+              decryptFailed: false,
+            };
+          }
+
+          return {
+            ...nextBase,
+            decryptedText: undefined,
+            groupKeyHex: undefined,
+            text: opts.encryptedPlaceholder,
+            decryptFailed: false,
           };
         }),
       );

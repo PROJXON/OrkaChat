@@ -152,6 +152,7 @@ import { getPreviewKind } from '../utils/mediaKinds';
 import { calcCappedMediaSize } from '../utils/mediaSizing';
 import { normalizeUser } from '../utils/normalizeUser';
 import { openExternalFile } from '../utils/openExternalFile';
+import { saveMediaUrlToDevice } from '../utils/saveMediaToDevice';
 import { getSeenLabelForCreatedAt } from '../utils/seenLabels';
 import { styles } from './ChatScreen.styles';
 
@@ -557,23 +558,35 @@ export default function ChatScreen({
 
   const { toast, anim: toastAnim, showToast } = useToast();
 
-  function onViewerSavePermissionDenied() {
+  const onViewerSavePermissionDenied = React.useCallback(() => {
     showToast('Allow Photos permission to save.', 'error');
-  }
-  function onViewerSaveSuccess() {
+  }, [showToast]);
+  const onViewerSaveSuccess = React.useCallback(() => {
     showToast('Media saved', 'success');
-  }
-  function onViewerSaveError(msg: string) {
-    const m = String(msg || '');
-    showToast(m.length > 120 ? `${m.slice(0, 120)}…` : m, 'error');
-  }
+  }, [showToast]);
+  const onViewerSaveError = React.useCallback(
+    (msg: string) => {
+      const m = String(msg || '');
+      showToast(m.length > 120 ? `${m.slice(0, 120)}…` : m, 'error');
+    },
+    [showToast],
+  );
 
-  const viewer = useMediaViewer<NonNullable<ChatMediaViewerState>>({
+  const viewerBase = useMediaViewer<NonNullable<ChatMediaViewerState>>({
     getSaveItem: (vs) => {
       if (!vs) return null;
       if (vs.mode === 'global') return vs.globalItems?.[vs.index] ?? null;
       if (vs.mode === 'dm') {
         const it = vs.dmItems?.[vs.index];
+        if (!it?.media?.path) return null;
+        const url = dmFileUriByPath[it.media.path];
+        if (!url) return null;
+        const kind =
+          it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
+        return { url, kind, fileName: it.media.fileName };
+      }
+      if (vs.mode === 'gdm') {
+        const it = vs.gdmItems?.[vs.index];
         if (!it?.media?.path) return null;
         const url = dmFileUriByPath[it.media.path];
         if (!url) return null;
@@ -587,6 +600,100 @@ export default function ChatScreen({
     onSuccess: onViewerSaveSuccess,
     onError: onViewerSaveError,
   });
+
+  // Ensure Save works for encrypted DM/GDM even if the page hasn't been decrypted yet.
+  const [viewerSaving, setViewerSaving] = React.useState(false);
+  const saveViewerToDevice = React.useCallback(async () => {
+    if (viewerSaving) return;
+    const vs = viewerBase.state;
+    if (!vs) return;
+
+    setViewerSaving(true);
+    try {
+      if (vs.mode === 'global') {
+        const it = vs.globalItems?.[vs.index];
+        if (!it?.url) return;
+        await saveMediaUrlToDevice({
+          url: it.url,
+          kind: it.kind,
+          fileName: it.fileName,
+          onPermissionDenied: onViewerSavePermissionDenied,
+          onSuccess: onViewerSaveSuccess,
+          onError: onViewerSaveError,
+        });
+        return;
+      }
+
+      if (vs.mode === 'dm') {
+        const msg = vs.dmMsg;
+        const it = vs.dmItems?.[vs.index];
+        const key = it?.media?.path;
+        if (!msg || !it || !key) return;
+        const uri =
+          dmFileUriByPath[key] ||
+          (await decryptDmFileToCacheUri(
+            msg,
+            it as unknown as Parameters<typeof decryptDmFileToCacheUri>[1],
+          ).catch(() => ''));
+        if (!uri) return;
+        const kind =
+          it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
+        await saveMediaUrlToDevice({
+          url: uri,
+          kind,
+          fileName: it.media.fileName,
+          onPermissionDenied: onViewerSavePermissionDenied,
+          onSuccess: onViewerSaveSuccess,
+          onError: onViewerSaveError,
+        });
+        return;
+      }
+
+      if (vs.mode === 'gdm') {
+        const msg = vs.gdmMsg;
+        const it = vs.gdmItems?.[vs.index];
+        const key = it?.media?.path;
+        if (!msg || !it || !key) return;
+        const uri =
+          dmFileUriByPath[key] ||
+          (await decryptGroupFileToCacheUri(
+            msg,
+            it as unknown as Parameters<typeof decryptGroupFileToCacheUri>[1],
+          ).catch(() => ''));
+        if (!uri) return;
+        const kind =
+          it.media.kind === 'video' ? 'video' : it.media.kind === 'image' ? 'image' : 'file';
+        await saveMediaUrlToDevice({
+          url: uri,
+          kind,
+          fileName: it.media.fileName,
+          onPermissionDenied: onViewerSavePermissionDenied,
+          onSuccess: onViewerSaveSuccess,
+          onError: onViewerSaveError,
+        });
+      }
+    } finally {
+      setViewerSaving(false);
+    }
+  }, [
+    decryptDmFileToCacheUri,
+    decryptGroupFileToCacheUri,
+    dmFileUriByPath,
+    onViewerSaveError,
+    onViewerSavePermissionDenied,
+    onViewerSaveSuccess,
+    viewerBase.state,
+    viewerSaving,
+  ]);
+
+  const viewer = React.useMemo(
+    () => ({
+      ...viewerBase,
+      saving: viewerSaving || viewerBase.saving,
+      saveToDevice: saveViewerToDevice,
+    }),
+    [saveViewerToDevice, viewerBase, viewerSaving],
+  );
   // DM media caches + decrypt helpers are managed by useChatMediaDecryptCache().
   const inFlightDmViewerDecryptRef = React.useRef<Set<string>>(new Set());
   const [attachOpen, setAttachOpen] = React.useState<boolean>(false);
@@ -1082,9 +1189,23 @@ export default function ChatScreen({
   const audioQueue = React.useMemo(() => {
     const items: AudioQueueItem[] = [];
 
-    for (const msg of messages) {
+    // Build autoplay "runs" in chronological order so "consecutive" matches the chat timeline.
+    const msgsChrono = [...messages].sort(
+      (a, b) => (Number(a?.createdAt) || 0) - (Number(b?.createdAt) || 0),
+    );
+    let runSeq = 0;
+    let prevSenderKey: string | null = null;
+    let prevMsgHadAudio = false;
+
+    for (const msg of msgsChrono) {
       const isStillEncrypted = (!!msg.encrypted || !!msg.groupEncrypted) && !msg.decryptedText;
-      if (isStillEncrypted) continue;
+      if (isStillEncrypted) {
+        // Important: encrypted-but-not-decrypted messages should still count as an "interrupt"
+        // for consecutive autoplay, otherwise the run won't break until the user decrypts.
+        prevMsgHadAudio = false;
+        prevSenderKey = null;
+        continue;
+      }
 
       // Match renderer logic: plaintext chats can store attachments in a JSON envelope in rawText/text.
       const env =
@@ -1100,7 +1221,39 @@ export default function ChatScreen({
             : msg.media
               ? [msg.media]
               : [];
-      if (!list.length) continue;
+      if (!list.length) {
+        // A text-only (or otherwise non-media) message breaks the run.
+        prevMsgHadAudio = false;
+        prevSenderKey = null;
+        continue;
+      }
+
+      const audioIdxs: number[] = [];
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        if (isAudioContentType(m?.contentType)) audioIdxs.push(i);
+      }
+      if (!audioIdxs.length) {
+        // Any non-audio message breaks the "consecutive voice clips" run.
+        prevMsgHadAudio = false;
+        prevSenderKey = null;
+        continue;
+      }
+
+      const senderKey = msg.userSub
+        ? `sub:${String(msg.userSub)}`
+        : msg.userLower
+          ? `user:${normalizeUser(msg.userLower)}`
+          : msg.user
+            ? `user:${normalizeUser(msg.user)}`
+            : 'anon';
+
+      if (!(prevMsgHadAudio && prevSenderKey === senderKey)) {
+        runSeq += 1;
+      }
+      const runKey = `${senderKey}:${runSeq}`;
+      prevSenderKey = senderKey;
+      prevMsgHadAudio = true;
 
       for (let i = 0; i < list.length; i++) {
         const m = list[i];
@@ -1115,6 +1268,7 @@ export default function ChatScreen({
             createdAt: Number(msg.createdAt) || 0,
             idx: i,
             title,
+            runKey,
             resolveUri: async () => {
               const env = parseDmMediaEnvelope(String(msg.decryptedText || ''));
               const arr = normalizeDmMediaItems(env);
@@ -1132,6 +1286,7 @@ export default function ChatScreen({
             createdAt: Number(msg.createdAt) || 0,
             idx: i,
             title,
+            runKey,
             resolveUri: async () => {
               const env = parseGroupMediaEnvelope(String(msg.decryptedText || ''));
               const arr = normalizeGroupMediaItems(env);
@@ -1148,6 +1303,7 @@ export default function ChatScreen({
           createdAt: Number(msg.createdAt) || 0,
           idx: i,
           title,
+          runKey,
           resolveUri: async () => {
             const url = mediaUrlByPath[String(m.path || '')];
             if (!url) throw new Error('Missing media URL');
@@ -1394,6 +1550,10 @@ export default function ChatScreen({
     sendTimeoutRef,
     parseEncrypted,
     parseGroupEncrypted,
+    decryptForDisplay,
+    decryptGroupForDisplay,
+    parseDmMediaEnvelope,
+    parseGroupMediaEnvelope,
     normalizeUser,
     normalizeReactions,
   });
@@ -1773,6 +1933,8 @@ export default function ChatScreen({
         openDmMediaViewer,
         openGroupMediaViewer,
         requestOpenLink,
+        decryptDmFileToCacheUri,
+        decryptGroupFileToCacheUri,
         audioPlayback: audioPlaybackForRender,
         onPressMessage,
         openMessageActions: selectionActive ? (_m, _a) => {} : openMessageActions,
@@ -1787,6 +1949,8 @@ export default function ChatScreen({
       cancelInlineEdit,
       chatViewportWidth,
       commitInlineEdit,
+      decryptDmFileToCacheUri,
+      decryptGroupFileToCacheUri,
       displayName,
       dmThumbUriByPath,
       getCappedMediaSize,
@@ -1932,6 +2096,8 @@ export default function ChatScreen({
     sendTyping,
     sendMessage,
     handlePickMedia,
+    showAlert,
+    stopAudioPlayback: () => void audioPlayback.stopAll(),
     selectionActive,
     selectionCount: selectedMessageIds.length,
     selectionCanCopy: !!selectedCopyText,

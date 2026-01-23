@@ -780,7 +780,7 @@ export const styles = StyleSheet.create({
     borderColor: PALETTE.lineMedium,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 4,
   },
   pickBtnDark: {
     backgroundColor: PALETTE.slate750,
@@ -851,7 +851,7 @@ export const styles = StyleSheet.create({
     lineHeight: 18,
   },
   sendBtn: {
-    marginLeft: 8,
+    marginLeft: 4,
     height: 44,
     paddingHorizontal: 16,
     alignItems: 'center',

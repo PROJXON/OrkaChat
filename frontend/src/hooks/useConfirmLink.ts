@@ -39,6 +39,13 @@ export function useConfirmLink() {
     } catch {
       // ignore
     }
+    // Decrypted attachments on web are often blob:/data:/file: URLs with no host.
+    // Show a helpful label so the modal doesn't feel "empty".
+    if (!domain) {
+      if (s.startsWith('blob:') || s.startsWith('data:') || s.startsWith('file:')) {
+        domain = 'Local attachment';
+      }
+    }
     setState({
       open: true,
       url: s,

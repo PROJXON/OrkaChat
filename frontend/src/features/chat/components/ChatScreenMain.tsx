@@ -149,6 +149,8 @@ type ChatScreenMainProps = {
     sendTyping: (isTyping: boolean) => void;
     sendMessage: () => void;
     handlePickMedia: () => void;
+    showAlert: (title: string, message: string) => void;
+    stopAudioPlayback: () => void | Promise<void>;
   };
 
   selection: {
@@ -577,6 +579,8 @@ export function ChatScreenMain({
               sendTyping={composer.sendTyping}
               sendMessage={composer.sendMessage}
               handlePickMedia={composer.handlePickMedia}
+              showAlert={composer.showAlert}
+              stopAudioPlayback={composer.stopAudioPlayback}
             />
           )}
         </View>

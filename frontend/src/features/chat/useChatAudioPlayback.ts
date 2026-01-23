@@ -8,6 +8,7 @@ export type ChatAudioQueueItem = {
   idx: number; // stable within message (tie-break)
   title: string;
   subtitle?: string;
+  runKey: string;
   resolveUri: () => Promise<string>;
 };
 
@@ -17,6 +18,11 @@ export type ChatAudioPlayback = {
   isPlaying: boolean;
   positionMs: number;
   durationMs: number | null;
+  /**
+   * Immediately stop playback and unload any currently loaded clip.
+   * Intended for flows like voice recording where audio output must cease.
+   */
+  stopAll: () => Promise<void>;
   toggle: (key: string) => Promise<void>;
   seek: (ms: number) => Promise<void>;
   /**
@@ -138,8 +144,12 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
             if (!endedKey) return;
             const idx = queue.findIndex((q) => q.key === endedKey);
             const next = idx >= 0 ? queue[idx + 1] : null;
-            // Avoid capturing `playKey` inside this callback to keep hook deps simple.
-            if (next) void loadKey(next.key, { autoplay: true });
+            const cur = idx >= 0 ? queue[idx] : null;
+            // Only autoplay "runs" of consecutive audio from the same sender.
+            if (next && cur && next.runKey && cur.runKey && next.runKey === cur.runKey) {
+              // Avoid capturing `playKey` inside this callback to keep hook deps simple.
+              void loadKey(next.key, { autoplay: true });
+            }
           }
         };
 
@@ -262,6 +272,7 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
     isPlaying,
     positionMs,
     durationMs,
+    stopAll: stopAndUnload,
     toggle,
     seek,
     seekFor,

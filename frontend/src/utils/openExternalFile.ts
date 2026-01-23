@@ -99,6 +99,8 @@ export async function openExternalFile(opts: {
   if (!url) return;
 
   if (Platform.OS === 'web') {
+    // Web: use the confirmation modal when available so UX matches plaintext chats.
+    // (The modal's "Open" handler must support blob/data/file URLs too.)
     if (opts.requestOpenFile) {
       opts.requestOpenFile({ url, fileName: opts.fileName });
       return;

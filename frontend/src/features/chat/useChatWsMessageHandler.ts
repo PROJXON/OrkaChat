@@ -3,8 +3,12 @@ import * as React from 'react';
 import type { EncryptedChatPayloadV1 } from '../../types/crypto';
 import type { ReactionMap } from '../../types/reactions';
 import { buildFallbackChatMessageFromWsEventData, handleChatWsMessage } from './handleWsMessage';
-import type { ChatMessage } from './types';
-import type { EncryptedGroupPayloadV1 } from './types';
+import type {
+  ChatMessage,
+  DmMediaEnvelope,
+  EncryptedGroupPayloadV1,
+  GroupMediaEnvelope,
+} from './types';
 
 export function useChatWsMessageHandler(opts: {
   activeConversationIdRef: React.MutableRefObject<string>;
@@ -44,6 +48,11 @@ export function useChatWsMessageHandler(opts: {
 
   parseEncrypted: (s: string) => EncryptedChatPayloadV1 | null;
   parseGroupEncrypted: (s: string) => EncryptedGroupPayloadV1 | null;
+  // Optional: if provided, encrypted edit events can update visible text immediately.
+  decryptForDisplay?: (m: ChatMessage) => string;
+  decryptGroupForDisplay?: (m: ChatMessage) => { plaintext: string; messageKeyHex: string } | null;
+  parseDmMediaEnvelope?: (plaintext: string) => DmMediaEnvelope | null;
+  parseGroupMediaEnvelope?: (plaintext: string) => GroupMediaEnvelope | null;
   normalizeUser: (v: unknown) => string;
   normalizeReactions: (v: unknown) => ReactionMap | undefined;
 }) {
@@ -75,6 +84,10 @@ export function useChatWsMessageHandler(opts: {
     sendTimeoutRef,
     parseEncrypted,
     parseGroupEncrypted,
+    decryptForDisplay,
+    decryptGroupForDisplay,
+    parseDmMediaEnvelope,
+    parseGroupMediaEnvelope,
     normalizeUser,
     normalizeReactions,
   } = opts;
@@ -126,6 +139,10 @@ export function useChatWsMessageHandler(opts: {
           sendTimeoutRef,
           parseEncrypted,
           parseGroupEncrypted,
+          decryptForDisplay,
+          decryptGroupForDisplay,
+          parseDmMediaEnvelope,
+          parseGroupMediaEnvelope,
           normalizeUser,
           normalizeReactions,
         });
@@ -156,6 +173,10 @@ export function useChatWsMessageHandler(opts: {
       openInfo,
       parseEncrypted,
       parseGroupEncrypted,
+      decryptForDisplay,
+      decryptGroupForDisplay,
+      parseDmMediaEnvelope,
+      parseGroupMediaEnvelope,
       refreshChannelRoster,
       sendTimeoutRef,
       setGroupMeStatus,
