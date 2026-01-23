@@ -21,6 +21,8 @@ export type ReplyTarget = {
   mediaKind?: 'image' | 'video' | 'file';
   mediaCount?: number;
   mediaThumbUri?: string | null;
+  mediaContentType?: string;
+  mediaFileName?: string;
 };
 
 type TextInputLike = { clear?: () => void };

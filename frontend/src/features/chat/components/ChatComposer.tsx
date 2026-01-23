@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
@@ -10,6 +11,7 @@ import type { MediaItem } from '../../../types/media';
 import type { PendingMediaItem } from '../attachments';
 import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import type { ChatMessage } from '../types';
+import { fileBrandColorForMedia, fileIconNameForMedia } from '../../../utils/mediaKinds';
 import { VoiceClipMicButton } from './VoiceClipMicButton';
 
 type ReplyTarget = null | {
@@ -21,6 +23,8 @@ type ReplyTarget = null | {
   mediaKind?: 'image' | 'video' | 'file';
   mediaCount?: number;
   mediaThumbUri?: string | null;
+  mediaContentType?: string;
+  mediaFileName?: string;
 };
 
 function formatMmSs(ms: number | null | undefined): string {
@@ -128,6 +132,32 @@ export function ChatComposer(props: {
     showAlert,
     stopAudioPlayback,
   } = props;
+
+  const replyToLabel = React.useMemo(() => {
+    if (!replyTarget) return '';
+    const direct = typeof replyTarget.user === 'string' ? replyTarget.user.trim() : '';
+    if (direct) return direct;
+    const origin = messages.find((m) => m && m.id === replyTarget.id);
+    const fromOrigin = typeof origin?.user === 'string' ? origin.user.trim() : '';
+    if (fromOrigin) return fromOrigin;
+    const sub = typeof replyTarget.userSub === 'string' ? replyTarget.userSub.trim() : '';
+    if (sub) return `User ${sub.slice(0, 6)}`;
+    return 'Unknown user';
+  }, [messages, replyTarget]);
+
+  const replyFileMeta = React.useMemo(() => {
+    if (!replyTarget) return null;
+    if (replyTarget.mediaKind !== 'file') return null;
+    return {
+      kind: 'file' as const,
+      contentType: replyTarget.mediaContentType,
+      fileName: replyTarget.mediaFileName,
+    };
+  }, [replyTarget]);
+  const replyFileIcon = replyFileMeta ? fileIconNameForMedia(replyFileMeta) : null;
+  const replyFileIconColor =
+    (replyFileMeta ? fileBrandColorForMedia(replyFileMeta) : null) ||
+    (isDark ? PALETTE.white : APP_COLORS.light.brand.primary);
 
   const MIN_INPUT_HEIGHT = 44;
   const MAX_INPUT_HEIGHT = 140;
@@ -242,13 +272,17 @@ export function ChatComposer(props: {
                   <Image source={{ uri: replyTarget.mediaThumbUri }} style={styles.replyThumb} />
                 ) : (
                   <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
-                    <Text style={styles.replyThumbPlaceholderText}>
-                      {replyTarget.mediaKind === 'image'
-                        ? 'Photo'
-                        : replyTarget.mediaKind === 'video'
-                          ? 'Video'
-                          : 'File'}
-                    </Text>
+                    {replyTarget.mediaKind === 'file' ? (
+                      <MaterialCommunityIcons
+                        name={(replyFileIcon || 'file-outline') as never}
+                        size={24}
+                        color={replyFileIconColor}
+                      />
+                    ) : (
+                      <Text style={styles.replyThumbPlaceholderText}>
+                        {replyTarget.mediaKind === 'image' ? 'Photo' : 'Video'}
+                      </Text>
+                    )}
                   </View>
                 )}
                 {(replyTarget.mediaCount || 0) > 1 ? (
@@ -265,7 +299,7 @@ export function ChatComposer(props: {
                 style={[styles.attachmentPillText, isDark ? styles.attachmentPillTextDark : null]}
                 numberOfLines={2}
               >
-                {`Replying to ${replyTarget.user || 'user'}: ${replyTarget.preview || ''}`}
+                {`Replying to ${replyToLabel}: ${replyTarget.preview || ''}`}
               </Text>
             </View>
             <Pressable

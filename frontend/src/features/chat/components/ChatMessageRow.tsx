@@ -1,4 +1,5 @@
 import React from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { GestureResponderEvent } from 'react-native';
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
@@ -9,7 +10,7 @@ import type { PublicAvatarProfileLite } from '../../../hooks/usePublicAvatarProf
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
-import { getPreviewKind } from '../../../utils/mediaKinds';
+import { fileBrandColorForMedia, fileIconNameForMedia, getPreviewKind } from '../../../utils/mediaKinds';
 import type { PendingMediaItem } from '../attachments';
 import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
 import type { ChatMessage } from '../types';
@@ -156,6 +157,26 @@ export function ChatMessageRow(props: {
   }, [inlineEditTargetId, item.id]);
 
   const prof = item.userSub ? avatarProfileBySub[String(item.userSub)] : undefined;
+
+  const replyOrigin =
+    !isDeleted && item.replyToMessageId
+      ? visibleMessages.find((m) => m && m.id === item.replyToMessageId)
+      : undefined;
+  const replyToLabel = (() => {
+    const sub = item.replyToUserSub ? String(item.replyToUserSub) : '';
+    if (sub && myUserId && String(myUserId) === sub) return 'You';
+    const fromOrigin = replyOrigin?.user ? String(replyOrigin.user) : '';
+    if (fromOrigin) return fromOrigin;
+    if (sub) {
+      const fromProfiles = avatarProfileBySub[sub]?.displayName
+        ? String(avatarProfileBySub[sub]?.displayName)
+        : '';
+      if (fromProfiles) return fromProfiles;
+      const fromNames = nameBySub[sub] ? String(nameBySub[sub]) : '';
+      if (fromNames) return fromNames;
+    }
+    return 'Unknown user';
+  })();
 
   const AVATAR_SIZE = 34;
   const AVATAR_TOP_OFFSET = 0;
@@ -382,12 +403,11 @@ export function ChatMessageRow(props: {
 
                   {!isDeleted && item.replyToMessageId && item.replyToPreview
                     ? (() => {
-                        const origin = visibleMessages.find(
-                          (m) => m && m.id === item.replyToMessageId,
-                        );
+                        const origin = replyOrigin;
                         let thumbUri: string | null = null;
                         let count = 0;
                         let kind: 'image' | 'video' | 'file' = 'file';
+                        let firstItem: MediaItem | null = null;
                         try {
                           if (origin && !origin.deletedAt) {
                             const env =
@@ -398,9 +418,11 @@ export function ChatMessageRow(props: {
                             if (list.length) {
                               count = list.length;
                               const first = list[0];
+                              firstItem = first;
                               kind = getPreviewKind(first);
                               const key = String(first.thumbPath || first.path);
-                              thumbUri = mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+                              thumbUri =
+                                kind !== 'file' && mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
                             }
                           }
                         } catch {
@@ -441,13 +463,27 @@ export function ChatMessageRow(props: {
                                   <Image source={{ uri: thumbUri }} style={styles.replyThumb} />
                                 ) : (
                                   <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
-                                    <Text style={styles.replyThumbPlaceholderText}>
-                                      {kind === 'image'
-                                        ? 'Photo'
-                                        : kind === 'video'
-                                          ? 'Video'
-                                          : 'File'}
-                                    </Text>
+                                    {kind === 'file' ? (
+                                      <MaterialCommunityIcons
+                                        name={
+                                          ((firstItem ? fileIconNameForMedia(firstItem) : null) ||
+                                            'file-outline') as never
+                                        }
+                                        size={24}
+                                        color={
+                                          isOutgoing
+                                            ? withAlpha(PALETTE.white, 0.92)
+                                            : (firstItem ? fileBrandColorForMedia(firstItem) : null) ||
+                                              (isDark
+                                                ? APP_COLORS.dark.text.primary
+                                                : APP_COLORS.light.brand.primary)
+                                        }
+                                      />
+                                    ) : (
+                                      <Text style={styles.replyThumbPlaceholderText}>
+                                        {kind === 'image' ? 'Photo' : 'Video'}
+                                      </Text>
+                                    )}
                                   </View>
                                 )}
                                 {count > 1 ? (
@@ -471,14 +507,7 @@ export function ChatMessageRow(props: {
                               numberOfLines={1}
                             >
                               {`Replying to ${
-                                item.replyToUserSub
-                                  ? String(item.replyToUserSub) === String(myUserId)
-                                    ? 'You'
-                                    : avatarProfileBySub[String(item.replyToUserSub)]
-                                        ?.displayName ||
-                                      nameBySub[String(item.replyToUserSub)] ||
-                                      'user'
-                                  : 'user'
+                                replyToLabel
                               }`}
                             </Text>
                             <Text
@@ -788,20 +817,130 @@ export function ChatMessageRow(props: {
               </Text>
             ) : null}
 
-            {!isDeleted && item.replyToMessageId && item.replyToPreview ? (
-              <Text
-                style={[
-                  styles.replySnippetText,
-                  isOutgoing
-                    ? styles.replySnippetTextOutgoing
-                    : isDark
-                      ? styles.replySnippetTextIncomingDark
-                      : styles.replySnippetTextIncoming,
-                ]}
-              >
-                {String(item.replyToPreview || '').trim()}
-              </Text>
-            ) : null}
+            {!isDeleted && item.replyToMessageId && item.replyToPreview
+              ? (() => {
+                  const origin = replyOrigin;
+                  let thumbUri: string | null = null;
+                  let count = 0;
+                  let kind: 'image' | 'video' | 'file' = 'file';
+                  let firstItem: MediaItem | null = null;
+                  try {
+                    if (origin && !origin.deletedAt) {
+                      const env =
+                        !origin.encrypted && !origin.groupEncrypted && !isDm
+                          ? parseChatEnvelope(origin.rawText ?? origin.text)
+                          : null;
+                      const list = env ? normalizeChatMediaList(env.media) : [];
+                      if (list.length) {
+                        count = list.length;
+                        const first = list[0];
+                        firstItem = first;
+                        kind = getPreviewKind(first);
+                        const key = String(first.thumbPath || first.path);
+                        thumbUri =
+                          kind !== 'file' && mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+                      }
+                    }
+                  } catch {
+                    // ignore
+                  }
+                  const openOriginMedia = () => {
+                    if (!origin) return;
+                    const env =
+                      !origin.encrypted && !origin.groupEncrypted && !isDm
+                        ? parseChatEnvelope(origin.rawText ?? origin.text)
+                        : null;
+                    const list = env ? normalizeChatMediaList(env.media) : [];
+                    if (!list.length) return;
+                    openViewer(list, 0);
+                  };
+                  return (
+                    <View
+                      style={[
+                        styles.replySnippet,
+                        isOutgoing
+                          ? styles.replySnippetOutgoing
+                          : isDark
+                            ? styles.replySnippetIncomingDark
+                            : styles.replySnippetIncoming,
+                      ]}
+                    >
+                      {count ? (
+                        <Pressable
+                          onPress={openOriginMedia}
+                          style={({ pressed }) => [
+                            styles.replyThumbWrap,
+                            pressed ? { opacity: 0.9 } : null,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel="Open replied media"
+                        >
+                          {thumbUri ? (
+                            <Image source={{ uri: thumbUri }} style={styles.replyThumb} />
+                          ) : (
+                            <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
+                              {kind === 'file' ? (
+                                <MaterialCommunityIcons
+                                  name={
+                                    ((firstItem ? fileIconNameForMedia(firstItem) : null) ||
+                                      'file-outline') as never
+                                  }
+                                  size={24}
+                                  color={
+                                    isOutgoing
+                                      ? withAlpha(PALETTE.white, 0.92)
+                                      : (firstItem ? fileBrandColorForMedia(firstItem) : null) ||
+                                        (isDark
+                                          ? APP_COLORS.dark.text.primary
+                                          : APP_COLORS.light.brand.primary)
+                                  }
+                                />
+                              ) : (
+                                <Text style={styles.replyThumbPlaceholderText}>
+                                  {kind === 'image' ? 'Photo' : 'Video'}
+                                </Text>
+                              )}
+                            </View>
+                          )}
+                          {count > 1 ? (
+                            <View style={styles.replyThumbCountBadge}>
+                              <Text style={styles.replyThumbCountText}>{`+${count - 1}`}</Text>
+                            </View>
+                          ) : null}
+                        </Pressable>
+                      ) : null}
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.replySnippetLabel,
+                            isOutgoing
+                              ? styles.replySnippetLabelOutgoing
+                              : isDark
+                                ? styles.replySnippetLabelIncomingDark
+                                : styles.replySnippetLabelIncoming,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {`Replying to ${replyToLabel}`}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.replySnippetText,
+                            isOutgoing
+                              ? styles.replySnippetTextOutgoing
+                              : isDark
+                                ? styles.replySnippetTextIncomingDark
+                                : styles.replySnippetTextIncoming,
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {String(item.replyToPreview || '').trim()}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })()
+              : null}
 
             {(() => {
               const isInlineEditing =

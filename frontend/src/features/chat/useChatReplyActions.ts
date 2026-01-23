@@ -91,6 +91,8 @@ export function useChatReplyActions(opts: {
       } catch {
         // ignore
       }
+      // Files (PDF/DOC/etc) can't render in <Image>. Force no thumb so UI uses placeholders.
+      if (mediaKind === 'file') mediaThumbUri = null;
 
       if (target.encrypted || target.groupEncrypted) {
         // For encrypted messages, only allow reply preview if we already decrypted.
@@ -120,6 +122,8 @@ export function useChatReplyActions(opts: {
         mediaKind,
         mediaCount,
         mediaThumbUri: typeof mediaThumbUri === 'string' ? mediaThumbUri : null,
+        mediaContentType: mediaContentType ? String(mediaContentType) : undefined,
+        mediaFileName: mediaFileName ? String(mediaFileName) : undefined,
       });
       closeMessageActions();
       try {
