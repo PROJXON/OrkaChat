@@ -350,7 +350,7 @@ export function ChatScreenMain({
               <ChannelSettingsPanel
                 isDark={isDark}
                 styles={styles}
-                compact={!!header.dmSettingsCompact}
+                compact={false}
                 busy={!!header.channelBusy}
                 meIsAdmin={!!header.channelMeIsAdmin}
                 isPublic={!!header.channelIsPublic}
