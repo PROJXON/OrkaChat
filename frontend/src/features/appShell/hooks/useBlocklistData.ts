@@ -13,7 +13,8 @@ function parseApiErrorMessage(raw: string): string {
   if (!t) return '';
   try {
     const parsed: unknown = JSON.parse(t);
-    const rec = typeof parsed === 'object' && parsed != null ? (parsed as Record<string, unknown>) : null;
+    const rec =
+      typeof parsed === 'object' && parsed != null ? (parsed as Record<string, unknown>) : null;
     const msg = rec && typeof rec.message === 'string' ? String(rec.message).trim() : '';
     return msg || t;
   } catch {

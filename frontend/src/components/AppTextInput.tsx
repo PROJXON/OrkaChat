@@ -155,7 +155,7 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(funct
                 ev.preventDefault?.();
                 ev.stopPropagation?.();
                 // Most callers don't use the event object; keep it simple.
-                (onSubmitEditing as unknown as (() => void))?.();
+                (onSubmitEditing as unknown as () => void)?.();
               }
             },
           } as const)

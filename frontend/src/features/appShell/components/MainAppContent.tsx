@@ -498,7 +498,7 @@ export const MainAppContent = ({
   const activeChannelConversationId = React.useMemo(() => {
     if (!isDmMode) return conversationId || 'global';
     return lastChannelConversationIdRef.current || 'global';
-  }, [channelRestoreDone, isDmMode, conversationId, lastChannelConversationIdRef]);
+  }, [isDmMode, conversationId]);
 
   const activeChannelLabel = React.useMemo(() => {
     if (activeChannelConversationId === 'global') return 'Global';
@@ -550,7 +550,7 @@ export const MainAppContent = ({
     const fromChats = chatsList.find((c) => c.conversationId === cid);
     const t = String(fromChats?.peer || unreadDmMap[cid]?.user || '').trim();
     return t || 'DM';
-  }, [chatsList, dmRestoreDone, isDmMode, lastDmConversationIdRef, peer, unreadDmMap]);
+  }, [chatsList, isDmMode, peer, unreadDmMap]);
 
   const { goToConversation } = useConversationNavigation({
     serverConversations,
