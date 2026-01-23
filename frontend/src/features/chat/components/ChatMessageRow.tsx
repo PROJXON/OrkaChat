@@ -12,7 +12,14 @@ import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
 import { fileBrandColorForMedia, fileIconNameForMedia, getPreviewKind } from '../../../utils/mediaKinds';
 import type { PendingMediaItem } from '../attachments';
-import { normalizeChatMediaList, parseChatEnvelope } from '../parsers';
+import {
+  normalizeChatMediaList,
+  normalizeDmMediaItems,
+  normalizeGroupMediaItems,
+  parseChatEnvelope,
+  parseDmMediaEnvelope,
+  parseGroupMediaEnvelope,
+} from '../parsers';
 import type { ChatMessage } from '../types';
 
 // NOTE:
@@ -134,11 +141,11 @@ export function ChatMessageRow(props: {
     hasMedia,
     mediaList: _mediaList,
     mediaUrlByPath,
-    dmThumbUriByPath: _dmThumbUriByPath,
+    dmThumbUriByPath,
     capped,
     openViewer,
-    openDmMediaViewer: _openDmMediaViewer,
-    openGroupMediaViewer: _openGroupMediaViewer,
+    openDmMediaViewer,
+    openGroupMediaViewer,
     requestOpenLink,
     onPressMessage,
     onLongPressMessage,
@@ -414,11 +421,79 @@ export function ChatMessageRow(props: {
                         let firstItem: MediaItem | null = null;
                         try {
                           if (origin && !origin.deletedAt) {
-                            const env =
-                              !origin.encrypted && !origin.groupEncrypted && !isDm
-                                ? parseChatEnvelope(origin.rawText ?? origin.text)
-                                : null;
-                            const list = env ? normalizeChatMediaList(env.media) : [];
+                            const list = (() => {
+                              if (origin.encrypted && origin.decryptedText) {
+                                const dmEnv = parseDmMediaEnvelope(String(origin.decryptedText || ''));
+                                const items = normalizeDmMediaItems(dmEnv);
+                                return items.map(({ media }) =>
+                                  ({
+                                    path: String(media.path || ''),
+                                    thumbPath:
+                                      typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
+                                    kind:
+                                      media.kind === 'video'
+                                        ? 'video'
+                                        : media.kind === 'image'
+                                          ? 'image'
+                                          : 'file',
+                                    contentType:
+                                      typeof media.contentType === 'string' ? String(media.contentType) : undefined,
+                                    thumbContentType:
+                                      typeof media.thumbContentType === 'string'
+                                        ? String(media.thumbContentType)
+                                        : undefined,
+                                    fileName:
+                                      typeof media.fileName === 'string' ? String(media.fileName) : undefined,
+                                    size:
+                                      typeof media.size === 'number' && Number.isFinite(media.size)
+                                        ? media.size
+                                        : undefined,
+                                    durationMs:
+                                      typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+                                        ? Math.max(0, Math.floor(media.durationMs))
+                                        : undefined,
+                                  }) as MediaItem,
+                                );
+                              }
+                              if (origin.groupEncrypted && origin.decryptedText) {
+                                const gEnv = parseGroupMediaEnvelope(String(origin.decryptedText || ''));
+                                const items = normalizeGroupMediaItems(gEnv);
+                                return items.map(({ media }) =>
+                                  ({
+                                    path: String(media.path || ''),
+                                    thumbPath:
+                                      typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
+                                    kind:
+                                      media.kind === 'video'
+                                        ? 'video'
+                                        : media.kind === 'image'
+                                          ? 'image'
+                                          : 'file',
+                                    contentType:
+                                      typeof media.contentType === 'string' ? String(media.contentType) : undefined,
+                                    thumbContentType:
+                                      typeof media.thumbContentType === 'string'
+                                        ? String(media.thumbContentType)
+                                        : undefined,
+                                    fileName:
+                                      typeof media.fileName === 'string' ? String(media.fileName) : undefined,
+                                    size:
+                                      typeof media.size === 'number' && Number.isFinite(media.size)
+                                        ? media.size
+                                        : undefined,
+                                    durationMs:
+                                      typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+                                        ? Math.max(0, Math.floor(media.durationMs))
+                                        : undefined,
+                                  }) as MediaItem,
+                                );
+                              }
+                              const env =
+                                !origin.encrypted && !origin.groupEncrypted && !isDm
+                                  ? parseChatEnvelope(origin.rawText ?? origin.text)
+                                  : null;
+                              return env ? normalizeChatMediaList(env.media) : [];
+                            })();
                             if (list.length) {
                               count = list.length;
                               const first = list[0];
@@ -426,7 +501,15 @@ export function ChatMessageRow(props: {
                               kind = getPreviewKind(first);
                               const key = String(first.thumbPath || first.path);
                               thumbUri =
-                                kind !== 'file' && mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+                                kind !== 'file'
+                                  ? origin.encrypted || origin.groupEncrypted
+                                    ? (first.thumbPath && dmThumbUriByPath[String(first.thumbPath)])
+                                      ? dmThumbUriByPath[String(first.thumbPath)]
+                                      : null
+                                    : mediaUrlByPath[key]
+                                      ? mediaUrlByPath[key]
+                                      : null
+                                  : null;
                             }
                           }
                         } catch {
@@ -434,6 +517,8 @@ export function ChatMessageRow(props: {
                         }
                         const openOriginMedia = () => {
                           if (!origin) return;
+                          if (origin.encrypted) return void openDmMediaViewer(origin, 0);
+                          if (origin.groupEncrypted) return void openGroupMediaViewer(origin, 0);
                           const env =
                             !origin.encrypted && !origin.groupEncrypted && !isDm
                               ? parseChatEnvelope(origin.rawText ?? origin.text)
@@ -830,11 +915,77 @@ export function ChatMessageRow(props: {
                   let firstItem: MediaItem | null = null;
                   try {
                     if (origin && !origin.deletedAt) {
-                      const env =
-                        !origin.encrypted && !origin.groupEncrypted && !isDm
-                          ? parseChatEnvelope(origin.rawText ?? origin.text)
-                          : null;
-                      const list = env ? normalizeChatMediaList(env.media) : [];
+                      const list = (() => {
+                        if (origin.encrypted && origin.decryptedText) {
+                          const dmEnv = parseDmMediaEnvelope(String(origin.decryptedText || ''));
+                          const items = normalizeDmMediaItems(dmEnv);
+                          return items.map(({ media }) =>
+                            ({
+                              path: String(media.path || ''),
+                              thumbPath: typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
+                              kind:
+                                media.kind === 'video'
+                                  ? 'video'
+                                  : media.kind === 'image'
+                                    ? 'image'
+                                    : 'file',
+                              contentType:
+                                typeof media.contentType === 'string' ? String(media.contentType) : undefined,
+                              thumbContentType:
+                                typeof media.thumbContentType === 'string'
+                                  ? String(media.thumbContentType)
+                                  : undefined,
+                              fileName:
+                                typeof media.fileName === 'string' ? String(media.fileName) : undefined,
+                              size:
+                                typeof media.size === 'number' && Number.isFinite(media.size)
+                                  ? media.size
+                                  : undefined,
+                              durationMs:
+                                typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+                                  ? Math.max(0, Math.floor(media.durationMs))
+                                  : undefined,
+                            }) as MediaItem,
+                          );
+                        }
+                        if (origin.groupEncrypted && origin.decryptedText) {
+                          const gEnv = parseGroupMediaEnvelope(String(origin.decryptedText || ''));
+                          const items = normalizeGroupMediaItems(gEnv);
+                          return items.map(({ media }) =>
+                            ({
+                              path: String(media.path || ''),
+                              thumbPath: typeof media.thumbPath === 'string' ? String(media.thumbPath) : undefined,
+                              kind:
+                                media.kind === 'video'
+                                  ? 'video'
+                                  : media.kind === 'image'
+                                    ? 'image'
+                                    : 'file',
+                              contentType:
+                                typeof media.contentType === 'string' ? String(media.contentType) : undefined,
+                              thumbContentType:
+                                typeof media.thumbContentType === 'string'
+                                  ? String(media.thumbContentType)
+                                  : undefined,
+                              fileName:
+                                typeof media.fileName === 'string' ? String(media.fileName) : undefined,
+                              size:
+                                typeof media.size === 'number' && Number.isFinite(media.size)
+                                  ? media.size
+                                  : undefined,
+                              durationMs:
+                                typeof media.durationMs === 'number' && Number.isFinite(media.durationMs)
+                                  ? Math.max(0, Math.floor(media.durationMs))
+                                  : undefined,
+                            }) as MediaItem,
+                          );
+                        }
+                        const env =
+                          !origin.encrypted && !origin.groupEncrypted && !isDm
+                            ? parseChatEnvelope(origin.rawText ?? origin.text)
+                            : null;
+                        return env ? normalizeChatMediaList(env.media) : [];
+                      })();
                       if (list.length) {
                         count = list.length;
                         const first = list[0];
@@ -842,7 +993,15 @@ export function ChatMessageRow(props: {
                         kind = getPreviewKind(first);
                         const key = String(first.thumbPath || first.path);
                         thumbUri =
-                          kind !== 'file' && mediaUrlByPath[key] ? mediaUrlByPath[key] : null;
+                          kind !== 'file'
+                            ? origin.encrypted || origin.groupEncrypted
+                              ? (first.thumbPath && dmThumbUriByPath[String(first.thumbPath)])
+                                ? dmThumbUriByPath[String(first.thumbPath)]
+                                : null
+                              : mediaUrlByPath[key]
+                                ? mediaUrlByPath[key]
+                                : null
+                            : null;
                       }
                     }
                   } catch {
@@ -850,6 +1009,8 @@ export function ChatMessageRow(props: {
                   }
                   const openOriginMedia = () => {
                     if (!origin) return;
+                    if (origin.encrypted) return void openDmMediaViewer(origin, 0);
+                    if (origin.groupEncrypted) return void openGroupMediaViewer(origin, 0);
                     const env =
                       !origin.encrypted && !origin.groupEncrypted && !isDm
                         ? parseChatEnvelope(origin.rawText ?? origin.text)

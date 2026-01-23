@@ -15,6 +15,7 @@ import {
 
 import { RichText } from '../../../components/RichText';
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
+import { PALETTE, withAlpha } from '../../../theme/colors';
 import {
   attachmentLabelForMedia,
   fileBadgeForMedia,
@@ -28,6 +29,7 @@ import {
   normalizeGroupMediaItems,
   parseChatEnvelope,
   parseDmMediaEnvelope,
+  parseEncryptedTextEnvelope,
   parseGroupMediaEnvelope,
 } from '../parsers';
 import type { ChatMessage } from '../types';
@@ -71,6 +73,8 @@ type Props = {
   dmThumbUriByPath: Record<string, string>;
 
   quickReactions: string[];
+  nameBySub: Record<string, string>;
+  messageListData: ChatMessage[];
 
   blockedSubsSet: Set<string>;
   onBlockUserSub?: ((blockedSub: string, label?: string) => void | Promise<void>) | undefined;
@@ -139,6 +143,8 @@ export function MessageActionMenuModal({
   mediaUrlByPath,
   dmThumbUriByPath,
   quickReactions,
+  nameBySub,
+  messageListData,
   blockedSubsSet,
   onBlockUserSub,
   uiConfirm,
@@ -290,6 +296,7 @@ export function MessageActionMenuModal({
                     );
                   }
                   const plain = String(t.decryptedText || '');
+                  const encText = parseEncryptedTextEnvelope(plain);
                   const dmEnv = parseDmMediaEnvelope(plain);
                   const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
                   const gEnv = parseGroupMediaEnvelope(plain);
@@ -326,7 +333,7 @@ export function MessageActionMenuModal({
                       thumbUri = null;
                     }
                   } else {
-                    caption = plain;
+                    caption = encText ? String(encText.text || '') : plain;
                   }
                 } else {
                   const raw = String(t.rawText ?? t.text ?? '');
@@ -351,8 +358,126 @@ export function MessageActionMenuModal({
                 }
 
                 if (!hasMedia) {
+                  const showReply =
+                    !t.deletedAt && !!t.replyToMessageId && String(t.replyToPreview || '').trim().length > 0;
+                  const replyKind =
+                    t.replyToMediaKind === 'image' || t.replyToMediaKind === 'video' || t.replyToMediaKind === 'file'
+                      ? t.replyToMediaKind
+                      : null;
+                  const replyCount =
+                    typeof t.replyToMediaCount === 'number' && Number.isFinite(t.replyToMediaCount)
+                      ? Math.max(0, Math.floor(t.replyToMediaCount))
+                      : 0;
+                  const replyLabel = (() => {
+                    const origin =
+                      t.replyToMessageId && messageListData && messageListData.length
+                        ? messageListData.find((m) => m && m.id === t.replyToMessageId)
+                        : null;
+                    const sub =
+                      (typeof t.replyToUserSub === 'string' ? t.replyToUserSub : '') ||
+                      (origin?.userSub ? String(origin.userSub) : '');
+                    const replyingToMe = !!sub && !!myUserId && String(sub) === String(myUserId);
+                    if (replyingToMe) return isOutgoing ? 'yourself' : 'You';
+                    const fromMaps = sub ? nameBySub[String(sub)] : '';
+                    if (fromMaps) return fromMaps;
+                    const fromOrigin = origin?.user ? String(origin.user).trim() : '';
+                    if (fromOrigin) return fromOrigin;
+                    if (sub) return `User ${String(sub).slice(0, 6)}`;
+                    return 'Unknown user';
+                  })();
+
                   return (
                     <View style={[styles.messageBubble, bubbleStyle]}>
+                      {showReply ? (
+                        <View
+                          style={[
+                            styles.replySnippet,
+                            { flexDirection: 'row', gap: 10, marginTop: 0 },
+                            isOutgoing
+                              ? styles.replySnippetOutgoing
+                              : isDark
+                                ? styles.replySnippetIncomingDark
+                                : styles.replySnippetIncoming,
+                          ]}
+                        >
+                          {replyKind ? (
+                            <View
+                              style={[
+                                styles.replyThumbWrap,
+                                { marginBottom: 0, marginRight: 0, alignSelf: 'center' },
+                              ]}
+                            >
+                              {replyKind === 'file' ? (
+                                <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
+                                  <MaterialCommunityIcons
+                                    name={
+                                      (fileIconNameForMedia({
+                                        kind: 'file',
+                                        contentType: t.replyToMediaContentType,
+                                        fileName: t.replyToMediaFileName,
+                                      }) || 'file-outline') as never
+                                    }
+                                    size={24}
+                                    color={
+                                      isOutgoing
+                                        ? withAlpha(PALETTE.white, 0.92)
+                                        : fileBrandColorForMedia({
+                                              kind: 'file',
+                                              contentType: t.replyToMediaContentType,
+                                              fileName: t.replyToMediaFileName,
+                                            }) ||
+                                          (isDark
+                                            ? styles.replySnippetLabelIncomingDark?.color
+                                            : styles.replySnippetLabelIncoming?.color)
+                                    }
+                                  />
+                                </View>
+                              ) : (
+                                <View style={[styles.replyThumb, styles.replyThumbPlaceholder]}>
+                                  <Text style={styles.replyThumbPlaceholderText}>
+                                    {replyKind === 'image' ? 'Photo' : 'Video'}
+                                  </Text>
+                                </View>
+                              )}
+                              {replyCount > 1 ? (
+                                <View style={styles.replyThumbCountBadge}>
+                                  <Text style={styles.replyThumbCountText}>{`+${replyCount - 1}`}</Text>
+                                </View>
+                              ) : null}
+                            </View>
+                          ) : null}
+
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text
+                              style={[
+                                styles.replySnippetLabel,
+                                isOutgoing
+                                  ? styles.replySnippetLabelOutgoing
+                                  : isDark
+                                    ? styles.replySnippetLabelIncomingDark
+                                    : styles.replySnippetLabelIncoming,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {`Replying to ${replyLabel}`}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.replySnippetText,
+                                isOutgoing
+                                  ? styles.replySnippetTextOutgoing
+                                  : isDark
+                                    ? styles.replySnippetTextIncomingDark
+                                    : styles.replySnippetTextIncoming,
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {String(t.replyToPreview || '').trim()}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : null}
+
                       <RichText
                         text={String(caption || '')}
                         isDark={isDark}

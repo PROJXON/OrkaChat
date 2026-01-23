@@ -4,6 +4,7 @@ import {
   normalizeGroupMediaItems,
   parseChatEnvelope,
   parseDmMediaEnvelope,
+  parseEncryptedTextEnvelope,
   parseGroupMediaEnvelope,
 } from './parsers';
 import type { ChatMessage } from './types';
@@ -30,6 +31,10 @@ export function getCopyableMessageText(args: { msg: ChatMessage; isDm: boolean }
   // or plain text.
   if (t.encrypted || t.groupEncrypted) {
     const plain = String(t.decryptedText || '');
+    const encEnv = parseEncryptedTextEnvelope(plain);
+    if (encEnv) {
+      text = String(encEnv.text || '');
+    } else {
     const dmEnv = parseDmMediaEnvelope(plain);
     const dmItems = dmEnv ? normalizeDmMediaItems(dmEnv) : [];
     const gEnv = parseGroupMediaEnvelope(plain);
@@ -38,6 +43,7 @@ export function getCopyableMessageText(args: { msg: ChatMessage; isDm: boolean }
       text = String((dmEnv?.caption ?? gEnv?.caption) || '');
     } else {
       text = plain;
+    }
     }
   } else {
     // Plain chats: channel/global can have a JSON envelope for media attachments.

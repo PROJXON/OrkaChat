@@ -2144,6 +2144,7 @@ export default function ChatScreen({
     normalizeUser,
     mediaUrlByPath,
     dmThumbUriByPath,
+    messageListData,
     quickReactions: [...QUICK_REACTIONS],
     blockedSubsSet,
     onBlockUserSub,

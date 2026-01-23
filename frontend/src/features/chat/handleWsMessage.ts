@@ -6,6 +6,7 @@ import { applyGroupMembershipSystemEventToMe } from './applyMembershipToMe';
 import { buildIncomingChatMessageFromWsPayload } from './buildIncomingMessage';
 import { buildSystemChatMessageFromPayload } from './buildSystemMessage';
 import { isMembershipSystemKind } from './membershipKinds';
+import { parseEncryptedTextEnvelope } from './parsers';
 import type {
   ChatMessage,
   DmMediaEnvelope,
@@ -396,11 +397,20 @@ export function handleChatWsMessage(opts: {
             } catch {
               caption = null;
             }
+            const encEnv = parseEncryptedTextEnvelope(plaintext);
             return {
               ...nextBase,
               decryptedText: plaintext,
               groupKeyHex,
-              text: caption != null ? caption : plaintext,
+              text: encEnv ? String(encEnv.text || '') : caption != null ? caption : plaintext,
+              replyToCreatedAt: encEnv?.replyToCreatedAt,
+              replyToMessageId: encEnv?.replyToMessageId,
+              replyToUserSub: encEnv?.replyToUserSub,
+              replyToPreview: encEnv?.replyToPreview,
+              replyToMediaKind: encEnv?.replyToMediaKind,
+              replyToMediaCount: encEnv?.replyToMediaCount,
+              replyToMediaContentType: encEnv?.replyToMediaContentType,
+              replyToMediaFileName: encEnv?.replyToMediaFileName,
               decryptFailed: false,
             };
           }

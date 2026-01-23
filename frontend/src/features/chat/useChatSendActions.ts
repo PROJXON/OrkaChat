@@ -11,6 +11,7 @@ import type {
   EncryptedGroupPayloadV1,
   GroupMediaEnvelopeV1,
 } from './types';
+import type { EncryptedTextEnvelopeV1 } from './types';
 
 export type ReplyTarget = {
   createdAt: number;
@@ -94,6 +95,16 @@ export function useChatSendActions(opts: {
     outgoingText: string;
     pendingMedia: PendingMediaItem[] | null | undefined;
     caption: string;
+    replyFields?: {
+      replyToCreatedAt?: number;
+      replyToMessageId?: string;
+      replyToUserSub?: string;
+      replyToPreview?: string;
+      replyToMediaKind?: 'image' | 'video' | 'file';
+      replyToMediaCount?: number;
+      replyToMediaContentType?: string;
+      replyToMediaFileName?: string;
+    };
     myPrivateKey: string;
     peerPublicKey: string;
     uploadPendingMediaDmEncrypted: (
@@ -109,6 +120,16 @@ export function useChatSendActions(opts: {
     pendingMedia: PendingMediaItem[] | null | undefined;
     caption: string;
     messageKeyBytes: Uint8Array;
+    replyFields?: {
+      replyToCreatedAt?: number;
+      replyToMessageId?: string;
+      replyToUserSub?: string;
+      replyToPreview?: string;
+      replyToMediaKind?: 'image' | 'video' | 'file';
+      replyToMediaCount?: number;
+      replyToMediaContentType?: string;
+      replyToMediaFileName?: string;
+    };
     uploadPendingMediaGroupEncrypted: (
       item: PendingMediaItem,
       conversationId: string,
@@ -271,6 +292,19 @@ export function useChatSendActions(opts: {
 
     let outgoingText = originalInput.trim();
     let dmMediaPathsToSend: string[] | undefined = undefined;
+    const replyFields =
+      originalReplyTarget && (isDm || isGroup)
+        ? ({
+            replyToCreatedAt: originalReplyTarget.createdAt,
+            replyToMessageId: originalReplyTarget.id,
+            replyToUserSub: originalReplyTarget.userSub,
+            replyToPreview: originalReplyTarget.preview,
+            replyToMediaKind: originalReplyTarget.mediaKind,
+            replyToMediaCount: originalReplyTarget.mediaCount,
+            replyToMediaContentType: originalReplyTarget.mediaContentType,
+            replyToMediaFileName: originalReplyTarget.mediaFileName,
+          } as const)
+        : null;
 
     const clearDraftImmediately = () => {
       // Force-remount the TextInput to fully reset native state.
@@ -328,6 +362,7 @@ export function useChatSendActions(opts: {
             outgoingText,
             pendingMedia: originalPendingMedia,
             caption: originalInput.trim(),
+            replyFields: replyFields || undefined,
             myPrivateKey,
             peerPublicKey,
             uploadPendingMediaDmEncrypted,
@@ -342,7 +377,16 @@ export function useChatSendActions(opts: {
           setIsUploading(false);
         }
       } else {
-        const enc = encryptChatMessageV1(outgoingText, myPrivateKey, peerPublicKey);
+        const plain =
+          replyFields && originalReplyTarget
+            ? (JSON.stringify({
+                type: 'enc_text_v1',
+                v: 1,
+                text: outgoingText,
+                ...replyFields,
+              } satisfies EncryptedTextEnvelopeV1) as string)
+            : outgoingText;
+        const enc = encryptChatMessageV1(plain, myPrivateKey, peerPublicKey);
         outgoingText = JSON.stringify(enc);
       }
     } else if (isGroup) {
@@ -378,7 +422,15 @@ export function useChatSendActions(opts: {
       const messageKeyBytes = new Uint8Array(getRandomBytes(32));
 
       // Build plaintext to encrypt.
-      let plaintextToEncrypt = outgoingText;
+      let plaintextToEncrypt =
+        replyFields && originalReplyTarget
+          ? (JSON.stringify({
+              type: 'enc_text_v1',
+              v: 1,
+              text: outgoingText,
+              ...replyFields,
+            } satisfies EncryptedTextEnvelopeV1) as string)
+          : outgoingText;
       let groupMediaPathsToSend: string[] | undefined = undefined;
       if (originalPendingMedia && originalPendingMedia.length) {
         try {
@@ -388,6 +440,7 @@ export function useChatSendActions(opts: {
             pendingMedia: originalPendingMedia,
             caption: originalInput.trim(),
             messageKeyBytes,
+            replyFields: replyFields || undefined,
             uploadPendingMediaGroupEncrypted,
           });
           plaintextToEncrypt = uploaded.plaintextToEncrypt;

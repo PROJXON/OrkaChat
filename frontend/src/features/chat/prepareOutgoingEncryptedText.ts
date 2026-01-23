@@ -6,9 +6,11 @@ import type { PendingMediaItem } from './attachments';
 import type {
   DmMediaEnvelope,
   DmMediaEnvelopeV1,
+  DmMediaEnvelopeV2,
   EncryptedGroupPayloadV1,
   GroupMediaEnvelope,
   GroupMediaEnvelopeV1,
+  GroupMediaEnvelopeV2,
 } from './types';
 
 export async function prepareDmOutgoingEncryptedText(opts: {
@@ -16,6 +18,16 @@ export async function prepareDmOutgoingEncryptedText(opts: {
   outgoingText: string;
   pendingMedia: PendingMediaItem[] | null | undefined;
   caption: string;
+  replyFields?: {
+    replyToCreatedAt?: number;
+    replyToMessageId?: string;
+    replyToUserSub?: string;
+    replyToPreview?: string;
+    replyToMediaKind?: DmMediaEnvelopeV1['media']['kind'];
+    replyToMediaCount?: number;
+    replyToMediaContentType?: string;
+    replyToMediaFileName?: string;
+  };
   myPrivateKey: string;
   peerPublicKey: string;
   uploadPendingMediaDmEncrypted: (
@@ -43,13 +55,14 @@ export async function prepareDmOutgoingEncryptedText(opts: {
 
   const dmAny: DmMediaEnvelope =
     envs.length === 1
-      ? envs[0]
-      : {
+      ? ({ ...envs[0], ...(opts.replyFields || {}) } as DmMediaEnvelopeV1)
+      : ({
           type: 'dm_media_v2',
           v: 2,
           caption: opts.caption || undefined,
           items: envs.map((e) => ({ media: e.media, wrap: e.wrap })),
-        };
+          ...(opts.replyFields || {}),
+        } as DmMediaEnvelopeV2);
   const plaintextEnvelope = JSON.stringify(dmAny);
   const enc = encryptChatMessageV1(plaintextEnvelope, opts.myPrivateKey, opts.peerPublicKey);
   const outgoingText = JSON.stringify(enc);
@@ -64,6 +77,16 @@ export async function prepareGroupMediaPlaintext(opts: {
   pendingMedia: PendingMediaItem[] | null | undefined;
   caption: string;
   messageKeyBytes: Uint8Array;
+  replyFields?: {
+    replyToCreatedAt?: number;
+    replyToMessageId?: string;
+    replyToUserSub?: string;
+    replyToPreview?: string;
+    replyToMediaKind?: GroupMediaEnvelopeV1['media']['kind'];
+    replyToMediaCount?: number;
+    replyToMediaContentType?: string;
+    replyToMediaFileName?: string;
+  };
   uploadPendingMediaGroupEncrypted: (
     item: PendingMediaItem,
     conversationId: string,
@@ -86,13 +109,14 @@ export async function prepareGroupMediaPlaintext(opts: {
   }
   const gAny: GroupMediaEnvelope =
     envs.length === 1
-      ? envs[0]
-      : {
+      ? ({ ...envs[0], ...(opts.replyFields || {}) } as GroupMediaEnvelopeV1)
+      : ({
           type: 'gdm_media_v2',
           v: 2,
           caption: opts.caption || undefined,
           items: envs.map((e) => ({ media: e.media, wrap: e.wrap })),
-        };
+          ...(opts.replyFields || {}),
+        } as GroupMediaEnvelopeV2);
   const plaintextToEncrypt = JSON.stringify(gAny);
   const mediaPathsToSend = envs
     .flatMap((e) => [e.media.path, e.media.thumbPath].filter(Boolean))
