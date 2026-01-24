@@ -41,6 +41,27 @@ export const VoiceClipMicButton = React.memo(function VoiceClipMicButton({
   const [isRecording, setIsRecording] = React.useState(false);
   const [elapsedMs, setElapsedMs] = React.useState(0);
 
+  const isMobileWeb = React.useMemo(() => {
+    try {
+      const w = typeof window !== 'undefined' ? window : undefined;
+      const coarse =
+        !!w?.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches ||
+        !!w?.matchMedia?.('(pointer: coarse)')?.matches;
+      const narrow = typeof w?.innerWidth === 'number' ? w.innerWidth < 768 : false;
+      return coarse || narrow;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const preventDefaultWeb = React.useCallback((e: unknown) => {
+    try {
+      (e as { preventDefault?: () => void })?.preventDefault?.();
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const pressingRef = React.useRef(false);
   const startedAtRef = React.useRef<number | null>(null);
   const startDelayRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -269,6 +290,31 @@ export const VoiceClipMicButton = React.memo(function VoiceClipMicButton({
     if (recorderRef.current) void stopAndAttach();
   }, [stopAndAttach]);
 
+  // On mobile browsers, react-native-web's Pressable can sometimes fire an early "press out"
+  // (pointer cancel / gesture / focus changes), which truncates recordings.
+  // Use explicit touch start/end/cancel for "hold to record" on mobile web.
+  const onMobileTouchStart = React.useCallback(
+    (e: unknown) => {
+      preventDefaultWeb(e);
+      onPressIn();
+    },
+    [onPressIn, preventDefaultWeb],
+  );
+  const onMobileTouchEnd = React.useCallback(
+    (e: unknown) => {
+      preventDefaultWeb(e);
+      onPressOut();
+    },
+    [onPressOut, preventDefaultWeb],
+  );
+  const onMobileTouchCancel = React.useCallback(
+    (e: unknown) => {
+      preventDefaultWeb(e);
+      onPressOut();
+    },
+    [onPressOut, preventDefaultWeb],
+  );
+
   // Stop + attach on focus loss / navigation / app background (web equivalents).
   React.useEffect(() => {
     const onVis = () => {
@@ -320,10 +366,23 @@ export const VoiceClipMicButton = React.memo(function VoiceClipMicButton({
         isDark ? styles.sendBtnDark : null,
         disabled ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
         { paddingHorizontal: 10 },
+        // Mobile web: prevent long-press from triggering browser gestures (which cancels the hold).
+        isMobileWeb ? ({ touchAction: 'none', userSelect: 'none' } as any) : null,
         pressed && !disabled ? { opacity: 0.9 } : null,
       ]}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+      onPressIn={isMobileWeb ? undefined : onPressIn}
+      onPressOut={isMobileWeb ? undefined : onPressOut}
+      {...(isMobileWeb
+        ? ({
+            onTouchStart: onMobileTouchStart,
+            onTouchEnd: onMobileTouchEnd,
+            onTouchCancel: onMobileTouchCancel,
+            // Prevent the synthetic mouse events that can follow touch.
+            onMouseDown: preventDefaultWeb,
+            onContextMenu: preventDefaultWeb,
+            tabIndex: -1,
+          } as const)
+        : null)}
       hitSlop={10}
       pressRetentionOffset={{ top: 200, bottom: 200, left: 200, right: 200 }}
       disabled={disabled}

@@ -698,6 +698,44 @@ export default function ChatScreen({
   const inFlightDmViewerDecryptRef = React.useRef<Set<string>>(new Set());
   const [attachOpen, setAttachOpen] = React.useState<boolean>(false);
   const [cameraOpen, setCameraOpen] = React.useState<boolean>(false);
+  const isDesktopWeb = React.useMemo(() => {
+    if (Platform.OS !== 'web') return false;
+    try {
+      const w = typeof window !== 'undefined' ? window : undefined;
+      const coarse =
+        !!w?.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches ||
+        !!w?.matchMedia?.('(pointer: coarse)')?.matches;
+      // Treat narrow screens as "mobile web" for keyboard behavior.
+      const narrow = typeof windowWidth === 'number' ? windowWidth < 768 : false;
+      return !(coarse || narrow);
+    } catch {
+      const narrow = typeof windowWidth === 'number' ? windowWidth < 768 : false;
+      return !narrow;
+    }
+  }, [windowWidth]);
+  const prevOverlayOpenRef = React.useRef<{ attachOpen: boolean; cameraOpen: boolean }>({
+    attachOpen: false,
+    cameraOpen: false,
+  });
+  React.useEffect(() => {
+    if (!isDesktopWeb) return;
+    const prev = prevOverlayOpenRef.current;
+    const prevAny = prev.attachOpen || prev.cameraOpen;
+    const nowAny = attachOpen || cameraOpen;
+    prevOverlayOpenRef.current = { attachOpen, cameraOpen };
+    if (!prevAny || nowAny) return;
+    // Attach/camera overlays just closed: restore focus so the user can keep typing.
+    const tryFocus = () => {
+      try {
+        textInputRef.current?.focus?.();
+      } catch {
+        // ignore
+      }
+    };
+    setTimeout(tryFocus, 0);
+    setTimeout(tryFocus, 150);
+    setTimeout(tryFocus, 400);
+  }, [attachOpen, cameraOpen, isDesktopWeb, textInputRef]);
   const activeConversationId = React.useMemo(
     () => (conversationId && conversationId.length > 0 ? conversationId : 'global'),
     [conversationId],

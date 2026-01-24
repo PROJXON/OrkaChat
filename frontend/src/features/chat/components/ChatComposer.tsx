@@ -171,8 +171,130 @@ export function ChatComposer(props: {
   const MAX_INPUT_HEIGHT = 140;
   const [inputHeight, setInputHeight] = React.useState<number>(MIN_INPUT_HEIGHT);
 
+  const isMobileWeb = React.useMemo(() => {
+    if (Platform.OS !== 'web') return false;
+    try {
+      const w = typeof window !== 'undefined' ? window : undefined;
+      const coarse =
+        !!w?.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches ||
+        !!w?.matchMedia?.('(pointer: coarse)')?.matches;
+      const narrow = typeof w?.innerWidth === 'number' ? w.innerWidth < 768 : false;
+      return coarse || narrow;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const webInputFocusedRef = React.useRef(false);
+  const webPendingPickRestoreRef = React.useRef(false);
+  const webPendingPickActiveRef = React.useRef(false);
+
+  const webKeyboardVisibleRef = React.useRef<boolean>(false);
   React.useEffect(() => {
-    // Reset back to 1-row height when the composer is remounted/reset.
+    if (Platform.OS !== 'web') return;
+    if (!isMobileWeb) return;
+    try {
+      const w = typeof window !== 'undefined' ? window : undefined;
+      const vv = (w as any)?.visualViewport as
+        | undefined
+        | { height?: number; addEventListener?: any; removeEventListener?: any };
+      if (!w || !vv || typeof vv.addEventListener !== 'function') return;
+
+      const update = () => {
+        const viewportH =
+          typeof vv.height === 'number' && Number.isFinite(vv.height) ? vv.height : 0;
+        const windowH =
+          typeof w.innerHeight === 'number' && Number.isFinite(w.innerHeight) ? w.innerHeight : 0;
+        // If visual viewport is significantly shorter than the layout viewport, assume the keyboard is open.
+        // (Threshold tuned to avoid false positives from URL bars.)
+        webKeyboardVisibleRef.current =
+          windowH > 0 && viewportH > 0 ? windowH - viewportH > 80 : false;
+      };
+
+      update();
+      vv.addEventListener('resize', update);
+      vv.addEventListener('scroll', update);
+      w.addEventListener?.('resize', update);
+      return () => {
+        vv.removeEventListener?.('resize', update);
+        vv.removeEventListener?.('scroll', update);
+        w.removeEventListener?.('resize', update);
+      };
+    } catch {
+      // ignore
+    }
+  }, [isMobileWeb]);
+
+  const focusWebInputSoon = React.useCallback(() => {
+    const tryFocus = () => {
+      try {
+        textInputRef.current?.focus?.();
+      } catch {
+        // ignore
+      }
+    };
+    setTimeout(tryFocus, 0);
+    setTimeout(tryFocus, 150);
+    setTimeout(tryFocus, 400);
+  }, [textInputRef]);
+
+  // If the attachment picker steals focus, restore it when the browser returns.
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    // Mobile web: never auto-restore focus after attachment UI closes, to avoid popping
+    // the keyboard back up and causing layout/viewport glitches.
+    if (isMobileWeb) return;
+    try {
+      const w = typeof window !== 'undefined' ? window : undefined;
+      if (!w || typeof w.addEventListener !== 'function') return;
+
+      const onWindowFocus = () => {
+        if (!webPendingPickActiveRef.current) return;
+        webPendingPickActiveRef.current = false;
+
+        // Desktop web: always restore focus after closing/canceling the picker.
+        // Mobile web: only restore if the input was focused when the picker opened.
+        if (!isMobileWeb || webPendingPickRestoreRef.current) {
+          focusWebInputSoon();
+        }
+        webPendingPickRestoreRef.current = false;
+      };
+
+      w.addEventListener('focus', onWindowFocus);
+      return () => {
+        w.removeEventListener('focus', onWindowFocus);
+      };
+    } catch {
+      // ignore
+    }
+  }, [focusWebInputSoon, isMobileWeb]);
+
+  const restoreWebInputFocusIfAppropriate = React.useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    // Mobile web: never auto-restore focus (avoids keyboard popping up over the UI).
+    if (isMobileWeb) return;
+    // Desktop web: always restore (expected chat UX).
+    focusWebInputSoon();
+  }, [focusWebInputSoon, isMobileWeb]);
+
+  const webKeepInputFocusedProps = React.useMemo(() => {
+    if (Platform.OS !== 'web') return null;
+    // Web: prevent pointer/touch interactions from taking focus away from the TextInput.
+    // - Desktop web: always keep focus in the composer (expected chat UX).
+    // - Mobile web: only keep focus if the keyboard is currently visible (so we don't pop it back up
+    //   after the user swipes it down).
+    const preventIfAllowed = (e: unknown) => {
+      if (isMobileWeb && !webKeyboardVisibleRef.current) return;
+      (e as { preventDefault?: () => void })?.preventDefault?.();
+    };
+    return {
+      onMouseDown: preventIfAllowed,
+      onTouchStart: preventIfAllowed,
+    } as const;
+  }, [isMobileWeb]);
+
+  React.useEffect(() => {
+    // Reset back to 1-row height when the draft is cleared (send/cancel/edit reset).
     setInputHeight(MIN_INPUT_HEIGHT);
   }, [inputEpoch]);
 
@@ -197,9 +319,23 @@ export function ChatComposer(props: {
   const onClipReady = React.useCallback(
     (clip: PendingMediaItem) => {
       setPendingMedia([clip]);
+      restoreWebInputFocusIfAppropriate();
     },
-    [setPendingMedia],
+    [restoreWebInputFocusIfAppropriate, setPendingMedia],
   );
+
+  // When attachments are added via the picker (which can steal focus on web),
+  // restore focus *after* the attachment state actually updates.
+  const prevPendingMediaCountRef = React.useRef<number>(pendingMedia.length);
+  React.useEffect(() => {
+    const prev = prevPendingMediaCountRef.current;
+    const next = pendingMedia.length;
+    prevPendingMediaCountRef.current = next;
+    if (Platform.OS !== 'web') return;
+    if (isMobileWeb) return;
+    if (next <= prev) return;
+    restoreWebInputFocusIfAppropriate();
+  }, [isMobileWeb, pendingMedia.length, restoreWebInputFocusIfAppropriate]);
 
   return (
     <>
@@ -418,7 +554,41 @@ export function ChatComposer(props: {
               voiceRecUi.isRecording ? { width: 72, paddingLeft: 0, paddingRight: 8 } : null,
               pickVisuallyDisabled ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
             ]}
-            onPress={handlePickMedia}
+            onPress={() => {
+              try {
+                if (Platform.OS === 'web') {
+                  // Mobile web: opening the attachment UI should dismiss the keyboard and
+                  // we should not auto-restore it on close (prevents keyboard covering UI).
+                  if (isMobileWeb) {
+                    webPendingPickActiveRef.current = false;
+                    webPendingPickRestoreRef.current = false;
+                    webInputFocusedRef.current = false;
+                    try {
+                      textInputRef.current?.blur?.();
+                    } catch {
+                      // ignore
+                    }
+                  } else {
+                    // Desktop web: we restore focus after picker completes/closes.
+                    webPendingPickActiveRef.current = true;
+                    webPendingPickRestoreRef.current = webInputFocusedRef.current;
+                  }
+                }
+                const res = handlePickMedia() as unknown;
+                // Desktop web: if a promise is returned, wait for it (better for file pickers).
+                if (!isMobileWeb) {
+                  if (res && typeof (res as any)?.finally === 'function') {
+                    (res as Promise<unknown>).finally(() => restoreWebInputFocusIfAppropriate());
+                  } else {
+                    restoreWebInputFocusIfAppropriate();
+                  }
+                }
+              } catch {
+                if (!isMobileWeb) restoreWebInputFocusIfAppropriate();
+              }
+            }}
+            // On Android, keep the TextInput focused (don't steal focus).
+            focusable={Platform.OS === 'android' ? false : undefined}
             disabled={pickDisabled}
           >
             {voiceRecUi.isRecording ? (
@@ -456,7 +626,9 @@ export function ChatComposer(props: {
             ref={(r) => {
               textInputRef.current = r;
             }}
-            key={`chat-input-${inputEpoch}`}
+            // Keep the TextInput instance stable to avoid keyboard/focus glitches.
+            // We still use `inputEpoch` to reset *layout* state (see effect above), without remounting.
+            key="chat-input"
             style={[
               styles.input,
               isDark ? styles.inputDark : null,
@@ -493,7 +665,11 @@ export function ChatComposer(props: {
             editable={
               !inlineEditTargetId && !isUploading && !(isGroup && groupMeta?.meStatus !== 'active')
             }
+            onFocus={() => {
+              if (Platform.OS === 'web') webInputFocusedRef.current = true;
+            }}
             onBlur={() => {
+              if (Platform.OS === 'web') webInputFocusedRef.current = false;
               if (isTypingRef.current) sendTyping(false);
             }}
             {...(Platform.OS === 'web'
@@ -506,8 +682,15 @@ export function ChatComposer(props: {
                     };
                     const key = String(ev?.nativeEvent?.key ?? '');
                     const shift = !!ev?.nativeEvent?.shiftKey;
-                    // Web UX: Enter sends, Shift+Enter inserts a newline.
-                    if (key === 'Enter' && !shift) {
+                    const isComposing = !!(
+                      ev &&
+                      typeof ev === 'object' &&
+                      typeof (ev as { nativeEvent?: unknown }).nativeEvent === 'object' &&
+                      (ev as { nativeEvent?: { isComposing?: unknown } }).nativeEvent?.isComposing
+                    );
+                    // Desktop web UX: Enter sends, Shift+Enter inserts a newline.
+                    // Mobile web matches native: Enter inserts a newline; users send via the Send button.
+                    if (key === 'Enter' && !shift && !isComposing && !isMobileWeb) {
                       ev.preventDefault?.();
                       ev.stopPropagation?.();
                       sendMessage();
@@ -543,7 +726,14 @@ export function ChatComposer(props: {
                     : styles.btnDisabled
                   : null,
             ]}
-            onPress={sendMessage}
+            onPress={() => {
+              sendMessage();
+            }}
+            // On Android, keep the TextInput focused (don't steal focus).
+            focusable={Platform.OS === 'android' ? false : undefined}
+            // On mobile web, avoid focusing the button (keep desktop web keyboard-nav intact).
+            {...(Platform.OS === 'web' && isMobileWeb ? ({ tabIndex: -1 } as const) : null)}
+            {...(webKeepInputFocusedProps || null)}
             disabled={
               isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
             }
