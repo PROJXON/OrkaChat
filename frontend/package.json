@@ -79,6 +79,7 @@
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
     "aws-cdk-lib": "^2.216.0",
+    "baseline-browser-mapping": "^2.9.17",
     "constructs": "^10.4.3",
     "esbuild": "^0.27.0",
     "eslint": "^9.39.2",
