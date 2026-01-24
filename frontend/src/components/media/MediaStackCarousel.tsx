@@ -1,7 +1,16 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import type { GestureResponderEvent } from 'react-native';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  PixelRatio,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { useUiPromptOptional } from '../../providers/UiPromptProvider';
 import { APP_COLORS, PALETTE, withAlpha } from '../../theme/colors';
@@ -65,7 +74,6 @@ export function MediaStackCarousel({
   width,
   height,
   isDark,
-  edgeMaskColor,
   onToast,
   audioSlide,
   containOnAspectMismatch = false,
@@ -86,11 +94,6 @@ export function MediaStackCarousel({
   width: number;
   height: number;
   isDark: boolean;
-  /**
-   * Web-only: masks the 1px edges of the scroll viewport to hide rare sub-pixel "next page" slivers.
-   * Should match the surrounding media card background.
-   */
-  edgeMaskColor?: string;
   onToast?: (message: string, kind?: 'success' | 'error') => void;
   audioSlide?: {
     isOutgoing: boolean;
@@ -146,11 +149,16 @@ export function MediaStackCarousel({
    */
   imageResizeMode?: 'contain' | 'cover';
 }): React.JSX.Element | null {
-  // RN-web can render fractional widths; if `snapToInterval` uses a fractional value,
-  // the browser can settle a sub-pixel into the next page and reveal a 1px sliver.
-  // Use integer page dimensions consistently across layout + snapping + scroll math.
-  const pageW = Math.max(1, Math.round(width));
-  const pageH = Math.max(1, Math.round(height));
+  // Even when widths are integer "dp", the rendered *physical* pixels can still be fractional
+  // on high-DPR screens. If snapping lands off by <1dp, you can see a 1px sliver of the next page.
+  // Align page sizes and scroll offsets to *physical pixels* (DPR-aware) to eliminate that.
+  const dpr = Math.max(1, Number(PixelRatio.get?.() ?? 1) || 1);
+  const widthDp = Number.isFinite(width) ? width : 1;
+  const heightDp = Number.isFinite(height) ? height : 1;
+  const pageWPx = Math.max(1, Math.round(widthDp * dpr));
+  const pageHPx = Math.max(1, Math.round(heightDp * dpr));
+  const pageW = pageWPx / dpr;
+  const pageH = pageHPx / dpr;
 
   const n = Array.isArray(mediaList) ? mediaList.length : 0;
   const loopEnabled = !!loop && n > 1;
@@ -175,12 +183,13 @@ export function MediaStackCarousel({
   const snapToNearest = React.useCallback(
     (x: number) => {
       if (!scrollRef.current) return;
-      const w = Math.max(1, pageW);
+      const wPx = Math.max(1, pageWPx);
       const x0 = Number.isFinite(x) ? x : 0;
+      const xPx = Math.round(x0 * dpr);
 
       if (!loopEnabled) {
-        const next = Math.max(0, Math.min(n - 1, Math.round(x0 / w)));
-        const targetX = w * next;
+        const next = Math.max(0, Math.min(n - 1, Math.round(xPx / wPx)));
+        const targetX = (wPx * next) / dpr;
         setPageIdx(next);
         try {
           scrollRef.current.scrollTo({ x: targetX, y: 0, animated: false });
@@ -190,11 +199,11 @@ export function MediaStackCarousel({
         return;
       }
 
-      const raw = Math.round(x0 / w); // 0..n+1
+      const raw = Math.round(xPx / wPx); // 0..n+1
       if (raw === 0) {
         // Jump to last real page
         try {
-          scrollRef.current.scrollTo({ x: w * n, y: 0, animated: false });
+          scrollRef.current.scrollTo({ x: (wPx * n) / dpr, y: 0, animated: false });
         } catch {
           // ignore
         }
@@ -204,7 +213,7 @@ export function MediaStackCarousel({
       if (raw === n + 1) {
         // Jump to first real page
         try {
-          scrollRef.current.scrollTo({ x: w, y: 0, animated: false });
+          scrollRef.current.scrollTo({ x: wPx / dpr, y: 0, animated: false });
         } catch {
           // ignore
         }
@@ -215,12 +224,12 @@ export function MediaStackCarousel({
       const nextIdx = Math.max(0, Math.min(n - 1, raw - 1));
       setPageIdx(nextIdx);
       try {
-        scrollRef.current.scrollTo({ x: w * raw, y: 0, animated: false });
+        scrollRef.current.scrollTo({ x: (wPx * raw) / dpr, y: 0, animated: false });
       } catch {
         // ignore
       }
     },
-    [loopEnabled, n, pageW],
+    [dpr, loopEnabled, n, pageWPx],
   );
 
   const shouldContainForAspect = React.useCallback(
@@ -330,7 +339,7 @@ export function MediaStackCarousel({
       setPageIdx(safe);
       try {
         const offset = loopEnabled ? 1 : 0;
-        const targetX = pageW * (safe + offset);
+        const targetX = (pageWPx * (safe + offset)) / dpr;
         scrollRef.current?.scrollTo({ x: targetX, y: 0, animated: true });
         // Web: animated scroll can settle slightly off; snap once it settles.
         // Use the intended target (not the last observed scroll offset) to avoid occasional 1px slivers.
@@ -339,7 +348,7 @@ export function MediaStackCarousel({
         // ignore
       }
     },
-    [loopEnabled, n, pageW, snapToNearest],
+    [dpr, loopEnabled, n, pageWPx, snapToNearest],
   );
 
   if (!n) return null;
@@ -390,7 +399,8 @@ export function MediaStackCarousel({
             }, 20);
           }
           if (!loopEnabled) return;
-          const raw = Math.round(x / Math.max(1, pageW)); // 0..n+1
+          const xPx = Math.round((Number.isFinite(x) ? x : 0) * dpr);
+          const raw = Math.round(xPx / Math.max(1, pageWPx)); // 0..n+1
           const nextIdx =
             raw === 0 ? n - 1 : raw === n + 1 ? 0 : Math.max(0, Math.min(n - 1, raw - 1));
           if (nextIdx !== pageIdxRef.current) setPageIdx(nextIdx);
@@ -919,44 +929,6 @@ export function MediaStackCarousel({
           );
         })}
       </ScrollView>
-
-      {/* Hide rare 1px slivers of adjacent pages by masking the scroll viewport edges. */}
-      {n > 1 ? (
-        <>
-          {(() => {
-            const w = 1;
-            const bg = edgeMaskColor ?? (isDark ? APP_COLORS.dark.bg.header : PALETTE.paper210);
-            return (
-              <>
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
-                    width: w,
-                    backgroundColor: bg,
-                    zIndex: 10,
-                  }}
-                />
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    right: 0,
-                    width: w,
-                    backgroundColor: bg,
-                    zIndex: 10,
-                  }}
-                />
-              </>
-            );
-          })()}
-        </>
-      ) : null}
 
       {/* Web: explicit left/right controls for multi-attachment messages */}
       {Platform.OS === 'web' && n > 1 && webHover ? (
