@@ -252,13 +252,22 @@ export type ChatScreenOverlaysProps = {
   // Channel
   channelMembersOpen: boolean;
   channelMembersVisible: MemberRow[];
-  channelMeta: { meIsAdmin?: boolean; name?: string } | null;
+  channelMeta: {
+    meIsAdmin?: boolean;
+    name?: string;
+    isPublic?: boolean;
+    hasPassword?: boolean;
+  } | null;
   channelActionBusy: boolean;
   channelMembersModalActions: {
+    onAddMembers: () => void | Promise<void>;
     onBan: (args: { memberSub: string; label: string }) => void | Promise<void>;
     onToggleAdmin: (args: { memberSub: string; isAdmin: boolean }) => void;
     onClose: () => void;
   };
+  channelAddMembersDraft: string;
+  setChannelAddMembersDraft: (v: string) => void;
+  channelAddMembersInputRef: React.MutableRefObject<TextInput | null>;
   channelUpdate: (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
   channelKick: (memberSub: string) => void;
 
@@ -361,6 +370,9 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
     channelMeta,
     channelActionBusy,
     channelMembersModalActions,
+    channelAddMembersDraft,
+    setChannelAddMembersDraft,
+    channelAddMembersInputRef,
     channelUpdate,
     channelKick,
     channelAboutOpen,
@@ -665,6 +677,15 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
         visible={channelMembersOpen}
         isDark={isDark}
         styles={styles}
+        canAddMembers={
+          !!channelMeta?.meIsAdmin &&
+          (channelMeta?.isPublic === false ||
+            (channelMeta?.isPublic === true && !!channelMeta?.hasPassword))
+        }
+        addMembersDraft={channelAddMembersDraft}
+        onChangeAddMembersDraft={setChannelAddMembersDraft}
+        onAddMembers={channelMembersModalActions.onAddMembers}
+        addMembersInputRef={channelAddMembersInputRef}
         members={channelMembersVisible}
         mySub={typeof myUserId === 'string' ? myUserId : ''}
         meIsAdmin={!!channelMeta?.meIsAdmin}

@@ -872,6 +872,9 @@ export default function ChatScreen({
     setChannelSettingsOpen,
     channelActionBusy,
     setChannelActionBusy,
+    channelAddMembersDraft,
+    setChannelAddMembersDraft,
+    channelAddMembersInputRef,
     channelNameEditOpen,
     setChannelNameEditOpen,
     channelNameDraft,
@@ -1497,6 +1500,8 @@ export default function ChatScreen({
     setGroupMembersOpen,
   });
   const channelMembersModalActions = useChannelMembersModalActions({
+    channelAddMembersDraft,
+    setChannelAddMembersDraft,
     uiConfirm,
     wsRef,
     activeConversationId,
@@ -2240,6 +2245,9 @@ export default function ChatScreen({
     channelMeta,
     channelActionBusy,
     channelMembersModalActions,
+    channelAddMembersDraft,
+    setChannelAddMembersDraft,
+    channelAddMembersInputRef,
     channelUpdate,
     channelKick,
     channelAboutOpen,

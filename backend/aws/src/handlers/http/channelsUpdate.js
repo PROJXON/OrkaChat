@@ -9,6 +9,7 @@
 // - setPublic: { isPublic: boolean }
 // - setPassword: { password: string }
 // - clearPassword: {}
+// - addMembers: { usernames: string[] }  (only for private channels or password-protected public channels)
 // - promoteAdmin: { memberSub: string }
 // - demoteAdmin: { memberSub: string }
 // - ban: { memberSub: string }
@@ -16,6 +17,7 @@
 // - deleteChannel: {}
 //
 // Env:
+// - USERS_TABLE (required for addMembers): PK userSub; GSI byUsernameLower (PK usernameLower)
 // - CHANNELS_TABLE (required)
 // - CHANNEL_MEMBERS_TABLE (required)
 // - CHANNELS_NAME_GSI (optional, default "byNameLower")
@@ -62,6 +64,27 @@ function publicRankSk(activeMemberCount, channelId) {
   const left = String(r).padStart(12, '0');
   const id = safeString(channelId);
   return `${left}#${id}`;
+}
+
+const uniq = (arr) =>
+  Array.from(
+    new Set((Array.isArray(arr) ? arr : []).map((s) => safeString(s)).filter(Boolean)),
+  );
+
+async function getUserByUsernameLower(usersTable, usernameLower) {
+  const table = safeString(usersTable);
+  const u = safeString(usernameLower).toLowerCase();
+  if (!table || !u) return null;
+  const resp = await ddb.send(
+    new QueryCommand({
+      TableName: table,
+      IndexName: 'byUsernameLower',
+      KeyConditionExpression: 'usernameLower = :u',
+      ExpressionAttributeValues: { ':u': u },
+      Limit: 1,
+    }),
+  );
+  return resp.Items?.[0] || null;
 }
 
 async function nameLowerExists({ channelsTable, nameLower, gsiName }) {
@@ -233,6 +256,114 @@ exports.handler = async (event) => {
           ExpressionAttributeValues: { ':hp': false, ':u': nowMs },
         })
       );
+    } else if (op === 'addMembers') {
+      // Guard: Only allow "add members" where self-join is gated:
+      // - private channels (not discoverable / not joinable via /channels/join)
+      // - password-protected public channels
+      const isPublic = !!channel.isPublic;
+      const hasPassword = !!channel.hasPassword;
+      if (isPublic && !hasPassword) {
+        return json(400, { message: 'Add members is only available for private or password-protected channels' });
+      }
+
+      const usersTable = safeString(process.env.USERS_TABLE);
+      if (!usersTable) return json(500, { message: 'USERS_TABLE not configured' });
+
+      const usernamesRaw = Array.isArray(body.usernames) ? body.usernames : [];
+      const usernames = uniq(usernamesRaw).map((s) => s.toLowerCase());
+      if (!usernames.length) return json(400, { message: 'usernames required' });
+
+      const toAddSubs = [];
+      for (const uname of usernames) {
+        // eslint-disable-next-line no-await-in-loop
+        const u = await getUserByUsernameLower(usersTable, uname);
+        if (!u) return json(404, { message: `User not found: ${uname}` });
+        const sub = safeString(u.userSub);
+        if (!sub) return json(500, { message: 'Malformed Users row (missing userSub)' });
+        toAddSubs.push(sub);
+      }
+      const uniqueSubs = uniq(toAddSubs);
+
+      const addedSubs = [];
+      let becameActiveCount = 0;
+      for (const memberSub of uniqueSubs) {
+        if (!memberSub) continue;
+        // eslint-disable-next-line no-await-in-loop
+        const targetResp = await ddb.send(
+          new GetCommand({ TableName: membersTable, Key: { channelId, memberSub } }),
+        );
+        const existing = targetResp.Item || null;
+        const prevStatus = safeString(existing?.status);
+        if (prevStatus === 'banned') return json(409, { message: 'User is banned from this channel' });
+        const becameActive = prevStatus !== 'active';
+        if (!existing) {
+          // eslint-disable-next-line no-await-in-loop
+          await ddb.send(
+            new PutCommand({
+              TableName: membersTable,
+              Item: {
+                channelId,
+                memberSub,
+                status: 'active',
+                isAdmin: false,
+                joinedAt: nowMs,
+                addedBySub: callerSub,
+                updatedAt: nowMs,
+              },
+            }),
+          );
+        } else if (becameActive) {
+          // eslint-disable-next-line no-await-in-loop
+          await ddb.send(
+            new UpdateCommand({
+              TableName: membersTable,
+              Key: { channelId, memberSub },
+              UpdateExpression: 'SET #s = :s, isAdmin = :a, joinedAt = :j, addedBySub = :ab, updatedAt = :u REMOVE leftAt, bannedAt',
+              ExpressionAttributeNames: { '#s': 'status' },
+              ExpressionAttributeValues: {
+                ':s': 'active',
+                ':a': false,
+                ':j': nowMs,
+                ':ab': callerSub,
+                ':u': nowMs,
+              },
+            }),
+          );
+        }
+
+        if (becameActive) {
+          becameActiveCount += 1;
+          addedSubs.push(memberSub);
+        }
+      }
+
+      // Update active member count only for newly active members.
+      if (becameActiveCount > 0) {
+        const prevCount = typeof channel.activeMemberCount === 'number' ? channel.activeMemberCount : 0;
+        const nextCount = Math.max(0, prevCount + becameActiveCount);
+        await ddb
+          .send(
+            new UpdateCommand({
+              TableName: channelsTable,
+              Key: { channelId },
+              UpdateExpression: isPublic
+                ? 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :inc, publicIndexPk = :pk, publicRankSk = :sk, updatedAt = :u'
+                : 'SET activeMemberCount = if_not_exists(activeMemberCount, :z) + :inc, updatedAt = :u',
+              ExpressionAttributeValues: isPublic
+                ? {
+                    ':z': 0,
+                    ':inc': becameActiveCount,
+                    ':u': nowMs,
+                    ':pk': 'public',
+                    ':sk': publicRankSk(nextCount, channelId),
+                  }
+                : { ':z': 0, ':inc': becameActiveCount, ':u': nowMs },
+            }),
+          )
+          .catch(() => {});
+      }
+
+      responseExtras.addedSubs = addedSubs;
     } else if (op === 'promoteAdmin' || op === 'demoteAdmin') {
       const memberSub = safeString(body.memberSub);
       if (!memberSub) return json(400, { message: 'memberSub is required' });

@@ -485,31 +485,27 @@ export function MainAppChannelsModals({
                       >
                         {c.name}
                       </Text>
-                      {c.isPublic === false || c.hasPassword ? (
-                        <View style={{ marginLeft: 8, flexDirection: 'row', alignItems: 'center' }}>
-                          {c.isPublic === false ? (
-                            <Feather
-                              name="eye-off"
-                              size={14}
-                              color={
-                                isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted
-                              }
-                              accessibilityLabel="Private channel"
-                            />
-                          ) : null}
-                          {c.isPublic === false && c.hasPassword ? (
-                            <View style={{ width: 8 }} />
-                          ) : null}
-                          {c.hasPassword ? (
-                            <Feather
-                              name="lock"
-                              size={14}
-                              color={
-                                isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted
-                              }
-                              accessibilityLabel="Password protected channel"
-                            />
-                          ) : null}
+                      {c.isPublic === false ? (
+                        <View style={{ marginLeft: 8 }}>
+                          <Feather
+                            name="eye-off"
+                            size={14}
+                            color={
+                              isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted
+                            }
+                            accessibilityLabel="Private channel"
+                          />
+                        </View>
+                      ) : c.hasPassword ? (
+                        <View style={{ marginLeft: 8 }}>
+                          <Feather
+                            name="lock"
+                            size={14}
+                            color={
+                              isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted
+                            }
+                            accessibilityLabel="Password protected channel"
+                          />
                         </View>
                       ) : null}
                     </View>
@@ -698,8 +694,7 @@ export function MainAppChannelsModals({
                           accessibilityLabel="Private channel"
                         />
                       </View>
-                    ) : null}
-                    {pinnedFromResults?.hasPassword ? (
+                    ) : pinnedFromResults?.hasPassword ? (
                       <View style={{ marginLeft: 8 }}>
                         <Feather
                           name="lock"
@@ -819,8 +814,7 @@ export function MainAppChannelsModals({
                             accessibilityLabel="Private channel"
                           />
                         </View>
-                      ) : null}
-                      {c.hasPassword ? (
+                      ) : c.hasPassword ? (
                         <View style={{ marginLeft: 8 }}>
                           <Feather
                             name="lock"
