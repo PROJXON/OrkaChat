@@ -924,7 +924,7 @@ export function MediaStackCarousel({
       {n > 1 ? (
         <>
           {(() => {
-            const w = Platform.OS === 'web' ? 2 : 1;
+            const w = 1;
             const bg = edgeMaskColor ?? (isDark ? APP_COLORS.dark.bg.header : PALETTE.paper210);
             return (
               <>
