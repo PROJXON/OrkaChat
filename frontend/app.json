@@ -22,27 +22,19 @@
       }
     },
     "android": {
-      "notification": {
-        "icon": "./assets/icons/notification-icon.png"
-      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-android-icon.png",
         "monochromeImage": "./assets/icons/monochrome-android.png",
         "backgroundImage": "./assets/icons/android-background.png"
       },
-      "navigationBar": {
-        "barStyle": "light-content",
-        "backgroundColor": "#0b0b0f"
-      },
-      "statusBar": {
-        "barStyle": "light-content",
-        "backgroundColor": "#0b0b0f"
-      },
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.projxon.orkachat",
       "googleServicesFile": "./google-services.json",
-      "permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./public/favicon-32.png"
@@ -72,6 +64,13 @@
       "react-native-quick-crypto",
       "expo-secure-store",
       "expo-camera",
+      [
+        "expo-navigation-bar",
+        {
+          "barStyle": "light-content",
+          "backgroundColor": "#0b0b0f"
+        }
+      ],
       "expo-video",
       [
         "expo-notifications",
