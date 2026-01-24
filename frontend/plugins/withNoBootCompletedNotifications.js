@@ -45,7 +45,9 @@ function addBootActionRemoveDirectives(manifest) {
     'intent-filter': [
       {
         $: { 'android:priority': '-1', 'tools:node': 'merge' },
-        action: Array.from(BOOT_ACTIONS).map((a) => ({ $: { 'android:name': a, 'tools:node': 'remove' } })),
+        action: Array.from(BOOT_ACTIONS).map((a) => ({
+          $: { 'android:name': a, 'tools:node': 'remove' },
+        })),
       },
     ],
   };
