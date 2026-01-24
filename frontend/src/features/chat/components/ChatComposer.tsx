@@ -186,6 +186,8 @@ export function ChatComposer(props: {
   }, []);
 
   const webInputFocusedRef = React.useRef(false);
+  const webPendingPickRestoreRef = React.useRef(false);
+  const webPendingPickActiveRef = React.useRef(false);
 
   const webKeyboardVisibleRef = React.useRef<boolean>(false);
   React.useEffect(() => {
@@ -223,51 +225,71 @@ export function ChatComposer(props: {
     }
   }, [isMobileWeb]);
 
-  const restoreWebInputFocusIfAppropriate = React.useCallback(() => {
-    if (Platform.OS !== 'web') return;
-    // Desktop web: always restore (expected chat UX).
-    if (!isMobileWeb) {
-      const tryFocus = () => {
-        try {
-          textInputRef.current?.focus?.();
-        } catch {
-          // ignore
-        }
-      };
-      setTimeout(tryFocus, 0);
-      setTimeout(tryFocus, 150);
-      setTimeout(tryFocus, 400);
-      return;
-    }
-    // Mobile web: only restore focus if the input was already focused and the keyboard is visible.
-    // This prevents "popping" the keyboard back up after the user swipes it down.
-    if (!webInputFocusedRef.current) return;
-    if (!webKeyboardVisibleRef.current) return;
-    setTimeout(() => {
+  const focusWebInputSoon = React.useCallback(() => {
+    const tryFocus = () => {
       try {
         textInputRef.current?.focus?.();
       } catch {
         // ignore
       }
-    }, 0);
-  }, [isMobileWeb, textInputRef]);
+    };
+    setTimeout(tryFocus, 0);
+    setTimeout(tryFocus, 150);
+    setTimeout(tryFocus, 400);
+  }, [textInputRef]);
+
+  // If the attachment picker steals focus, restore it when the browser returns.
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    // Mobile web: never auto-restore focus after attachment UI closes, to avoid popping
+    // the keyboard back up and causing layout/viewport glitches.
+    if (isMobileWeb) return;
+    try {
+      const w = typeof window !== 'undefined' ? window : undefined;
+      if (!w || typeof w.addEventListener !== 'function') return;
+
+      const onWindowFocus = () => {
+        if (!webPendingPickActiveRef.current) return;
+        webPendingPickActiveRef.current = false;
+
+        // Desktop web: always restore focus after closing/canceling the picker.
+        // Mobile web: only restore if the input was focused when the picker opened.
+        if (!isMobileWeb || webPendingPickRestoreRef.current) {
+          focusWebInputSoon();
+        }
+        webPendingPickRestoreRef.current = false;
+      };
+
+      w.addEventListener('focus', onWindowFocus);
+      return () => {
+        w.removeEventListener('focus', onWindowFocus);
+      };
+    } catch {
+      // ignore
+    }
+  }, [focusWebInputSoon, isMobileWeb]);
+
+  const restoreWebInputFocusIfAppropriate = React.useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    // Mobile web: never auto-restore focus (avoids keyboard popping up over the UI).
+    if (isMobileWeb) return;
+    // Desktop web: always restore (expected chat UX).
+    focusWebInputSoon();
+  }, [focusWebInputSoon, isMobileWeb]);
 
   const webKeepInputFocusedProps = React.useMemo(() => {
     if (Platform.OS !== 'web') return null;
-    if (!isMobileWeb) return null;
-    // Mobile web: prevent buttons from taking focus (which dismisses the keyboard).
-    // Avoid refocus-after-send to prevent keyboard "flash".
+    // Web: prevent pointer/touch interactions from taking focus away from the TextInput.
+    // - Desktop web: always keep focus in the composer (expected chat UX).
+    // - Mobile web: only keep focus if the keyboard is currently visible (so we don't pop it back up
+    //   after the user swipes it down).
+    const preventIfAllowed = (e: unknown) => {
+      if (isMobileWeb && !webKeyboardVisibleRef.current) return;
+      (e as { preventDefault?: () => void })?.preventDefault?.();
+    };
     return {
-      onMouseDown: (e: unknown) => {
-        // If the keyboard is currently hidden (user swiped it down), allow focus to move off the
-        // input so we don't unintentionally bring the keyboard back up.
-        if (!webKeyboardVisibleRef.current) return;
-        (e as { preventDefault?: () => void })?.preventDefault?.();
-      },
-      onTouchStart: (e: unknown) => {
-        if (!webKeyboardVisibleRef.current) return;
-        (e as { preventDefault?: () => void })?.preventDefault?.();
-      },
+      onMouseDown: preventIfAllowed,
+      onTouchStart: preventIfAllowed,
     } as const;
   }, [isMobileWeb]);
 
@@ -301,6 +323,19 @@ export function ChatComposer(props: {
     },
     [restoreWebInputFocusIfAppropriate, setPendingMedia],
   );
+
+  // When attachments are added via the picker (which can steal focus on web),
+  // restore focus *after* the attachment state actually updates.
+  const prevPendingMediaCountRef = React.useRef<number>(pendingMedia.length);
+  React.useEffect(() => {
+    const prev = prevPendingMediaCountRef.current;
+    const next = pendingMedia.length;
+    prevPendingMediaCountRef.current = next;
+    if (Platform.OS !== 'web') return;
+    if (isMobileWeb) return;
+    if (next <= prev) return;
+    restoreWebInputFocusIfAppropriate();
+  }, [isMobileWeb, pendingMedia.length, restoreWebInputFocusIfAppropriate]);
 
   return (
     <>
@@ -520,23 +555,40 @@ export function ChatComposer(props: {
               pickVisuallyDisabled ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
             ]}
             onPress={() => {
-              // Best-effort: when picking/attaching media on web, return focus to the input
-              // so the user can continue typing a caption or next message.
               try {
+                if (Platform.OS === 'web') {
+                  // Mobile web: opening the attachment UI should dismiss the keyboard and
+                  // we should not auto-restore it on close (prevents keyboard covering UI).
+                  if (isMobileWeb) {
+                    webPendingPickActiveRef.current = false;
+                    webPendingPickRestoreRef.current = false;
+                    webInputFocusedRef.current = false;
+                    try {
+                      textInputRef.current?.blur?.();
+                    } catch {
+                      // ignore
+                    }
+                  } else {
+                    // Desktop web: we restore focus after picker completes/closes.
+                    webPendingPickActiveRef.current = true;
+                    webPendingPickRestoreRef.current = webInputFocusedRef.current;
+                  }
+                }
                 const res = handlePickMedia() as unknown;
-                // If a promise is returned, wait for it (better for file pickers).
-                if (res && typeof (res as any)?.finally === 'function') {
-                  (res as Promise<unknown>).finally(() => restoreWebInputFocusIfAppropriate());
-                } else {
-                  restoreWebInputFocusIfAppropriate();
+                // Desktop web: if a promise is returned, wait for it (better for file pickers).
+                if (!isMobileWeb) {
+                  if (res && typeof (res as any)?.finally === 'function') {
+                    (res as Promise<unknown>).finally(() => restoreWebInputFocusIfAppropriate());
+                  } else {
+                    restoreWebInputFocusIfAppropriate();
+                  }
                 }
               } catch {
-                restoreWebInputFocusIfAppropriate();
+                if (!isMobileWeb) restoreWebInputFocusIfAppropriate();
               }
             }}
             // On Android, keep the TextInput focused (don't steal focus).
             focusable={Platform.OS === 'android' ? false : undefined}
-            {...(webKeepInputFocusedProps || null)}
             disabled={pickDisabled}
           >
             {voiceRecUi.isRecording ? (

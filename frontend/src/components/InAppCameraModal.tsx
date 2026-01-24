@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React from 'react';
@@ -44,6 +45,51 @@ function VideoPreview({ uri }: { uri: string }): React.JSX.Element {
   return <VideoView player={player} style={styles.preview} contentFit="cover" nativeControls />;
 }
 
+async function flipImageUriHorizontalWeb(uri: string): Promise<string> {
+  // Best-effort: flip a captured image horizontally on web so users can correct
+  // browser-specific mirroring quirks before sending.
+  try {
+    const w: any = typeof window !== 'undefined' ? window : null;
+    const d: any = typeof document !== 'undefined' ? document : null;
+    if (!w || !d) return uri;
+
+    const img: any = new (w.Image as any)();
+    img.crossOrigin = 'anonymous';
+    const loaded = new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Image load failed'));
+    });
+    img.src = uri;
+    await loaded;
+
+    const width = Number(img.naturalWidth || img.width || 0);
+    const height = Number(img.naturalHeight || img.height || 0);
+    if (!(width > 0 && height > 0)) return uri;
+
+    const canvas: any = d.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx: any = canvas.getContext?.('2d');
+    if (!ctx) return uri;
+
+    ctx.translate(width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const blob: Blob | null = await new Promise((resolve) => {
+      try {
+        canvas.toBlob((b: Blob | null) => resolve(b), 'image/jpeg', 0.92);
+      } catch {
+        resolve(null);
+      }
+    });
+    if (!blob) return uri;
+    return w.URL?.createObjectURL?.(blob) || uri;
+  } catch {
+    return uri;
+  }
+}
+
 export function InAppCameraModal({
   visible,
   initialMode,
@@ -67,6 +113,26 @@ export function InAppCameraModal({
   const [mode, setMode] = React.useState<InAppCameraMode>(initialMode ?? 'photo');
   const [camPerm, requestCamPerm] = useCameraPermissions();
   const [micPerm, requestMicPerm] = useMicrophonePermissions();
+
+  // When a photo is captured, allow flipping it in the preview before sending.
+  // We keep the original URI around so users can toggle back.
+  const capturedPhotoOriginalUriRef = React.useRef<string | null>(null);
+  const capturedPhotoFlippedUriRef = React.useRef<string | null>(null);
+  const capturedPhotoIsFlippedRef = React.useRef<boolean>(false);
+
+  const cleanupFlippedPhotoUri = React.useCallback(() => {
+    try {
+      const u = capturedPhotoFlippedUriRef.current;
+      if (u && Platform.OS === 'web' && u.startsWith('blob:') && typeof URL !== 'undefined') {
+        URL.revokeObjectURL(u);
+      }
+    } catch {
+      // ignore
+    }
+    capturedPhotoFlippedUriRef.current = null;
+    capturedPhotoIsFlippedRef.current = false;
+    capturedPhotoOriginalUriRef.current = null;
+  }, []);
 
   const showAlert = React.useCallback(
     (title: string, message: string) => {
@@ -145,11 +211,12 @@ export function InAppCameraModal({
     } catch {
       // ignore
     }
+    cleanupFlippedPhotoUri();
     setCaptured(null);
     setIsRecording(false);
     setCameraReady(false);
     onClose();
-  }, [onClose]);
+  }, [cleanupFlippedPhotoUri, onClose]);
 
   const ensureMicPerm = React.useCallback(async (): Promise<boolean> => {
     try {
@@ -169,11 +236,42 @@ export function InAppCameraModal({
       // (skipProcessing can yield black frames on some setups).
       const res = await cam.takePictureAsync({ quality: 1 });
       if (!res?.uri) return;
-      setCaptured({ uri: String(res.uri), mode: 'photo' });
+      let uri = String(res.uri);
+      // Reset any prior preview flip state for this new capture.
+      cleanupFlippedPhotoUri();
+      capturedPhotoOriginalUriRef.current = uri;
+
+      // Native: front camera often returns a mirrored image. Normalize to non-mirrored output so the
+      // preview and the sent attachment match what users expect.
+      if (facing === 'front') {
+        try {
+          if (Platform.OS === 'web') {
+            // Web: captured images are frequently the *opposite* orientation of the live preview
+            // (browser-dependent). Default to matching the live preview so users see what they send.
+            const flippedUri = await flipImageUriHorizontalWeb(uri);
+            if (flippedUri && flippedUri !== uri) {
+              capturedPhotoFlippedUriRef.current = flippedUri;
+              capturedPhotoIsFlippedRef.current = true;
+              uri = flippedUri;
+            }
+          } else {
+            const flipped = await ImageManipulator.manipulateAsync(
+              uri,
+              [{ flip: ImageManipulator.FlipType.Horizontal }],
+              // Keep max quality; backend/chat pipeline can compress as needed.
+              { compress: 1, format: ImageManipulator.SaveFormat.JPEG },
+            );
+            if (flipped?.uri) uri = String(flipped.uri);
+          }
+        } catch {
+          // If manipulation fails, fall back to the original capture.
+        }
+      }
+      setCaptured({ uri, mode: 'photo' });
     } catch (e: unknown) {
       showAlert('Camera failed', getErrorMessage(e));
     }
-  }, [showAlert]);
+  }, [cleanupFlippedPhotoUri, facing, showAlert]);
 
   const startVideo = React.useCallback(async () => {
     try {
@@ -209,13 +307,55 @@ export function InAppCameraModal({
   const confirm = React.useCallback(() => {
     if (!captured) return;
     onCaptured(captured);
+    cleanupFlippedPhotoUri();
     setCaptured(null);
     onClose();
-  }, [captured, onCaptured, onClose]);
+  }, [captured, cleanupFlippedPhotoUri, onCaptured, onClose]);
 
   const retake = React.useCallback(() => {
+    cleanupFlippedPhotoUri();
     setCaptured(null);
-  }, []);
+  }, [cleanupFlippedPhotoUri]);
+
+  const toggleCapturedPhotoFlip = React.useCallback(async () => {
+    if (!captured || captured.mode !== 'photo') return;
+    const original = capturedPhotoOriginalUriRef.current;
+    if (!original) return;
+
+    // If currently flipped, restore original.
+    if (capturedPhotoIsFlippedRef.current) {
+      capturedPhotoIsFlippedRef.current = false;
+      setCaptured({ uri: original, mode: 'photo' });
+      return;
+    }
+
+    // Otherwise, generate (or reuse) a flipped variant.
+    if (capturedPhotoFlippedUriRef.current) {
+      capturedPhotoIsFlippedRef.current = true;
+      setCaptured({ uri: capturedPhotoFlippedUriRef.current, mode: 'photo' });
+      return;
+    }
+
+    try {
+      let flippedUri = original;
+      if (Platform.OS === 'web') {
+        flippedUri = await flipImageUriHorizontalWeb(original);
+      } else {
+        const flipped = await ImageManipulator.manipulateAsync(
+          original,
+          [{ flip: ImageManipulator.FlipType.Horizontal }],
+          { compress: 1, format: ImageManipulator.SaveFormat.JPEG },
+        );
+        if (flipped?.uri) flippedUri = String(flipped.uri);
+      }
+      if (!flippedUri || flippedUri === original) return;
+      capturedPhotoFlippedUriRef.current = flippedUri;
+      capturedPhotoIsFlippedRef.current = true;
+      setCaptured({ uri: flippedUri, mode: 'photo' });
+    } catch {
+      // ignore
+    }
+  }, [captured]);
 
   const toggleFacing = React.useCallback(() => {
     setFacing((p) => (p === 'back' ? 'front' : 'back'));
@@ -301,12 +441,29 @@ export function InAppCameraModal({
               },
             ]}
           >
-            <Pressable
-              onPress={closeAndReset}
-              style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}
-            >
-              <Text style={styles.topBtnText}>Close</Text>
-            </Pressable>
+            {!captured ? (
+              <Pressable
+                onPress={toggleFacing}
+                style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Text style={styles.topBtnText}>Flip</Text>
+              </Pressable>
+            ) : captured.mode === 'photo' ? (
+              <Pressable
+                onPress={() => void toggleCapturedPhotoFlip()}
+                style={({ pressed }) => [
+                  styles.topBtn,
+                  styles.topBtnWide,
+                  pressed && { opacity: 0.85 },
+                ]}
+              >
+                <Text style={styles.topBtnText} numberOfLines={1} ellipsizeMode="clip">
+                  Mirror image
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.topBtn} />
+            )}
             <View
               style={[
                 styles.centerTitleWrap,
@@ -316,16 +473,18 @@ export function InAppCameraModal({
             >
               <Text style={styles.title}>Camera</Text>
             </View>
-            {!captured ? (
-              <Pressable
-                onPress={toggleFacing}
-                style={({ pressed }) => [styles.topBtn, pressed && { opacity: 0.85 }]}
-              >
-                <Text style={styles.topBtnText}>Flip</Text>
-              </Pressable>
-            ) : (
-              <View style={styles.topBtn} />
-            )}
+            <Pressable
+              onPress={closeAndReset}
+              style={({ pressed }) => [
+                styles.topBtn,
+                captured?.mode === 'photo' ? styles.topBtnWide : null,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text style={styles.topBtnText} numberOfLines={1} ellipsizeMode="clip">
+                Close
+              </Text>
+            </Pressable>
           </View>
 
           <View
@@ -452,6 +611,7 @@ const styles = StyleSheet.create({
   centerTitleWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   title: { color: APP_COLORS.dark.text.primary, fontWeight: '900', fontSize: 14 },
   topBtn: { width: 56, paddingVertical: 6 },
+  topBtnWide: { width: 110, paddingVertical: 6 },
   topBtnText: { color: APP_COLORS.dark.text.primary, fontWeight: '800' },
   captureColumn: { alignItems: 'center' },
   modeToggleRowBottom: { marginTop: 10, flexDirection: 'row', gap: 8 },
