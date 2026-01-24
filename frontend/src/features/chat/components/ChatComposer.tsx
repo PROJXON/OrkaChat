@@ -43,6 +43,9 @@ export function ChatComposer(props: {
   isGroup: boolean;
   isEncryptedChat: boolean;
   groupMeta: null | { groupId: string; groupName?: string; meIsAdmin: boolean; meStatus: string };
+  // When true, pressing the Send button will blur the input (dismiss keyboard).
+  // Enter-to-send on web never blurs.
+  dismissKeyboardOnSendPress?: boolean;
 
   // Inline edit bar
   inlineEditTargetId: string | null;
@@ -103,6 +106,7 @@ export function ChatComposer(props: {
     isGroup,
     isEncryptedChat,
     groupMeta,
+    dismissKeyboardOnSendPress = false,
     inlineEditTargetId,
     inlineEditUploading: _inlineEditUploading,
     cancelInlineEdit: _cancelInlineEdit,
@@ -170,6 +174,20 @@ export function ChatComposer(props: {
   const MIN_INPUT_HEIGHT = 44;
   const MAX_INPUT_HEIGHT = 140;
   const [inputHeight, setInputHeight] = React.useState<number>(MIN_INPUT_HEIGHT);
+
+  const isMobileWeb = React.useMemo(() => {
+    if (Platform.OS !== 'web') return false;
+    try {
+      const w = typeof window !== 'undefined' ? window : undefined;
+      const coarse =
+        !!w?.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches ||
+        !!w?.matchMedia?.('(pointer: coarse)')?.matches;
+      const narrow = typeof w?.innerWidth === 'number' ? w.innerWidth < 768 : false;
+      return coarse || narrow;
+    } catch {
+      return false;
+    }
+  }, []);
 
   React.useEffect(() => {
     // Reset back to 1-row height when the composer is remounted/reset.
@@ -419,6 +437,8 @@ export function ChatComposer(props: {
               pickVisuallyDisabled ? (isDark ? styles.btnDisabledDark : styles.btnDisabled) : null,
             ]}
             onPress={handlePickMedia}
+            // On Android, keep the TextInput focused (don't steal focus).
+            focusable={Platform.OS === 'android' ? false : undefined}
             disabled={pickDisabled}
           >
             {voiceRecUi.isRecording ? (
@@ -456,7 +476,9 @@ export function ChatComposer(props: {
             ref={(r) => {
               textInputRef.current = r;
             }}
-            key={`chat-input-${inputEpoch}`}
+            // Keep the TextInput instance stable to avoid keyboard/focus glitches.
+            // We still use `inputEpoch` to reset *layout* state (see effect above), without remounting.
+            key="chat-input"
             style={[
               styles.input,
               isDark ? styles.inputDark : null,
@@ -506,8 +528,15 @@ export function ChatComposer(props: {
                     };
                     const key = String(ev?.nativeEvent?.key ?? '');
                     const shift = !!ev?.nativeEvent?.shiftKey;
-                    // Web UX: Enter sends, Shift+Enter inserts a newline.
-                    if (key === 'Enter' && !shift) {
+                    const isComposing = !!(
+                      ev &&
+                      typeof ev === 'object' &&
+                      typeof (ev as { nativeEvent?: unknown }).nativeEvent === 'object' &&
+                      (ev as { nativeEvent?: { isComposing?: unknown } }).nativeEvent?.isComposing
+                    );
+                    // Desktop web UX: Enter sends, Shift+Enter inserts a newline.
+                    // Mobile web matches native: Enter inserts a newline; users send via the Send button.
+                    if (key === 'Enter' && !shift && !isComposing && !isMobileWeb) {
                       ev.preventDefault?.();
                       ev.stopPropagation?.();
                       sendMessage();
@@ -543,7 +572,18 @@ export function ChatComposer(props: {
                     : styles.btnDisabled
                   : null,
             ]}
-            onPress={sendMessage}
+            onPress={() => {
+              sendMessage();
+              if (dismissKeyboardOnSendPress) {
+                try {
+                  textInputRef.current?.blur?.();
+                } catch {
+                  // ignore
+                }
+              }
+            }}
+            // On Android, keep the TextInput focused (don't steal focus).
+            focusable={Platform.OS === 'android' ? false : undefined}
             disabled={
               isUploading || !!inlineEditTargetId || (isGroup && groupMeta?.meStatus !== 'active')
             }

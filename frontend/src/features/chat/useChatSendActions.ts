@@ -26,7 +26,7 @@ export type ReplyTarget = {
   mediaFileName?: string;
 };
 
-type TextInputLike = { clear?: () => void };
+type TextInputLike = { clear?: () => void; focus?: () => void; blur?: () => void };
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message || 'Unknown error';
@@ -307,9 +307,8 @@ export function useChatSendActions(opts: {
         : null;
 
     const clearDraftImmediately = () => {
-      // Force-remount the TextInput to fully reset native state.
-      // This is the most reliable way to guarantee "instant clear" on Android
-      // even if the user keeps typing and spams Send.
+      // Bump epoch to reset composer layout state (eg. height).
+      // Note: the TextInput itself is kept stable (no remount) to avoid keyboard glitches.
       setInputEpoch((v) => v + 1);
       try {
         textInputRef.current?.clear?.();
