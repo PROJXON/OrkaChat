@@ -5,20 +5,35 @@ const MLKIT_META_BARCODE_UI = 'barcode_ui';
 const MLKIT_CODE_SCANNER_ACTIVITY =
   'com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity';
 
-function removeApplicationMetaData(manifest, predicate) {
-  const app = manifest?.manifest?.application?.[0];
-  if (!app) return;
-  const md = app['meta-data'];
-  if (!Array.isArray(md)) return;
-  app['meta-data'] = md.filter((m) => !predicate(m));
+function ensureToolsNamespace(manifest) {
+  manifest.manifest.$ = manifest.manifest.$ || {};
+  if (!manifest.manifest.$['xmlns:tools']) {
+    manifest.manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
+  }
 }
 
-function removeActivity(manifest, activityName) {
+function addMetaDataRemoveDirective(manifest) {
   const app = manifest?.manifest?.application?.[0];
   if (!app) return;
-  const acts = app.activity;
-  if (!Array.isArray(acts)) return;
-  app.activity = acts.filter((a) => a?.$?.['android:name'] !== activityName);
+  app['meta-data'] = app['meta-data'] || [];
+  if (!Array.isArray(app['meta-data'])) return;
+
+  // Remove barcode_ui meta-data even if it comes from a library (expo-camera).
+  app['meta-data'].push({
+    $: {
+      'android:name': MLKIT_META_NAME,
+      'android:value': MLKIT_META_BARCODE_UI,
+      'tools:node': 'remove',
+    },
+  });
+}
+
+function addActivityRemoveDirective(manifest, activityName) {
+  const app = manifest?.manifest?.application?.[0];
+  if (!app) return;
+  app.activity = app.activity || [];
+  if (!Array.isArray(app.activity)) return;
+  app.activity.push({ $: { 'android:name': activityName, 'tools:node': 'remove' } });
 }
 
 /**
@@ -35,13 +50,9 @@ module.exports = function withNoMlkitCodeScanner(config) {
   return withAndroidManifest(config, (config) => {
     const manifest = config.modResults;
 
-    removeApplicationMetaData(manifest, (m) => {
-      const name = m?.$?.['android:name'];
-      const value = m?.$?.['android:value'];
-      return name === MLKIT_META_NAME && String(value || '').trim() === MLKIT_META_BARCODE_UI;
-    });
-
-    removeActivity(manifest, MLKIT_CODE_SCANNER_ACTIVITY);
+    ensureToolsNamespace(manifest);
+    addMetaDataRemoveDirective(manifest);
+    addActivityRemoveDirective(manifest, MLKIT_CODE_SCANNER_ACTIVITY);
 
     config.modResults = manifest;
     return config;
