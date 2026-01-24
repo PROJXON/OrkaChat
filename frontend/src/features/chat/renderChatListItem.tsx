@@ -408,15 +408,6 @@ export function renderChatListItem(args: {
         height={capped.h}
         isDark={isDark}
         onToast={showToast}
-        edgeMaskColor={
-          isOutgoing
-            ? isDark
-              ? PALETTE.slate900
-              : PALETTE.paper210
-            : isDark
-              ? APP_COLORS.dark.bg.header
-              : PALETTE.paper210
-        }
         audioSlide={
           audioPlayback
             ? {

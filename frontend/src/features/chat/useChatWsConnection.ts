@@ -137,7 +137,7 @@ export function useChatWsConnection(opts: {
       } catch {
         setIsConnecting(false);
         setIsConnected(false);
-        setError('Unable to authenticate WebSocket connection.');
+        setError('Unable to authenticate WebSocket connection');
         scheduleReconnect();
         return;
       }

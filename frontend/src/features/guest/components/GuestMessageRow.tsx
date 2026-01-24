@@ -325,7 +325,6 @@ export function GuestMessageRow({
                 width={capped.w}
                 height={capped.h}
                 isDark={isDark}
-                edgeMaskColor={isDark ? APP_COLORS.dark.bg.header : PALETTE.paper210}
                 aspectByPath={aspectByPath}
                 audioSlide={
                   audioPlayback
