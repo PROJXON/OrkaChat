@@ -49,11 +49,41 @@ async function flipImageUriHorizontalWeb(uri: string): Promise<string> {
   // Best-effort: flip a captured image horizontally on web so users can correct
   // browser-specific mirroring quirks before sending.
   try {
-    const w: any = typeof window !== 'undefined' ? window : null;
-    const d: any = typeof document !== 'undefined' ? document : null;
+    type CanvasRenderingContext2DLike = {
+      translate: (x: number, y: number) => void;
+      scale: (x: number, y: number) => void;
+      drawImage: (img: unknown, x: number, y: number, w: number, h: number) => void;
+    };
+    type CanvasLike = {
+      width: number;
+      height: number;
+      getContext?: (kind: '2d') => CanvasRenderingContext2DLike | null;
+      toBlob?: (cb: (b: Blob | null) => void, type?: string, quality?: number) => void;
+    };
+    type ImageLike = {
+      crossOrigin?: string;
+      src: string;
+      onload: null | (() => void);
+      onerror: null | (() => void);
+      naturalWidth?: number;
+      naturalHeight?: number;
+      width?: number;
+      height?: number;
+    };
+    type DocumentLike = {
+      createElement: (tag: 'canvas' | 'img') => unknown;
+    };
+    type WindowLike = {
+      URL?: {
+        createObjectURL?: (b: Blob) => string;
+      };
+    };
+
+    const w = typeof window !== 'undefined' ? (window as unknown as WindowLike) : null;
+    const d = typeof document !== 'undefined' ? (document as unknown as DocumentLike) : null;
     if (!w || !d) return uri;
 
-    const img: any = new (w.Image as any)();
+    const img = d.createElement('img') as unknown as ImageLike;
     img.crossOrigin = 'anonymous';
     const loaded = new Promise<void>((resolve, reject) => {
       img.onload = () => resolve();
@@ -66,10 +96,10 @@ async function flipImageUriHorizontalWeb(uri: string): Promise<string> {
     const height = Number(img.naturalHeight || img.height || 0);
     if (!(width > 0 && height > 0)) return uri;
 
-    const canvas: any = d.createElement('canvas');
+    const canvas = d.createElement('canvas') as unknown as CanvasLike;
     canvas.width = width;
     canvas.height = height;
-    const ctx: any = canvas.getContext?.('2d');
+    const ctx = canvas.getContext?.('2d') ?? null;
     if (!ctx) return uri;
 
     ctx.translate(width, 0);
@@ -78,7 +108,7 @@ async function flipImageUriHorizontalWeb(uri: string): Promise<string> {
 
     const blob: Blob | null = await new Promise((resolve) => {
       try {
-        canvas.toBlob((b: Blob | null) => resolve(b), 'image/jpeg', 0.92);
+        canvas.toBlob?.((b: Blob | null) => resolve(b), 'image/jpeg', 0.92);
       } catch {
         resolve(null);
       }
