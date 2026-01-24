@@ -155,6 +155,27 @@ export function useChatAdminOps(opts: {
                   createdAt: Date.now(),
                 }),
               );
+            } else if (op === 'addMembers') {
+              const addedSubs: string[] =
+                isRecord(resp.json) && Array.isArray(resp.json.addedSubs)
+                  ? resp.json.addedSubs.map(String)
+                  : [];
+              for (const sub of addedSubs) {
+                if (!sub) continue;
+                try {
+                  ws.send(
+                    JSON.stringify({
+                      action: 'system',
+                      conversationId: activeConversationId,
+                      systemKind: 'added',
+                      targetSub: sub,
+                      createdAt: Date.now(),
+                    }),
+                  );
+                } catch {
+                  // ignore
+                }
+              }
             }
           }
         } catch {

@@ -6,6 +6,8 @@ import type { ChannelMember } from './useChannelRoster';
 type ChannelUpdateFn = (op: string, args: Record<string, unknown>) => Promise<unknown> | void;
 
 export function useChannelMembersModalActions(opts: {
+  channelAddMembersDraft: string;
+  setChannelAddMembersDraft: (v: string) => void;
   uiConfirm: (
     title: string,
     body: string,
@@ -18,6 +20,8 @@ export function useChannelMembersModalActions(opts: {
   setChannelMembersOpen: (v: boolean) => void;
 }) {
   const {
+    channelAddMembersDraft,
+    setChannelAddMembersDraft,
     uiConfirm,
     wsRef,
     activeConversationId,
@@ -25,6 +29,22 @@ export function useChannelMembersModalActions(opts: {
     setChannelMembers,
     setChannelMembersOpen,
   } = opts;
+
+  const onAddMembers = React.useCallback(async () => {
+    const raw = channelAddMembersDraft.trim();
+    if (!raw) return;
+    const usernames = Array.from(
+      new Set(
+        raw
+          .split(/[,\s]+/g)
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+    if (!usernames.length) return;
+    await Promise.resolve(channelUpdate('addMembers', { usernames }));
+    setChannelAddMembersDraft('');
+  }, [channelAddMembersDraft, channelUpdate, setChannelAddMembersDraft]);
 
   const onBan = React.useCallback(
     async (args: { memberSub: string; label: string }) => {
@@ -86,5 +106,5 @@ export function useChannelMembersModalActions(opts: {
 
   const onClose = React.useCallback(() => setChannelMembersOpen(false), [setChannelMembersOpen]);
 
-  return { onBan, onToggleAdmin, onClose };
+  return { onAddMembers, onBan, onToggleAdmin, onClose };
 }

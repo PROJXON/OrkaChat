@@ -1,4 +1,5 @@
 import * as React from 'react';
+import type { TextInput } from 'react-native';
 
 import type { ChannelMember, ChannelMeta } from './useChannelRoster';
 
@@ -16,6 +17,9 @@ export function useChatChannelUiState() {
   const [channelMembersOpen, setChannelMembersOpen] = React.useState<boolean>(false);
   const [channelSettingsOpen, setChannelSettingsOpen] = React.useState<boolean>(true);
   const [channelActionBusy, setChannelActionBusy] = React.useState<boolean>(false);
+
+  const [channelAddMembersDraft, setChannelAddMembersDraft] = React.useState<string>('');
+  const channelAddMembersInputRef = React.useRef<TextInput | null>(null);
 
   const [channelNameEditOpen, setChannelNameEditOpen] = React.useState<boolean>(false);
   const [channelNameDraft, setChannelNameDraft] = React.useState<string>('');
@@ -42,6 +46,9 @@ export function useChatChannelUiState() {
     setChannelSettingsOpen,
     channelActionBusy,
     setChannelActionBusy,
+    channelAddMembersDraft,
+    setChannelAddMembersDraft,
+    channelAddMembersInputRef,
     channelNameEditOpen,
     setChannelNameEditOpen,
     channelNameDraft,

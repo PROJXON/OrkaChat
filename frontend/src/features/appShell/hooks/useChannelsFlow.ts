@@ -62,7 +62,12 @@ export function useChannelsFlow({
   myChannelsLoading: boolean;
   myChannelsError: string | null;
   setMyChannelsError: React.Dispatch<React.SetStateAction<string | null>>;
-  myChannels: Array<{ channelId: string; name: string }>;
+  myChannels: Array<{
+    channelId: string;
+    name: string;
+    isPublic?: boolean;
+    hasPassword?: boolean;
+  }>;
   fetchMyChannels: () => Promise<void>;
   leaveChannelFromSettings: (channelId: string) => Promise<void>;
 
@@ -129,9 +134,9 @@ export function useChannelsFlow({
   const [channelsOpen, setChannelsOpen] = React.useState<boolean>(false);
   const [myChannelsLoading, setMyChannelsLoading] = React.useState<boolean>(false);
   const [myChannelsError, setMyChannelsError] = React.useState<string | null>(null);
-  const [myChannels, setMyChannels] = React.useState<Array<{ channelId: string; name: string }>>(
-    [],
-  );
+  const [myChannels, setMyChannels] = React.useState<
+    Array<{ channelId: string; name: string; isPublic?: boolean; hasPassword?: boolean }>
+  >([]);
 
   // Channel search/join modal (opened from header channel pill).
   const [channelSearchOpen, setChannelSearchOpen] = React.useState<boolean>(false);
@@ -433,6 +438,8 @@ export function useChannelsFlow({
         .map((c) => ({
           channelId: String(c.channelId || '').trim(),
           name: String(c.name || '').trim(),
+          isPublic: typeof c.isPublic === 'boolean' ? c.isPublic : undefined,
+          hasPassword: typeof c.hasPassword === 'boolean' ? c.hasPassword : undefined,
         }))
         .filter((c) => c.channelId && c.name)
         .sort((a, b) => String(a.name).localeCompare(String(b.name)));

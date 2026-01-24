@@ -56,8 +56,8 @@ export function useChannelSettingsPanelActions(opts: {
           void uiAlert(
             next ? 'Channel is public' : 'Channel is Private',
             next
-              ? 'This channel is now discoverable in search, and people can join publicly.'
-              : 'This channel is no longer discoverable in search, and people cannot join it.',
+              ? 'This channel is now discoverable in search, and people can join publicly'
+              : 'This channel is no longer discoverable in search to non-members, and people cannot join it publicly',
           );
         } finally {
           setChannelActionBusy(false);

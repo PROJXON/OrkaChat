@@ -25,8 +25,10 @@ import { shouldShowGlobalForChannelSearch } from '../../../utils/channelSearch';
 type ChannelSearchResult = {
   channelId: string;
   name: string;
+  isPublic?: boolean;
   hasPassword?: boolean;
   activeMemberCount?: number;
+  isMember?: boolean;
 };
 
 export function MainAppChannelsModals({
@@ -86,7 +88,7 @@ export function MainAppChannelsModals({
   setChannelsOpen: (v: boolean) => void;
   myChannelsLoading: boolean;
   myChannelsError: string | null;
-  myChannels: Array<{ channelId: string; name: string }>;
+  myChannels: Array<{ channelId: string; name: string; isPublic?: boolean; hasPassword?: boolean }>;
   enterChannelConversation: (conversationId: string) => void;
   leaveChannelFromSettings: (channelId: string) => void | Promise<void>;
 
@@ -483,8 +485,31 @@ export function MainAppChannelsModals({
                       >
                         {c.name}
                       </Text>
+                      {c.isPublic === false ? (
+                        <View style={{ marginLeft: 8 }}>
+                          <Feather
+                            name="eye-off"
+                            size={14}
+                            color={
+                              isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted
+                            }
+                            accessibilityLabel="Private channel"
+                          />
+                        </View>
+                      ) : c.hasPassword ? (
+                        <View style={{ marginLeft: 8 }}>
+                          <Feather
+                            name="lock"
+                            size={14}
+                            color={
+                              isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted
+                            }
+                            accessibilityLabel="Password protected channel"
+                          />
+                        </View>
+                      ) : null}
                     </View>
-                    <View style={styles.chatRowRight}>
+                    <View style={[styles.chatRowRight, { marginLeft: 10 }]}>
                       <Pressable
                         onPress={() => void Promise.resolve(leaveChannelFromSettings(c.channelId))}
                         style={({ pressed }) => [
@@ -660,7 +685,16 @@ export function MainAppChannelsModals({
                     >
                       {pinnedFromResults?.name || pinnedChannelLabelNorm}
                     </Text>
-                    {pinnedFromResults?.hasPassword ? (
+                    {pinnedFromResults?.isPublic === false ? (
+                      <View style={{ marginLeft: 8 }}>
+                        <Feather
+                          name="eye-off"
+                          size={14}
+                          color={isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted}
+                          accessibilityLabel="Private channel"
+                        />
+                      </View>
+                    ) : pinnedFromResults?.hasPassword ? (
                       <View style={{ marginLeft: 8 }}>
                         <Feather
                           name="lock"
@@ -769,7 +803,18 @@ export function MainAppChannelsModals({
                       >
                         {c.name}
                       </Text>
-                      {c.hasPassword ? (
+                      {c.isPublic === false ? (
+                        <View style={{ marginLeft: 8 }}>
+                          <Feather
+                            name="eye-off"
+                            size={14}
+                            color={
+                              isDark ? APP_COLORS.dark.text.muted : APP_COLORS.light.text.muted
+                            }
+                            accessibilityLabel="Private channel"
+                          />
+                        </View>
+                      ) : c.hasPassword ? (
                         <View style={{ marginLeft: 8 }}>
                           <Feather
                             name="lock"
