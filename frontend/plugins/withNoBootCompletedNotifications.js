@@ -11,7 +11,7 @@ function removeUsesPermission(manifest, permissionName) {
   const perms = manifest?.manifest?.['uses-permission'];
   if (!Array.isArray(perms)) return;
   manifest.manifest['uses-permission'] = perms.filter(
-    (p) => p?.$?.['android:name'] !== permissionName
+    (p) => p?.$?.['android:name'] !== permissionName,
   );
 }
 
@@ -23,7 +23,7 @@ function removeBootActionsFromNotificationsReceiver(manifest) {
   if (!Array.isArray(receivers)) return;
 
   const target = receivers.find(
-    (r) => r?.$?.['android:name'] === 'expo.modules.notifications.service.NotificationsService'
+    (r) => r?.$?.['android:name'] === 'expo.modules.notifications.service.NotificationsService',
   );
   if (!target) return;
 
@@ -53,4 +53,3 @@ module.exports = function withNoBootCompletedNotifications(config) {
     return config;
   });
 };
-

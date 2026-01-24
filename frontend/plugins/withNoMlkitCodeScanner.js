@@ -47,4 +47,3 @@ module.exports = function withNoMlkitCodeScanner(config) {
     return config;
   });
 };
-
