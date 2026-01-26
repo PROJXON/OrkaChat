@@ -169,7 +169,7 @@ export function useChatReport(opts: {
         const text = await resp.text().catch(() => '');
         throw new Error(text || `Report failed (${resp.status})`);
       }
-      setReportNotice({ type: 'success', message: 'Thanks - we’ll review this.' });
+      setReportNotice({ type: 'success', message: 'Thanks - we’ll review this' });
       // Give the user a moment to see the confirmation, then close.
       setTimeout(() => {
         setReportOpen(false);
