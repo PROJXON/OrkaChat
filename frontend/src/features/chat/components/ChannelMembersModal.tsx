@@ -67,6 +67,10 @@ export function ChannelMembersModal({
                 }}
                 value={addMembersDraft}
                 onChangeText={onChangeAddMembersDraft}
+                onSubmitEditing={() => {
+                  if (actionBusy) return;
+                  void Promise.resolve(onAddMembers());
+                }}
                 placeholder="Add usernames (comma/space separated)"
                 // Use explicit style (modal on Android can be finicky).
                 style={{
