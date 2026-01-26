@@ -106,6 +106,10 @@ export function GroupMembersModal({
                 }}
                 value={addMembersDraft}
                 onChangeText={onChangeAddMembersDraft}
+                onSubmitEditing={() => {
+                  if (busy) return;
+                  void Promise.resolve(onAddMembers());
+                }}
                 placeholder="Add usernames (comma/space separated)"
                 // Use a fully explicit style here (avoid theme/style collisions in Android modals).
                 style={{
