@@ -22,11 +22,17 @@ export const AI_API_URL: string = extra.AI_API_URL || '';
 let outputsCdnUrl = '';
 let outputsSignerApiUrl = '';
 try {
-  const outputs =
-    // Prefer a committed web/prod outputs file so Hosting doesn't accidentally create a new Cognito pool.
+  const isWeb = typeof navigator !== 'undefined';
+  const isStaging = typeof process !== 'undefined' && process?.env?.ORKA_ENV === 'staging';
 
-    (typeof navigator !== 'undefined' ? require('../../amplify_outputs.web.json') : null) ||
-    require('../../amplify_outputs.json');
+  let outputs: any;
+  if (isWeb) {
+    outputs = isStaging
+      ? require('../../amplify_outputs.web.staging.json')
+      : require('../../amplify_outputs.web.json');
+  } else {
+    outputs = require('../../amplify_outputs.json');
+  }
   outputsCdnUrl =
     typeof outputs?.custom?.cdnUrl === 'string'
       ? outputs.custom.cdnUrl
