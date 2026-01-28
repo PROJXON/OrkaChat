@@ -143,6 +143,21 @@ export function useSignedInBootstrap({
           if (token) {
             const exists = await checkRecoveryBlobExists(token);
             if (exists !== null && mounted) applyRecoveryBlobExists(exists);
+            // If the user has a local keypair but has NOT created a recovery blob yet,
+            // prompt them to create a recovery passphrase on sign-in until they complete it.
+            if (exists === false) {
+              try {
+                const recoveryPassphrase = await promptPassphrase('setup');
+                await uploadRecoveryBlob(token, keyPair.privateKey, recoveryPassphrase);
+                if (mounted) applyRecoveryBlobExists(true);
+              } catch (err) {
+                // User chose "Skip for now" or dismissed, or network failed — do not block login.
+                console.warn('Recovery setup skipped:', err);
+              } finally {
+                setProcessing(false);
+                closePrompt();
+              }
+            }
           }
         }
 

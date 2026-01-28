@@ -223,7 +223,6 @@ export default function App(): React.JSX.Element {
   const { amplifyTheme, authComponents } = useAmplifyAuthenticatorConfig(isDark);
   const showRootSpinnerOverlay = booting || (rootMode === 'app' && !signedInRehydrateReady);
 
-  console.log({ booting, themeReady, iconFontsReady, rootMode, signedInRehydrateReady });
   return (
     <AppSafeAreaProvider>
       {/* Apply TOP safe-area globally. Screens manage left/right/bottom insets themselves (chat input / CTAs). */}
@@ -287,8 +286,9 @@ export default function App(): React.JSX.Element {
                     justifyContent: 'center',
                     backgroundColor: appColors.appBackground,
                     zIndex: 999,
+                    // RN-web: `pointerEvents` prop is deprecated; use style instead.
+                    pointerEvents: 'auto',
                   }}
-                  pointerEvents="auto"
                 >
                   <ActivityIndicator size="large" color={appColors.appForeground} />
                 </View>

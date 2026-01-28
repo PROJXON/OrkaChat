@@ -117,7 +117,7 @@ export function ChatHeaderTitleRow({
           }}
         >
           {/* Hidden measurement row (absolute so it doesn't affect layout). */}
-          <View pointerEvents="none" style={styles.welcomeMeasureRow}>
+          <View style={[styles.welcomeMeasureRow, { pointerEvents: 'none' as const }]}>
             <Text
               style={[styles.welcomeText, isDark ? styles.welcomeTextDark : null]}
               numberOfLines={1}
