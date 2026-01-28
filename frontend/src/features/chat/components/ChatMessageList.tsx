@@ -58,7 +58,12 @@ export function ChatMessageList<T extends { id: string }>({
   const showEmptyCta = !!API_URL && isEmpty;
   return (
     <FlatList
-      style={[styles.messageList, isWeb && !webReady ? { opacity: 0 } : null]}
+      // Web: don't hide the list when it's empty; otherwise the empty CTA can be hidden forever
+      // if the pinned-list "ready" signal is delayed.
+      style={[
+        styles.messageList,
+        isWeb && !webReady && visibleMessagesCount > 0 ? { opacity: 0 } : null,
+      ]}
       data={messageListData}
       keyExtractor={(m) => String(m?.id)}
       inverted={!isWeb}

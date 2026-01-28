@@ -478,7 +478,10 @@ export default function GuestGlobalScreen({
     return () => clearTimeout(t);
   }, [activeConversationId, error, loading, messages.length]);
 
-  const webListNotReady = Platform.OS === 'web' && !webPinned.ready;
+  // IMPORTANT: avoid an "empty channel" deadlock on web.
+  // `webPinned.ready` is driven by FlatList layout/scroll signals. If we gate rendering on it while the
+  // list is empty, the list may never mount, and `ready` can never flip to true.
+  const webListNotReady = Platform.OS === 'web' && messages.length > 0 && !webPinned.ready;
   const showInitialLoader =
     !error && (loading || webListNotReady || (messages.length === 0 && !initialEmptyGraceOver));
 

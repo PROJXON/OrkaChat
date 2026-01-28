@@ -241,7 +241,7 @@ export function ChatScreenMain({
   // Avoid a brief "blank list" flash on first mount (web pinned list uses opacity: 0 until ready).
   // Also show a spinner while the initial history load is in-flight and we have nothing to render yet.
   const showListLoadingOverlay =
-    (Platform.OS === 'web' && !list.webPinned.ready) ||
+    (Platform.OS === 'web' && list.visibleMessagesCount > 0 && !list.webPinned.ready) ||
     (list.visibleMessagesCount === 0 && !!list.API_URL && list.historyLoading);
 
   return (
