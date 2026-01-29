@@ -241,7 +241,7 @@ export function ChatScreenMain({
   // Avoid a brief "blank list" flash on first mount (web pinned list uses opacity: 0 until ready).
   // Also show a spinner while the initial history load is in-flight and we have nothing to render yet.
   const showListLoadingOverlay =
-    (Platform.OS === 'web' && !list.webPinned.ready) ||
+    (Platform.OS === 'web' && list.visibleMessagesCount > 0 && !list.webPinned.ready) ||
     (list.visibleMessagesCount === 0 && !!list.API_URL && list.historyLoading);
 
   return (
@@ -259,17 +259,20 @@ export function ChatScreenMain({
           not just the message-list area below the header. */}
       {showListLoadingOverlay ? (
         <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-          }}
+          {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 50,
+            },
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+          ]}
         >
           <ActivityIndicator size="large" color={appColors.appForeground} />
         </View>
@@ -368,7 +371,7 @@ export function ChatScreenMain({
             ) : null
           ) : null}
 
-          {header.error ? (
+          {__DEV__ && header.error ? (
             <Text style={[styles.error, isDark ? styles.errorDark : null]}>{header.error}</Text>
           ) : null}
         </View>
@@ -422,17 +425,20 @@ export function ChatScreenMain({
             >
               {composer.composerBottomInsetBgHeight && composer.composerBottomInsetBgHeight > 0 ? (
                 <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    bottom: -composer.composerBottomInsetBgHeight,
-                    height: composer.composerBottomInsetBgHeight,
-                    backgroundColor: isDark
-                      ? APP_COLORS.dark.bg.header
-                      : APP_COLORS.light.bg.header,
-                  }}
+                  {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
+                  style={[
+                    {
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      bottom: -composer.composerBottomInsetBgHeight,
+                      height: composer.composerBottomInsetBgHeight,
+                      backgroundColor: isDark
+                        ? APP_COLORS.dark.bg.header
+                        : APP_COLORS.light.bg.header,
+                    },
+                    ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+                  ]}
                 />
               ) : null}
               <View

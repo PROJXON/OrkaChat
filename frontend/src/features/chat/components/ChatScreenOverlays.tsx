@@ -788,7 +788,7 @@ export function ChatScreenOverlays(props: ChatScreenOverlaysProps): React.JSX.El
                     ],
                   },
                 ]}
-                pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
+                {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
               >
                 <View
                   style={[

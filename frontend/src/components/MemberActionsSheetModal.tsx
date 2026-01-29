@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ChatScreenStyles } from '../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../theme/colors';
@@ -33,7 +33,13 @@ export function MemberActionsSheetModal({
       <View style={styles.actionMenuOverlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-        <View style={sheetStyles.centerWrap} pointerEvents="box-none">
+        <View
+          style={[
+            sheetStyles.centerWrap,
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+          ]}
+          {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
+        >
           <View style={[styles.actionMenuCard, isDark ? styles.actionMenuCardDark : null]}>
             <View style={[sheetStyles.titleRow, isDark ? sheetStyles.titleRowDark : null]}>
               <Text style={[sheetStyles.titleText, isDark ? sheetStyles.titleTextDark : null]}>

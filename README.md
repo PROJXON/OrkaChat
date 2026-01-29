@@ -131,12 +131,14 @@ Useful commands:
 
 ### Tests
 
-Jest is set up in `frontend/`:
+Jest is set up in `frontend/` (unit + component tests):
 
 ```bash
 cd frontend
 npm test
 ```
+
+E2E tests are implemented with Playwright (web export). See `docs/testing.md`.
 
 Running **web + Android from one dev server**:
 - Run `npm start`, then press **`w`** to open web and **`a`** to open Android (emulator/device) from the same Expo server.

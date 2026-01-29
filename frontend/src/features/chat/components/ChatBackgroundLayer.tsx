@@ -41,7 +41,7 @@ export function ChatBackgroundLayer({ styles, isDark, resolvedChatBg }: Props) {
                     : APP_THEME_COLORS.light.appBackground,
                 },
         ]}
-        pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
+        {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
       />
       {resolvedChatBg.mode === 'image' ? (
         <View
@@ -49,7 +49,7 @@ export function ChatBackgroundLayer({ styles, isDark, resolvedChatBg }: Props) {
             StyleSheet.absoluteFill,
             ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
           ]}
-          pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
+          {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
         >
           <Image
             source={{ uri: resolvedChatBg.uri }}

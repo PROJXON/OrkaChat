@@ -421,8 +421,11 @@ function WideChannelSettingsPanel({
     >
       {/* Hidden measurement row (intrinsic widths, no flex). */}
       <View
-        pointerEvents="none"
-        style={{ position: 'absolute', opacity: 0, left: 0, top: 0, flexDirection: 'row' }}
+        {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
+        style={[
+          { position: 'absolute', opacity: 0, left: 0, top: 0, flexDirection: 'row' },
+          ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+        ]}
       >
         <View style={{ marginLeft: 10 }}>
           <VisibilityOnlyControl onLayout={(w) => setIfChanged('visibilityW', w)} />
@@ -468,14 +471,17 @@ function WideChannelSettingsPanel({
 
             {/* Overlay (slides left/right) */}
             <View
-              pointerEvents="box-none"
-              style={{
-                position: 'absolute',
-                left: wideDecision.clusterLeft,
-                top: 0,
-                bottom: 0,
-                justifyContent: 'center',
-              }}
+              {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
+              style={[
+                {
+                  position: 'absolute',
+                  left: wideDecision.clusterLeft,
+                  top: 0,
+                  bottom: 0,
+                  justifyContent: 'center',
+                },
+                ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+              ]}
             >
               {wideDecision.mode === 'overlay_both' ? (
                 <ClusterControl />

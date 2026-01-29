@@ -1,11 +1,19 @@
 # Build outputs
 dist
 web-build
+dist-staging
+dist-staging/**
 
 # Expo / Amplify
 .expo
+.expo-shared
 .amplify
 amplify
+
+# Test artifacts (generated)
+coverage
+test-results
+playwright-report
 
 # Native
 android
@@ -13,4 +21,11 @@ ios
 
 # Dependencies
 node_modules
+
+# Playwright (generated)
+e2e/.auth
+e2e/.auth/**
+
+# Logs / local artifacts
+eas-build-logs
 

@@ -73,7 +73,6 @@ export function AppBrandIcon({
         resolvedClip ? styles.slotClip : styles.slotNoClip,
         resolvedRounded ? styles.slotRound : styles.slotSquare,
         { width: slotWidth, height: slotHeight },
-        // RN-web: props.pointerEvents is deprecated; use style.pointerEvents instead.
         { pointerEvents: 'none' },
         style,
       ]}

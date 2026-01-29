@@ -966,7 +966,7 @@ export function MediaStackCarousel({
             styles.mediaDotsOverlay,
             ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
           ]}
-          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+          {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
         >
           <View style={styles.mediaDotsRow}>
             {mediaList.map((_, i) => {

@@ -9,6 +9,7 @@ import { fetchAuthSession } from '@aws-amplify/auth';
 import { Authenticator, ThemeProvider } from '@aws-amplify/ui-react-native/dist';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import { Amplify } from 'aws-amplify';
+import Constants from 'expo-constants';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as SplashScreen from 'expo-splash-screen';
@@ -38,14 +39,28 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 try {
-  const outputs =
-    // Prefer a committed web/prod outputs file so Hosting doesn't accidentally create a new Cognito pool.
-    // Falls back to local/sandbox outputs for native/dev.
-    (Platform.OS === 'web' ? require('./amplify_outputs.web.json') : null) ||
-    require('./amplify_outputs.json');
-  Amplify.configure(outputs);
+  type Extra = { ORKA_ENV?: string; API_URL?: string; WS_URL?: string };
+  const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
+
+  const isStaging =
+    extra.ORKA_ENV === 'staging' ||
+    (typeof extra.API_URL === 'string' && extra.API_URL.includes('/staging')) ||
+    (typeof extra.WS_URL === 'string' && extra.WS_URL.includes('/staging'));
+
+  let outputs: unknown;
+  if (Platform.OS === 'web') {
+    if (isStaging) {
+      outputs = require('./amplify_outputs.web.staging.json');
+    } else {
+      outputs = require('./amplify_outputs.web.json');
+    }
+  } else {
+    outputs = require('./amplify_outputs.json');
+  }
+
+  Amplify.configure(outputs as Record<string, unknown>);
 } catch {
-  // amplify_outputs.json not present yet; run `npx ampx sandbox` to generate it.
+  // ignore
 }
 
 function AppSafeAreaProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -271,8 +286,8 @@ export default function App(): React.JSX.Element {
                     justifyContent: 'center',
                     backgroundColor: appColors.appBackground,
                     zIndex: 999,
+                    pointerEvents: 'auto',
                   }}
-                  pointerEvents="auto"
                 >
                   <ActivityIndicator size="large" color={appColors.appForeground} />
                 </View>

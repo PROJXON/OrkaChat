@@ -36,6 +36,7 @@ frontend/android/
 frontend/.expo/
 frontend/.expo-shared/
 expo-env.d.ts
+frontend/eas-build-logs/
 
 # Android/Gradle artifacts (in case android/ is generated under frontend/)
 **/.gradle/
@@ -48,3 +49,12 @@ expo-env.d.ts
 .idea/
 *.swp
 *.swo
+
+# Playwright auth state (local only)
+frontend/e2e/.auth/
+frontend/test-results/
+frontend/dist-staging/
+
+# Allow committing staging web outputs (used by CI E2E)
+!frontend/amplify_outputs.web.json
+!frontend/amplify_outputs.web.staging.json

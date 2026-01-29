@@ -1,11 +1,12 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
+import { AudioModule, RecordingPresets, useAudioRecorder } from 'expo-audio';
 import React from 'react';
 import { AppState, Pressable, View } from 'react-native';
 
 import type { ChatScreenStyles } from '../../../screens/ChatScreen.styles';
 import { APP_COLORS, PALETTE } from '../../../theme/colors';
 import type { PendingMediaItem } from '../attachments';
+import { setChatPlaybackAudioModeAsync, setChatRecordingAudioModeAsync } from '../chatAudioMode';
 
 const PRESS_START_DELAY_MS = 200;
 const MIN_DURATION_MS = 400;
@@ -67,23 +68,11 @@ export const VoiceClipMicButton = React.memo(function VoiceClipMicButton({
 
   const restoreNonRecordingAudioMode = React.useCallback(async () => {
     // Match `useChatAudioPlayback` defaults so playback resumes normally.
-    await setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: true,
-      interruptionMode: 'duckOthers',
-      allowsRecording: false,
-      shouldRouteThroughEarpiece: false,
-    }).catch(() => {});
+    await setChatPlaybackAudioModeAsync();
   }, []);
 
   const setRecordingAudioMode = React.useCallback(async () => {
-    await setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: false,
-      interruptionMode: 'duckOthers',
-      allowsRecording: true,
-      shouldRouteThroughEarpiece: false,
-    }).catch(() => {});
+    await setChatRecordingAudioModeAsync();
   }, []);
 
   const stopAndAttach = React.useCallback(async () => {

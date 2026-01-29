@@ -1,6 +1,8 @@
 import type { AudioPlayer, AudioStatus } from 'expo-audio';
-import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { createAudioPlayer } from 'expo-audio';
 import * as React from 'react';
+
+import { setChatPlaybackAudioModeAsync } from './chatAudioMode';
 
 export type ChatAudioQueueItem = {
   key: string;
@@ -96,13 +98,7 @@ export function useChatAudioPlayback(opts: { queue: ChatAudioQueueItem[] }): Cha
 
   // Keep audio mode set for background playback on native.
   React.useEffect(() => {
-    void setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: true,
-      interruptionMode: 'duckOthers',
-      allowsRecording: false,
-      shouldRouteThroughEarpiece: false,
-    }).catch(() => {});
+    void setChatPlaybackAudioModeAsync();
   }, []);
 
   const loadKey = React.useCallback(

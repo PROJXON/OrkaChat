@@ -74,7 +74,7 @@ To reduce “flash of unknown” and speed up cold starts, the app caches some U
 
 ## Testing (Jest)
 
-Jest is configured with `jest-expo`:
+Jest is configured with `jest-expo` (unit + component tests):
 
 - Config: `jest.config.js`
 - Setup: `jest.setup.ts`
@@ -84,6 +84,19 @@ Run:
 ```bash
 npm test
 ```
+
+## Testing (Playwright E2E)
+
+Playwright tests live in `e2e/` and are intended to run against a **static web export** (more stable than Metro).
+
+Scripts:
+
+- `npm run e2e` (headless by default)
+- `npm run e2e:ui` (interactive UI)
+
+For local runs, `npm run e2e` will auto-export + auto-serve when `E2E_BASE_URL` is local (e.g. `http://127.0.0.1:4173`).
+Signed-in E2E uses Playwright `globalSetup` (`e2e/global-setup.ts`) to perform a one-time login and write `e2e/.auth/staging.json` (`storageState`), so signed-in tests simulate a returning, already-authenticated device.
+See `../docs/testing.md` for the staging workflow and CI setup.
 
 ## License
 
