@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 type Extra = {
   ORKA_ENV?: string;
@@ -24,7 +25,8 @@ export const ORKA_ENV: string = extra.ORKA_ENV || 'production';
 let outputsCdnUrl = '';
 let outputsSignerApiUrl = '';
 try {
-  const isWeb = typeof navigator !== 'undefined';
+  // Use RN Platform instead of `navigator` so this works during web bundling in CI.
+  const isWeb = Platform.OS === 'web';
   const isStaging =
     ORKA_ENV === 'staging' ||
     (typeof extra.API_URL === 'string' && extra.API_URL.includes('/staging')) ||
