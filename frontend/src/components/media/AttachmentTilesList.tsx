@@ -1,8 +1,8 @@
 import React from 'react';
 import { View } from 'react-native';
 
-import type { MediaItem } from '../../types/media';
 import { isAudioContentType } from '../../features/chat/audioPlaybackQueue';
+import type { MediaItem } from '../../types/media';
 import { saveMediaUrlToDevice } from '../../utils/saveMediaToDevice';
 import { AudioAttachmentTile } from './AudioAttachmentTile';
 import { FileAttachmentTile } from './FileAttachmentTile';

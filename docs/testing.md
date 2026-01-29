@@ -22,27 +22,34 @@ npm run test:ci
 E2E tests live in `frontend/e2e/`:
 
 - `smoke.guest.spec.ts`: guest can load and open sign‑in modal
-- `auth.setup.spec.ts`: sign‑in (and recovery passphrase prompt), then save `storageState`
 - `smoke.signedin.spec.ts`: signed‑in user can send a message and survive a reload
 
 ### Local: run E2E against a **static export**
 
 Playwright is most stable against a static export (`expo export`) rather than Metro.
 
-From `frontend/`:
+From `frontend/` (recommended: one command; Playwright will export + serve automatically when `E2E_BASE_URL` is local):
 
 ```bash
-# 1) Export web (staging) with a clean cache
+ORKA_ENV=staging \
+STAGING_API_URL="https://xvgh1xcxq4.execute-api.us-east-2.amazonaws.com/staging" \
+STAGING_WS_URL="wss://odi40ea4if.execute-api.us-east-2.amazonaws.com/staging" \
+E2E_BASE_URL="http://127.0.0.1:4173" \
+npm run e2e
+```
+
+If you prefer to do it manually (or want to inspect the output folder), you can export + serve yourself:
+
+```bash
 ORKA_ENV=staging \
 STAGING_API_URL="https://xvgh1xcxq4.execute-api.us-east-2.amazonaws.com/staging" \
 STAGING_WS_URL="wss://odi40ea4if.execute-api.us-east-2.amazonaws.com/staging" \
 npx expo export -p web --output-dir dist-staging --clear
 
-# 2) Serve the export
 npx http-server dist-staging -p 4173 -c-1
 ```
 
-In another terminal, set E2E env vars:
+In another terminal, set E2E auth env vars:
 
 ```bash
 export E2E_BASE_URL="http://127.0.0.1:4173"
@@ -51,7 +58,7 @@ export E2E_PASSWORD="your-staging-password"
 export E2E_RECOVERY_PASSPHRASE="your-recovery-passphrase"
 ```
 
-Run Playwright:
+Run Playwright (if you didn’t already via the one-command flow above):
 
 ```bash
 npm run e2e
@@ -73,7 +80,7 @@ For RN Web builds, it’s easy to accidentally serve a bundle that still has **p
 
 ### Auth state (`storageState`)
 
-`auth.setup.spec.ts` writes an auth state file:
+Playwright `globalSetup` writes an auth state file:
 
 - `frontend/e2e/.auth/staging.json`
 

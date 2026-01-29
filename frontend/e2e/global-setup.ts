@@ -71,4 +71,3 @@ export default async function globalSetup(_config: FullConfig) {
   await context.storageState({ path: STORAGE_STATE_PATH });
   await browser.close();
 }
-

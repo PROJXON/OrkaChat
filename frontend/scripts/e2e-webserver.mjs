@@ -22,15 +22,7 @@ function run(command, args) {
 }
 
 // 1) Export web (clean) so the bundle has the right baked-in env.
-const exportProc = run('npx', [
-  'expo',
-  'export',
-  '-p',
-  'web',
-  '--output-dir',
-  distDir,
-  '--clear',
-]);
+const exportProc = run('npx', ['expo', 'export', '-p', 'web', '--output-dir', distDir, '--clear']);
 
 exportProc.on('exit', (code) => {
   if (code !== 0) process.exit(code ?? 1);
@@ -54,4 +46,3 @@ exportProc.on('exit', (code) => {
     process.exit(serverCode ?? 0);
   });
 });
-

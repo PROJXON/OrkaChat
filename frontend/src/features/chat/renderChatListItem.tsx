@@ -1,9 +1,7 @@
 import React from 'react';
 import { Platform, Text, View } from 'react-native';
 
-import { AudioAttachmentTile } from '../../components/media/AudioAttachmentTile';
 import { AttachmentTilesList } from '../../components/media/AttachmentTilesList';
-import { FileAttachmentTile } from '../../components/media/FileAttachmentTile';
 import { MediaStackCarousel } from '../../components/MediaStackCarousel';
 import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
 import type { ChatScreenStyles } from '../../screens/ChatScreen.styles';
@@ -17,7 +15,6 @@ import {
   isPreviewableMedia,
   isVideoLike as isVideoLikeMedia,
 } from '../../utils/mediaKinds';
-import { saveMediaUrlToDevice } from '../../utils/saveMediaToDevice';
 import { getChatSenderKey } from '../../utils/senderKeys';
 import type { PendingMediaItem } from './attachments';
 import { ChatMessageRow } from './components/ChatMessageRow';

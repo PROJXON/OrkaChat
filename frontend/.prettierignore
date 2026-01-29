@@ -16,3 +16,7 @@ ios
 # Dependencies
 node_modules
 
+# Playwright (generated)
+e2e/.auth
+e2e/.auth/**
+

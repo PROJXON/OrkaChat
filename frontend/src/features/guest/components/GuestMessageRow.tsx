@@ -2,18 +2,15 @@ import React from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AvatarBubble } from '../../../components/AvatarBubble';
-import { AudioAttachmentTile } from '../../../components/media/AudioAttachmentTile';
 import { AttachmentTilesList } from '../../../components/media/AttachmentTilesList';
-import { FileAttachmentTile } from '../../../components/media/FileAttachmentTile';
 import { MediaStackCarousel } from '../../../components/MediaStackCarousel';
 import { RichText } from '../../../components/RichText';
 import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
-import { audioTitleFromFileName } from '../../chat/audioPlaybackQueue';
 import { isPreviewableMedia } from '../../../utils/mediaKinds';
 import { calcCappedMediaSize } from '../../../utils/mediaSizing';
 import { resolveMediaUrlWithFallback } from '../../../utils/resolveMediaUrl';
-import { saveMediaUrlToDevice } from '../../../utils/saveMediaToDevice';
+import { audioTitleFromFileName } from '../../chat/audioPlaybackQueue';
 import { formatGuestTimestamp } from '../parsers';
 import type { GuestMessage } from '../types';
 
