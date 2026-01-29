@@ -34,7 +34,8 @@ export default defineConfig({
         // Exports + serves a static web build (more stable than Metro).
         command: 'node scripts/e2e-webserver.mjs',
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
+        // CI workflow already starts http-server on 4173; reuse it instead of failing with "port already used".
+        reuseExistingServer: true,
         timeout: 120_000,
       }
     : undefined,
