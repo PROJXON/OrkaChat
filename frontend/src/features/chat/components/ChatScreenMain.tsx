@@ -371,7 +371,7 @@ export function ChatScreenMain({
             ) : null
           ) : null}
 
-          {header.error ? (
+          {__DEV__ && header.error ? (
             <Text style={[styles.error, isDark ? styles.errorDark : null]}>{header.error}</Text>
           ) : null}
         </View>
