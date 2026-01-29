@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, Text, View } from 'react-native';
 
 import { AudioAttachmentTile } from '../../components/media/AudioAttachmentTile';
+import { AttachmentTilesList } from '../../components/media/AttachmentTilesList';
 import { FileAttachmentTile } from '../../components/media/FileAttachmentTile';
 import { MediaStackCarousel } from '../../components/MediaStackCarousel';
 import type { PublicAvatarProfileLite } from '../../hooks/usePublicAvatarProfiles';
@@ -496,108 +497,37 @@ export function renderChatListItem(args: {
 
   const renderAttachments =
     attachmentsToRender.length && !isDeleted && !isStillEncrypted ? (
-      <View style={{ gap: 8 }}>
-        {attachmentsToRender.map(({ m: m2, idx: idx2 }, renderIdx) =>
-          String(m2?.contentType || '')
-            .trim()
-            .toLowerCase()
-            .startsWith('audio/') && audioPlayback ? (
-            <AudioAttachmentTile
-              key={`audio:${item.id}:${String(m2.path || '')}:${idx2}:${renderIdx}`}
-              isDark={isDark}
-              isOutgoing={isOutgoing}
-              onDownload={
-                !isEncryptedChat && mediaUrlByPath[String(m2.path)]
-                  ? () =>
-                      saveMediaUrlToDevice({
-                        url: String(mediaUrlByPath[String(m2.path)] || ''),
-                        kind: 'file',
-                        fileName: m2.fileName,
-                        onSuccess: () => showToast('Media saved', 'success'),
-                        onError: (m) => toastErr(showToast, m),
-                      })
-                  : isEncryptedChat
-                    ? async () => {
-                        try {
-                          const uri = await resolveEncryptedFileUriByIdx(idx2);
-                          if (!uri) return;
-                          await saveMediaUrlToDevice({
-                            url: uri,
-                            kind: 'file',
-                            fileName: m2.fileName,
-                            onSuccess: () => showToast('Media saved', 'success'),
-                            onError: (m) => toastErr(showToast, m),
-                          });
-                        } catch (e: unknown) {
-                          toastErr(showToast, e instanceof Error ? e.message : 'Download failed');
-                        }
-                      }
-                    : undefined
+      <AttachmentTilesList
+        messageId={String(item.id)}
+        items={attachmentsToRender.map(({ m, idx }) => ({ media: m, idx }))}
+        isDark={isDark}
+        isOutgoing={isOutgoing}
+        audio={
+          audioPlayback
+            ? {
+                currentKey: audioPlayback.currentKey,
+                loadingKey: audioPlayback.loadingKey,
+                isPlaying: audioPlayback.isPlaying,
+                positionMs: audioPlayback.positionMs,
+                durationMs: audioPlayback.durationMs,
+                getKey: (idx, media) => audioPlayback.getAudioKey(item, idx, media),
+                getTitle: (media) => audioPlayback.getAudioTitle(media),
+                onToggle: ({ key, idx, media }) =>
+                  audioPlayback.onPressAudio({ msg: item, idx, key, media }),
+                onSeek: (key, ms) => audioPlayback.seekFor(key, ms),
               }
-              state={(() => {
-                const k = audioPlayback.getAudioKey(item, idx2, m2);
-                return {
-                  key: k,
-                  title: audioPlayback.getAudioTitle(m2),
-                  subtitle: undefined,
-                  isPlaying: audioPlayback.currentKey === k && audioPlayback.isPlaying,
-                  isLoading: audioPlayback.loadingKey === k,
-                  positionMs: audioPlayback.currentKey === k ? audioPlayback.positionMs : 0,
-                  durationMs:
-                    audioPlayback.currentKey === k
-                      ? (audioPlayback.durationMs ?? m2.durationMs ?? null)
-                      : (m2.durationMs ?? null),
-                  onToggle: () =>
-                    audioPlayback.onPressAudio({
-                      msg: item,
-                      idx: idx2,
-                      key: k,
-                      media: m2,
-                    }),
-                  onSeek: (nextMs: number) => audioPlayback.seekFor(k, nextMs),
-                };
-              })()}
-            />
-          ) : (
-            <FileAttachmentTile
-              key={`file:${item.id}:${String(m2.path || '')}:${idx2}:${renderIdx}`}
-              item={m2}
-              isDark={isDark}
-              isOutgoing={isOutgoing}
-              onPress={() => openFileAtOriginalIdx(idx2)}
-              onLongPress={(e) => handleOpenMessageActionsFromEvent(e)}
-              onDownload={
-                !isEncryptedChat && mediaUrlByPath[String(m2.path)]
-                  ? () =>
-                      saveMediaUrlToDevice({
-                        url: String(mediaUrlByPath[String(m2.path)] || ''),
-                        kind: 'file',
-                        fileName: m2.fileName,
-                        onSuccess: () => showToast('Media saved', 'success'),
-                        onError: (m) => toastErr(showToast, m),
-                      })
-                  : isEncryptedChat
-                    ? async () => {
-                        try {
-                          const uri = await resolveEncryptedFileUriByIdx(idx2);
-                          if (!uri) return;
-                          await saveMediaUrlToDevice({
-                            url: uri,
-                            kind: 'file',
-                            fileName: m2.fileName,
-                            onSuccess: () => showToast('Media saved', 'success'),
-                            onError: (m) => toastErr(showToast, m),
-                          });
-                        } catch (e: unknown) {
-                          toastErr(showToast, e instanceof Error ? e.message : 'Download failed');
-                        }
-                      }
-                    : undefined
-              }
-            />
-          ),
-        )}
-      </View>
+            : undefined
+        }
+        onPressFile={(idx) => openFileAtOriginalIdx(idx)}
+        onLongPressFile={(e) => handleOpenMessageActionsFromEvent(e)}
+        getDownloadUrl={async (media, idx) => {
+          if (!String(media?.path || '').trim()) return null;
+          if (!isEncryptedChat) return mediaUrlByPath[String(media.path)] || null;
+          return await resolveEncryptedFileUriByIdx(idx);
+        }}
+        onDownloadSuccess={() => showToast('Media saved', 'success')}
+        onDownloadError={(m) => toastErr(showToast, m)}
+      />
     ) : null;
 
   return (

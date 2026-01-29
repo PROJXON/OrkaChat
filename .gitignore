@@ -49,3 +49,8 @@ frontend/eas-build-logs/
 .idea/
 *.swp
 *.swo
+
+# Playwright auth state (local only)
+frontend/e2e/.auth/
+frontend/test-results/
+frontend/dist-staging/

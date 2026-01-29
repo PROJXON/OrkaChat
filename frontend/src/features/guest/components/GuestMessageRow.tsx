@@ -3,11 +3,13 @@ import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 
 import { AvatarBubble } from '../../../components/AvatarBubble';
 import { AudioAttachmentTile } from '../../../components/media/AudioAttachmentTile';
+import { AttachmentTilesList } from '../../../components/media/AttachmentTilesList';
 import { FileAttachmentTile } from '../../../components/media/FileAttachmentTile';
 import { MediaStackCarousel } from '../../../components/MediaStackCarousel';
 import { RichText } from '../../../components/RichText';
 import { APP_COLORS, PALETTE, withAlpha } from '../../../theme/colors';
 import type { MediaItem } from '../../../types/media';
+import { audioTitleFromFileName } from '../../chat/audioPlaybackQueue';
 import { isPreviewableMedia } from '../../../utils/mediaKinds';
 import { calcCappedMediaSize } from '../../../utils/mediaSizing';
 import { resolveMediaUrlWithFallback } from '../../../utils/resolveMediaUrl';
@@ -424,67 +426,35 @@ export function GuestMessageRow({
 
           {/* Only render file/audio tiles for file-only messages. Mixed media keeps files in the carousel. */}
           {!previewableWithIdx.length && fileLikeWithIdx.length ? (
-            <View style={{ marginTop: 8, gap: 8 }}>
-              {fileLikeWithIdx.map(({ m, idx }, renderIdx) => {
-                const ct = String(m?.contentType || '')
-                  .trim()
-                  .toLowerCase();
-                const isAudio = ct.startsWith('audio/');
-                const downloadUrl = String(thumbUriByPath[String(m?.path || '')] || '').trim();
-                const key = audioPlayback?.getKey(item.id, idx, m) ?? `${item.id}:${m.path}:${idx}`;
-                if (isAudio && audioPlayback) {
-                  return (
-                    <AudioAttachmentTile
-                      key={`guest-audio:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
-                      isDark={isDark}
-                      isOutgoing={false}
-                      onDownload={
-                        downloadUrl
-                          ? () =>
-                              saveMediaUrlToDevice({
-                                url: downloadUrl,
-                                kind: 'file',
-                                fileName: m.fileName,
-                              })
-                          : undefined
+            <View style={{ marginTop: 8 }}>
+              <AttachmentTilesList
+                messageId={String(item.id)}
+                items={fileLikeWithIdx.map(({ m, idx }) => ({ media: m, idx }))}
+                isDark={isDark}
+                isOutgoing={false}
+                audio={
+                  audioPlayback
+                    ? {
+                        currentKey: audioPlayback.currentKey,
+                        loadingKey: audioPlayback.loadingKey,
+                        isPlaying: audioPlayback.isPlaying,
+                        positionMs: audioPlayback.positionMs,
+                        durationMs: audioPlayback.durationMs,
+                        getKey: (idx, media) => audioPlayback.getKey(item.id, idx, media),
+                        getTitle: (media) => audioTitleFromFileName(media.fileName, 'Audio'),
+                        onToggle: ({ key }) => audioPlayback.onPress(key),
+                        onSeek: (key, ms) => audioPlayback.seekFor(key, ms),
                       }
-                      state={{
-                        key,
-                        title: String(m.fileName || '').trim() || 'Audio',
-                        subtitle: undefined,
-                        isPlaying: audioPlayback.currentKey === key && audioPlayback.isPlaying,
-                        isLoading: audioPlayback.loadingKey === key,
-                        positionMs: audioPlayback.currentKey === key ? audioPlayback.positionMs : 0,
-                        durationMs:
-                          audioPlayback.currentKey === key
-                            ? (audioPlayback.durationMs ?? m.durationMs ?? null)
-                            : (m.durationMs ?? null),
-                        onToggle: () => void audioPlayback.onPress(key),
-                        onSeek: (nextMs) => void audioPlayback.seekFor(key, nextMs),
-                      }}
-                    />
-                  );
+                    : undefined
                 }
-                return (
-                  <FileAttachmentTile
-                    key={`guest-file:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
-                    item={m}
-                    isDark={isDark}
-                    isOutgoing={false}
-                    onPress={() => onOpenViewer(mediaList, idx)}
-                    onDownload={
-                      downloadUrl
-                        ? () =>
-                            saveMediaUrlToDevice({
-                              url: downloadUrl,
-                              kind: 'file',
-                              fileName: m.fileName,
-                            })
-                        : undefined
-                    }
-                  />
-                );
-              })}
+                onPressFile={(idx) => onOpenViewer(mediaList, idx)}
+                getDownloadUrl={(media) =>
+                  String(thumbUriByPath[String(media?.path || '')] || '').trim()
+                }
+                onDownloadError={() => {
+                  // Guest mode: keep silent on download errors (best-effort).
+                }}
+              />
             </View>
           ) : null}
 
@@ -552,52 +522,29 @@ export function GuestMessageRow({
 
             {/* File-only attachments (including audio) render as tiles inside the bubble. */}
             {fileLikeWithIdx.length ? (
-              <View style={{ marginTop: 8, gap: 8 }}>
-                {fileLikeWithIdx.map(({ m, idx }, renderIdx) => {
-                  const ct = String(m?.contentType || '')
-                    .trim()
-                    .toLowerCase()
-                    .split(';')[0]
-                    .trim();
-                  const isAudio = ct.startsWith('audio/');
-                  const key =
-                    audioPlayback?.getKey(item.id, idx, m) ?? `${item.id}:${String(m.path)}:${idx}`;
-
-                  if (isAudio && audioPlayback) {
-                    return (
-                      <AudioAttachmentTile
-                        key={`guest-audio:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
-                        isDark={isDark}
-                        isOutgoing={false}
-                        state={{
-                          key,
-                          title: String(m.fileName || '').trim() || 'Audio',
-                          subtitle: undefined,
-                          isPlaying: audioPlayback.currentKey === key && audioPlayback.isPlaying,
-                          isLoading: audioPlayback.loadingKey === key,
-                          positionMs:
-                            audioPlayback.currentKey === key ? audioPlayback.positionMs : 0,
-                          durationMs:
-                            audioPlayback.currentKey === key
-                              ? (audioPlayback.durationMs ?? m.durationMs ?? null)
-                              : (m.durationMs ?? null),
-                          onToggle: () => void audioPlayback.onPress(key),
-                          onSeek: (nextMs) => void audioPlayback.seekFor(key, nextMs),
-                        }}
-                      />
-                    );
+              <View style={{ marginTop: 8 }}>
+                <AttachmentTilesList
+                  messageId={String(item.id)}
+                  items={fileLikeWithIdx.map(({ m, idx }) => ({ media: m, idx }))}
+                  isDark={isDark}
+                  isOutgoing={false}
+                  audio={
+                    audioPlayback
+                      ? {
+                          currentKey: audioPlayback.currentKey,
+                          loadingKey: audioPlayback.loadingKey,
+                          isPlaying: audioPlayback.isPlaying,
+                          positionMs: audioPlayback.positionMs,
+                          durationMs: audioPlayback.durationMs,
+                          getKey: (idx, media) => audioPlayback.getKey(item.id, idx, media),
+                          getTitle: (media) => audioTitleFromFileName(media.fileName, 'Audio'),
+                          onToggle: ({ key }) => audioPlayback.onPress(key),
+                          onSeek: (key, ms) => audioPlayback.seekFor(key, ms),
+                        }
+                      : undefined
                   }
-
-                  return (
-                    <FileAttachmentTile
-                      key={`guest-file:${item.id}:${String(m.path || '')}:${idx}:${renderIdx}`}
-                      item={m}
-                      isDark={isDark}
-                      isOutgoing={false}
-                      onPress={() => onOpenViewer(mediaList, idx)}
-                    />
-                  );
-                })}
+                  onPressFile={(idx) => onOpenViewer(mediaList, idx)}
+                />
               </View>
             ) : null}
           </View>

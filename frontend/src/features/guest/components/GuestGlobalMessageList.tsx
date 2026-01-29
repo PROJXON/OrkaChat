@@ -97,7 +97,10 @@ export function GuestGlobalMessageList({
       <View style={{ flex: 1 }} {...webOnWheelProps}>
         <FlatList
           // Web: don't hide the list when it's empty; otherwise we can hide the "Sign In..." empty CTA.
-          style={{ flex: 1, opacity: isWeb && !webPinned.ready && messageListData.length > 0 ? 0 : 1 }}
+          style={{
+            flex: 1,
+            opacity: isWeb && !webPinned.ready && messageListData.length > 0 ? 0 : 1,
+          }}
           data={messageListData}
           keyExtractor={(m) => m.id}
           inverted={!isWeb}

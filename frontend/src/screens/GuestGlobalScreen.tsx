@@ -6,12 +6,12 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import type { MediaViewerState } from '../components/MediaViewerModal';
 import { API_URL, CDN_URL } from '../config/env';
+import { useGuestAudioPlaybackForRender } from '../features/chat/audioPlaybackForRender';
 import {
-  type AudioQueueItem,
   audioTitleFromFileName,
+  buildAudioQueueFromMessages,
   isAudioContentType,
   makeAudioKey,
-  sortAudioQueue,
 } from '../features/chat/audioPlaybackQueue';
 import { useChatAudioPlayback } from '../features/chat/useChatAudioPlayback';
 import { useGlobalAboutOncePerVersion } from '../features/globalAbout/useGlobalAboutOncePerVersion';
@@ -349,81 +349,54 @@ export default function GuestGlobalScreen({
 
   // ---- Guest inline audio playback (same UI as signed-in chat) ----
   const guestAudioQueue = React.useMemo(() => {
-    const out: AudioQueueItem[] = [];
-    const msgsChrono = [...messages].sort(
-      (a, b) => (Number(a?.createdAt) || 0) - (Number(b?.createdAt) || 0),
-    );
-    let runSeq = 0;
-    let prevSenderKey: string | null = null;
-    let prevMsgHadAudio = false;
+    return buildAudioQueueFromMessages(messages, {
+      getCreatedAt: (msg) => Number((msg as { createdAt?: unknown })?.createdAt) || 0,
+      getSenderKey: (msg) => {
+        const m = msg as { userSub?: unknown; user?: unknown };
+        const sub = m?.userSub ? String(m.userSub) : '';
+        if (sub) return `sub:${sub}`;
+        const user = m?.user ? String(m.user).toLowerCase().trim() : '';
+        if (user) return `user:${user}`;
+        return 'anon';
+      },
+      getAudioItemsForMessage: (msg) => {
+        const m = msg as {
+          id?: unknown;
+          mediaList?: Array<{ contentType?: unknown; path?: unknown; fileName?: unknown }>;
+          media?: { contentType?: unknown; path?: unknown; fileName?: unknown };
+        };
+        const list = m.mediaList ? m.mediaList : m.media ? [m.media] : [];
+        if (!list.length) return [];
 
-    for (const msg of msgsChrono) {
-      const list = msg.mediaList ? msg.mediaList : msg.media ? [msg.media] : [];
-      const audioIdxs: number[] = [];
-      for (let i = 0; i < list.length; i++) {
-        const m = list[i];
-        if (isAudioContentType(m?.contentType)) audioIdxs.push(i);
-      }
-      if (!audioIdxs.length) {
-        prevMsgHadAudio = false;
-        prevSenderKey = null;
-        continue;
-      }
+        const out: Array<{
+          key: string;
+          idx: number;
+          title: string;
+          resolveUri: () => Promise<string>;
+        }> = [];
 
-      const senderKey = msg.userSub
-        ? `sub:${String(msg.userSub)}`
-        : msg.user
-          ? `user:${String(msg.user).toLowerCase().trim()}`
-          : 'anon';
-      if (!(prevMsgHadAudio && prevSenderKey === senderKey)) runSeq += 1;
-      const runKey = `${senderKey}:${runSeq}`;
-      prevSenderKey = senderKey;
-      prevMsgHadAudio = true;
-
-      for (let i = 0; i < list.length; i++) {
-        const m = list[i];
-        if (!isAudioContentType(m?.contentType)) continue;
-        const key = makeAudioKey(msg.id, m.path, i);
-        out.push({
-          key,
-          createdAt: Number(msg.createdAt) || 0,
-          idx: i,
-          title: audioTitleFromFileName(m.fileName, 'Audio'),
-          runKey,
-          resolveUri: async () => {
-            const url = await resolvePathUrl(String(m.path || ''));
-            if (!url) throw new Error('Missing media URL');
-            return url;
-          },
-        });
-      }
-    }
-    return sortAudioQueue(out);
+        for (let i = 0; i < list.length; i++) {
+          const it = list[i];
+          if (!isAudioContentType(it?.contentType)) continue;
+          const key = makeAudioKey(m.id, it.path, i);
+          out.push({
+            key,
+            idx: i,
+            title: audioTitleFromFileName(it.fileName, 'Audio'),
+            resolveUri: async () => {
+              const url = await resolvePathUrl(String(it?.path || ''));
+              if (!url) throw new Error('Missing media URL');
+              return url;
+            },
+          });
+        }
+        return out;
+      },
+    });
   }, [messages, resolvePathUrl]);
 
   const guestAudioPlayback = useChatAudioPlayback({ queue: guestAudioQueue });
-  const guestAudioPlaybackForRender = React.useMemo(
-    () => ({
-      ...guestAudioPlayback,
-      getKey: (msgId: string, idx: number, media: { path: string }) =>
-        makeAudioKey(msgId, media.path, idx),
-      onPress: async (key: string) => {
-        try {
-          await guestAudioPlayback.toggle(key);
-        } catch (e: unknown) {
-          const msg =
-            e instanceof Error
-              ? e.message || 'Could not play audio'
-              : typeof e === 'string'
-                ? e
-                : 'Could not play audio';
-          showAlert('Audio', msg);
-          console.warn('guest audio playback failed', e);
-        }
-      },
-    }),
-    [guestAudioPlayback, showAlert],
-  );
+  const guestAudioPlaybackForRender = useGuestAudioPlaybackForRender(guestAudioPlayback, showAlert);
 
   const reactionNameBySub = React.useMemo(() => {
     return reactionInfo.subs.reduce((acc: Record<string, string>, sub) => {

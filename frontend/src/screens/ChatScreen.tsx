@@ -17,12 +17,12 @@ import {
   pendingMediaFromImagePickerAssets,
   pendingMediaFromInAppCameraCapture,
 } from '../features/chat/attachments';
+import { useChatAudioPlaybackForRender } from '../features/chat/audioPlaybackForRender';
 import {
-  type AudioQueueItem,
   audioTitleFromFileName,
+  buildAudioQueueFromMessages,
   isAudioContentType,
   makeAudioKey,
-  sortAudioQueue,
 } from '../features/chat/audioPlaybackQueue';
 import { buildChatScreenMainProps } from '../features/chat/buildChatScreenMainProps';
 import { buildChatScreenOverlaysProps } from '../features/chat/buildChatScreenOverlaysProps';
@@ -1228,133 +1228,102 @@ export default function ChatScreen({
 
   // ---- Inline audio playback (Signal-style) ----
   const audioQueue = React.useMemo(() => {
-    const items: AudioQueueItem[] = [];
-
-    // Build autoplay "runs" in chronological order so "consecutive" matches the chat timeline.
-    const msgsChrono = [...messages].sort(
-      (a, b) => (Number(a?.createdAt) || 0) - (Number(b?.createdAt) || 0),
-    );
-    let runSeq = 0;
-    let prevSenderKey: string | null = null;
-    let prevMsgHadAudio = false;
-
-    for (const msg of msgsChrono) {
-      const isStillEncrypted = (!!msg.encrypted || !!msg.groupEncrypted) && !msg.decryptedText;
-      if (isStillEncrypted) {
-        // Important: encrypted-but-not-decrypted messages should still count as an "interrupt"
-        // for consecutive autoplay, otherwise the run won't break until the user decrypts.
-        prevMsgHadAudio = false;
-        prevSenderKey = null;
-        continue;
-      }
-
-      // Match renderer logic: plaintext chats can store attachments in a JSON envelope in rawText/text.
-      const env =
-        !msg.encrypted && !msg.groupEncrypted && !isDm
-          ? parseChatEnvelope(msg.rawText ?? msg.text)
-          : null;
-      const envMediaList = env ? normalizeChatMediaList(env.media) : [];
-      const list =
-        env && envMediaList.length
-          ? envMediaList
-          : msg.mediaList
-            ? msg.mediaList
-            : msg.media
-              ? [msg.media]
-              : [];
-      if (!list.length) {
-        // A text-only (or otherwise non-media) message breaks the run.
-        prevMsgHadAudio = false;
-        prevSenderKey = null;
-        continue;
-      }
-
-      const audioIdxs: number[] = [];
-      for (let i = 0; i < list.length; i++) {
-        const m = list[i];
-        if (isAudioContentType(m?.contentType)) audioIdxs.push(i);
-      }
-      if (!audioIdxs.length) {
-        // Any non-audio message breaks the "consecutive voice clips" run.
-        prevMsgHadAudio = false;
-        prevSenderKey = null;
-        continue;
-      }
-
-      const senderKey = msg.userSub
-        ? `sub:${String(msg.userSub)}`
-        : msg.userLower
-          ? `user:${normalizeUser(msg.userLower)}`
-          : msg.user
-            ? `user:${normalizeUser(msg.user)}`
-            : 'anon';
-
-      if (!(prevMsgHadAudio && prevSenderKey === senderKey)) {
-        runSeq += 1;
-      }
-      const runKey = `${senderKey}:${runSeq}`;
-      prevSenderKey = senderKey;
-      prevMsgHadAudio = true;
-
-      for (let i = 0; i < list.length; i++) {
-        const m = list[i];
-        if (!isAudioContentType(m?.contentType)) continue;
-
-        const key = makeAudioKey(msg.id, m.path, i);
-        const title = audioTitleFromFileName(m.fileName, 'Audio');
-
-        if (isDm) {
-          items.push({
-            key,
-            createdAt: Number(msg.createdAt) || 0,
-            idx: i,
-            title,
-            runKey,
-            resolveUri: async () => {
-              const env = parseDmMediaEnvelope(String(msg.decryptedText || ''));
-              const arr = normalizeDmMediaItems(env);
-              const it = arr[i];
-              if (!it) throw new Error('Missing audio attachment');
-              return await decryptDmFileToCacheUri(msg, it);
-            },
-          });
-          continue;
+    return buildAudioQueueFromMessages(messages, {
+      getCreatedAt: (msg) => Number(msg?.createdAt) || 0,
+      getSenderKey: (msg) => {
+        return msg.userSub
+          ? `sub:${String(msg.userSub)}`
+          : msg.userLower
+            ? `user:${normalizeUser(msg.userLower)}`
+            : msg.user
+              ? `user:${normalizeUser(msg.user)}`
+              : 'anon';
+      },
+      getAudioItemsForMessage: (msg) => {
+        const isStillEncrypted = (!!msg.encrypted || !!msg.groupEncrypted) && !msg.decryptedText;
+        if (isStillEncrypted) {
+          // Important: encrypted-but-not-decrypted messages should still count as an "interrupt"
+          // for consecutive autoplay, otherwise the run won't break until the user decrypts.
+          return [];
         }
 
-        if (isGroup) {
-          items.push({
+        // Match renderer logic: plaintext chats can store attachments in a JSON envelope in rawText/text.
+        const env =
+          !msg.encrypted && !msg.groupEncrypted && !isDm
+            ? parseChatEnvelope(msg.rawText ?? msg.text)
+            : null;
+        const envMediaList = env ? normalizeChatMediaList(env.media) : [];
+        const list =
+          env && envMediaList.length
+            ? envMediaList
+            : msg.mediaList
+              ? msg.mediaList
+              : msg.media
+                ? [msg.media]
+                : [];
+        if (!list.length) return [];
+
+        const out: Array<{
+          key: string;
+          idx: number;
+          title: string;
+          resolveUri: () => Promise<string>;
+        }> = [];
+
+        for (let i = 0; i < list.length; i++) {
+          const m = list[i];
+          if (!isAudioContentType(m?.contentType)) continue;
+
+          const key = makeAudioKey(msg.id, m.path, i);
+          const title = audioTitleFromFileName(m.fileName, 'Audio');
+
+          if (isDm) {
+            out.push({
+              key,
+              idx: i,
+              title,
+              resolveUri: async () => {
+                const env = parseDmMediaEnvelope(String(msg.decryptedText || ''));
+                const arr = normalizeDmMediaItems(env);
+                const it = arr[i];
+                if (!it) throw new Error('Missing audio attachment');
+                return await decryptDmFileToCacheUri(msg, it);
+              },
+            });
+            continue;
+          }
+
+          if (isGroup) {
+            out.push({
+              key,
+              idx: i,
+              title,
+              resolveUri: async () => {
+                const env = parseGroupMediaEnvelope(String(msg.decryptedText || ''));
+                const arr = normalizeGroupMediaItems(env);
+                const it = arr[i];
+                if (!it) throw new Error('Missing audio attachment');
+                return await decryptGroupFileToCacheUri(msg, it);
+              },
+            });
+            continue;
+          }
+
+          out.push({
             key,
-            createdAt: Number(msg.createdAt) || 0,
             idx: i,
             title,
-            runKey,
             resolveUri: async () => {
-              const env = parseGroupMediaEnvelope(String(msg.decryptedText || ''));
-              const arr = normalizeGroupMediaItems(env);
-              const it = arr[i];
-              if (!it) throw new Error('Missing audio attachment');
-              return await decryptGroupFileToCacheUri(msg, it);
+              const url = mediaUrlByPath[String(m.path || '')];
+              if (!url) throw new Error('Missing media URL');
+              return url;
             },
           });
-          continue;
         }
 
-        items.push({
-          key,
-          createdAt: Number(msg.createdAt) || 0,
-          idx: i,
-          title,
-          runKey,
-          resolveUri: async () => {
-            const url = mediaUrlByPath[String(m.path || '')];
-            if (!url) throw new Error('Missing media URL');
-            return url;
-          },
-        });
-      }
-    }
-
-    return sortAudioQueue(items);
+        return out;
+      },
+    });
   }, [
     decryptDmFileToCacheUri,
     decryptGroupFileToCacheUri,
@@ -1365,30 +1334,7 @@ export default function ChatScreen({
   ]);
 
   const audioPlayback = useChatAudioPlayback({ queue: audioQueue });
-  const audioPlaybackForRender = React.useMemo(
-    () => ({
-      ...audioPlayback,
-      getAudioKey: (msg: ChatMessage, idx: number, media: { path: string }) =>
-        makeAudioKey(msg.id, media.path, idx),
-      getAudioTitle: (media: { fileName?: string }) =>
-        audioTitleFromFileName(media.fileName, 'Audio'),
-      onPressAudio: async (args: { key: string }) => {
-        try {
-          await audioPlayback.toggle(args.key);
-        } catch (e: unknown) {
-          const msg =
-            e instanceof Error
-              ? e.message || 'Could not play audio'
-              : typeof e === 'string'
-                ? e
-                : 'Could not play audio';
-          showAlert('Audio', msg);
-          console.warn('audio playback failed', e);
-        }
-      },
-    }),
-    [audioPlayback, showAlert],
-  );
+  const audioPlaybackForRender = useChatAudioPlaybackForRender(audioPlayback, showAlert);
 
   const markMySeen = React.useCallback(
     (messageCreatedAt: number, readAt: number) => {

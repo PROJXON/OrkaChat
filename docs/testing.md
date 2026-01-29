@@ -1,0 +1,102 @@
+# Testing (Jest + Playwright)
+
+This repo uses **Jest** for unit/integration tests and **Playwright** for end‑to‑end (E2E) tests of the web build (RN Web).
+
+## Jest (unit/integration)
+
+Run from `frontend/`:
+
+```bash
+npm test
+```
+
+Useful variants:
+
+```bash
+npm run test:watch
+npm run test:ci
+```
+
+## Playwright (E2E)
+
+E2E tests live in `frontend/e2e/`:
+
+- `smoke.guest.spec.ts`: guest can load and open sign‑in modal
+- `auth.setup.spec.ts`: sign‑in (and recovery passphrase prompt), then save `storageState`
+- `smoke.signedin.spec.ts`: signed‑in user can send a message and survive a reload
+
+### Local: run E2E against a **static export**
+
+Playwright is most stable against a static export (`expo export`) rather than Metro.
+
+From `frontend/`:
+
+```bash
+# 1) Export web (staging) with a clean cache
+ORKA_ENV=staging \
+STAGING_API_URL="https://xvgh1xcxq4.execute-api.us-east-2.amazonaws.com/staging" \
+STAGING_WS_URL="wss://odi40ea4if.execute-api.us-east-2.amazonaws.com/staging" \
+npx expo export -p web --output-dir dist-staging --clear
+
+# 2) Serve the export
+npx http-server dist-staging -p 4173 -c-1
+```
+
+In another terminal, set E2E env vars:
+
+```bash
+export E2E_BASE_URL="http://127.0.0.1:4173"
+export E2E_EMAIL="your-staging-email"
+export E2E_PASSWORD="your-staging-password"
+export E2E_RECOVERY_PASSPHRASE="your-recovery-passphrase"
+```
+
+Run Playwright:
+
+```bash
+npm run e2e
+```
+
+Or interactive UI:
+
+```bash
+npm run e2e:ui
+```
+
+### Why `--clear` and `dist-staging` matter
+
+For RN Web builds, it’s easy to accidentally serve a bundle that still has **production** `API_URL/WS_URL` baked in (from `frontend/app.json`) even if you intended staging. The reliable pattern is:
+
+- export to a dedicated folder (`dist-staging`)
+- pass staging env vars
+- include `--clear` to avoid cached bundles
+
+### Auth state (`storageState`)
+
+`auth.setup.spec.ts` writes an auth state file:
+
+- `frontend/e2e/.auth/staging.json`
+
+This file is **local-only** and should not be committed (it’s ignored by `.gitignore`).
+
+## CI (GitHub Actions)
+
+The workflow `.github/workflows/frontend-ci.yml` includes an `e2e-web-staging` job that:
+
+- installs dependencies
+- installs Playwright Chromium
+- exports the web build with `--clear` to `dist-staging`
+- serves it on `127.0.0.1:4173`
+- runs `npx playwright test`
+- uploads `playwright-report/` and `test-results/` as artifacts
+
+### Required repo secrets
+
+Add these in GitHub:
+
+`Settings → Secrets and variables → Actions → New repository secret`
+
+- `E2E_EMAIL`
+- `E2E_PASSWORD`
+- `E2E_RECOVERY_PASSPHRASE`
+
