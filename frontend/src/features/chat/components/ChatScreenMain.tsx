@@ -259,17 +259,20 @@ export function ChatScreenMain({
           not just the message-list area below the header. */}
       {showListLoadingOverlay ? (
         <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-          }}
+          {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 50,
+            },
+            ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+          ]}
         >
           <ActivityIndicator size="large" color={appColors.appForeground} />
         </View>
@@ -422,17 +425,20 @@ export function ChatScreenMain({
             >
               {composer.composerBottomInsetBgHeight && composer.composerBottomInsetBgHeight > 0 ? (
                 <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    bottom: -composer.composerBottomInsetBgHeight,
-                    height: composer.composerBottomInsetBgHeight,
-                    backgroundColor: isDark
-                      ? APP_COLORS.dark.bg.header
-                      : APP_COLORS.light.bg.header,
-                  }}
+                  {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
+                  style={[
+                    {
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      bottom: -composer.composerBottomInsetBgHeight,
+                      height: composer.composerBottomInsetBgHeight,
+                      backgroundColor: isDark
+                        ? APP_COLORS.dark.bg.header
+                        : APP_COLORS.light.bg.header,
+                    },
+                    ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+                  ]}
                 />
               ) : null}
               <View

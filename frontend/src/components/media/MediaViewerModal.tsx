@@ -213,8 +213,10 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
               Keep pointerEvents disabled when chrome is visible so native <video> controls remain usable. */}
           {Platform.OS === 'web' ? (
             <Pressable
-              style={[StyleSheet.absoluteFillObject, { zIndex: 9 }]}
-              pointerEvents={chromeVisible ? 'none' : 'auto'}
+              style={[
+                StyleSheet.absoluteFillObject,
+                { zIndex: 9, pointerEvents: (chromeVisible ? 'none' : 'auto') as 'auto' | 'none' },
+              ]}
               onPress={() => showChromeBriefly()}
               accessibilityRole="button"
               accessibilityLabel="Show viewer controls"
@@ -229,7 +231,9 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                 : []),
               { height: 52 + insets.top, paddingTop: insets.top, opacity: chromeOpacity },
             ]}
-            pointerEvents={Platform.OS === 'web' ? undefined : chromeVisible ? 'auto' : 'none'}
+            {...(Platform.OS === 'web'
+              ? {}
+              : { pointerEvents: (chromeVisible ? 'auto' : 'none') as 'auto' | 'none' })}
           >
             {(() => {
               const vs = viewerState;
@@ -569,8 +573,8 @@ export function MediaViewerModal<S extends MediaViewerState = MediaViewerState>(
                       style={[
                         StyleSheet.absoluteFillObject,
                         { opacity: chromeOpacity, zIndex: 11 },
+                        { pointerEvents: 'box-none' as const },
                       ]}
-                      pointerEvents="box-none"
                     >
                       <Pressable
                         style={[styles.viewerNavBtn, styles.viewerNavLeft]}

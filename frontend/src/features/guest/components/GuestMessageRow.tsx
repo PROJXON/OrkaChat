@@ -495,7 +495,7 @@ export function GuestMessageRow({
                 // RN-web deprecates the pointerEvents prop; use style.pointerEvents on web.
                 ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
               ]}
-              pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+              {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
             >
               {reactionEntriesVisible.map(([emoji, info]) => (
                 <Pressable
@@ -608,7 +608,7 @@ export function GuestMessageRow({
                 styles.guestReactionOverlay,
                 ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
               ]}
-              pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+              {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
             >
               {reactionEntriesVisible.map(([emoji, info]) => (
                 <Pressable

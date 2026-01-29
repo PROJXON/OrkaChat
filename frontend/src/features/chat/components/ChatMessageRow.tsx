@@ -291,16 +291,19 @@ export function ChatMessageRow(props: {
       >
         {selectionActive ? (
           <View
-            pointerEvents="box-none"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 34,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
+            style={[
+              {
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 34,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+              ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
+            ]}
           >
             <Pressable
               onPress={onToggleSelected}
@@ -865,7 +868,7 @@ export function ChatMessageRow(props: {
                     isOutgoing ? styles.reactionOverlayOutgoing : styles.reactionOverlayIncoming,
                     ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
                   ]}
-                  pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+                  {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
                 >
                   {reactionEntriesVisible.slice(0, 3).map((r, idx) => {
                     const mine = myUserId ? r.userSubs.includes(myUserId) : false;
@@ -1372,7 +1375,7 @@ export function ChatMessageRow(props: {
                   isOutgoing ? styles.reactionOverlayOutgoing : styles.reactionOverlayIncoming,
                   ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
                 ]}
-                pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+                {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
               >
                 {reactionEntriesVisible.slice(0, 3).map((r, idx) => {
                   const mine = myUserId ? r.userSubs.includes(myUserId) : false;

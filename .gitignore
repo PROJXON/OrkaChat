@@ -36,6 +36,7 @@ frontend/android/
 frontend/.expo/
 frontend/.expo-shared/
 expo-env.d.ts
+frontend/eas-build-logs/
 
 # Android/Gradle artifacts (in case android/ is generated under frontend/)
 **/.gradle/

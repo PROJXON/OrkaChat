@@ -286,7 +286,6 @@ export default function App(): React.JSX.Element {
                     justifyContent: 'center',
                     backgroundColor: appColors.appBackground,
                     zIndex: 999,
-                    // RN-web: `pointerEvents` prop is deprecated; use style instead.
                     pointerEvents: 'auto',
                   }}
                 >

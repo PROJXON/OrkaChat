@@ -524,15 +524,18 @@ export function ChatComposer(props: {
       >
         {composerBottomInsetBgHeight && composerBottomInsetBgHeight > 0 ? (
           <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: -composerBottomInsetBgHeight,
-              height: composerBottomInsetBgHeight,
-              backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.header,
-            }}
+            {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
+            style={[
+              {
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: -composerBottomInsetBgHeight,
+                height: composerBottomInsetBgHeight,
+                backgroundColor: isDark ? APP_COLORS.dark.bg.header : APP_COLORS.light.bg.header,
+              },
+              ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
+            ]}
           />
         ) : null}
         <View

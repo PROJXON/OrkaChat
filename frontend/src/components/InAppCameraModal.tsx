@@ -430,7 +430,7 @@ export function InAppCameraModal({
               videoQuality={mode === 'video' ? '1080p' : undefined}
               onCameraReady={() => setCameraReady(true)}
               // On some Android setups the camera surface can swallow touches; ensure overlays stay clickable.
-              pointerEvents={Platform.OS === 'web' ? undefined : 'none'}
+              {...(Platform.OS === 'web' ? {} : { pointerEvents: 'none' as const })}
               style={[
                 styles.preview,
                 ...(Platform.OS === 'web' ? [{ pointerEvents: 'none' as const }] : []),
@@ -459,7 +459,7 @@ export function InAppCameraModal({
             styles.overlay,
             ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
           ]}
-          pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+          {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
         >
           <View
             style={[
@@ -499,7 +499,7 @@ export function InAppCameraModal({
                 styles.centerTitleWrap,
                 ...(Platform.OS === 'web' ? [{ pointerEvents: 'box-none' as const }] : []),
               ]}
-              pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+              {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
             >
               <Text style={styles.title}>Camera</Text>
             </View>
@@ -527,7 +527,7 @@ export function InAppCameraModal({
                 paddingBottom: 12 + insets.bottom,
               },
             ]}
-            pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+            {...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
           >
             <View
               style={[
