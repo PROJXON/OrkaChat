@@ -123,7 +123,7 @@ export function useRecoveryFlow({
     }
     const blob = await fetchRecoveryBlob(token);
     if (!blob) {
-      await promptAlert('No recovery backup', 'No recovery backup was found for your account.');
+      await promptAlert('No recovery backup', 'No recovery backup was found for your account');
       return;
     }
 
@@ -237,7 +237,7 @@ export function useRecoveryFlow({
       await uploadRecoveryBlob(token, kp.privateKey, pass);
       setHasRecoveryBlob(true);
       setRecoveryBlobKnown(true);
-      await promptAlert('Recovery set up', 'A recovery passphrase has been set for your account.');
+      await promptAlert('Recovery set up', 'A recovery passphrase has been set for your account');
     } catch {
       // cancelled
     } finally {
