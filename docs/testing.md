@@ -86,6 +86,11 @@ Playwright `globalSetup` writes an auth state file:
 
 This file is **local-only** and should not be committed (it’s ignored by `.gitignore`).
 
+### Staging Amplify outputs file (required for CI)
+
+The staging web build imports `frontend/amplify_outputs.web.staging.json` (used by `App.tsx` when `ORKA_ENV=staging`).
+This file should be committed so GitHub Actions can bundle the staging build during `expo export`.
+
 ## CI (GitHub Actions)
 
 The workflow `.github/workflows/frontend-ci.yml` includes an `e2e-web-staging` job that:

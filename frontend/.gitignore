@@ -7,3 +7,4 @@ amplifyconfiguration*
 # Allow committing the web/prod outputs file (used by Amplify Hosting) while still
 # ignoring local/sandbox outputs.
 !amplify_outputs.web.json
+!amplify_outputs.web.staging.json

@@ -54,3 +54,7 @@ frontend/eas-build-logs/
 frontend/e2e/.auth/
 frontend/test-results/
 frontend/dist-staging/
+
+# Allow committing staging web outputs (used by CI E2E)
+!frontend/amplify_outputs.web.json
+!frontend/amplify_outputs.web.staging.json
